@@ -2,6 +2,8 @@
 
 A browser-based software PLC that aims at IEC 61131-3 compliance.
 
+See the [architecture overview](docs/architecture.md) for the package structure and design decisions.
+
 ## Development
 
 Requirements: Node.js LTS (22 or later) and pnpm (the version is pinned in `package.json`;

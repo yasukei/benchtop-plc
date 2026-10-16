@@ -3,3 +3,15 @@ coverage/
 pnpm-lock.yaml
 # Content is specified verbatim by issue #2.
 AGENTS.md
+# Content is specified verbatim by issue #17.
+docs/architecture.md
+docs/adr/README.md
+docs/adr/template.md
+docs/adr/0001-monorepo-packages-and-dependency-direction.md
+docs/adr/0002-tree-shaped-ir-as-plain-data.md
+docs/adr/0003-injected-clock.md
+docs/adr/0004-diagnostics-as-codes-with-arguments.md
+docs/adr/0005-system-level-emergency-stop.md
+docs/adr/0006-plcopen-xml-project-format.md
+docs/adr/0007-react-ui-with-logic-outside-components.md
+docs/adr/0008-english-and-japanese-from-the-start.md
