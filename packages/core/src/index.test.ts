@@ -90,7 +90,11 @@ it("describes every protocol command and event as plain data", () => {
     { type: "write", variable: 1, value: { dataType: "TIME", value: 500 } },
     { type: "estop", active: true },
   ];
-  const diagnostic: Diagnostic = { code: "runtime.example", severity: "error", args: { limit: 1 } };
+  const diagnostic: Diagnostic = {
+    code: "runtime.watchdog",
+    severity: "error",
+    args: { limit: 1 },
+  };
   const events: RuntimeToUiMessage[] = [
     ...(["STOP", "RUN", "ESTOP", "FAULT"] as const).map((state) => ({
       type: "state" as const,

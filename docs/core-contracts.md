@@ -102,9 +102,10 @@ in the scan: a single assignment result, or the FB's outputs in descriptor order
 previous values; it does not append executions or flatten FB output arrays.
 Arrays preserve JSON transport instead of using Set or Map.
 
-Fault events carry the minimal code/severity/arguments/span `Diagnostic` envelope.
-Issue #4 will specialize that envelope into a code/argument discriminated union;
-no diagnostic codes or localized message text are introduced here.
+Fault events carry a `Diagnostic` discriminated by its stable `code`, with a
+code-specific `args` object, severity and optional source span. The codes and
+argument conventions are documented in [diagnostics.md](diagnostics.md). Localized
+message text belongs to the UI catalog.
 
 Follow-up for issue #10: define non-fatal command-rejection feedback (for example,
 a `rejected` event carrying the command type and a diagnostic), updating core and
