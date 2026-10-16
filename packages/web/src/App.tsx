@@ -113,6 +113,11 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
           {text[banner.key]}
           {state.diagnostic && <p>{formatDiagnostic(language, state.diagnostic)}</p>}
         </div>
+        {state.rejection && (
+          <div className="banner" role="alert" data-urgent="false">
+            {formatDiagnostic(language, state.rejection.diagnostic)}
+          </div>
+        )}
         <div className="workspace">
           <section className="panel editor" aria-labelledby="editor-title">
             <div className="panel-heading">

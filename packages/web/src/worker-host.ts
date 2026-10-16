@@ -1,5 +1,5 @@
 import type { IoImage, RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
-import { createRuntime } from "@benchtop-plc/runtime";
+import { createRuntime, RuntimeCommandRejected } from "@benchtop-plc/runtime";
 import type { Clock, Ticker } from "@benchtop-plc/runtime";
 import { cycleOptions, type CycleMs } from "./store.js";
 
@@ -53,7 +53,7 @@ export function createWorkerHost(
           runtime.stop();
           break;
         case "step":
-          if (runtime.state === "STOP") runtime.scanOnce();
+          runtime.step();
           break;
         case "coldReset":
           runtime.coldReset();
@@ -74,10 +74,16 @@ export function createWorkerHost(
             start();
           }
           break;
-        // The debug API is implemented in a later issue; never silently accept a write.
         case "force":
         case "write":
-          throw new Error("Runtime debugging is not available yet");
+          try {
+            if (message.type === "force") runtime.force(message.variable, message.value);
+            else runtime.write(message.variable, message.value);
+          } catch (error) {
+            if (!(error instanceof RuntimeCommandRejected)) throw error;
+            post({ type: "rejected", command: message.type, diagnostic: error.diagnostic });
+          }
+          break;
       }
       publish();
     },

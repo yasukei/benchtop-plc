@@ -12,7 +12,7 @@ and may carry a `SourceSpan` (one-based positions, exclusive end).
 Codes use `<category>.<lower-kebab-case-reason>`. Categories are `lex` (lexing),
 `syntax` (parsing), `decl` (declarations), `name` (name resolution), `type` (type
 checking), `flow` (control flow), `fb` (function blocks), `call` (function calls)
-and `runtime` (execution faults). Codes and argument keys are stable identifiers:
+and `runtime` (execution faults and command rejections). Codes and argument keys are stable identifiers:
 do not rename or repurpose an existing code. Add a new code for a new meaning and
 update this table, tests and every UI catalog when catalogs are available.
 
@@ -127,6 +127,19 @@ as syntax errors.
 | `runtime.division-by-zero`       | Division or MOD has a zero divisor                   | `{}`                                                                                             |
 | `runtime.watchdog`               | Loop iteration limit exceeded                        | `{ limit: number }`                                                                              |
 | `runtime.for-by-zero`            | FOR step evaluates to zero                           | `{}`                                                                                             |
+| `runtime.debug-target`           | Debug command target is not a loaded scalar          | `{}`                                                                                             |
+| `runtime.debug-type-mismatch`    | Debug value type differs from the declaration        | `{ from: DataType; to: DataType }`                                                               |
+| `runtime.debug-value`            | Invalid debug value, non-finite value or overflow    | `{}`                                                                                             |
+| `runtime.write-input-mapped`     | One-shot write targets an input-mapped variable      | `{ name: string }`                                                                               |
+
+`CommandRejectionCode` selects the four debug-command codes above. They are sent
+in non-fatal `rejected` events with the originating `force` or `write` command,
+not PLC `fault` events. Rejections have severity `error` but do not change the
+operating state or a latched execution diagnostic. `debug-target` uses no ID
+argument because an invalid ID can be non-finite and must not enter JSON data.
+`debug-type-mismatch` uses `from` for the supplied value type and `to` for the
+declaration type; `write-input-mapped.name` retains the declaration's spelling.
+The web catalogs render all four codes in English and Japanese.
 
 The enclosing `Diagnostic.span` identifies the offending token/expression/member
 or loop when source information is available. For a missing terminator or EOF,

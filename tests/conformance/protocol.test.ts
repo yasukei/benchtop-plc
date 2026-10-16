@@ -1,5 +1,19 @@
-import type { RuntimeSnapshot, SourceSpan } from "@benchtop-plc/core";
+import type { CommandRejectionMessage, RuntimeSnapshot, SourceSpan } from "@benchtop-plc/core";
 import { expect, it } from "vitest";
+
+it("transports a non-fatal rejection with its command and diagnostic independently of state", () => {
+  const rejection: CommandRejectionMessage = {
+    type: "rejected",
+    command: "write",
+    diagnostic: {
+      code: "runtime.write-input-mapped",
+      severity: "error",
+      args: { name: "button" },
+    },
+  };
+  expect(structuredClone(rejection)).toEqual(rejection);
+  expect(JSON.parse(JSON.stringify(rejection))).toEqual(rejection);
+});
 
 it("transports statement identity and final loop-call outputs without positional placeholders", () => {
   const lines = [

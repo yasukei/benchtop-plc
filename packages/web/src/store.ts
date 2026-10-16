@@ -1,6 +1,7 @@
 import { compile } from "@benchtop-plc/compiler";
 import { demoSource } from "./demo.js";
 import type {
+  CommandRejectionMessage,
   Diagnostic,
   RuntimeSnapshot,
   RuntimeState,
@@ -19,6 +20,7 @@ export interface AppState {
   runtimeState: RuntimeState;
   snapshot: RuntimeSnapshot | null;
   diagnostic: Diagnostic | null;
+  rejection: CommandRejectionMessage | null;
   cycleMs: CycleMs;
   connection: "connected" | "failed" | "closed";
 }
@@ -33,6 +35,7 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
+    rejection: null,
     cycleMs: 10,
     connection: "connected",
   };
@@ -61,6 +64,9 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
       case "fault":
         update({ diagnostic: event.diagnostic });
         break;
+      case "rejected":
+        update({ rejection: event });
+        break;
       case "connectionError":
         update({ connection: "failed" });
         break;
@@ -80,7 +86,7 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
     const result = compileEditor();
     if (!result.ir) return false;
     pendingLoads.push(state.source);
-    update({ snapshot: null, diagnostic: null });
+    update({ snapshot: null, diagnostic: null, rejection: null });
     client.send({ type: "load", ir: result.ir });
     return true;
   };
@@ -97,6 +103,7 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
       if (state.connection !== "connected" || pendingLoads.length) return;
       if (state.runtimeState !== "STOP" && state.runtimeState !== "RUN") return;
       if (state.source !== state.loadedSource && !loadEditor()) return;
+      if (state.rejection) update({ rejection: null });
       client.send({ type: "run" });
     },
     setTheme(theme: AppState["theme"]) {
@@ -110,6 +117,7 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
     },
     send(message: UiToRuntimeMessage) {
       if (state.connection !== "connected") return;
+      if (state.rejection) update({ rejection: null });
       if (message.type === "setCycle") {
         if (!cycleOptions.includes(message.ms as CycleMs))
           throw new RangeError("Unsupported cycle");

@@ -102,6 +102,15 @@ it("describes every protocol command and event as plain data", () => {
     })),
     { type: "fault", diagnostic },
     {
+      type: "rejected",
+      command: "write",
+      diagnostic: {
+        code: "runtime.write-input-mapped",
+        severity: "error",
+        args: { name: "input" },
+      },
+    },
+    {
       type: "snapshot",
       snapshot: {
         scanCount: 1,

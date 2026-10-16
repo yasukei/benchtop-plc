@@ -1,4 +1,4 @@
-import type { Diagnostic } from "./diagnostic.js";
+import type { CommandRejectionCode, Diagnostic } from "./diagnostic.js";
 import type { IoBit, ProgramIR, VariableId } from "./ir.js";
 import type { SourceSpan } from "./source.js";
 import type { TypedValue } from "./values.js";
@@ -48,7 +48,14 @@ export interface RuntimeSnapshot {
   annotations: Record<number, StatementAnnotation[]>;
 }
 
+export interface CommandRejectionMessage {
+  type: "rejected";
+  command: "force" | "write";
+  diagnostic: Diagnostic<CommandRejectionCode>;
+}
+
 export type RuntimeToUiMessage =
   | { type: "state"; state: RuntimeState }
   | { type: "snapshot"; snapshot: RuntimeSnapshot }
-  | { type: "fault"; diagnostic: Diagnostic };
+  | { type: "fault"; diagnostic: Diagnostic }
+  | CommandRejectionMessage;
