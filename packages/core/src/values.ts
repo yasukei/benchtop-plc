@@ -85,12 +85,22 @@ export function formatTime(value: number): string {
   return `T#${milliseconds < 0 ? "-" : ""}${parts || "0ms"}`;
 }
 
+/** Fewest significant digits that round back to the same finite binary32 value. */
+function shortestReal(value: number): string {
+  for (let precision = 1; precision < 9; precision++) {
+    const candidate = Number(value.toPrecision(precision));
+    if (Math.fround(candidate) === value) return String(candidate);
+  }
+  // Nine significant decimal digits suffice for every binary32 value.
+  return String(Number(value.toPrecision(9)));
+}
+
 /** IEC value syntax, independent of the UI's language or locale. */
 export function formatValue<T extends DataType>(dataType: T, value: ValueByType[T]): string {
   const coerced = coerceValue(dataType, value);
   if (dataType === "BOOL") return coerced ? "TRUE" : "FALSE";
   if (dataType === "TIME") return formatTime(Number(coerced));
-  const text = String(coerced);
+  const text = dataType === "REAL" ? shortestReal(Number(coerced)) : String(coerced);
   if (dataType !== "REAL" && dataType !== "LREAL") return text;
   const [mantissa = "0", exponent] = text.split("e");
   const decimal = mantissa.includes(".") ? mantissa : `${mantissa}.0`;

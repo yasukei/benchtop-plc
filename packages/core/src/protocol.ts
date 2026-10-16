@@ -1,5 +1,6 @@
 import type { Diagnostic } from "./diagnostic.js";
 import type { IoBit, ProgramIR, VariableId } from "./ir.js";
+import type { SourceSpan } from "./source.js";
 import type { TypedValue } from "./values.js";
 
 export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT";
@@ -24,7 +25,9 @@ export type VariableSnapshot =
   | { kind: "functionBlock"; inputs: TypedValue[]; outputs: TypedValue[] };
 
 export interface StatementAnnotation {
-  /** Assignment result, or FB outputs; arrays also represent repeated execution on one line. */
+  /** Full span of the assignment or FB call, independent of its position in the line's array. */
+  span: SourceSpan;
+  /** Last execution in this scan: one assignment result, or FB outputs in descriptor order. */
   values: TypedValue[];
 }
 
@@ -37,7 +40,11 @@ export interface RuntimeSnapshot {
   variables: VariableSnapshot[];
   /** Variable IDs, encoded as an array rather than a Set for JSON transport. */
   forced: VariableId[];
-  /** One-based source line; multiple statements on a line retain separate annotations. */
+  /**
+   * Keyed by span.line, sorted by span.column within each line. One entry per executed
+   * assignment/FB call, retaining only its last execution's values in this scan.
+   * Unexecuted statements and lines with no entries are omitted; no prior-scan values remain.
+   */
   annotations: Record<number, StatementAnnotation[]>;
 }
 

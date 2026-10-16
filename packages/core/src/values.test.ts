@@ -145,6 +145,31 @@ describe("IEC value formatting", () => {
     expect(formatValue("DINT", 2147483648)).toBe("-2147483648");
   });
 
+  it.each([
+    [0.1, "0.1"],
+    [1.337, "1.337"],
+    [3.14, "3.14"],
+    [-0.1, "-0.1"],
+    [-3.14, "-3.14"],
+    [16777217, "16777216.0"],
+    [100000024, "100000024.0"],
+    [1e21, "1.0e+21"],
+    [1e-8, "1.0e-8"],
+    [Math.fround(3.4028234663852886e38), "3.4028235e+38"],
+    [2 ** -126, "1.1754944e-38"],
+    [2 ** -149, "1.0e-45"],
+  ])("formats REAL %s without float32 display artifacts", (value, expected) => {
+    const formatted = formatValue("REAL", value);
+    expect(formatted).toBe(expected);
+    expect(Math.fround(Number(formatted))).toBe(Math.fround(value));
+  });
+
+  it("retains LREAL precision independently of REAL formatting", () => {
+    expect(formatValue("LREAL", 1.0000000000000002)).toBe("1.0000000000000002");
+    expect(formatValue("LREAL", Math.fround(0.1))).toBe("0.10000000149011612");
+    expect(formatValue("REAL", 1.0000000000000002)).toBe("1.0");
+  });
+
   it.each(["REAL", "LREAL"] as const)("always includes a decimal point for %s", (dataType) => {
     expect(formatValue(dataType, 1)).toBe("1.0");
     expect(formatValue(dataType, -0)).toBe("0.0");

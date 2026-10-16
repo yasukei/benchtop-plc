@@ -32,6 +32,9 @@ decimal integers, a decimal point for REAL/LREAL (also in an exponent's mantissa
 and TIME as `T#1s500ms`. `formatTime` emits d/h/m/s/ms in descending order, omits
 zero components, uses `T#0ms` for zero, and places a minus sign after `T#` for
 negative durations. Formatting coerces the value to its declared type first.
+REAL uses the fewest significant decimal digits (at most nine) that round back to
+the same binary32 value, so `0.1` displays as `0.1` rather than
+`0.10000000149011612`. LREAL retains JavaScript's shortest binary64 representation.
 
 ## Tree IR
 
@@ -85,10 +88,26 @@ issues, not in the transport types.
 Snapshots contain scan count, last execution time in milliseconds, eight-bit input
 and output tuples, values aligned with the variable table (including FB input and
 output arrays in descriptor order), forced variable IDs, and annotations keyed by
-one-based source line. Each line can contain multiple statement annotations;
-each annotation holds typed values (assignment result or FB outputs). Arrays
-preserve JSON transport instead of using Set or Map.
+one-based source line. Each annotation contains the full `span` of its assignment
+or FB call, so consumers identify statements by source location rather than array
+position. Entries are grouped by `span.line` and sorted by `span.column` on each
+line. Only statements executed in the current scan are included; unexecuted
+statements have no placeholder, empty lines are omitted, and prior-scan values
+are not retained.
+
+A snapshot is delivered after the scan, with one annotation per executed
+assignment or FB call. Its `values` are captured at that statement's last execution
+in the scan: a single assignment result, or the FB's outputs in descriptor order
+(for TON, `[Q, ET]`). Repeated execution in a loop replaces that statement's
+previous values; it does not append executions or flatten FB output arrays.
+Arrays preserve JSON transport instead of using Set or Map.
 
 Fault events carry the minimal code/severity/arguments/span `Diagnostic` envelope.
 Issue #4 will specialize that envelope into a code/argument discriminated union;
 no diagnostic codes or localized message text are introduced here.
+
+Follow-up for issue #10: define non-fatal command-rejection feedback (for example,
+a `rejected` event carrying the command type and a diagnostic), updating core and
+all consumers together. Rejection of a write to an input-mapped variable must not
+be reported as a PLC `fault`; `step` outside STOP remains ignored as specified in
+#10. This PR does not add a rejection event or command-handling behavior.

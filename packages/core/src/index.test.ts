@@ -8,6 +8,7 @@ import type {
   RuntimeToUiMessage,
   ScalarVariable,
   SourceSpan,
+  StatementAnnotation,
   TypedValue,
   UiToRuntimeMessage,
 } from "./index.js";
@@ -17,6 +18,7 @@ it("exports typed contracts through the package entry point", () => {
   const literal: LiteralExpression = { kind: "literal", dataType: "BOOL", value: true, span };
   expectTypeOf(literal.value).toEqualTypeOf<boolean>();
   expectTypeOf<ProgramIR["span"]>().toEqualTypeOf<SourceSpan>();
+  expectTypeOf<StatementAnnotation>().toExtend<{ span: SourceSpan }>();
 
   // These assertions are checked by tsc as well as by Vitest's runtime test.
   // @ts-expect-error BOOL values cannot be numeric.
@@ -113,8 +115,14 @@ it("describes every protocol command and event as plain data", () => {
         forced: [0],
         annotations: {
           1: [
-            { values: [{ dataType: "BOOL", value: true }] },
-            { values: [{ dataType: "INT", value: 2 }] },
+            {
+              span: { line: 1, column: 1, endLine: 1, endColumn: 8 },
+              values: [{ dataType: "BOOL", value: true }],
+            },
+            {
+              span: { line: 1, column: 9, endLine: 1, endColumn: 16 },
+              values: [{ dataType: "INT", value: 2 }],
+            },
           ],
         },
       },
