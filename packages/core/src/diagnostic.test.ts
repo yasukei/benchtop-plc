@@ -2,6 +2,12 @@ import { expect, expectTypeOf, it } from "vitest";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceSpan } from "./index.js";
 
 const examples = {
+  "project.invalid-xml": {},
+  "project.missing": { path: "project/types" },
+  "project.unsupported": { path: "project/types/dataTypes" },
+  "project.invalid": { path: "project/task/@interval" },
+  "project.dropped-data": { name: "https://vendor.example/data" },
+  "project.stale-source": {},
   "lex.unterminated-comment": {},
   "lex.invalid-character": { character: "@" },
   "lex.malformed-direct-address": { address: "%IX0." },
