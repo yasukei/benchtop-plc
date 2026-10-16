@@ -1,0 +1,97 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Initial counts",
+      "scans": 1,
+      "expect": {
+        "Up.CV": 0,
+        "Up.Q": false,
+        "Down.CV": 0,
+        "Down.Q": true
+      }
+    },
+    {
+      "label": "Load down counter",
+      "set": {
+        "Load": true
+      },
+      "scans": 1,
+      "expect": {
+        "Down.CV": 2,
+        "Down.Q": false
+      }
+    },
+    {
+      "label": "First edge",
+      "set": {
+        "Load": false,
+        "Edge": true
+      },
+      "scans": 1,
+      "expect": {
+        "Up.CV": 1,
+        "Down.CV": 1
+      }
+    },
+    {
+      "label": "Held edge counts once",
+      "scans": 3,
+      "expect": {
+        "Up.CV": 1,
+        "Down.CV": 1
+      }
+    },
+    {
+      "label": "Release edge",
+      "set": {
+        "Edge": false
+      },
+      "scans": 1,
+      "expect": {
+        "Up.CV": 1,
+        "Down.CV": 1
+      }
+    },
+    {
+      "label": "Second edge reaches thresholds",
+      "set": {
+        "Edge": true
+      },
+      "scans": 1,
+      "expect": {
+        "Up.CV": 2,
+        "Up.Q": true,
+        "Down.CV": 0,
+        "Down.Q": true
+      }
+    },
+    {
+      "label": "Reset and load take priority",
+      "set": {
+        "Reset": true,
+        "Load": true
+      },
+      "scans": 1,
+      "expect": {
+        "Up.CV": 0,
+        "Up.Q": false,
+        "Down.CV": 2,
+        "Down.Q": false
+      }
+    },
+    {
+      "label": "Release controls on held high does not count",
+      "set": {
+        "Reset": false,
+        "Load": false
+      },
+      "scans": 1,
+      "expect": {
+        "Up.CV": 0,
+        "Down.CV": 2
+      }
+    }
+  ]
+}

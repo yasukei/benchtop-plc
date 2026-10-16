@@ -1,0 +1,4 @@
+PROGRAM Bad
+VAR Flag : BOOL; END_VAR
+Flag := 1;
+END_PROGRAM

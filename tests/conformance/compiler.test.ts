@@ -90,6 +90,4 @@ describe("reference program compilation", () => {
     walk(ir);
     expect(annotationLines).toEqual([17, 20, 21, 22, 25, 27, 31, 34]);
   });
-
-  it.todo("executes compiled reference IR in the runtime interpreter once issue #8 is merged");
 });

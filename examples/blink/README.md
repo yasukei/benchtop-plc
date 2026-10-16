@@ -1,0 +1,22 @@
+# Blink reference project
+
+`project.xml` is a PLCopen TC6 v2.01 project with one ST program (`Main`) and a
+10 ms cyclic task. Its source matches `tests/conformance/reference/program.st`.
+
+| Address  | Name    | Behavior                                 |
+| -------- | ------- | ---------------------------------------- |
+| `%IX0.0` | StartPB | Momentary start; latches Running         |
+| `%IX0.1` | StopPB  | Stops running; takes priority over start |
+| `%IX0.2` | ResetPB | Clears Blinks and Alarm                  |
+| `%QX0.0` | Running | Latched running state                    |
+| `%QX0.1` | Lamp    | Blinks with 500 ms on/off timers         |
+| `%QX0.2` | Alarm   | True after 10 rising lamp edges          |
+
+The counter persists on stop; use ResetPB to clear it. StopPB is a program input;
+the runtime's system emergency stop is a separate mechanism. The project has no
+panel layout; a host can import it using `@benchtop-plc/project`'s `readProject`.
+
+`pnpm test tests/conformance/traces.test.ts` loads this XML, compiles its source,
+and runs the same trace as the ST reference case. See
+[`tests/conformance/README.md`](../../tests/conformance/README.md) for the trace
+format and scan timing.
