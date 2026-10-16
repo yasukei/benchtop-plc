@@ -133,6 +133,9 @@ Q when CV <= 0 (including its initial zero state). Counts continue beyond PV/zer
 and saturate at the INT limits, 32767/-32768. Reset/load takes priority over an
 edge but still samples CU/CD, so releasing it at a held-high level does not count.
 Counters initially remember FALSE, so an initial TRUE counts unless reset/loading.
+This difference from R_TRIG is intentional: counters retain FALSE-initialized edge
+memory, while issue #9 explicitly requires first-call pulse suppression for the
+standalone R_TRIG/F_TRIG blocks. Cold reset restores each block's own startup rule.
 
 ABS, MIN, MAX and LIMIT operate on numeric values. LIMIT(MN, IN, MX) evaluates
 `MIN(MAX(IN, MN), MX)`, including when bounds are reversed. SEL(G, IN0, IN1)

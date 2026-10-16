@@ -148,6 +148,21 @@ describe("standard-library ST conformance", () => {
     expect(scan()).toMatchObject({ u: 0, d: 0, qu: false, qd: true });
   });
 
+  it("counts an initially high counter input once after load and cold reset while R_TRIG stays quiet", () => {
+    const { scan, runtime } = setup(
+      "up : CTU; down : CTD; trig : R_TRIG; sensor : BOOL; u, d : INT; pulse : BOOL;",
+      `up(CU := sensor, R := FALSE, PV := 10); down(CD := sensor, LD := FALSE, PV := 10);
+       trig(CLK := sensor); u := up.CV; d := down.CV; pulse := trig.Q;`,
+    );
+    expect(scan({ sensor: true })).toMatchObject({ u: 1, d: -1, pulse: false });
+    expect(scan()).toMatchObject({ u: 1, d: -1, pulse: false });
+    scan({ sensor: false });
+    expect(scan({ sensor: true })).toMatchObject({ u: 2, d: -2, pulse: true });
+    runtime.coldReset();
+    expect(scan({ sensor: true })).toMatchObject({ u: 1, d: -1, pulse: false });
+    expect(scan()).toMatchObject({ u: 1, d: -1, pulse: false });
+  });
+
   it.each([
     ["INT", "ABS(-32768)", -32768],
     ["DINT", "ABS(-2147483648)", -2147483648],

@@ -127,6 +127,29 @@ describe("edge detectors", () => {
 });
 
 describe("INT counters", () => {
+  it.each([
+    ["CTU", "CU", false, 1],
+    ["CTD", "CD", true, -1],
+  ] as const)("%s counts an initial TRUE once", (type, input, q, count) => {
+    const { scan } = setup(type);
+    expect(scan({ [input]: true, PV: 10 })).toEqual([q, count]);
+    expect(scan()).toEqual([q, count]);
+    scan({ [input]: false });
+    expect(scan({ [input]: true })).toEqual([q, count * 2]);
+  });
+
+  it.each([
+    ["CTU", "CU", "R", false, 0],
+    ["CTD", "CD", "LD", false, 10],
+  ] as const)(
+    "%s gives reset/load priority over an initial TRUE",
+    (type, input, control, q, count) => {
+      const { scan } = setup(type);
+      expect(scan({ [input]: true, [control]: true, PV: 10 })).toEqual([q, count]);
+      expect(scan({ [control]: false })).toEqual([q, count]);
+    },
+  );
+
   it("CTU counts rising edges through PV, with reset priority and retained edge history", () => {
     const { scan } = setup("CTU");
     expect(scan({ PV: 2 })).toEqual([false, 0]);
