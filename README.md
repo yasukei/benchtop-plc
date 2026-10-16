@@ -1,1 +1,29 @@
 # benchtop-plc
+
+A browser-based software PLC that aims at IEC 61131-3 compliance.
+
+## Development
+
+Requirements: Node.js LTS (22 or later) and pnpm (the version is pinned in `package.json`;
+run `corepack enable` to use it).
+
+```sh
+pnpm install
+pnpm typecheck   # TypeScript, strict mode
+pnpm lint        # ESLint, dependency direction (dependency-cruiser), Prettier check
+pnpm test        # unit and conformance tests (Vitest)
+```
+
+Other scripts:
+
+- `pnpm dev` – start the web app
+- `pnpm build` – build every package
+- `pnpm format` – format all files with Prettier
+- `pnpm test:e2e` – end-to-end tests (Playwright)
+
+The repository is a pnpm workspace. Packages live in `packages/` (`core`, `compiler`,
+`runtime`, `project`, `web`); language conformance tests live in `tests/conformance/`.
+Dependencies point inward, `web → compiler | runtime | project → core` (and
+`project → compiler`); `pnpm lint` rejects imports in the other direction.
+
+Contributor and agent conventions are in [`AGENTS.md`](AGENTS.md).
