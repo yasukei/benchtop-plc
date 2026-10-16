@@ -747,3 +747,52 @@ it("turns off outputs on host failures and propagates configuration errors", () 
   expect(runtime.state).toBe("FAULT");
   expect(runtime.snapshot().outputs[0]).toBe(false);
 });
+
+it("keeps closure-owned FB outputs live across scans while coercing and annotating them", () => {
+  const outputs = [{ dataType: "INT" as const, value: 0 }];
+  let calls = 0;
+  const { runtime } = setup(
+    program(
+      [
+        { kind: "fbCall", variable: 1, inputs: [], span: at(2) },
+        assign(
+          0,
+          { kind: "fbMember", variable: 1, port: "output", member: 0, dataType: "INT", span },
+          3,
+        ),
+      ],
+      [
+        scalar("n"),
+        {
+          kind: "functionBlock",
+          name: "counter",
+          key: "COUNTER",
+          fbType: "CTU",
+          initialValue: null,
+          span,
+        },
+      ],
+    ),
+    {
+      library: {
+        callFunction: () => 0,
+        createFunctionBlock: () => ({
+          inputs: [],
+          outputs,
+          execute: () => {
+            outputs[0] = { dataType: "INT", value: 32767 + ++calls };
+          },
+        }),
+      },
+    },
+  );
+  for (const expected of [-32768, -32767, -32766]) {
+    const snapshot = runtime.scanOnce();
+    expect(value(snapshot)).toBe(expected);
+    expect(snapshot.annotations[2]?.[0]?.values).toEqual([{ dataType: "INT", value: expected }]);
+    expect(snapshot.variables[1]).toMatchObject({
+      outputs: [{ dataType: "INT", value: expected }],
+    });
+    expect(outputs[0]?.value).toBe(expected);
+  }
+});

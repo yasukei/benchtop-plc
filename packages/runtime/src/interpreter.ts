@@ -10,7 +10,7 @@ import type {
   TypedValue,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
-import { Memory, typed } from "./memory.js";
+import { Memory } from "./memory.js";
 
 export const WATCHDOG_LIMIT = 200_000;
 export class RuntimeFault extends Error {
@@ -190,7 +190,9 @@ export class Interpreter {
         }
         const instance = this.memory.block(statement.variable);
         instance.execute(this.scanStart);
-        instance.outputs = instance.outputs.map((value) => typed(value.dataType, value.value));
+        for (const output of instance.outputs) {
+          output.value = coerceValue(output.dataType, output.value);
+        }
         this.annotate(statement, instance.outputs);
         break;
       }
