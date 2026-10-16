@@ -8,6 +8,18 @@ importers:
 
   .:
     devDependencies:
+      '@benchtop-plc/compiler':
+        specifier: workspace:*
+        version: link:packages/compiler
+      '@benchtop-plc/core':
+        specifier: workspace:*
+        version: link:packages/core
+      '@benchtop-plc/project':
+        specifier: workspace:*
+        version: link:packages/project
+      '@benchtop-plc/runtime':
+        specifier: workspace:*
+        version: link:packages/runtime
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0)

@@ -19,6 +19,10 @@
     "test:e2e": "node -e \"console.log('No end-to-end tests yet; Playwright is added with issue #12.')\""
   },
   "devDependencies": {
+    "@benchtop-plc/compiler": "workspace:*",
+    "@benchtop-plc/core": "workspace:*",
+    "@benchtop-plc/project": "workspace:*",
+    "@benchtop-plc/runtime": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.19.2",
     "dependency-cruiser": "^18.6.0",

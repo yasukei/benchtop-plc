@@ -1,12 +1,14 @@
 import { defineConfig } from "vitest/config";
 
+// Resolve workspace packages to their TypeScript sources (see the package "exports"), so tests
+// need no prior build. Tests run in Vite's server environment; the other entries are Vite's
+// default server conditions, which setting this option replaces.
+const conditions = ["@benchtop-plc/source", "module", "node", "development|production"];
+
 export default defineConfig({
-  resolve: {
-    // Resolve workspace packages to their TypeScript sources (see the package "exports").
-    conditions: ["@benchtop-plc/source"],
-  },
+  ssr: { resolve: { conditions } },
   test: {
-    include: ["packages/*/src/**/*.test.ts", "tests/conformance/**/*.test.ts"],
+    include: ["packages/*/src/**/*.test.{ts,tsx}", "tests/conformance/**/*.test.ts"],
     environment: "node",
   },
 });
