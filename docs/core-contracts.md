@@ -1,0 +1,113 @@
+# Core contracts
+
+`@benchtop-plc/core` exports elementary values, tree IR, source positions and the
+UI/runtime wire protocol. It has no host APIs or dependencies. The compiler checks
+semantic validity before producing IR; these TypeScript contracts are not an
+untrusted-input validator.
+
+## Values
+
+`BOOL` uses `boolean`; `INT`, `UINT`, `DINT`, `REAL`, `LREAL` and `TIME` use `number`.
+`TypedValue` pairs a `dataType` discriminator with a matching `value`.
+`coerceValue(type, value)` dispatches to the exported per-type helpers:
+
+| Type  | Coercion                                                 |
+| ----- | -------------------------------------------------------- |
+| BOOL  | Zero becomes FALSE; any other finite number becomes TRUE |
+| INT   | Truncate toward zero, wrap to signed 16 bits             |
+| UINT  | Truncate toward zero, wrap to unsigned 16 bits           |
+| DINT  | Truncate toward zero, wrap to signed 32 bits             |
+| REAL  | Round with `Math.fround` to IEEE 754 binary32            |
+| LREAL | Preserve JavaScript binary64 precision                   |
+| TIME  | Truncate toward zero to integer milliseconds             |
+
+Helpers accept boolean or numeric values (TRUE converts to 1, FALSE to 0).
+They are representation helpers, not the compiler's implicit-conversion rules.
+NaN, infinity and REAL overflow raise `RangeError`; negative zero is normalized
+to zero so that valid values survive JSON transport. The compiler/runtime must
+translate invalid computations into diagnostics at their source spans.
+
+`formatValue(type, value)` uses IEC syntax independent of UI locale: TRUE/FALSE,
+decimal integers, a decimal point for REAL/LREAL (also in an exponent's mantissa),
+and TIME as `T#1s500ms`. `formatTime` emits d/h/m/s/ms in descending order, omits
+zero components, uses `T#0ms` for zero, and places a minus sign after `T#` for
+negative durations. Formatting coerces the value to its declared type first.
+REAL uses the fewest significant decimal digits (at most nine) that round back to
+the same binary32 value, so `0.1` displays as `0.1` rather than
+`0.10000000149011612`. LREAL retains JavaScript's shortest binary64 representation.
+
+## Tree IR
+
+All nodes, including declarations, branch arms, labels and named FB inputs, carry
+a `SourceSpan`. Positions are one-based; the end is exclusive. A program has one
+variable table in declaration order and a statement tree. Each variable retains
+its source spelling and upper-case key. Scalar declarations contain their coerced
+`initialValue`, including defaults. FB declarations use `initialValue: null` to
+request the standard FB's initial state; user initializers on FBs are unsupported.
+Only BOOL declarations may have a direct bit address; milestone 1 uses byte 0,
+bits 0–7 in areas I and Q.
+
+Variable references, assignment targets, FOR variables and FB calls use zero-based
+indices into `ProgramIR.variables`. FB member references use an input/output
+discriminator and an index into the corresponding descriptor array. Named FB
+arguments retain the canonical name for inspection and the resolved input index
+for execution. Standard-function names are closed opcodes, not unresolved source
+identifiers. Expressions explicitly carry their result type; `&` lowers to AND.
+The compiler checks operand types, index validity, writable inputs, integer CASE
+labels/ranges, integer FOR bounds/step and BOOL conditions. An omitted FOR step
+lowers to a literal 1. ELSIF is represented by subsequent conditional branches.
+
+Port indices follow the milestone's standard FB signatures (issue #9 will provide
+the shared descriptor registry and implementations):
+
+| FB             | Inputs, in index order      | Outputs, in index order |
+| -------------- | --------------------------- | ----------------------- |
+| TON, TOF, TP   | IN: BOOL, PT: TIME          | Q: BOOL, ET: TIME       |
+| R_TRIG, F_TRIG | CLK: BOOL                   | Q: BOOL                 |
+| CTU            | CU: BOOL, R: BOOL, PV: INT  | Q: BOOL, CV: INT        |
+| CTD            | CD: BOOL, LD: BOOL, PV: INT | Q: BOOL, CV: INT        |
+
+IR contains only finite primitive values, arrays and plain objects. Optional
+fields are omitted, never explicitly set to undefined; no Maps, Sets, functions
+or class instances are stored in it. The hand-written fixture at
+`tests/conformance/fixtures/reference-ir.ts` represents the parent issue's exact
+`reference.st` program. Its tests verify transport, source positions and resolved
+reference types. This does not execute the program; compilation and execution
+are covered by later milestone issues.
+
+## Protocol
+
+`UiToRuntimeMessage` and `RuntimeToUiMessage` are discriminated by `type`. A variable
+ID always refers to the currently loaded program. `force` takes a typed value or
+null to clear the force; `write` takes a typed value. Hosts validate that the
+value matches the loaded declaration. `setCycle.ms` is a positive finite interval.
+`setInput.bit` indexes the eight-bit input image. `step` requests one complete scan.
+Emergency-stop state and single-scan behavior are implemented in the runtime
+issues, not in the transport types.
+
+Snapshots contain scan count, last execution time in milliseconds, eight-bit input
+and output tuples, values aligned with the variable table (including FB input and
+output arrays in descriptor order), forced variable IDs, and annotations keyed by
+one-based source line. Each annotation contains the full `span` of its assignment
+or FB call, so consumers identify statements by source location rather than array
+position. Entries are grouped by `span.line` and sorted by `span.column` on each
+line. Only statements executed in the current scan are included; unexecuted
+statements have no placeholder, empty lines are omitted, and prior-scan values
+are not retained.
+
+A snapshot is delivered after the scan, with one annotation per executed
+assignment or FB call. Its `values` are captured at that statement's last execution
+in the scan: a single assignment result, or the FB's outputs in descriptor order
+(for TON, `[Q, ET]`). Repeated execution in a loop replaces that statement's
+previous values; it does not append executions or flatten FB output arrays.
+Arrays preserve JSON transport instead of using Set or Map.
+
+Fault events carry the minimal code/severity/arguments/span `Diagnostic` envelope.
+Issue #4 will specialize that envelope into a code/argument discriminated union;
+no diagnostic codes or localized message text are introduced here.
+
+Follow-up for issue #10: define non-fatal command-rejection feedback (for example,
+a `rejected` event carrying the command type and a diagnostic), updating core and
+all consumers together. Rejection of a write to an input-mapped variable must not
+be reported as a PLC `fault`; `step` outside STOP remains ignored as specified in
+#10. This PR does not add a rejection event or command-handling behavior.
