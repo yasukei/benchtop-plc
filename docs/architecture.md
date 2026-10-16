@@ -17,6 +17,8 @@ scan cycles and debugs it, all inside the browser.
 `compiler`, `runtime`, `project` and `core` do not use DOM APIs, so they run in Node, in a
 Web Worker, and later on a device.
 
+The compiler semantic-checking API is documented in [type-checking.md](type-checking.md).
+
 ## Data flow
 
 ```

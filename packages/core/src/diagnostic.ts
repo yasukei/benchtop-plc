@@ -32,6 +32,9 @@ export interface DiagnosticArgs {
   "decl.fb-initializer": { name: string };
 
   "name.undeclared": { name: string };
+  "type.invalid-constant": NoArguments;
+  "type.case-label-not-constant": NoArguments;
+  "fb.duplicate-input": { name: string; member: string };
   "type.assign-mismatch": { from: DataType; to: DataType; hint?: AssignmentHint };
   "type.operand-mismatch": {
     operator: UnaryOperator | BinaryOperator;
