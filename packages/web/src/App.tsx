@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { bannerFor } from "./banner.js";
 import { en, type ShellCatalog } from "./catalog.js";
 import { demoSource } from "./demo.js";
 import { cycleOptions, type AppStore } from "./store.js";
@@ -7,20 +8,7 @@ export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
-  const banner = disconnected
-    ? text.connectionError
-    : state.runtimeState === "ESTOP"
-      ? text.estop
-      : state.diagnostic || state.runtimeState === "FAULT"
-        ? text.fault
-        : state.runtimeState === "RUN"
-          ? text.running
-          : text.info;
-  const urgent =
-    disconnected ||
-    state.runtimeState === "ESTOP" ||
-    state.runtimeState === "FAULT" ||
-    !!state.diagnostic;
+  const banner = bannerFor(state);
 
   return (
     <div className="workbench" data-theme={state.theme}>
@@ -95,8 +83,12 @@ export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog
             </span>
           </div>
         </section>
-        <div className="banner" data-urgent={urgent} role={urgent ? "alert" : "status"}>
-          {banner}
+        <div
+          className="banner"
+          data-urgent={banner.urgent}
+          role={banner.urgent ? "alert" : "status"}
+        >
+          {text[banner.key]}
         </div>
         <div className="workspace">
           <section className="panel editor" aria-labelledby="editor-title">
