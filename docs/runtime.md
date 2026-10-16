@@ -30,13 +30,18 @@ belong to the Worker host (#12).
 pending writes and forces. The sequence is read inputs, copy mapped inputs into
 memory, apply pending writes, apply forces, interpret the body, apply forces again,
 then publish mapped outputs. `ScanMemory.write` uses the declaration's core
-coercion helper. The debug command API and force tracking are deferred to #10;
-`forced` is currently empty. Input/output callbacks receive copied images.
+coercion helper. Built-in debug writes run before the pending-write extension;
+built-in forces run before the pre-execution force extension and after the
+post-execution force extension, so the built-in force wins in the final image.
+Input/output callbacks receive copied images.
 
 `scanOnce()` executes a complete scan in STOP or RUN, unless already scanning.
 ESTOP and FAULT ignore scans and RUN requests. STOP scans update internal state
 and annotations while keeping output-mapped variables and output images OFF.
-The later protocol `step` handler (#10) must restrict its command to STOP.
+`step()` executes exactly one scan only in STOP and returns the current snapshot
+without execution in every other state. It uses the same injected clock as cyclic
+execution; it does not advance virtual time on the caller's behalf. The Worker
+routes the core protocol's `step` command to this method.
 
 The operating state is STOP, RUN or FAULT. Emergency stop is an independent
 system-level flag over that state, as recorded in [ADR 0009](adr/0009-emergency-stop-overlay.md).
@@ -67,6 +72,35 @@ callback aborts the remaining scan stages; an emergency stop stays active even i
 the interrupted computation subsequently faults. Stale ticker callbacks cannot
 restart scans. Outputs stay OFF in every reported state except RUN, including
 when output declarations have TRUE initial values.
+
+## Debug commands
+
+`force(variableId, typedValue)` sets or replaces a scalar force, including mapped
+inputs and outputs. `force(variableId, null)` clears it; clearing an unforced
+scalar is a no-op. Changes take effect on the next scan, with forces applied after
+reading inputs/pending writes and again after executing the program. Clearing a
+force returns control to the input image or program on subsequent scans; it does
+not restore an old value. The snapshot's `forced` array contains the active IDs
+in ascending order, even while stopped or emergency-stopped.
+
+`write(variableId, typedValue)` writes once at the start of the next scan while
+RUN, or immediately while stopped. Multiple pending writes to a variable use the
+last value. Pending writes survive STOP until a later scan; an immediate write
+to the same variable replaces its pending write. Writes issued after the scan's
+pending-write stage are queued for the following scan. A force takes priority over a write,
+and that write is still consumed. Loading or cold reset clears all pending writes
+and forces.
+
+Both commands require a loaded scalar ID and the declaration's exact `dataType`.
+Accepted values are copied and coerced with the core helpers (including integer
+wrapping). Unknown/FB targets, mismatched types, malformed values and non-finite
+numbers throw before changing memory or the debug sets. Input-mapped variables
+reject writes because the next input image would overwrite them; they accept
+forces. Commands cannot energize output variables/images outside RUN, including
+immediate writes in STOP, FAULT or ESTOP. The Worker host routes the existing core
+`force` and `write` messages and publishes updated snapshots after accepted
+commands. Invalid commands propagate to the host as errors, rather than latching
+a PLC execution fault; the current protocol has no command-result message.
 
 ## Execution and diagnostics
 
@@ -149,7 +183,8 @@ through `runtime.invalid-value`, just like other runtime expressions.
 
 ## Snapshots
 
-Snapshots are detached, JSON-serializable copies with images, variables, count,
+Snapshots are detached, JSON-serializable copies with images, scalar values, FB
+inputs/outputs, the active forced IDs, count,
 and execution duration measured by the injected clock. Annotations follow the
 [core protocol](core-contracts.md): one entry per executed assignment or FB call,
 using its last execution's values, grouped by line and sorted by column. Values

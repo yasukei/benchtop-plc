@@ -53,7 +53,7 @@ export function createWorkerHost(
           runtime.stop();
           break;
         case "step":
-          if (runtime.state === "STOP") runtime.scanOnce();
+          runtime.step();
           break;
         case "coldReset":
           runtime.coldReset();
@@ -74,10 +74,12 @@ export function createWorkerHost(
             start();
           }
           break;
-        // The debug API is implemented in a later issue; never silently accept a write.
         case "force":
+          runtime.force(message.variable, message.value);
+          break;
         case "write":
-          throw new Error("Runtime debugging is not available yet");
+          runtime.write(message.variable, message.value);
+          break;
       }
       publish();
     },

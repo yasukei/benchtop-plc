@@ -17,6 +17,32 @@ function setup() {
 }
 
 describe("Worker host", () => {
+  it("routes force, clear and write messages and publishes their snapshots", () => {
+    const { host, clock, snapshot, state } = setup();
+    host.handle({ type: "write", variable: 0, value: { dataType: "DINT", value: 10 } });
+    expect(snapshot()).toMatchObject({ scanCount: 0, variables: [{ value: 10 }] });
+    host.handle({ type: "force", variable: 0, value: { dataType: "DINT", value: 20 } });
+    expect(snapshot()?.forced).toEqual([0]);
+    host.handle({ type: "step" });
+    expect(snapshot()).toMatchObject({ scanCount: 1, variables: [{ value: 20 }] });
+    host.handle({ type: "run" });
+    host.handle({ type: "write", variable: 0, value: { dataType: "DINT", value: 100 } });
+    clock.advance(20);
+    expect(snapshot()).toMatchObject({ scanCount: 3, variables: [{ value: 20 }], forced: [0] });
+    host.handle({ type: "force", variable: 0, value: null });
+    clock.advance(10);
+    expect(snapshot()).toMatchObject({ scanCount: 4, variables: [{ value: 21 }], forced: [] });
+    host.handle({ type: "write", variable: 0, value: { dataType: "DINT", value: 30 } });
+    clock.advance(20);
+    expect(snapshot()).toMatchObject({ scanCount: 6, variables: [{ value: 32 }] });
+    expect(() =>
+      host.handle({ type: "write", variable: 1, value: { dataType: "DINT", value: 1 } }),
+    ).toThrow();
+    expect(state()).toBe("RUN");
+    host.handle({ type: "coldReset" });
+    expect(snapshot()).toMatchObject({ scanCount: 0, variables: [{ value: 0 }], forced: [] });
+  });
+
   it("executes the IR fixture with injected time and publishes snapshots while running", () => {
     const { host, clock, snapshot, state } = setup();
     expect(state()).toBe("STOP");

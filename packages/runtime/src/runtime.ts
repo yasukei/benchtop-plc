@@ -4,12 +4,14 @@ import type {
   ProgramIR,
   RuntimeSnapshot,
   RuntimeState,
+  TypedValue,
+  VariableId,
 } from "@benchtop-plc/core";
 import { checkInterval } from "./clock.js";
 import type { Clock, Ticker } from "./clock.js";
 import { Interpreter, RuntimeFault } from "./interpreter.js";
 import type { RuntimeLibrary } from "./library.js";
-import { emptyImage, Memory } from "./memory.js";
+import { emptyImage, Memory, typed } from "./memory.js";
 import type { ScanMemory } from "./memory.js";
 import { standardLibrary } from "./standard-library.js";
 
@@ -36,6 +38,9 @@ export interface Runtime {
   stop(): void;
   setEmergencyStop(active: boolean): void;
   coldReset(): void;
+  force(variable: VariableId, value: TypedValue | null): void;
+  write(variable: VariableId, value: TypedValue): void;
+  step(): RuntimeSnapshot;
   scanOnce(): RuntimeSnapshot;
   snapshot(): RuntimeSnapshot;
 }
@@ -59,6 +64,8 @@ class PlcRuntime implements Runtime {
   private inputs = emptyImage();
   private outputs = emptyImage();
   private annotations: RuntimeSnapshot["annotations"] = {};
+  private readonly forces = new Map<VariableId, TypedValue>();
+  private pendingWrites = new Map<VariableId, TypedValue>();
   private readonly interval: number;
   private readonly library: RuntimeLibrary;
 
@@ -101,6 +108,8 @@ class PlcRuntime implements Runtime {
   }
 
   private initialize(): void {
+    this.forces.clear();
+    this.pendingWrites.clear();
     this.count = 0;
     this.duration = 0;
     this.fault = null;
@@ -146,6 +155,49 @@ class PlcRuntime implements Runtime {
     this.initialize();
   }
 
+  private debugVariable(variable: VariableId) {
+    const declaration = Number.isInteger(variable) && this.memory?.ir.variables[variable];
+    if (!declaration || declaration.kind !== "scalar")
+      throw new RangeError("Debug commands require a loaded scalar variable");
+    return declaration;
+  }
+
+  private debugValue(variable: VariableId, value: TypedValue): TypedValue {
+    const declaration = this.debugVariable(variable);
+    if (declaration.dataType !== value.dataType)
+      throw new TypeError("Debug value type must match the variable declaration");
+    if (typeof value.value !== (value.dataType === "BOOL" ? "boolean" : "number"))
+      throw new TypeError("Invalid debug value");
+    return typed(declaration.dataType, value.value);
+  }
+
+  force(variable: VariableId, value: TypedValue | null): void {
+    this.debugVariable(variable);
+    if (value === null) this.forces.delete(variable);
+    else this.forces.set(variable, this.debugValue(variable, value));
+  }
+
+  write(variable: VariableId, value: TypedValue): void {
+    const declaration = this.debugVariable(variable);
+    if (declaration.address?.area === "I") throw new Error("Cannot write an input-mapped variable");
+    const checked = this.debugValue(variable, value);
+    if (this.state === "RUN" || this.scanning) this.pendingWrites.set(variable, checked);
+    else {
+      this.pendingWrites.delete(variable);
+      this.memory?.write(variable, checked.value);
+      // Debug commands cannot energize outputs outside RUN (ADR 0009).
+      this.memory?.clearOutputs();
+    }
+  }
+
+  step(): RuntimeSnapshot {
+    return this.state === "STOP" ? this.scanOnce() : this.snapshot();
+  }
+
+  private applyForces(memory: Memory): void {
+    for (const [variable, value] of this.forces) memory.write(variable, value.value);
+  }
+
   scanOnce(): RuntimeSnapshot {
     const memory = this.memory;
     if (!memory || this.scanning || this.state === "FAULT" || this.state === "ESTOP")
@@ -159,10 +211,17 @@ class PlcRuntime implements Runtime {
     try {
       this.inputs = [...(this.options.stages?.readInputs?.() ?? this.inputs)];
       if (active()) memory.readInputs(this.inputs);
+      if (active()) {
+        const writes = this.pendingWrites;
+        this.pendingWrites = new Map();
+        for (const [variable, value] of writes) memory.write(variable, value.value);
+      }
       if (active()) this.options.stages?.applyPendingWrites?.(memory);
+      if (active()) this.applyForces(memory);
       if (active()) this.options.stages?.applyForces?.(memory);
       if (active()) interpreter.execute(memory.ir.body);
       if (active()) this.options.stages?.applyForces?.(memory);
+      if (active()) this.applyForces(memory);
       if (active() && this.state === "RUN") {
         this.outputs = memory.outputImage();
         this.options.stages?.writeOutputs?.([...this.outputs]);
@@ -205,7 +264,7 @@ class PlcRuntime implements Runtime {
       inputs: [...this.inputs],
       outputs: [...this.outputs],
       variables: this.memory?.snapshot() ?? [],
-      forced: [],
+      forced: [...this.forces.keys()].sort((left, right) => left - right),
       annotations,
     };
   }
