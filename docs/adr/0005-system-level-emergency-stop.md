@@ -1,6 +1,6 @@
 # 0005. System-level emergency stop
 
-- Status: Accepted
+- Status: Superseded by [0009](0009-emergency-stop-overlay.md)
 - Date: 2026-10-16
 
 ## Context

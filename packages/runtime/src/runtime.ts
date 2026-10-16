@@ -43,8 +43,11 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   return new PlcRuntime(options);
 }
 
+type OperatingState = Exclude<RuntimeState, "ESTOP">;
+
 class PlcRuntime implements Runtime {
-  private currentState: RuntimeState = "STOP";
+  private operatingState: OperatingState = "STOP";
+  private emergencyStop = false;
   private fault: Diagnostic | null = null;
   private memory: Memory | undefined;
   private cancel: (() => void) | undefined;
@@ -63,7 +66,7 @@ class PlcRuntime implements Runtime {
   }
 
   get state(): RuntimeState {
-    return this.currentState;
+    return this.emergencyStop ? "ESTOP" : this.operatingState;
   }
   get diagnostic(): Diagnostic | null {
     return this.fault
@@ -75,8 +78,8 @@ class PlcRuntime implements Runtime {
       : null;
   }
 
-  private halt(state: RuntimeState): void {
-    this.currentState = state;
+  private halt(state: OperatingState): void {
+    this.operatingState = state;
     this.generation++;
     const cancel = this.cancel;
     this.cancel = undefined;
@@ -89,7 +92,7 @@ class PlcRuntime implements Runtime {
   load(ir: ProgramIR): void {
     if (this.scanning) throw new Error("Cannot load during a scan");
     const memory = new Memory(ir, this.options.library);
-    this.halt(this.state === "ESTOP" ? "ESTOP" : "STOP");
+    this.halt("STOP");
     this.memory = memory;
     this.initialize();
   }
@@ -105,7 +108,7 @@ class PlcRuntime implements Runtime {
 
   run(): void {
     if (this.state !== "STOP" || !this.memory || this.scanning) return;
-    this.currentState = "RUN";
+    this.operatingState = "RUN";
     const generation = ++this.generation;
     try {
       const cancel = this.options.ticker.start(this.interval, () => {
@@ -120,21 +123,22 @@ class PlcRuntime implements Runtime {
   }
 
   private isRunning(): boolean {
-    return this.currentState === "RUN";
+    return !this.emergencyStop && this.operatingState === "RUN";
   }
 
   stop(): void {
-    this.halt(this.state === "RUN" ? "STOP" : this.state);
+    this.halt(this.operatingState === "RUN" ? "STOP" : this.operatingState);
   }
 
   setEmergencyStop(active: boolean): void {
-    if (active) this.halt("ESTOP");
-    else if (this.state === "ESTOP") this.halt("STOP");
+    if (active === this.emergencyStop) return;
+    this.emergencyStop = active;
+    this.halt(!active && this.operatingState === "RUN" ? "STOP" : this.operatingState);
   }
 
   coldReset(): void {
     if (this.scanning) throw new Error("Cannot reset during a scan");
-    this.halt(this.state === "ESTOP" ? "ESTOP" : "STOP");
+    this.halt("STOP");
     if (this.memory) this.memory = new Memory(this.memory.ir, this.options.library);
     this.initialize();
   }

@@ -796,3 +796,121 @@ it("keeps closure-owned FB outputs live across scans while coercing and annotati
     expect(outputs[0]?.value).toBe(expected);
   }
 });
+
+it("keeps FAULT and its diagnostic latched across emergency stop activation and release", () => {
+  const { runtime, clock } = setup(
+    program(
+      [assign(0, literal(true), 2, "BOOL"), assign(1, binary("/", literal(1), literal(0)))],
+      [output, scalar("n")],
+    ),
+  );
+  runtime.run();
+  clock.advance(10);
+  const diagnostic = runtime.diagnostic;
+  const count = runtime.snapshot().scanCount;
+  expect(runtime.state).toBe("FAULT");
+  expect(diagnostic?.code).toBe("runtime.division-by-zero");
+
+  runtime.setEmergencyStop(true);
+  expect(runtime.state).toBe("ESTOP");
+  expect(runtime.diagnostic).toEqual(diagnostic);
+  runtime.stop();
+  runtime.setEmergencyStop(true);
+  runtime.run();
+  runtime.scanOnce();
+  clock.advance(30);
+  expect(runtime.state).toBe("ESTOP");
+  expect(runtime.snapshot().scanCount).toBe(count);
+  expect(runtime.snapshot().outputs.every((bit) => !bit)).toBe(true);
+
+  runtime.setEmergencyStop(false);
+  expect(runtime.state).toBe("FAULT");
+  expect(runtime.diagnostic).toEqual(diagnostic);
+  runtime.setEmergencyStop(false);
+  runtime.stop();
+  runtime.run();
+  runtime.scanOnce();
+  clock.advance(30);
+  expect(runtime.state).toBe("FAULT");
+  expect(runtime.diagnostic).toEqual(diagnostic);
+  expect(runtime.snapshot().scanCount).toBe(count);
+  expect(runtime.snapshot().outputs.every((bit) => !bit)).toBe(true);
+});
+
+it.each(["coldReset", "load"] as const)(
+  "allows %s during emergency stop to clear FAULT without starting execution",
+  (reset) => {
+    const ir = program(
+      [
+        assign(0, literal(true), 2, "BOOL"),
+        {
+          kind: "if",
+          branches: [
+            {
+              condition: binary("=", ref(1), literal(0), "BOOL"),
+              body: [assign(1, literal(1), 3), assign(1, binary("/", literal(1), literal(0)), 4)],
+              span,
+            },
+          ],
+          elseBody: [],
+          span,
+        },
+      ],
+      [output, scalar("n")],
+    );
+    const { runtime, clock } = setup(ir);
+    runtime.run();
+    clock.advance(10);
+    expect(runtime.state).toBe("FAULT");
+    expect(value(runtime.snapshot(), 1)).toBe(1);
+    runtime.setEmergencyStop(true);
+    if (reset === "coldReset") runtime.coldReset();
+    else runtime.load(ir);
+    expect(runtime.state).toBe("ESTOP");
+    expect(runtime.diagnostic).toBeNull();
+    expect(value(runtime.snapshot(), 1)).toBe(0);
+    expect(runtime.snapshot().scanCount).toBe(0);
+    expect(runtime.snapshot().annotations).toEqual({});
+    expect(runtime.snapshot().outputs.every((bit) => !bit)).toBe(true);
+    runtime.run();
+    runtime.scanOnce();
+    clock.advance(30);
+    expect(runtime.state).toBe("ESTOP");
+    expect(runtime.snapshot().scanCount).toBe(0);
+
+    runtime.setEmergencyStop(false);
+    expect(runtime.state).toBe("STOP");
+    expect(runtime.diagnostic).toBeNull();
+    clock.advance(30);
+    expect(runtime.snapshot().scanCount).toBe(0);
+    runtime.run();
+    expect(runtime.state).toBe("RUN");
+    expect(runtime.diagnostic).toBeNull();
+  },
+);
+
+it("releases emergency stop from RUN to STOP without an automatic restart", () => {
+  const { runtime, clock } = setup(
+    program([increment(), assign(1, literal(true), 3, "BOOL")], [scalar("n"), output]),
+  );
+  runtime.run();
+  clock.advance(10);
+  expect(runtime.snapshot().outputs[0]).toBe(true);
+  runtime.setEmergencyStop(true);
+  expect(runtime.state).toBe("ESTOP");
+  expect(runtime.snapshot().outputs[0]).toBe(false);
+  runtime.run();
+  runtime.scanOnce();
+  clock.advance(30);
+  expect(runtime.snapshot().scanCount).toBe(1);
+  runtime.setEmergencyStop(false);
+  expect(runtime.state).toBe("STOP");
+  expect(runtime.diagnostic).toBeNull();
+  clock.advance(30);
+  expect(value(runtime.snapshot())).toBe(1);
+  expect(runtime.snapshot().scanCount).toBe(1);
+  runtime.run();
+  clock.advance(10);
+  expect(value(runtime.snapshot())).toBe(2);
+  expect(runtime.snapshot().outputs[0]).toBe(true);
+});

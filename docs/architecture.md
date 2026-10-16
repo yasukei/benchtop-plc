@@ -37,7 +37,10 @@ The compiler semantic-checking API is documented in [type-checking.md](type-chec
 
 Each scan: read the input image → apply pending writes → apply forces → execute the
 program → apply forces → write the output image. Time comes from an injected `Clock`.
-States are `STOP`, `RUN`, `ESTOP` and `FAULT`; every state except `RUN` keeps outputs OFF.
+Operating states are `STOP`, `RUN` and `FAULT`. An independent emergency stop flag
+overlays the operating state and reports `ESTOP` while active. Every reported state
+except `RUN` keeps outputs OFF. Releasing emergency stop preserves a pending FAULT;
+otherwise it leaves STOP without restarting. See [ADR 0009](adr/0009-emergency-stop-overlay.md).
 
 ## Testing
 

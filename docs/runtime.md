@@ -38,18 +38,35 @@ ESTOP and FAULT ignore scans and RUN requests. STOP scans update internal state
 and annotations while keeping output-mapped variables and output images OFF.
 The later protocol `step` handler (#10) must restrict its command to STOP.
 
-`stop()` cancels cyclic execution and de-energizes output variables and the output
-image. It preserves a latched ESTOP or FAULT. `setEmergencyStop(true)` stops
-scanning immediately and de-energizes outputs; `false` releases ESTOP to STOP.
-Releasing never starts execution. A stop during a host/library callback aborts
-the remaining scan stages. An emergency stop stays latched even if the interrupted
-computation subsequently faults. Stale ticker callbacks cannot restart scans.
+The operating state is STOP, RUN or FAULT. Emergency stop is an independent
+system-level flag over that state, as recorded in [ADR 0009](adr/0009-emergency-stop-overlay.md).
+The public `state` reports ESTOP while the flag is active, otherwise the operating
+state. A pending FAULT and its `diagnostic` remain latched beneath ESTOP.
 
-`load` initializes a new program in STOP, preserving an active ESTOP.
-`coldReset` returns to STOP (or preserves ESTOP), recreates all variables and FB
-instances, clears diagnostics, annotations and scan counters, and keeps outputs
-OFF. Loading/resetting during a scan is rejected. Outputs stay OFF in every state
-except RUN, including when output declarations have TRUE initial values.
+`stop()` cancels cyclic execution and de-energizes output variables and the output
+image while preserving any pending FAULT and the emergency stop flag.
+`setEmergencyStop(true)` stops scanning immediately and de-energizes outputs;
+RUN and single-scan requests are ignored while the flag is active, in every
+operating state. `setEmergencyStop(false)` releases the flag without restarting:
+
+| Operating state before release | After release | Diagnostic              |
+| ------------------------------ | ------------- | ----------------------- |
+| RUN                            | STOP          | None                    |
+| STOP                           | STOP          | None                    |
+| FAULT                          | FAULT         | Same pending diagnostic |
+
+Only cold reset or loading a program clears FAULT and its diagnostic. Both are
+allowed while emergency stop is active: they reset the operating state to STOP
+and clear the fault, while the public state remains ESTOP until release. Release
+then reports STOP; a later RUN request is required to start execution.
+
+`load` initializes a new program; `coldReset` recreates all variables and FB
+instances. Both clear diagnostics, annotations and scan counters and keep outputs
+OFF. Loading/resetting during a scan is rejected. A stop during a host/library
+callback aborts the remaining scan stages; an emergency stop stays active even if
+the interrupted computation subsequently faults. Stale ticker callbacks cannot
+restart scans. Outputs stay OFF in every reported state except RUN, including
+when output declarations have TRUE initial values.
 
 ## Execution and diagnostics
 
