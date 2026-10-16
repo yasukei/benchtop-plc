@@ -20,9 +20,9 @@ test("switches the whole shell without reload and remembers the choice", async (
   await expect(page.getByLabel("テーマ")).toHaveValue("light");
   await expect(page.getByLabel("周期 (ms)")).toHaveValue("10");
   await expect(page.getByLabel("ランタイム状態")).toHaveText("STOP");
-  await expect(page.locator(".banner")).toContainText("デモプログラムを読み込みました");
+  await expect(page.locator(".banner")).toContainText("プログラムを読み込みました");
   await expect(page.getByText("ブラウザーPLCワークベンチ", { exact: true })).toBeVisible();
-  await expect(page.getByText("デモプログラム · 読み取り専用", { exact: true })).toBeVisible();
+  await expect(page.getByText("プログラム適用済み", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("combobox", { name: "言語", exact: true })).toHaveValue("ja");
   await page.getByRole("combobox", { name: "言語", exact: true }).selectOption("en");

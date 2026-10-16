@@ -97,3 +97,83 @@ describe("app store", () => {
     expect(Object.values(ja).every((text) => text.length > 0)).toBe(true);
   });
 });
+
+describe("editor state", () => {
+  it("debounces compilation, clears stale diagnostics immediately and compiles the latest source", () => {
+    vi.useFakeTimers();
+    try {
+      const { store } = setup();
+      store.setSource("PROGRAM Test\nVAR x: INT; END_VAR\nmissing := 1;\nEND_PROGRAM");
+      expect(store.getSnapshot().diagnostics).toEqual([]);
+      vi.advanceTimersByTime(249);
+      expect(store.getSnapshot().diagnostics).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(store.getSnapshot().diagnostics[0]).toMatchObject({
+        code: "name.undeclared",
+        span: { line: 3 },
+      });
+      store.setSource("PROGRAM Test END_PROGRAM");
+      expect(store.getSnapshot().diagnostics).toEqual([]);
+      vi.advanceTimersByTime(250);
+      expect(store.getSnapshot().diagnostics).toEqual([]);
+      store.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("applies changes and cold-starts on RUN, waits for a load snapshot and resumes unchanged code", () => {
+    const { store, worker } = setup();
+    store.run();
+    expect(worker.sent.map((message) => message.type)).toEqual(["load", "run"]);
+    expect(store.getSnapshot().loadedSource).toBeNull();
+    worker.receive({ type: "snapshot", snapshot });
+    expect(store.getSnapshot().snapshot).toBeNull();
+    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    expect(store.getSnapshot().loadedSource).toBe(store.getSnapshot().source);
+    store.run();
+    expect(worker.sent.map((message) => message.type)).toEqual(["load", "run", "run"]);
+    worker.receive({ type: "state", state: "RUN" });
+    store.setSource("PROGRAM New VAR x: INT := 7; END_VAR x := x + 1; END_PROGRAM");
+    store.run();
+    expect(worker.sent.map((message) => message.type)).toEqual([
+      "load",
+      "run",
+      "run",
+      "load",
+      "run",
+    ]);
+    expect(store.getSnapshot().snapshot).toBeNull();
+    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    expect(store.getSnapshot().loadedSource).toBe(store.getSnapshot().source);
+    store.dispose();
+  });
+  it("compiles synchronously on RUN and never sends invalid code or restarts a fault or E-STOP", () => {
+    const { store, worker } = setup();
+    store.setSource("PROGRAM Bad missing := 1; END_PROGRAM");
+    store.run();
+    expect(store.getSnapshot().diagnostics[0]?.code).toBe("name.undeclared");
+    expect(worker.sent).toEqual([]);
+    store.setSource("PROGRAM Good END_PROGRAM");
+    for (const state of ["ESTOP", "FAULT"] as const) {
+      worker.receive({ type: "state", state });
+      store.run();
+      expect(worker.sent).toEqual([]);
+    }
+    store.dispose();
+  });
+  it("cancels pending compile work on disposal", () => {
+    vi.useFakeTimers();
+    try {
+      const { store } = setup();
+      store.setSource("invalid");
+      const listener = vi.fn();
+      store.subscribe(listener);
+      store.dispose();
+      vi.runAllTimers();
+      expect(listener).not.toHaveBeenCalled();
+      expect(store.getSnapshot().diagnostics).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

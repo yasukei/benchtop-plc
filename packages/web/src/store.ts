@@ -1,3 +1,5 @@
+import { compile } from "@benchtop-plc/compiler";
+import { demoSource } from "./demo.js";
 import type {
   Diagnostic,
   RuntimeSnapshot,
@@ -10,6 +12,9 @@ export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface AppState {
+  source: string;
+  loadedSource: string | null;
+  diagnostics: Diagnostic[];
   theme: "light" | "dark";
   runtimeState: RuntimeState;
   snapshot: RuntimeSnapshot | null;
@@ -19,8 +24,11 @@ export interface AppState {
 }
 
 /** A cached snapshot and subscription API suitable for React's useSyncExternalStore. */
-export function createAppStore(client: RuntimeClient) {
+export function createAppStore(client: RuntimeClient, source = demoSource) {
   let state: AppState = {
+    source,
+    loadedSource: null,
+    diagnostics: compile(source).diagnostics,
     theme: "light",
     runtimeState: "STOP",
     snapshot: null,
@@ -28,6 +36,8 @@ export function createAppStore(client: RuntimeClient) {
     cycleMs: 10,
     connection: "connected",
   };
+  let compileTimer: ReturnType<typeof setTimeout> | undefined;
+  const pendingLoads: string[] = [];
   const listeners = new Set<() => void>();
   const update = (patch: Partial<AppState>) => {
     state = { ...state, ...patch };
@@ -39,7 +49,11 @@ export function createAppStore(client: RuntimeClient) {
         update({ runtimeState: event.state });
         break;
       case "snapshot":
+        // A load publishes an empty, zero-scan snapshot before execution can resume.
+        // Ignore scans already queued by the previously loaded program.
+        if (pendingLoads.length && event.snapshot.scanCount !== 0) break;
         update({
+          ...(pendingLoads.length ? { loadedSource: pendingLoads.shift()! } : {}),
           snapshot: event.snapshot,
           ...(event.snapshot.scanCount === 0 ? { diagnostic: null } : {}),
         });
@@ -55,8 +69,36 @@ export function createAppStore(client: RuntimeClient) {
         break;
     }
   });
+  const compileEditor = () => {
+    clearTimeout(compileTimer);
+    const result = compile(state.source);
+    update({ diagnostics: result.diagnostics });
+    return result;
+  };
+  const loadEditor = () => {
+    if (state.connection !== "connected") return false;
+    const result = compileEditor();
+    if (!result.ir) return false;
+    pendingLoads.push(state.source);
+    update({ snapshot: null, diagnostic: null });
+    client.send({ type: "load", ir: result.ir });
+    return true;
+  };
   return {
     getSnapshot: () => state,
+    setSource(source: string) {
+      if (source === state.source) return;
+      clearTimeout(compileTimer);
+      update({ source, diagnostics: [] });
+      compileTimer = setTimeout(compileEditor, 250);
+    },
+    loadEditor,
+    run() {
+      if (state.connection !== "connected" || pendingLoads.length) return;
+      if (state.runtimeState !== "STOP" && state.runtimeState !== "RUN") return;
+      if (state.source !== state.loadedSource && !loadEditor()) return;
+      client.send({ type: "run" });
+    },
     setTheme(theme: AppState["theme"]) {
       update({ theme });
     },
@@ -76,6 +118,7 @@ export function createAppStore(client: RuntimeClient) {
       client.send(message);
     },
     dispose() {
+      clearTimeout(compileTimer);
       unsubscribe();
       listeners.clear();
     },
