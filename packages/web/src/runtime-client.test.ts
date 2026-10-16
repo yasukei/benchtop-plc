@@ -4,6 +4,27 @@ import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
 
 describe("RuntimeClient", () => {
+  it("forwards command rejections without terminating the Worker or blocking later commands", () => {
+    const worker = new FakeWorker();
+    const client = new RuntimeClient(worker);
+    const listener = vi.fn();
+    client.subscribe(listener);
+    const rejection = {
+      type: "rejected",
+      command: "write",
+      diagnostic: {
+        code: "runtime.write-input-mapped",
+        severity: "error",
+        args: { name: "input" },
+      },
+    } as const;
+    worker.receive(rejection);
+    expect(listener).toHaveBeenCalledExactlyOnceWith(rejection);
+    expect(worker.terminated).toBe(false);
+    client.send({ type: "run" });
+    expect(worker.sent).toEqual([{ type: "run" }]);
+  });
+
   it("forwards protocol commands and Worker messages and supports unsubscribe", () => {
     const worker = new FakeWorker();
     const client = new RuntimeClient(worker);

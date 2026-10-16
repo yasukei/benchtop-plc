@@ -91,6 +91,13 @@ export const diagnosticEn = {
   "runtime.division-by-zero": () => "Division or MOD by zero.",
   "runtime.watchdog": ({ limit }) => `Loop iteration limit (${limit}) exceeded.`,
   "runtime.for-by-zero": () => "FOR step must not be zero.",
+  "runtime.debug-target": () =>
+    "Command rejected: select a scalar variable from the loaded program.",
+  "runtime.debug-type-mismatch": ({ from, to }) =>
+    `Command rejected: cannot write a value of type ${from} to a variable of type ${to}.`,
+  "runtime.debug-value": () => "Command rejected: the value is invalid or out of range.",
+  "runtime.write-input-mapped": ({ name }) =>
+    `Command rejected: cannot write input-mapped variable ${name}. Use force instead.`,
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
@@ -162,6 +169,13 @@ export const diagnosticJa = {
   "runtime.division-by-zero": () => "ゼロによる除算またはMODが発生しました。",
   "runtime.watchdog": ({ limit }) => `ループの反復回数の上限（${limit}回）を超えました。`,
   "runtime.for-by-zero": () => "FORの増分をゼロにすることはできません。",
+  "runtime.debug-target": () =>
+    "操作を拒否しました。読み込み済みプログラムのスカラー変数を選択してください。",
+  "runtime.debug-type-mismatch": ({ from, to }) =>
+    `操作を拒否しました。${to}型の変数に${from}型の値は書き込めません。`,
+  "runtime.debug-value": () => "操作を拒否しました。値が無効か範囲外です。",
+  "runtime.write-input-mapped": ({ name }) =>
+    `操作を拒否しました。入力変数${name}には書き込めません。強制設定を使用してください。`,
 } satisfies DiagnosticCatalog;
 
 export const diagnosticCatalogs: Record<Language, DiagnosticCatalog> = {

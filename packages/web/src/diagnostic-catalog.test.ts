@@ -58,6 +58,10 @@ const examples = {
   "runtime.division-by-zero": {},
   "runtime.watchdog": { limit: 10000 },
   "runtime.for-by-zero": {},
+  "runtime.debug-target": {},
+  "runtime.debug-type-mismatch": { from: "BOOL", to: "INT" },
+  "runtime.debug-value": {},
+  "runtime.write-input-mapped": { name: "input" },
 } satisfies DiagnosticArgs;
 
 describe("translation catalogs", () => {

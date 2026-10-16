@@ -71,7 +71,18 @@ export interface DiagnosticArgs {
   "runtime.division-by-zero": NoArguments;
   "runtime.watchdog": { limit: number };
   "runtime.for-by-zero": NoArguments;
+  "runtime.debug-target": NoArguments;
+  "runtime.debug-type-mismatch": { from: DataType; to: DataType };
+  "runtime.debug-value": NoArguments;
+  "runtime.write-input-mapped": { name: string };
 }
+
+/** Expected debug command rejections; these never latch a PLC execution fault. */
+export type CommandRejectionCode =
+  | "runtime.debug-target"
+  | "runtime.debug-type-mismatch"
+  | "runtime.debug-value"
+  | "runtime.write-input-mapped";
 
 export type DiagnosticCode = keyof DiagnosticArgs;
 export type DiagnosticSeverity = "error" | "warning";

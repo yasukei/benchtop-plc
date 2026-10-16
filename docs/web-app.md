@@ -20,8 +20,14 @@ runtime and sends state, snapshots and faults after commands and scheduled scans
 Changing the cycle reschedules the ticker without clearing memory or changing
 operating state. Single scan is accepted only in STOP. Cold reset and load clear
 the demo's memory and input image; the runtime preserves an active emergency stop.
-The host accepts emergency-stop messages for the future operator panel. Force and
-write commands explicitly fail until the runtime debug API is implemented.
+The host accepts emergency-stop messages for the future operator panel and routes
+scalar force/write commands to the debug API. Expected debug validation errors
+produce a non-fatal `rejected` event instead of escaping the Worker listener.
+The client forwards this event without terminating the connection. The store
+keeps the latest rejection separately from PLC faults; the UI renders its reason
+from the English/Japanese catalogs in a separate alert. Scan snapshots preserve
+the alert until the next user command clears it. RUN, memory, forces and scan
+counts continue through rejected commands.
 
 The core protocol has no nullable fault message, so the store clears an old
 diagnostic when it receives the zero-scan snapshot from load or cold reset. It
@@ -36,7 +42,8 @@ pnpm test:e2e
 
 Playwright builds all packages and serves the production bundle on port 4173. The
 tests exercise the actual bundled Worker: RUN/STOP, scans, reset, theme, narrow
-layout and a Worker startup failure. CI installs Chromium and runs these tests;
+layout, a Worker startup failure, and non-fatal rejected input writes/invalid
+forces while RUN continues. CI installs Chromium and runs these tests;
 on failure it uploads the HTML report and retained traces. On a machine with a
 system Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path
 to use it instead of Playwright's downloaded browser.

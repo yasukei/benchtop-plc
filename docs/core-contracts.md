@@ -107,8 +107,11 @@ code-specific `args` object, severity and optional source span. The codes and
 argument conventions are documented in [diagnostics.md](diagnostics.md). Localized
 message text belongs to the UI catalog.
 
-Follow-up for issue #10: define non-fatal command-rejection feedback (for example,
-a `rejected` event carrying the command type and a diagnostic), updating core and
-all consumers together. Rejection of a write to an input-mapped variable must not
-be reported as a PLC `fault`; `step` outside STOP remains ignored as specified in
-#10. This PR does not add a rejection event or command-handling behavior.
+Expected validation failures for `force` and `write` produce a non-fatal `rejected`
+event with `command: "force" | "write"` and a `Diagnostic<CommandRejectionCode>`.
+The rejection codes identify invalid scalar targets, mismatched types, invalid
+values and writes to input-mapped variables. Rejections preserve operating state,
+memory, forces, pending writes and the Worker connection. They are separate from
+PLC `fault` events and never replace a latched fault's diagnostic. The host also
+publishes its current state and snapshot after a rejection. `step` outside STOP
+remains ignored as specified in #10.

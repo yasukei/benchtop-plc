@@ -20,7 +20,7 @@ export function emptyImage(): IoImage {
   return [false, false, false, false, false, false, false, false];
 }
 
-/** Scan-stage extension point; debug command handling belongs to issue #10. */
+/** Scan-stage extension point for host integrations. */
 export interface ScanMemory {
   read(variable: number): ScalarValue;
   write(variable: number, value: ScalarValue): void;
