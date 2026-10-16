@@ -32,3 +32,47 @@ END_PROGRAM`);
     3,
   ]);
 });
+
+it("preserves LREAL literals while retaining REAL rounding and integer operator wrapping", () => {
+  const parsed = parse(`PROGRAM LiteralBoundaries
+VAR
+  precise : LREAL := 0.1;
+  large : LREAL := -1.0e100;
+  rounded : REAL := 0.1;
+  arithmetic : LREAL := 0.1 + 0.0;
+  minimum : DINT := -2147483648;
+  maximum : DINT := 2147483647;
+  wrapped : DINT := 2147483647 + 1;
+END_VAR
+END_PROGRAM`);
+  expect(parsed.diagnostics).toEqual([]);
+  const result = check(parsed.ast!);
+  expect(result.diagnostics).toEqual([]);
+  expect(result.checked!.symbols.map((symbol) => symbol.initialValue)).toEqual([
+    0.1,
+    -1e100,
+    Math.fround(0.1),
+    Math.fround(0.1),
+    -2147483648,
+    2147483647,
+    -2147483648,
+  ]);
+});
+
+it.each(["DINT", "REAL", "LREAL"])(
+  "rejects integer literal overflow before %s initialization",
+  (type) => {
+    const parsed = parse(`PROGRAM P\nVAR x : ${type} := 3000000000; END_VAR\nEND_PROGRAM`);
+    expect(parsed.diagnostics).toEqual([]);
+    const result = check(parsed.ast!);
+    expect(result.checked).toBeNull();
+    expect(result.diagnostics).toEqual([
+      {
+        code: "type.invalid-constant",
+        severity: "error",
+        args: {},
+        span: { line: 2, column: type.length + 13, endLine: 2, endColumn: type.length + 23 },
+      },
+    ]);
+  },
+);

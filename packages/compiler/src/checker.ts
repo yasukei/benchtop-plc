@@ -8,7 +8,12 @@ import type {
   StandardFunction,
 } from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
-import type { CheckedProgram, ExpressionInfo, ResolvedReference, Symbol } from "./checked.js";
+import type {
+  CheckedProgram,
+  ExpressionInfo,
+  ResolvedReference,
+  VariableSymbol,
+} from "./checked.js";
 import { binaryConstant, unaryConstant, withConstant } from "./constants.js";
 import { blocks, getSignature, isBlock, isFunction } from "./signatures.js";
 import {
@@ -27,10 +32,15 @@ export type CheckResult =
   { checked: CheckedProgram; diagnostics: [] } | { checked: null; diagnostics: Diagnostic[] };
 const isScalar = (name: string): name is DataType => scalarTypes.some((type) => type === name);
 
+function withoutGroups(node: AST.Expression): AST.Expression {
+  while (node.kind === "group") node = node.expression;
+  return node;
+}
+
 class Checker {
   private readonly diagnostics: Diagnostic[] = [];
-  private readonly symbols: Symbol[] = [];
-  private readonly names = new Map<string, Symbol>();
+  private readonly symbols: VariableSymbol[] = [];
+  private readonly names = new Map<string, VariableSymbol>();
   private readonly declaredNames = new Set<string>();
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
   private readonly references = new Map<AST.Identifier, ResolvedReference>();
@@ -94,7 +104,7 @@ class Checker {
       } else if (duplicate) {
         this.report("decl.duplicate", { name: name.name }, name.span);
       } else if (known) {
-        const symbol: Symbol = {
+        const symbol: VariableSymbol = {
           id: this.symbols.length,
           name,
           type,
@@ -118,7 +128,7 @@ class Checker {
     const before = this.diagnostics.length;
     const info = this.expression(value);
     if (!info || !isScalar(type)) return;
-    this.assignment(type, info.dataType, value.span);
+    if (!this.assignment(type, info, value.span)) return;
     if (info.constant === undefined) {
       if (before === this.diagnostics.length)
         this.report(
@@ -128,20 +138,14 @@ class Checker {
         );
       return;
     }
-    if (!assignable(type, info.dataType)) return;
-    try {
-      const initialValue = coerceValue(type, info.constant);
-      for (const name of declaration.names) {
-        const symbol = this.names.get(name.key);
-        if (symbol?.name === name) symbol.initialValue = initialValue;
-      }
-    } catch (error) {
-      if (!(error instanceof RangeError)) throw error;
-      this.report("type.invalid-constant", {}, value.span);
+    const initialValue = coerceValue(type, info.constant);
+    for (const name of declaration.names) {
+      const symbol = this.names.get(name.key);
+      if (symbol?.name === name) symbol.initialValue = initialValue;
     }
   }
 
-  private resolve(name: AST.Identifier): Symbol | null {
+  private resolve(name: AST.Identifier): VariableSymbol | null {
     const symbol = this.names.get(name.key);
     if (!symbol) {
       this.report("name.undeclared", { name: name.name }, name.span);
@@ -191,12 +195,20 @@ class Checker {
     return null;
   }
 
-  private expression(node: AST.Expression): ExpressionInfo | null {
+  private expression(node: AST.Expression, allowDintMinMagnitude = false): ExpressionInfo | null {
     const cached = this.expressions.get(node);
     if (cached) return cached;
     let info: ExpressionInfo | null;
     switch (node.kind) {
       case "literal": {
+        if (
+          node.literalKind === "integer" &&
+          (node.value < -2147483648 ||
+            node.value > (allowDintMinMagnitude ? 2147483648 : 2147483647))
+        ) {
+          this.report("type.invalid-constant", {}, node.span);
+          return null;
+        }
         const dataType =
           node.literalKind === "boolean"
             ? "BOOL"
@@ -208,7 +220,13 @@ class Checker {
                   ? "INT"
                   : "DINT";
         try {
-          info = withConstant({ dataType }, node.value);
+          // Preserve numeric literal precision until destination or operator coercion.
+          // The positive magnitude of DINT_MIN is allowed only under unary minus.
+          info = withConstant(
+            { dataType },
+            node.value,
+            node.literalKind === "real" || node.literalKind === "integer" ? "LREAL" : dataType,
+          );
         } catch (error) {
           if (!(error instanceof RangeError)) throw error;
           this.report("type.invalid-constant", {}, node.span);
@@ -221,13 +239,16 @@ class Checker {
         info = this.reference(node);
         break;
       case "group":
-        info = this.expression(node.expression);
+        info = this.expression(node.expression, allowDintMinMagnitude);
         break;
       case "functionCall":
         info = this.functionCall(node);
         break;
       case "unary": {
-        const operand = this.expression(node.operand);
+        const operand = this.expression(
+          node.operand,
+          node.operator === "-" && withoutGroups(node.operand).kind === "literal",
+        );
         if (!operand) return null;
         const dataType = unaryType(node.operator, operand.dataType);
         if (!dataType) {
@@ -244,6 +265,7 @@ class Checker {
           operand.constant === undefined
             ? undefined
             : () => unaryConstant(node.operator, operand.constant!),
+          isReal(dataType) ? "LREAL" : dataType,
         );
         break;
       }
@@ -278,10 +300,11 @@ class Checker {
     info: ExpressionInfo,
     node: AST.Expression,
     compute?: () => number | boolean,
+    representation = info.dataType,
   ): ExpressionInfo {
     if (!compute) return info;
     try {
-      return withConstant(info, compute());
+      return withConstant(info, compute(), representation);
     } catch (error) {
       if (!(error instanceof RangeError)) throw error;
       this.report("type.invalid-constant", {}, node.span);
@@ -340,8 +363,9 @@ class Checker {
     };
   }
 
-  private assignment(to: DataType, from: DataType, span: SourceSpan): void {
-    if (!assignable(to, from))
+  private assignment(to: DataType, info: ExpressionInfo, span: SourceSpan): boolean {
+    const from = info.dataType;
+    if (!assignable(to, from)) {
       this.report(
         "type.assign-mismatch",
         {
@@ -351,6 +375,18 @@ class Checker {
         },
         span,
       );
+      return false;
+    }
+    if (info.constant !== undefined) {
+      try {
+        coerceValue(to, info.constant);
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        this.report("type.invalid-constant", {}, span);
+        return false;
+      }
+    }
+    return true;
   }
 
   private condition(
@@ -369,7 +405,7 @@ class Checker {
           const target = this.reference(node.target, true),
             value = this.expression(node.value);
           if (target) this.expressions.set(node.target, target);
-          if (target && value) this.assignment(target.dataType, value.dataType, node.value.span);
+          if (target && value) this.assignment(target.dataType, value, node.value.span);
           break;
         }
         case "fbCall": {
@@ -393,7 +429,7 @@ class Checker {
                 input.name.span,
               );
             seen.add(input.name.key);
-            if (target && value) this.assignment(target.dataType, value.dataType, input.value.span);
+            if (target && value) this.assignment(target.dataType, value, input.value.span);
           }
           break;
         }

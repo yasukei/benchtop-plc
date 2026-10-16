@@ -6,7 +6,7 @@ import type {
 } from "@benchtop-plc/core";
 import type { Expression, FunctionCall, Identifier, Program } from "./ast.js";
 
-export interface Symbol {
+export interface VariableSymbol {
   /** Index in declaration order, shared by all resolved references. */
   id: number;
   name: Identifier;
@@ -16,7 +16,8 @@ export interface Symbol {
 
 export interface ExpressionInfo {
   dataType: DataType;
-  /** Present only for literal/operator constant expressions, including FALSE and zero. */
+  /** Literal/sign values retain binary64 precision; binary results use their result type.
+   * Present only for constant expressions, including FALSE and zero. */
   constant?: ScalarValue;
 }
 
@@ -29,7 +30,7 @@ export interface ResolvedReference {
 /** Semantic side tables use AST object identity; they are compiler-local, not wire IR. */
 export interface CheckedProgram {
   ast: Program;
-  symbols: readonly Symbol[];
+  symbols: readonly VariableSymbol[];
   expressions: ReadonlyMap<Expression, ExpressionInfo>;
   references: ReadonlyMap<Identifier, ResolvedReference>;
   functions: ReadonlyMap<FunctionCall, StandardFunction>;

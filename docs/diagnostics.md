@@ -104,7 +104,7 @@ as syntax errors.
 | `decl.nonconstant-initializer`   | Initial value is not a constant expression           | `{ name: string }`                                                                               |
 | `decl.fb-initializer`            | Initial value supplied for an FB instance            | `{ name: string }`                                                                               |
 | `name.undeclared`                | Identifier has no declaration                        | `{ name: string }`                                                                               |
-| `type.invalid-constant`          | Constant computation is non-finite or overflows REAL | `{}`                                                                                             |
+| `type.invalid-constant`          | Invalid constant, literal range or REAL overflow     | `{}`                                                                                             |
 | `type.case-label-not-constant`   | Integer CASE label depends on a variable or call     | `{}`                                                                                             |
 | `fb.duplicate-input`             | Named FB input is supplied more than once            | `{ name: string; member: string }`                                                               |
 | `type.assign-mismatch`           | Value cannot be assigned to the destination type     | `{ from: DataType; to: DataType; hint?: AssignmentHint }`                                        |

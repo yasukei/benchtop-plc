@@ -132,6 +132,66 @@ describe("declarations and symbols", () => {
     ]);
   });
 
+  it.each([
+    ["0.1", 0.1],
+    ["(0.1)", 0.1],
+    ["-0.1", -0.1],
+    ["+0.1", 0.1],
+    ["1.0e100", 1e100],
+    ["-(1.0e100)", -1e100],
+  ])("preserves binary64 precision for LREAL initializer %s", (source, expected) => {
+    expect(valid(`x : LREAL := ${source};`).symbols[0]!.initialValue).toBe(expected);
+  });
+
+  it("rounds REAL destinations and arithmetic results to binary32", () => {
+    const checked = valid(
+      "a : REAL := 0.1; b : LREAL := 0.1 + 0.0; c : INT := 40000; d : DINT := 2147483647 + 1;",
+    );
+    expect(checked.symbols.map((symbol) => symbol.initialValue)).toEqual([
+      Math.fround(0.1),
+      Math.fround(0.1),
+      -25536,
+      -2147483648,
+    ]);
+    failure("x : REAL := «-1.0e100»;", "", "type.invalid-constant");
+    failure("x : REAL;", "x := «1.0e100»;", "type.invalid-constant");
+    valid("x : LREAL;", "x := 1.0e100;");
+    failure("x : LREAL := «1.0e100 + 0.0»;", "", "type.invalid-constant");
+  });
+
+  it.each(["DINT", "REAL", "LREAL"])(
+    "rejects out-of-range integer literals before conversion to %s",
+    (type) => {
+      failure(`x : ${type} := «3000000000»;`, "", "type.invalid-constant");
+      failure(`x : ${type} := «2147483648»;`, "", "type.invalid-constant");
+      failure(`x : ${type} := -«2147483649»;`, "", "type.invalid-constant");
+      failure(`x : ${type};`, "x := «3000000000»;", "type.invalid-constant");
+    },
+  );
+
+  it.each([
+    ["32767", "INT", 32767],
+    ["32768", "DINT", 32768],
+    ["2147483647", "DINT", 2147483647],
+    ["-2147483648", "DINT", -2147483648],
+    ["-(2147483648)", "DINT", -2147483648],
+    ["-16#8000_0000", "DINT", -2147483648],
+  ] as const)("accepts integer boundary %s as %s", (source, expectedType, value) => {
+    const checked = valid(`x : DINT := ${source};`);
+    expect(checked.symbols[0]!.initialValue).toBe(value);
+    const initializer = checked.ast.declarations[0]!.initializer!;
+    expect(checked.expressions.get(initializer)).toMatchObject({
+      dataType: expectedType,
+      constant: value,
+    });
+  });
+
+  it("rejects unsigned and compound uses of the minimum DINT's magnitude", () => {
+    failure("x : DINT := +«2147483648»;", "", "type.invalid-constant");
+    failure("x : DINT := -(«2147483648» + 0);", "", "type.invalid-constant");
+    failure("x : DINT := «16#FFFF_FFFF»;", "", "type.invalid-constant");
+  });
+
   it("rejects elementary type collisions even for an AST provided directly", () => {
     const ast = program("x : INT;");
     ast.declarations[0]!.names[0].name = "iNt";

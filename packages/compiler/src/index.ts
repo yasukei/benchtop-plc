@@ -8,4 +8,9 @@ export const packageName = "@benchtop-plc/compiler";
 
 export { check } from "./checker.js";
 export type { CheckResult } from "./checker.js";
-export type { CheckedProgram, ExpressionInfo, ResolvedReference, Symbol } from "./checked.js";
+export type {
+  CheckedProgram,
+  ExpressionInfo,
+  ResolvedReference,
+  VariableSymbol,
+} from "./checked.js";

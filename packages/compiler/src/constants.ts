@@ -1,5 +1,5 @@
 import { coerceValue } from "@benchtop-plc/core";
-import type { BinaryOperator, ScalarValue, UnaryOperator } from "@benchtop-plc/core";
+import type { BinaryOperator, DataType, ScalarValue, UnaryOperator } from "@benchtop-plc/core";
 import type { ExpressionInfo } from "./checked.js";
 
 export function unaryConstant(operator: UnaryOperator, value: ScalarValue): ScalarValue {
@@ -52,7 +52,11 @@ export function binaryConstant(
   }
 }
 
-/** Apply each expression's PLC representation, including truncating integer division. */
-export function withConstant(info: ExpressionInfo, value: ScalarValue): ExpressionInfo {
-  return { ...info, constant: coerceValue(info.dataType, value) };
+/** Coerce operators to their result type; literals/signs can retain binary64 precision. */
+export function withConstant(
+  info: ExpressionInfo,
+  value: ScalarValue,
+  representation: DataType = info.dataType,
+): ExpressionInfo {
+  return { ...info, constant: coerceValue(representation, value) };
 }

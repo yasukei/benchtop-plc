@@ -8,8 +8,9 @@ issue #7.
 
 The checked result retains the original AST without modifying it, plus:
 
-- `symbols`: declaration order, original identifier, type and coerced initial
-  value (scalar defaults are FALSE/zero; FB initialization is null).
+- `symbols`: `VariableSymbol` entries in declaration order, with the original
+  identifier, type and coerced initial value (scalar defaults are FALSE/zero;
+  FB initialization is null).
 - `expressions`: AST expression object to result type and optional constant value.
 - `references`: AST identifier object to variable index and optional FB port/index.
   Declaration names, assignment targets, reads, FOR variables, FB instances and
@@ -26,12 +27,26 @@ Names are matched by their parser-supplied upper-case keys, across all VAR block
 All declarations are collected before checking expressions. Initializers may use
 literals, parentheses, unary operators and binary operators; variable references,
 FB members and function calls are not constant expressions. CASE labels and range
-endpoints must also be integer constant expressions. Constant values are coerced
-at each operator, so integer division truncates toward zero and integer results
-wrap to the expression's representation. Division by zero, non-finite constants,
+endpoints must also be integer constant expressions. Integer literals must fit DINT;
+`2147483648` is accepted only as the magnitude directly negated to form
+`-2147483648` (parentheses around the magnitude are allowed). Other out-of-range
+integer literals produce `type.invalid-constant` at the literal, regardless of
+the destination type. Literal typing remains INT for magnitudes up to 32767,
+otherwise DINT.
+
+Real literals retain their binary64 value, including through parentheses and
+unary signs, while their nominal expression type remains REAL. REAL destination
+coercion rounds to binary32; LREAL destination coercion preserves binary64. A
+binary arithmetic result is still coerced to its promoted type, so an expression
+such as `0.1 + 0.0` produces a binary32 REAL even when assigned to LREAL.
+
+Operator results are coerced to their expression type: integer division truncates
+toward zero and integer results wrap. Division by zero, non-finite constants,
 and REAL overflow produce `type.invalid-constant` at the expression. Destination
-coercion also checks representability. This evaluation validates initializers and
-CASE labels; it does not replace AST expressions or optimize executable IR.
+coercion checks finite values and REAL overflow; integer destination coercion
+truncates and wraps rather than rejecting values outside its range. This
+evaluation validates initializers and CASE labels; it does not replace AST
+expressions or optimize executable IR.
 
 Assignment follows issue #6. Arithmetic returns REAL when either numeric operand
 is REAL/LREAL, otherwise DINT when either is DINT, otherwise INT (including UINT
