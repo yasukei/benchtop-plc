@@ -46,6 +46,7 @@ const examples = {
   "call.unknown-function": { name: "MISSING" },
   "call.argument-count": { name: "LIMIT", min: 3, max: 3, found: 2 },
   "call.argument-type": { name: "ABS", index: 0, expected: ["INT", "REAL"], found: "BOOL" },
+  "runtime.invalid-value": {},
   "runtime.division-by-zero": {},
   "runtime.watchdog": { limit: 10000 },
   "runtime.for-by-zero": {},

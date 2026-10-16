@@ -67,6 +67,7 @@ export interface DiagnosticArgs {
     found: DataType;
   };
 
+  "runtime.invalid-value": NoArguments;
   "runtime.division-by-zero": NoArguments;
   "runtime.watchdog": { limit: number };
   "runtime.for-by-zero": NoArguments;
