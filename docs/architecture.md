@@ -18,6 +18,7 @@ scan cycles and debugs it, all inside the browser.
 Web Worker, and later on a device.
 
 The compiler semantic-checking API is documented in [type-checking.md](type-checking.md).
+The complete source-to-IR API is documented in [compiler.md](compiler.md).
 
 ## Data flow
 

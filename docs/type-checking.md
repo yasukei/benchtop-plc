@@ -3,8 +3,8 @@
 `check(ast)` accepts the `Program` returned by `parse(source)`. It returns either
 `{ checked: CheckedProgram, diagnostics: [] }` or `{ checked: null, diagnostics }`.
 It collects semantic errors with source spans and never exposes a partially
-checked program. Parsing remains separate; `compile(source)` and IR lowering are
-issue #7.
+checked program. Parsing remains separate; [`compile(source)`](compiler.md)
+combines parsing, checking and IR lowering.
 
 The checked result retains the original AST without modifying it, plus:
 
@@ -18,7 +18,7 @@ The checked result retains the original AST without modifying it, plus:
 - `functions`: AST function-call object to canonical standard-function opcode.
 
 These Maps are compiler-local side tables keyed by AST identity. They are not
-serialized or sent to the runtime. The later lowering pass can use them to produce
+serialized or sent to the runtime. The lowering pass uses them to produce
 the plain tree IR. Source spelling and spans stay in the AST.
 
 ## Rules
