@@ -1,11 +1,14 @@
 import { useSyncExternalStore } from "react";
 import { bannerFor } from "./banner.js";
-import { en, type ShellCatalog } from "./catalog.js";
+import { catalogs } from "./catalog.js";
 import { demoSource } from "./demo.js";
-import { rejectionText } from "./rejection.js";
+import { formatDiagnostic } from "./diagnostic-catalog.js";
+import { isLanguage, type I18n } from "./i18n.js";
 import { cycleOptions, type AppStore } from "./store.js";
 
-export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog }) {
+export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
+  const language = useSyncExternalStore(i18n.subscribe, i18n.getSnapshot);
+  const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
@@ -18,6 +21,19 @@ export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog
           <h1>{text.title}</h1>
           <p>{text.subtitle}</p>
         </div>
+        <label>
+          {text.language}
+          <select
+            value={language}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (isLanguage(next)) i18n.setLanguage(next);
+            }}
+          >
+            <option value="en">{text.english}</option>
+            <option value="ja">{text.japanese}</option>
+          </select>
+        </label>
         <label>
           {text.theme}
           <select
@@ -70,14 +86,14 @@ export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog
           </div>
           <div className="telemetry">
             <output aria-label={text.state} className="state" data-state={state.runtimeState}>
-              {state.runtimeState === "ESTOP" ? "E-STOP" : state.runtimeState}
+              {state.runtimeState === "ESTOP" ? text.emergencyState : state.runtimeState}
             </output>
             <span>
-              {text.scans}:{" "}
+              {text.scansLabel}{" "}
               <output aria-label={text.scans}>{state.snapshot?.scanCount ?? 0}</output>
             </span>
             <span>
-              {text.execution}:{" "}
+              {text.executionLabel}{" "}
               <output aria-label={text.execution}>
                 {(state.snapshot?.lastExecutionTimeMs ?? 0).toFixed(3)}
               </output>
@@ -90,10 +106,11 @@ export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog
           role={banner.urgent ? "alert" : "status"}
         >
           {text[banner.key]}
+          {state.diagnostic && <p>{formatDiagnostic(language, state.diagnostic)}</p>}
         </div>
         {state.rejection && (
           <div className="banner" role="alert" data-urgent="false">
-            {rejectionText(state.rejection, text)}
+            {formatDiagnostic(language, state.rejection.diagnostic)}
           </div>
         )}
         <div className="workspace">

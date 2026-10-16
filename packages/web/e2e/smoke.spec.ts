@@ -70,6 +70,14 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
         : "select a scalar variable",
     );
     await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+    await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+    await expect(page.getByRole("alert")).toContainText(
+      command.type === "write"
+        ? "入力変数inputには書き込めません"
+        : "スカラー変数を選択してください",
+    );
+    await expect(page.getByLabel("ランタイム状態")).toHaveText("RUN");
+    await page.getByRole("combobox", { name: "言語", exact: true }).selectOption("en");
     await expect
       .poll(async () => Number(await page.getByLabel("Scans", { exact: true }).textContent()))
       .toBeGreaterThan(snapshot.scanCount);

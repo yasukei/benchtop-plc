@@ -1,19 +1,18 @@
 import type { CommandRejectionMessage } from "@benchtop-plc/core";
 import { describe, expect, it } from "vitest";
-import { en, ja } from "./catalog.js";
-import { rejectionText } from "./rejection.js";
+import { formatDiagnostic } from "./diagnostic-catalog.js";
 
 describe("command rejection messages", () => {
   const cases: [CommandRejectionMessage["diagnostic"], string, string][] = [
     [
       { code: "runtime.debug-target", severity: "error", args: {} },
-      en.rejectedTarget,
-      ja.rejectedTarget,
+      "Command rejected: select a scalar variable from the loaded program.",
+      "操作を拒否しました。読み込み済みプログラムのスカラー変数を選択してください。",
     ],
     [
       { code: "runtime.debug-value", severity: "error", args: {} },
-      en.rejectedValue,
-      ja.rejectedValue,
+      "Command rejected: the value is invalid or out of range.",
+      "操作を拒否しました。値が無効か範囲外です。",
     ],
     [
       { code: "runtime.debug-type-mismatch", severity: "error", args: { from: "BOOL", to: "INT" } },
@@ -28,7 +27,7 @@ describe("command rejection messages", () => {
   ];
   it.each(cases)("localizes $code with diagnostic arguments", (diagnostic, english, japanese) => {
     const rejection: CommandRejectionMessage = { type: "rejected", command: "write", diagnostic };
-    expect(rejectionText(rejection, en)).toBe(english);
-    expect(rejectionText(rejection, ja)).toBe(japanese);
+    expect(formatDiagnostic("en", rejection.diagnostic)).toBe(english);
+    expect(formatDiagnostic("ja", rejection.diagnostic)).toBe(japanese);
   });
 });
