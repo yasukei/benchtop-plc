@@ -5,7 +5,6 @@ pnpm-lock.yaml
 AGENTS.md
 # Content is specified verbatim by issue #17.
 docs/architecture.md
-docs/adr/README.md
 docs/adr/template.md
 docs/adr/0001-monorepo-packages-and-dependency-direction.md
 docs/adr/0002-tree-shaped-ir-as-plain-data.md
