@@ -10,6 +10,12 @@ export type AssignmentHint = "explicit-conversion";
 
 /** Stable code-to-argument contract. See docs/diagnostics.md for field semantics. */
 export interface DiagnosticArgs {
+  "project.invalid-xml": NoArguments;
+  "project.missing": { path: string };
+  "project.unsupported": { path: string };
+  "project.invalid": { path: string };
+  "project.dropped-data": { name: string };
+  "project.stale-source": NoArguments;
   "lex.unterminated-comment": NoArguments;
   "lex.invalid-character": { character: string };
   "lex.malformed-direct-address": { address: string };

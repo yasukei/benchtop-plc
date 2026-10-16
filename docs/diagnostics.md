@@ -133,3 +133,19 @@ it may identify the insertion position with an empty span. Fault events in
 `RuntimeToUiMessage` use this same union; consumers should narrow by `code` before
 reading code-specific arguments. This contract does not implement diagnostic
 emission, PLC execution, message rendering or untrusted-input validation.
+
+## Project file diagnostics
+
+| Code                   | Arguments      | Meaning                                                                                      |
+| ---------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `project.invalid-xml`  | none           | Malformed XML, a DTD, or excessive XML nesting.                                              |
+| `project.missing`      | `path: string` | A required element or attribute is absent.                                                   |
+| `project.unsupported`  | `path: string` | A construct is outside the supported TC6 subset, or an extension version is unsupported.     |
+| `project.invalid`      | `path: string` | Invalid metadata, task binding/duration/priority, panel JSON, or declaration data.           |
+| `project.dropped-data` | `name: string` | Warning: unknown vendor data was dropped.                                                    |
+| `project.stale-source` | none           | Warning: preserved editor text disagrees with the standard XML; canonical text was imported. |
+
+Paths identify XML elements/attributes or model fields; they are diagnostic
+arguments, not rendered English messages. Project conversion can also return the
+compiler's lexer/parser diagnostics with source spans. See
+[Project files](project-format.md) for the supported format and extension rules.

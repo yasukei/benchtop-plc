@@ -19,7 +19,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@benchtop-plc/compiler": "workspace:*",
     "@benchtop-plc/core": "workspace:*",
-    "@benchtop-plc/compiler": "workspace:*"
+    "saxes": "^6.0.0"
   }
 }
