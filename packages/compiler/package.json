@@ -1,0 +1,24 @@
+{
+  "name": "@benchtop-plc/compiler",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Structured Text source to IR compiler.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@benchtop-plc/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@benchtop-plc/core": "workspace:*"
+  }
+}

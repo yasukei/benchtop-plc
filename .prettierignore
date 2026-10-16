@@ -1,0 +1,5 @@
+dist/
+coverage/
+pnpm-lock.yaml
+# Content is specified verbatim by issue #2.
+AGENTS.md

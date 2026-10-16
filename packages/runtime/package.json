@@ -1,0 +1,24 @@
+{
+  "name": "@benchtop-plc/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Executes IR in scan cycles.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@benchtop-plc/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@benchtop-plc/core": "workspace:*"
+  }
+}
