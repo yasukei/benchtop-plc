@@ -28,4 +28,7 @@ The repository is a pnpm workspace. Packages live in `packages/` (`core`, `compi
 Dependencies point inward, `web → compiler | runtime | project → core` (and
 `project → compiler`); `pnpm lint` rejects imports in the other direction.
 
+The web shell loads a read-only demo IR and runs it in a Web Worker. See
+[the web app guide](docs/web-app.md) for the host boundary and browser tests.
+
 Contributor and agent conventions are in [`AGENTS.md`](AGENTS.md).

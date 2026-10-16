@@ -1,0 +1,129 @@
+import { useSyncExternalStore } from "react";
+import { en, type ShellCatalog } from "./catalog.js";
+import { demoSource } from "./demo.js";
+import { cycleOptions, type AppStore } from "./store.js";
+
+export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog }) {
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const disconnected = state.connection !== "connected";
+  const stopped = state.runtimeState === "STOP";
+  const banner = disconnected
+    ? text.connectionError
+    : state.runtimeState === "ESTOP"
+      ? text.estop
+      : state.diagnostic || state.runtimeState === "FAULT"
+        ? text.fault
+        : state.runtimeState === "RUN"
+          ? text.running
+          : text.info;
+  const urgent =
+    disconnected ||
+    state.runtimeState === "ESTOP" ||
+    state.runtimeState === "FAULT" ||
+    !!state.diagnostic;
+
+  return (
+    <div className="workbench" data-theme={state.theme}>
+      <header className="app-header">
+        <div>
+          <h1>{text.title}</h1>
+          <p>{text.subtitle}</p>
+        </div>
+        <label>
+          {text.theme}
+          <select
+            value={state.theme}
+            onChange={(event) => store.setTheme(event.target.value as "light" | "dark")}
+          >
+            <option value="light">{text.light}</option>
+            <option value="dark">{text.dark}</option>
+          </select>
+        </label>
+      </header>
+      <main>
+        <section className="toolbar" aria-label={text.toolbar}>
+          <div className="actions">
+            <button
+              className="run"
+              disabled={disconnected || !stopped}
+              onClick={() => store.send({ type: "run" })}
+            >
+              {text.run}
+            </button>
+            <button disabled={disconnected} onClick={() => store.send({ type: "stop" })}>
+              {text.stop}
+            </button>
+            <button
+              disabled={disconnected || !stopped}
+              onClick={() => store.send({ type: "step" })}
+            >
+              {text.step}
+            </button>
+            <button disabled={disconnected} onClick={() => store.send({ type: "coldReset" })}>
+              {text.reset}
+            </button>
+            <label>
+              {text.cycle}
+              <select
+                disabled={disconnected}
+                value={state.cycleMs}
+                onChange={(event) =>
+                  store.send({ type: "setCycle", ms: Number(event.target.value) })
+                }
+              >
+                {cycleOptions.map((ms) => (
+                  <option value={ms} key={ms}>
+                    {ms}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="telemetry">
+            <output aria-label={text.state} className="state" data-state={state.runtimeState}>
+              {state.runtimeState === "ESTOP" ? "E-STOP" : state.runtimeState}
+            </output>
+            <span>
+              {text.scans}:{" "}
+              <output aria-label={text.scans}>{state.snapshot?.scanCount ?? 0}</output>
+            </span>
+            <span>
+              {text.execution}:{" "}
+              <output aria-label={text.execution}>
+                {(state.snapshot?.lastExecutionTimeMs ?? 0).toFixed(3)}
+              </output>
+            </span>
+          </div>
+        </section>
+        <div className="banner" data-urgent={urgent} role={urgent ? "alert" : "status"}>
+          {banner}
+        </div>
+        <div className="workspace">
+          <section className="panel editor" aria-labelledby="editor-title">
+            <div className="panel-heading">
+              <h2 id="editor-title">{text.editor}</h2>
+              <span>{text.fixture}</span>
+            </div>
+            <pre>
+              <code>{demoSource}</code>
+            </pre>
+          </section>
+          <div className="side-panels">
+            <section className="panel" aria-labelledby="operator-title">
+              <h2 id="operator-title">{text.operator}</h2>
+              <p>{text.operatorHint}</p>
+            </section>
+            <section className="panel" aria-labelledby="io-title">
+              <h2 id="io-title">{text.io}</h2>
+              <p>{text.ioHint}</p>
+            </section>
+            <section className="panel" aria-labelledby="monitor-title">
+              <h2 id="monitor-title">{text.monitor}</h2>
+              <p>{text.monitorHint}</p>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

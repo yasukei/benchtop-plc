@@ -1,5 +1,7 @@
 dist/
 coverage/
+test-results/
+playwright-report/
 pnpm-lock.yaml
 # Content is specified verbatim by issue #2.
 AGENTS.md

@@ -3,12 +3,12 @@
   "compilerOptions": {
     "noEmit": false,
     "rootDir": "src",
-    "outDir": "dist",
+    "outDir": "dist/lib",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     // Resolve workspace dependencies to their built output, not their sources.
     "customConditions": []
   },
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-support.ts", "src/runtime.worker.ts"]
 }
