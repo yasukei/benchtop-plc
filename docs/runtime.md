@@ -94,13 +94,18 @@ and forces.
 Both commands require a loaded scalar ID and the declaration's exact `dataType`.
 Accepted values are copied and coerced with the core helpers (including integer
 wrapping). Unknown/FB targets, mismatched types, malformed values and non-finite
-numbers throw before changing memory or the debug sets. Input-mapped variables
+numbers throw `RuntimeCommandRejected` before changing memory or the debug sets.
+Its `diagnostic` contains a stable command-rejection code and arguments.
+Input-mapped variables
 reject writes because the next input image would overwrite them; they accept
 forces. Commands cannot energize output variables/images outside RUN, including
 immediate writes in STOP, FAULT or ESTOP. The Worker host routes the existing core
 `force` and `write` messages and publishes updated snapshots after accepted
-commands. Invalid commands propagate to the host as errors, rather than latching
-a PLC execution fault; the current protocol has no command-result message.
+commands. The Worker host catches only `RuntimeCommandRejected` and sends a
+non-fatal core `rejected` event with the command type and diagnostic. The existing
+state, memory, forces, pending writes, ticker and connection remain intact; this
+does not latch a PLC fault or replace a pending fault diagnostic. Unexpected
+programming errors still propagate to the host.
 
 ## Execution and diagnostics
 

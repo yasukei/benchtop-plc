@@ -1,4 +1,87 @@
 import { expect, test } from "@playwright/test";
+import type { RuntimeSnapshot, RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
+import { demoProgram } from "../src/demo.js";
+
+test("keeps the real Worker and RUN session alive after rejected debug commands", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    const OriginalWorker = window.Worker;
+    window.Worker = class extends OriginalWorker {
+      constructor(...args: ConstructorParameters<typeof Worker>) {
+        super(...args);
+        (window as Window & { testWorker?: Worker }).testWorker = this;
+      }
+    };
+  });
+  await page.goto("/");
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  const ir = structuredClone(demoProgram);
+  ir.variables.push({
+    kind: "scalar",
+    name: "input",
+    key: "INPUT",
+    dataType: "BOOL",
+    initialValue: false,
+    address: { area: "I", byte: 0, bit: 0 },
+    span: ir.span,
+  });
+  await page.evaluate((ir) => {
+    const worker = (window as Window & { testWorker?: Worker }).testWorker;
+    if (!worker) throw new Error("Expected runtime Worker");
+    worker.postMessage({ type: "load", ir });
+    worker.postMessage({ type: "force", variable: 0, value: { dataType: "DINT", value: 50 } });
+  }, ir);
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  const commands: UiToRuntimeMessage[] = [
+    { type: "write", variable: 1, value: { dataType: "BOOL", value: true } },
+    { type: "force", variable: 999, value: null },
+  ];
+  for (const command of commands) {
+    const snapshot = await page.evaluate(
+      (command) =>
+        new Promise<RuntimeSnapshot>((resolve) => {
+          const worker = (window as Window & { testWorker?: Worker }).testWorker;
+          if (!worker) throw new Error("Expected runtime Worker");
+          let rejected = false;
+          const listener = (event: MessageEvent<RuntimeToUiMessage>) => {
+            if (event.data.type === "rejected") rejected = true;
+            if (rejected && event.data.type === "snapshot") {
+              worker.removeEventListener("message", listener);
+              resolve(event.data.snapshot);
+            }
+          };
+          worker.addEventListener("message", listener);
+          worker.postMessage(command);
+        }),
+      command,
+    );
+    expect(snapshot.forced).toEqual([0]);
+    expect(snapshot.variables).toMatchObject([
+      { kind: "scalar", value: 50 },
+      { kind: "scalar", value: false },
+    ]);
+    await expect(page.getByRole("alert")).toContainText(
+      command.type === "write"
+        ? "cannot write input-mapped variable input"
+        : "select a scalar variable",
+    );
+    await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+    await expect
+      .poll(async () => Number(await page.getByLabel("Scans", { exact: true }).textContent()))
+      .toBeGreaterThan(snapshot.scanCount);
+    await expect(page.getByRole("button", { name: "STOP", exact: true })).toBeEnabled();
+  }
+  await page.getByRole("button", { name: "STOP", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  expect(errors).toEqual([]);
+});
 
 test("loads the demo and runs, stops, steps and resets through the Worker", async ({ page }) => {
   const errors: string[] = [];

@@ -1,4 +1,4 @@
-import type { RuntimeToUiMessage } from "@benchtop-plc/core";
+import type { RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
 import { VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 import { describe, expect, it } from "vitest";
 import { demoProgram } from "./demo.js";
@@ -18,7 +18,7 @@ function setup() {
 
 describe("Worker host", () => {
   it("routes force, clear and write messages and publishes their snapshots", () => {
-    const { host, clock, snapshot, state } = setup();
+    const { host, clock, snapshot, state, messages } = setup();
     host.handle({ type: "write", variable: 0, value: { dataType: "DINT", value: 10 } });
     expect(snapshot()).toMatchObject({ scanCount: 0, variables: [{ value: 10 }] });
     host.handle({ type: "force", variable: 0, value: { dataType: "DINT", value: 20 } });
@@ -37,10 +37,71 @@ describe("Worker host", () => {
     expect(snapshot()).toMatchObject({ scanCount: 6, variables: [{ value: 32 }] });
     expect(() =>
       host.handle({ type: "write", variable: 1, value: { dataType: "DINT", value: 1 } }),
-    ).toThrow();
+    ).not.toThrow();
+    expect(messages).toContainEqual({
+      type: "rejected",
+      command: "write",
+      diagnostic: { code: "runtime.debug-target", severity: "error", args: {} },
+    });
     expect(state()).toBe("RUN");
     host.handle({ type: "coldReset" });
     expect(snapshot()).toMatchObject({ scanCount: 0, variables: [{ value: 0 }], forced: [] });
+  });
+
+  it("rejects debug commands without resetting memory, forces, inputs, state or the ticker", () => {
+    const { host, clock, snapshot, state, messages } = setup();
+    const ir = structuredClone(demoProgram);
+    ir.variables.push({
+      kind: "scalar",
+      name: "input",
+      key: "INPUT",
+      dataType: "BOOL",
+      initialValue: false,
+      address: { area: "I", byte: 0, bit: 0 },
+      span: ir.span,
+    });
+    host.handle({ type: "load", ir });
+    host.handle({ type: "setInput", bit: 0, value: true });
+    host.handle({ type: "force", variable: 0, value: { dataType: "DINT", value: 50 } });
+    host.handle({ type: "run" });
+    clock.advance(10);
+    const before = snapshot();
+    const cases: [UiToRuntimeMessage, string][] = [
+      [
+        { type: "write", variable: 1, value: { dataType: "BOOL", value: false } },
+        "runtime.write-input-mapped",
+      ],
+      [{ type: "force", variable: 999, value: null }, "runtime.debug-target"],
+      [
+        { type: "force", variable: 0, value: { dataType: "BOOL", value: true } },
+        "runtime.debug-type-mismatch",
+      ],
+      [
+        { type: "write", variable: 0, value: { dataType: "DINT", value: NaN } },
+        "runtime.debug-value",
+      ],
+    ];
+    for (const [message, code] of cases) {
+      const start = messages.length;
+      expect(() => host.handle(message)).not.toThrow();
+      expect(messages.slice(start)).toMatchObject([
+        { type: "rejected", command: message.type, diagnostic: { code } },
+        { type: "state", state: "RUN" },
+        { type: "snapshot", snapshot: before },
+      ]);
+      expect(snapshot()).toEqual(before);
+    }
+    expect(messages.some((message) => message.type === "fault")).toBe(false);
+    clock.advance(10);
+    expect(state()).toBe("RUN");
+    expect(snapshot()).toMatchObject({
+      scanCount: 2,
+      variables: [{ value: 50 }, { value: true }],
+      forced: [0],
+    });
+    host.handle({ type: "force", variable: 0, value: null });
+    clock.advance(10);
+    expect(snapshot()).toMatchObject({ scanCount: 3, variables: [{ value: 51 }, { value: true }] });
   });
 
   it("executes the IR fixture with injected time and publishes snapshots while running", () => {

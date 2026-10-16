@@ -1,5 +1,5 @@
 import type { IoImage, RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
-import { createRuntime } from "@benchtop-plc/runtime";
+import { createRuntime, RuntimeCommandRejected } from "@benchtop-plc/runtime";
 import type { Clock, Ticker } from "@benchtop-plc/runtime";
 import { cycleOptions, type CycleMs } from "./store.js";
 
@@ -75,10 +75,14 @@ export function createWorkerHost(
           }
           break;
         case "force":
-          runtime.force(message.variable, message.value);
-          break;
         case "write":
-          runtime.write(message.variable, message.value);
+          try {
+            if (message.type === "force") runtime.force(message.variable, message.value);
+            else runtime.write(message.variable, message.value);
+          } catch (error) {
+            if (!(error instanceof RuntimeCommandRejected)) throw error;
+            post({ type: "rejected", command: message.type, diagnostic: error.diagnostic });
+          }
           break;
       }
       publish();

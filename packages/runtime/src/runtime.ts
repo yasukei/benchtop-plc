@@ -1,4 +1,5 @@
 import type {
+  CommandRejectionCode,
   Diagnostic,
   IoImage,
   ProgramIR,
@@ -50,6 +51,14 @@ export function createRuntime(options: RuntimeOptions): Runtime {
 }
 
 type OperatingState = Exclude<RuntimeState, "ESTOP">;
+
+/** Expected validation failures, distinguished from host/library programming errors. */
+export class RuntimeCommandRejected extends Error {
+  constructor(readonly diagnostic: Diagnostic<CommandRejectionCode>) {
+    super(diagnostic.code);
+    this.name = "RuntimeCommandRejected";
+  }
+}
 
 class PlcRuntime implements Runtime {
   private operatingState: OperatingState = "STOP";
@@ -158,17 +167,38 @@ class PlcRuntime implements Runtime {
   private debugVariable(variable: VariableId) {
     const declaration = Number.isInteger(variable) && this.memory?.ir.variables[variable];
     if (!declaration || declaration.kind !== "scalar")
-      throw new RangeError("Debug commands require a loaded scalar variable");
+      throw new RuntimeCommandRejected({
+        code: "runtime.debug-target",
+        severity: "error",
+        args: {},
+      });
     return declaration;
   }
 
   private debugValue(variable: VariableId, value: TypedValue): TypedValue {
     const declaration = this.debugVariable(variable);
     if (declaration.dataType !== value.dataType)
-      throw new TypeError("Debug value type must match the variable declaration");
+      throw new RuntimeCommandRejected({
+        code: "runtime.debug-type-mismatch",
+        severity: "error",
+        args: { from: value.dataType, to: declaration.dataType },
+      });
     if (typeof value.value !== (value.dataType === "BOOL" ? "boolean" : "number"))
-      throw new TypeError("Invalid debug value");
-    return typed(declaration.dataType, value.value);
+      throw new RuntimeCommandRejected({
+        code: "runtime.debug-value",
+        severity: "error",
+        args: {},
+      });
+    try {
+      return typed(declaration.dataType, value.value);
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      throw new RuntimeCommandRejected({
+        code: "runtime.debug-value",
+        severity: "error",
+        args: {},
+      });
+    }
   }
 
   force(variable: VariableId, value: TypedValue | null): void {
@@ -179,7 +209,12 @@ class PlcRuntime implements Runtime {
 
   write(variable: VariableId, value: TypedValue): void {
     const declaration = this.debugVariable(variable);
-    if (declaration.address?.area === "I") throw new Error("Cannot write an input-mapped variable");
+    if (declaration.address?.area === "I")
+      throw new RuntimeCommandRejected({
+        code: "runtime.write-input-mapped",
+        severity: "error",
+        args: { name: declaration.name },
+      });
     const checked = this.debugValue(variable, value);
     if (this.state === "RUN" || this.scanning) this.pendingWrites.set(variable, checked);
     else {

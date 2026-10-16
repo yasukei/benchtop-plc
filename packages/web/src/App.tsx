@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { bannerFor } from "./banner.js";
 import { en, type ShellCatalog } from "./catalog.js";
 import { demoSource } from "./demo.js";
+import { rejectionText } from "./rejection.js";
 import { cycleOptions, type AppStore } from "./store.js";
 
 export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog }) {
@@ -90,6 +91,11 @@ export function App({ store, text = en }: { store: AppStore; text?: ShellCatalog
         >
           {text[banner.key]}
         </div>
+        {state.rejection && (
+          <div className="banner" role="alert" data-urgent="false">
+            {rejectionText(state.rejection, text)}
+          </div>
+        )}
         <div className="workspace">
           <section className="panel editor" aria-labelledby="editor-title">
             <div className="panel-heading">

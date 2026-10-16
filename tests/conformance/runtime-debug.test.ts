@@ -108,12 +108,37 @@ describe("runtime debug conformance", () => {
         expect(() => runtime.write(variable, { dataType: "INT", value: 1 })).toThrow();
       }
       for (const command of ["force", "write"] as const) {
-        expect(() => runtime[command](1, { dataType: "BOOL", value: true })).toThrow(TypeError);
-        expect(() => runtime[command](1, { dataType: "INT", value: NaN })).toThrow(RangeError);
-        expect(() => runtime[command](1, { dataType: "INT", value: Infinity })).toThrow(RangeError);
+        expect(() => runtime[command](1, { dataType: "BOOL", value: true })).toThrow(
+          "runtime.debug-type-mismatch",
+        );
+        expect(() => runtime[command](1, { dataType: "INT", value: NaN })).toThrow(
+          "runtime.debug-value",
+        );
+        expect(() => runtime[command](1, { dataType: "INT", value: Infinity })).toThrow(
+          "runtime.debug-value",
+        );
       }
       expect(runtime.snapshot()).toEqual(before);
+      expect(runtime.diagnostic).toBeNull();
     }
+  });
+
+  it("preserves pending writes across rejected debug commands without latching a fault", () => {
+    const { runtime, clock, value } = setup("n : INT; i AT %IX0.0 : BOOL;", "n := n + 1;");
+    runtime.run();
+    runtime.write(0, { dataType: "INT", value: 20 });
+    expect(() => runtime.write(1, { dataType: "BOOL", value: true })).toThrow(
+      "runtime.write-input-mapped",
+    );
+    expect(() => runtime.force(0, { dataType: "BOOL", value: true })).toThrow(
+      "runtime.debug-type-mismatch",
+    );
+    expect(runtime.state).toBe("RUN");
+    expect(runtime.diagnostic).toBeNull();
+    clock.advance(10);
+    expect(value()).toBe(21);
+    clock.advance(10);
+    expect(value()).toBe(22);
   });
 
   it("steps exactly once in STOP with clock-based FB time, and ignores RUN, FAULT and ESTOP", () => {

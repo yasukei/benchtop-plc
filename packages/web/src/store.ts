@@ -1,4 +1,5 @@
 import type {
+  CommandRejectionMessage,
   Diagnostic,
   RuntimeSnapshot,
   RuntimeState,
@@ -14,6 +15,7 @@ export interface AppState {
   runtimeState: RuntimeState;
   snapshot: RuntimeSnapshot | null;
   diagnostic: Diagnostic | null;
+  rejection: CommandRejectionMessage | null;
   cycleMs: CycleMs;
   connection: "connected" | "failed" | "closed";
 }
@@ -25,6 +27,7 @@ export function createAppStore(client: RuntimeClient) {
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
+    rejection: null,
     cycleMs: 10,
     connection: "connected",
   };
@@ -47,6 +50,9 @@ export function createAppStore(client: RuntimeClient) {
       case "fault":
         update({ diagnostic: event.diagnostic });
         break;
+      case "rejected":
+        update({ rejection: event });
+        break;
       case "connectionError":
         update({ connection: "failed" });
         break;
@@ -68,6 +74,7 @@ export function createAppStore(client: RuntimeClient) {
     },
     send(message: UiToRuntimeMessage) {
       if (state.connection !== "connected") return;
+      if (state.rejection) update({ rejection: null });
       if (message.type === "setCycle") {
         if (!cycleOptions.includes(message.ms as CycleMs))
           throw new RangeError("Unsupported cycle");

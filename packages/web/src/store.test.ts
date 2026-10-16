@@ -23,6 +23,43 @@ function setup() {
 }
 
 describe("app store", () => {
+  it("stores a rejection separately from faults and keeps the connection and runtime state", () => {
+    const { worker, store } = setup();
+    worker.receive({ type: "state", state: "RUN" });
+    worker.receive({ type: "snapshot", snapshot });
+    const rejection = {
+      type: "rejected",
+      command: "write",
+      diagnostic: {
+        code: "runtime.write-input-mapped",
+        severity: "error",
+        args: { name: "input" },
+      },
+    } as const;
+    worker.receive(rejection);
+    expect(store.getSnapshot()).toMatchObject({
+      connection: "connected",
+      runtimeState: "RUN",
+      snapshot,
+      diagnostic: null,
+      rejection,
+    });
+    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 2 } });
+    expect(store.getSnapshot().rejection).toEqual(rejection);
+    expect(worker.terminated).toBe(false);
+    store.send({ type: "stop" });
+    expect(worker.sent).toEqual([{ type: "stop" }]);
+    expect(store.getSnapshot().rejection).toBeNull();
+    worker.receive({ type: "state", state: "FAULT" });
+    worker.receive({ type: "fault", diagnostic: fault });
+    worker.receive(rejection);
+    expect(store.getSnapshot()).toMatchObject({
+      runtimeState: "FAULT",
+      diagnostic: fault,
+      rejection,
+    });
+  });
+
   it("stores theme changes outside React without sending runtime commands", () => {
     const { worker, store } = setup();
     const listener = vi.fn();

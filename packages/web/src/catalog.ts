@@ -24,6 +24,11 @@ export const en = {
   estop: "Emergency stop is active. Execution is blocked and outputs are off.",
   fault: "The runtime has faulted. Use cold reset to return to STOP.",
   connectionError: "The runtime Worker is unavailable. Reload the page to reconnect.",
+  rejectedTarget: "Command rejected: select a scalar variable from the loaded program.",
+  rejectedType: "Command rejected: cannot write a value of type {from} to a variable of type {to}.",
+  rejectedValue: "Command rejected: the value is invalid or out of range.",
+  rejectedInputWrite:
+    "Command rejected: cannot write input-mapped variable {name}. Use force instead.",
   theme: "Theme",
   light: "Light",
   dark: "Dark",
@@ -54,6 +59,11 @@ export const ja: Record<keyof typeof en, string> = {
   estop: "非常停止中です。実行は禁止され、出力はオフになっています。",
   fault: "ランタイムで異常が発生しました。コールドリセットでSTOPに戻せます。",
   connectionError: "ランタイムWorkerに接続できません。ページを再読み込みしてください。",
+  rejectedTarget: "操作を拒否しました。読み込み済みプログラムのスカラー変数を選択してください。",
+  rejectedType: "操作を拒否しました。{to}型の変数に{from}型の値は書き込めません。",
+  rejectedValue: "操作を拒否しました。値が無効か範囲外です。",
+  rejectedInputWrite:
+    "操作を拒否しました。入力変数{name}には書き込めません。強制設定を使用してください。",
   theme: "テーマ",
   light: "ライト",
   dark: "ダーク",
