@@ -96,6 +96,20 @@ it("supports unary operands and bounded or variadic argument counts", () => {
   expect(JSON.parse(JSON.stringify([unary, variadic]))).toStrictEqual([unary, variadic]);
 });
 
+it("accepts shared readonly nonempty lists of expected argument types", () => {
+  const expected = ["INT", "REAL"] as const;
+  const diagnostic: Diagnostic<"call.argument-type"> = {
+    code: "call.argument-type",
+    severity: "error",
+    args: { name: "ABS", index: 0, expected, found: "BOOL" },
+  };
+  expect(diagnostic.args.expected).toBe(expected);
+  expect(JSON.parse(JSON.stringify(diagnostic))).toStrictEqual(diagnostic);
+  expectTypeOf<DiagnosticArgs["call.argument-type"]["expected"]>().toExtend<
+    readonly [unknown, ...unknown[]]
+  >();
+});
+
 it("rejects invalid codes and argument shapes during pnpm typecheck", () => {
   // tsc checks these directives; Vitest alone does not typecheck test files.
   // @ts-expect-error Only documented codes are accepted.
@@ -140,6 +154,17 @@ it("rejects invalid codes and argument shapes during pnpm typecheck", () => {
     // @ts-expect-error A union of selected codes still preserves their argument correlation.
     args: { name: "x" },
   };
+  const emptyExpected: Diagnostic<"call.argument-type"> = {
+    code: "call.argument-type",
+    severity: "error",
+    args: {
+      name: "ABS",
+      index: 0,
+      // @ts-expect-error At least one accepted argument type is required.
+      expected: [],
+      found: "BOOL",
+    },
+  };
   expect([
     unknown,
     missing,
@@ -150,5 +175,6 @@ it("rejects invalid codes and argument shapes during pnpm typecheck", () => {
     messageHint,
     severity,
     subset,
-  ]).toHaveLength(9);
+    emptyExpected,
+  ]).toHaveLength(10);
 });

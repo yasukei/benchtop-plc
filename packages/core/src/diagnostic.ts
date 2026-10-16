@@ -51,7 +51,12 @@ export interface DiagnosticArgs {
   "fb.call-in-expression": { name: string };
   "call.unknown-function": { name: string };
   "call.argument-count": { name: string; min: number; max: number | null; found: number };
-  "call.argument-type": { name: string; index: number; expected: DataType[]; found: DataType };
+  "call.argument-type": {
+    name: string;
+    index: number;
+    expected: readonly [DataType, ...DataType[]];
+    found: DataType;
+  };
 
   "runtime.division-by-zero": NoArguments;
   "runtime.watchdog": { limit: number };
