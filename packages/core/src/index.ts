@@ -3,3 +3,4 @@ export * from "./source.js";
 export * from "./ir.js";
 export * from "./diagnostic.js";
 export * from "./protocol.js";
+export * from "./standard-library.js";

@@ -11,6 +11,7 @@ import { Interpreter, RuntimeFault } from "./interpreter.js";
 import type { RuntimeLibrary } from "./library.js";
 import { emptyImage, Memory } from "./memory.js";
 import type { ScanMemory } from "./memory.js";
+import { standardLibrary } from "./standard-library.js";
 
 export interface ScanStages {
   readInputs?(): IoImage;
@@ -59,9 +60,11 @@ class PlcRuntime implements Runtime {
   private outputs = emptyImage();
   private annotations: RuntimeSnapshot["annotations"] = {};
   private readonly interval: number;
+  private readonly library: RuntimeLibrary;
 
   constructor(private readonly options: RuntimeOptions) {
     this.interval = options.intervalMs ?? 10;
+    this.library = options.library ?? standardLibrary;
     checkInterval(this.interval);
   }
 
@@ -91,7 +94,7 @@ class PlcRuntime implements Runtime {
 
   load(ir: ProgramIR): void {
     if (this.scanning) throw new Error("Cannot load during a scan");
-    const memory = new Memory(ir, this.options.library);
+    const memory = new Memory(ir, this.library);
     this.halt("STOP");
     this.memory = memory;
     this.initialize();
@@ -139,7 +142,7 @@ class PlcRuntime implements Runtime {
   coldReset(): void {
     if (this.scanning) throw new Error("Cannot reset during a scan");
     this.halt("STOP");
-    if (this.memory) this.memory = new Memory(this.memory.ir, this.options.library);
+    if (this.memory) this.memory = new Memory(this.memory.ir, this.library);
     this.initialize();
   }
 
@@ -150,7 +153,7 @@ class PlcRuntime implements Runtime {
     const start = this.options.clock.now();
     const generation = this.generation;
     const active = () => generation === this.generation;
-    const interpreter = new Interpreter(memory, start, active, this.options.library);
+    const interpreter = new Interpreter(memory, start, active, this.library);
     this.scanning = true;
     this.annotations = {};
     try {

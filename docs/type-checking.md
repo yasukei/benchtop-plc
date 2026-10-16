@@ -57,9 +57,12 @@ NOT supports BOOL and integers. Real-to-integer assignments include the existing
 
 ## Standard signatures
 
-The compiler-local signature table follows the milestone ports in
-[core-contracts.md](core-contracts.md). Issue #9 should move descriptors to core
-for sharing with the runtime; runtime implementations remain in runtime.
+The compiler consumes `standardFunctionBlocks` and `standardFunctions` from core,
+shared with the runtime. Port order follows [core-contracts.md](core-contracts.md);
+implementations remain in runtime. Function descriptors record minimum/maximum
+arity (`null` means extensible), positional accepted types (the last entry repeats)
+and a fixed conversion result type when applicable. SEL's value arguments must
+also be compatible with each other; polymorphic results follow the promotion rules below.
 Omitted FB inputs retain their values. Provided inputs must be unique, writable
 and assignable to the declared input type. Outputs may be read but never assigned,
 including in a named-input call.

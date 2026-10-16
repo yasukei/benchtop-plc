@@ -12,7 +12,7 @@ export interface FunctionBlockInstance {
   execute(scanStartMs: number): void;
 }
 
-/** Standard implementations and shared port descriptors are supplied by issue #9. */
+/** Replaceable dispatch; defaults to the standard library in createRuntime. */
 export interface RuntimeLibrary {
   createFunctionBlock(type: FunctionBlockType): FunctionBlockInstance;
   callFunction(name: StandardFunction, args: readonly ScalarValue[]): ScalarValue;

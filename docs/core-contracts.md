@@ -57,8 +57,8 @@ The compiler checks operand types, index validity, writable inputs, integer CASE
 labels/ranges, integer FOR bounds/step and BOOL conditions. An omitted FOR step
 lowers to a literal 1. ELSIF is represented by subsequent conditional branches.
 
-Port indices follow the milestone's standard FB signatures (issue #9 will provide
-the shared descriptor registry and implementations):
+Port indices follow core's shared `standardFunctionBlocks` registry. The compiler
+and runtime consume these descriptors, with implementations in runtime:
 
 | FB             | Inputs, in index order      | Outputs, in index order |
 | -------------- | --------------------------- | ----------------------- |

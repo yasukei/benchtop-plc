@@ -1,4 +1,10 @@
-import { coerceValue } from "@benchtop-plc/core";
+import {
+  coerceValue,
+  standardFunctionBlocks as blocks,
+  getStandardFunctionSignature as getSignature,
+  isFunctionBlockType as isBlock,
+  isStandardFunction as isFunction,
+} from "@benchtop-plc/core";
 import type {
   DataType,
   Diagnostic,
@@ -15,7 +21,6 @@ import type {
   VariableSymbol,
 } from "./checked.js";
 import { binaryConstant, unaryConstant, withConstant } from "./constants.js";
-import { blocks, getSignature, isBlock, isFunction } from "./signatures.js";
 import {
   assignable,
   binaryType,
