@@ -1,4 +1,4 @@
-/** Shell strings only; the full translation and diagnostic UI belongs to issue #16. */
+/** Typed shell messages; both locales must implement every key. */
 export const en = {
   title: "benchtop-plc",
   subtitle: "Browser PLC workbench",
@@ -24,6 +24,12 @@ export const en = {
   estop: "Emergency stop is active. Execution is blocked and outputs are off.",
   fault: "The runtime has faulted. Use cold reset to return to STOP.",
   connectionError: "The runtime Worker is unavailable. Reload the page to reconnect.",
+  language: "Language",
+  english: "English",
+  japanese: "日本語",
+  emergencyState: "E-STOP",
+  scansLabel: "Scans:",
+  executionLabel: "Execution (ms):",
   theme: "Theme",
   light: "Light",
   dark: "Dark",
@@ -54,9 +60,19 @@ export const ja: Record<keyof typeof en, string> = {
   estop: "非常停止中です。実行は禁止され、出力はオフになっています。",
   fault: "ランタイムで異常が発生しました。コールドリセットでSTOPに戻せます。",
   connectionError: "ランタイムWorkerに接続できません。ページを再読み込みしてください。",
+  language: "言語",
+  english: "English",
+  japanese: "日本語",
+  emergencyState: "E-STOP",
+  scansLabel: "スキャン数:",
+  executionLabel: "実行時間 (ms):",
   theme: "テーマ",
   light: "ライト",
   dark: "ダーク",
 };
 
 export type ShellCatalog = Record<keyof typeof en, string>;
+
+export type MessageKey = keyof typeof en;
+export const catalogs = { en, ja } as const;
+export type Language = keyof typeof catalogs;

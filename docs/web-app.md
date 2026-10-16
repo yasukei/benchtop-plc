@@ -4,8 +4,8 @@ Run `pnpm dev` to open the Vite development server. The left side displays a
 read-only Structured Text demo; the right side reserves space for the operator
 panel, I/O image and variable monitor. The layout becomes a single column below
 760 px. The theme selector switches CSS custom properties between light and dark.
-Editor and panel implementations and the full i18n feature remain separate issues;
-shell strings have English and Japanese catalogs as required by ADR 0008.
+Editor and panel implementations remain separate issues. The shell and diagnostics
+support English and Japanese as required by ADR 0008; see [i18n.md](i18n.md).
 
 `main.tsx` creates a module Worker, a `RuntimeClient` and a plain TypeScript app
 store, then sends the hard-coded `demoProgram` IR. React subscribes with
