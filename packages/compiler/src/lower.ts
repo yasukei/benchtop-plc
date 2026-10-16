@@ -1,7 +1,7 @@
+import { isFunctionBlockType as isBlock } from "@benchtop-plc/core";
 import type * as IR from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
 import type { CheckedProgram } from "./checked.js";
-import { isBlock } from "./signatures.js";
 
 /** Missing side-table entries indicate a compiler bug, never a source diagnostic. */
 function required<T>(value: T | undefined): T {

@@ -93,13 +93,56 @@ then propagate to the host; they are not PLC-language diagnostics.
 
 ## Standard library integration
 
-Pass a `RuntimeLibrary` for programs using functions or FBs. It supplies function
-results and creates independent FB instances with typed input/output port arrays
-in core descriptor order. Each instance owns its private state and receives the
-same scan-start time on every call in a scan. FB input assignments and named call
-inputs coerce to the input port type; omitted inputs retain their previous values.
-FB outputs and function results are coerced before use. Cold reset requests fresh
-instances. The standard implementations and shared descriptors belong to #9.
+`createRuntime` uses `standardLibrary` by default. Pass a custom `RuntimeLibrary`
+to replace dispatch. The library supplies function results and creates independent
+FB instances with typed input/output port arrays in core's
+`standardFunctionBlocks` descriptor order. Each instance owns its private state
+and receives the same scan-start time on every call in a scan. FB input assignments
+and named call inputs coerce to the input port type; omitted inputs retain their
+previous values. FB outputs and function results are coerced before use. Cold
+reset requests fresh instances. `createStandardFunctionBlock(type)` and
+`callStandardFunction(name, args)` also expose the implementations directly;
+direct callers supply compiler-checked, typed/coerced inputs. Polymorphic function
+results require coercion to the result type, as performed by the interpreter.
+
+### Timers and edges
+
+TON starts when called with IN=TRUE, sets Q at elapsed time >= PT and resets Q/ET
+when IN=FALSE. TOF sets Q immediately on IN=TRUE, starts its delay on the falling
+edge and clears Q at PT. A new TRUE cancels that delay and resets ET. Initial
+IN=FALSE does not start a TOF delay. TP starts on a rising edge (including initial
+IN=TRUE), keeps Q TRUE until PT even if IN falls, and ignores edges during the
+pulse. After completion it needs IN=FALSE before accepting another rising edge.
+
+ET is integer milliseconds, clamped to PT. TON/TOF retain ET=PT after completion
+until reset; TP retains it while IN stays TRUE and resets it to zero once the
+pulse is complete and IN=FALSE. Nonpositive PT acts as zero: TON completes
+immediately, TOF has no off delay and TP emits no pulse. PT is sampled on every
+call while timing; completion stays latched until the corresponding reset, so
+increasing PT after completion cannot restart an output. Completed ET follows PT.
+Timers read no clock themselves; all elapsed times use the supplied scan start.
+
+R_TRIG/F_TRIG compare CLK with its previous call and emit Q for one call on the
+corresponding edge. Both suppress a pulse on their first call, regardless of CLK.
+
+### Counters and functions
+
+CTU increments CV on CU rising edges and sets Q when CV >= PV. R resets CV to
+zero. CTD loads PV while LD=TRUE, otherwise decrements on CD rising edges, with
+Q when CV <= 0 (including its initial zero state). Counts continue beyond PV/zero
+and saturate at the INT limits, 32767/-32768. Reset/load takes priority over an
+edge but still samples CU/CD, so releasing it at a held-high level does not count.
+Counters initially remember FALSE, so an initial TRUE counts unless reset/loading.
+
+ABS, MIN, MAX and LIMIT operate on numeric values. LIMIT(MN, IN, MX) evaluates
+`MIN(MAX(IN, MN), MX)`, including when bounds are reversed. SEL(G, IN0, IN1)
+returns IN0 for FALSE and IN1 for TRUE; argument evaluation remains eager.
+REAL_TO_INT first represents its input as binary32, then rounds to nearest with
+ties to even (2.5 → 2, 3.5 → 4, -2.5 → -2). INT_TO_REAL converts to binary32;
+TIME_TO_INT/INT_TO_TIME use milliseconds without scaling; BOOL_TO_INT returns
+0/1. Integer conversions and polymorphic integer results use core's wrapping
+coercion, so ABS(INT_MIN) remains INT_MIN. Non-finite values/REAL overflow fault
+through `runtime.invalid-value`, just like other runtime expressions.
 
 ## Snapshots
 
