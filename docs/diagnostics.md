@@ -27,8 +27,11 @@ documentation, not message templates. Translation catalogs are outside issue #4.
 - Names, members, literals, characters and addresses retain source spelling.
 - `DataType` is `BOOL | INT | DINT | UINT | REAL | LREAL | TIME`.
   `FunctionBlockType` is the existing core union of supported standard FB names.
-- `expected` and `found` in syntax diagnostics are raw token spellings or canonical
-  token-kind identifiers, not descriptions such as "an identifier".
+- `expected` in syntax diagnostics is a raw token spelling, canonical token-kind
+  identifier, or stable construct identifier, never a localized description such
+  as "an identifier". The parser's non-spelling vocabulary is `identifier`,
+  `address`, `eof` (token kinds) and `expression` (a construct).
+  `found` retains the actual non-EOF token's source spelling.
   `syntax.expected-token` and `syntax.expected-identifier` only describe an actual
   non-EOF token; use the selection rules below when input ends.
   `syntax.missing-end.expected` is an `END_*` keyword.

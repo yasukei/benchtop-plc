@@ -13,7 +13,7 @@ import type {
   Statement,
 } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
-import { lex } from "./lexer.js";
+import { elementaryTypeKeywords, lex } from "./lexer.js";
 import type { Token } from "./lexer.js";
 
 export type ParseResult =
@@ -36,7 +36,6 @@ const precedence: Partial<Record<string, number>> = {
   "/": 7,
   MOD: 7,
 };
-const typeKeywords = new Set(["BOOL", "INT", "DINT", "UINT", "REAL", "LREAL", "TIME"]);
 
 class Parser {
   private cursor = 0;
@@ -105,7 +104,7 @@ class Parser {
 
   private identifier(allowType = false): Identifier {
     const token = this.current;
-    if (token.kind === "identifier" || (allowType && typeKeywords.has(token.key))) {
+    if (token.kind === "identifier" || (allowType && elementaryTypeKeywords.has(token.key))) {
       this.take();
       return { name: token.text, key: token.key, span: token.span };
     }
@@ -158,7 +157,7 @@ class Parser {
     this.expect("END_PROGRAM");
     const span = this.spanFrom(start);
     this.accept(";");
-    if (this.current.kind !== "eof") this.expected("EOF");
+    if (this.current.kind !== "eof") this.expected("eof");
     return { kind: "program", name, declarations, body, span };
   }
 
@@ -168,7 +167,7 @@ class Parser {
     let address: Address | undefined;
     if (this.accept("AT")) {
       const token = this.current;
-      if (token.kind !== "address") this.expected("direct-address");
+      if (token.kind !== "address") this.expected("address");
       this.take();
       const match = /^%([IQ])X([0-9]+)\.([0-9]+)$/.exec(token.key)!;
       address = {
@@ -283,7 +282,11 @@ class Parser {
       const body = this.body(["UNTIL"], "END_REPEAT", false, "UNTIL");
       this.expect("UNTIL");
       const until = this.expression();
-      if (!this.at("END_REPEAT")) this.missingEnd("END_REPEAT");
+      if (
+        this.current.kind === "eof" ||
+        (!this.at("END_REPEAT") && this.current.key.startsWith("END_"))
+      )
+        this.missingEnd("END_REPEAT");
       this.expect("END_REPEAT");
       this.expect(";");
       return { kind: "repeat", body, until, span: this.spanFrom(start) };

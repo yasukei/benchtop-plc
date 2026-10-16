@@ -35,6 +35,13 @@ expression retains its exact span. Missing terminators have an empty insertion
 span; other syntax errors point at the offending token. EOF diagnostics follow
 the selection rules in [diagnostics.md](diagnostics.md).
 
+For localization, `syntax.expected-token.args.expected` uses a literal spelling
+(such as `;` or `END_REPEAT`) or one of these stable identifiers: `identifier`,
+`address`, `eof` (matching token kinds), and `expression` (a grammatical construct).
+`args.found` is the actual token's source spelling. A stray token after an UNTIL
+condition reports `syntax.expected-token`; EOF or an enclosing `END_*` in that
+position reports `syntax.missing-end` for `END_REPEAT`.
+
 ## Syntax and values
 
 One textual `PROGRAM` is accepted, with zero or more `VAR` blocks followed by its
@@ -64,8 +71,9 @@ Literal nodes retain original text and a lexical kind (`integer`, `real`, `time`
 `boolean`), with a numeric or boolean value. Decimal and base 2/8/16 integers
 support underscores between digits. Reals support decimal points and signed
 exponents. TIME/T durations have an optional sign after `#` and descending,
-nonrepeated d/h/m/s/ms components, including fractional components; values are
-milliseconds. Signs on ordinary numbers remain unary operators. Numeric values
+nonrepeated d/h/m/s/ms components, optionally separated by a single underscore.
+Only the final component may be fractional; values are milliseconds. Signs on
+ordinary numbers remain unary operators. Numeric values
 are finite; integer literals and address components must be safe integers, and
 duration magnitudes may not exceed `Number.MAX_SAFE_INTEGER`. Values outside
 these representation limits produce the corresponding malformed-literal/address
@@ -74,7 +82,11 @@ compilation stages.
 
 The AST contains only plain, JSON-safe data. It does not enforce supported types,
 I/O ranges, name resolution, writable FB members, constant initializers or operand
-types. In particular, an address such as `%IX12.9` is syntactically valid and
+types. All elementary type keywords reserved by the lexer, including unsupported
+types such as `WORD`, `SINT` and `STRING`, are accepted in type position and
+retained for semantic analysis to report `decl.unknown-type`. They remain reserved
+in identifier positions; string literals and extended string type syntax are
+unsupported. In particular, an address such as `%IX12.9` is syntactically valid and
 remains available for a later `decl.address-out-of-range` diagnostic. FUNCTION,
 FUNCTION_BLOCK, extended VAR forms, arrays, structs, strings and `=>` call outputs
 are outside this parser's scope.

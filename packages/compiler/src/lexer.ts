@@ -17,18 +17,24 @@ export interface Token {
 export type LexResult =
   { tokens: Token[]; diagnostics: [] } | { tokens: null; diagnostics: [Diagnostic] };
 
+/** Reserved elementary type names are legal in type position, even before type checking. */
+export const elementaryTypeKeywords = new Set(
+  `BOOL INT DINT UINT REAL LREAL TIME SINT USINT UDINT LINT ULINT BYTE WORD DWORD
+   LWORD DATE TIME_OF_DAY TOD DATE_AND_TIME DT STRING WSTRING`.split(/\s+/),
+);
+
 // Include unsupported declaration/POU forms so they cannot masquerade as identifiers.
-const keywords = new Set(
-  `PROGRAM END_PROGRAM VAR END_VAR AT IF THEN ELSIF ELSE END_IF CASE OF END_CASE
+const keywords = new Set([
+  ...elementaryTypeKeywords,
+  ...`PROGRAM END_PROGRAM VAR END_VAR AT IF THEN ELSIF ELSE END_IF CASE OF END_CASE
    FOR TO BY DO END_FOR WHILE END_WHILE REPEAT UNTIL END_REPEAT EXIT RETURN
-   NOT MOD AND XOR OR BOOL INT DINT UINT REAL LREAL TIME
+   NOT MOD AND XOR OR
    FUNCTION END_FUNCTION FUNCTION_BLOCK END_FUNCTION_BLOCK VAR_INPUT VAR_OUTPUT
    VAR_IN_OUT VAR_TEMP VAR_GLOBAL VAR_EXTERNAL VAR_ACCESS VAR_CONFIG RETAIN NON_RETAIN
-   CONSTANT ARRAY STRUCT END_STRUCT STRING WSTRING TYPE END_TYPE
-   SINT USINT UDINT LINT ULINT BYTE WORD DWORD LWORD DATE TIME_OF_DAY TOD
-   DATE_AND_TIME DT EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE
+   CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE
+   EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE
    TASK WITH ON READ_ONLY READ_WRITE`.split(/\s+/),
-);
+]);
 
 const digits = "[0-9]+(?:_[0-9]+)*";
 const decimalInteger = new RegExp(`^${digits}$`);
@@ -151,16 +157,19 @@ class Lexer {
       const parts = duration.replace(/^[+-]/, "");
       let end = 0;
       let previousUnit = Infinity;
+      let fractional = false;
       value = 0;
       // matchAll creates a fresh regex iterator, so calls share no mutable lastIndex.
       for (const match of parts.matchAll(timePart)) {
         const unit = milliseconds[match[2]!.toLowerCase()]!;
-        if (match.index !== end || unit >= previousUnit) {
+        const separated = end > 0 && parts[end] === "_" && match.index === end + 1;
+        if ((match.index !== end && !separated) || unit >= previousUnit || fractional) {
           value = NaN;
           break;
         }
         value += Number(match[1]!.replaceAll("_", "")) * unit;
         previousUnit = unit;
+        fractional = match[1]!.includes(".");
         end = match.index + match[0].length;
       }
       if (end !== parts.length || end === 0) value = NaN;

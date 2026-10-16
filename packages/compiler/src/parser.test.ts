@@ -35,6 +35,38 @@ function shape(node: Expression): unknown {
 }
 
 describe("ST parser", () => {
+  it.each([
+    "SINT",
+    "USINT",
+    "UDINT",
+    "LINT",
+    "ULINT",
+    "BYTE",
+    "WORD",
+    "DWORD",
+    "LWORD",
+    "DATE",
+    "TIME_OF_DAY",
+    "TOD",
+    "DATE_AND_TIME",
+    "DT",
+    "STRING",
+    "WSTRING",
+  ])("defers support checks for the elementary type %s", (type) => {
+    const spelling = type.toLowerCase();
+    const declaration = program(`PROGRAM P\nVAR x : ${spelling}; END_VAR\nEND_PROGRAM`)
+      .declarations[0]!;
+    expect(declaration.typeName).toEqual({
+      name: spelling,
+      key: type,
+      span: { line: 2, column: 9, endLine: 2, endColumn: 9 + type.length },
+    });
+    const reserved = parse(`PROGRAM P VAR ${spelling} : INT; END_VAR END_PROGRAM`);
+    expect(reserved.diagnostics).toMatchObject([
+      { code: "syntax.reserved-identifier", args: { name: spelling } },
+    ]);
+  });
+
   it("parses multiple declaration blocks without performing semantic validation", () => {
     const ast = program(`pRoGrAm Demo
 vAr
@@ -239,6 +271,7 @@ describe("syntax diagnostics", () => {
     ["IF x THEN WHILE y DO", "syntax.missing-end", { expected: "END_WHILE" }],
     ["REPEAT x := 1;", "syntax.unexpected-eof", {}],
     ["REPEAT UNTIL", "syntax.unexpected-eof", {}],
+    ["REPEAT UNTIL x", "syntax.missing-end", { expected: "END_REPEAT" }],
     ["CASE x OF 1:", "syntax.missing-end", { expected: "END_CASE" }],
     ["CASE x OF 1,", "syntax.unexpected-eof", {}],
     ["VAR x :", "syntax.unexpected-eof", {}],
@@ -324,7 +357,7 @@ describe("syntax diagnostics", () => {
     [
       "PROGRAM P END_PROGRAM x",
       "syntax.expected-token",
-      { expected: "EOF", found: "x" },
+      { expected: "eof", found: "x" },
       1,
       23,
       1,
@@ -334,6 +367,36 @@ describe("syntax diagnostics", () => {
     expect(parse(source)).toEqual({
       ast: null,
       diagnostics: [{ code, severity: "error", args, span: { line, column, endLine, endColumn } }],
+    });
+  });
+
+  it.each([";", "y"])("reports a stray %s after UNTIL as an unexpected token", (found) => {
+    expect(parse(`PROGRAM P\nREPEAT x := 1; UNTIL x = 0 ${found} END_REPEAT; END_PROGRAM`)).toEqual(
+      {
+        ast: null,
+        diagnostics: [
+          {
+            code: "syntax.expected-token",
+            severity: "error",
+            args: { expected: "END_REPEAT", found },
+            span: { line: 2, column: 28, endLine: 2, endColumn: 29 },
+          },
+        ],
+      },
+    );
+  });
+
+  it("uses the canonical address token kind in diagnostics", () => {
+    expect(parse("PROGRAM P\nVAR x AT input : BOOL; END_VAR\nEND_PROGRAM")).toEqual({
+      ast: null,
+      diagnostics: [
+        {
+          code: "syntax.expected-token",
+          severity: "error",
+          args: { expected: "address", found: "input" },
+          span: { line: 2, column: 10, endLine: 2, endColumn: 15 },
+        },
+      ],
     });
   });
 
