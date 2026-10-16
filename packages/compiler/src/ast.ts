@@ -1,0 +1,152 @@
+import type { BinaryOperator, SourceNode, UnaryOperator } from "@benchtop-plc/core";
+
+/** Names remain unresolved; spelling is retained and key is the case-insensitive identity. */
+export interface Identifier extends SourceNode {
+  name: string;
+  key: string;
+}
+
+/** Syntactically valid addresses may exceed the runtime's supported I/O range. */
+export interface Address extends SourceNode {
+  text: string;
+  area: "I" | "Q";
+  byte: number;
+  bit: number;
+}
+
+export interface Program extends SourceNode {
+  kind: "program";
+  name: Identifier;
+  declarations: Declaration[];
+  body: Statement[];
+}
+
+export interface Declaration extends SourceNode {
+  kind: "declaration";
+  names: [Identifier, ...Identifier[]];
+  address?: Address;
+  typeName: Identifier;
+  initializer?: Expression;
+}
+
+export type Literal = SourceNode & { kind: "literal"; text: string } & (
+    | { literalKind: "integer" | "real" | "time"; value: number }
+    | { literalKind: "boolean"; value: boolean }
+  );
+
+export interface NameReference extends SourceNode {
+  kind: "name";
+  name: Identifier;
+}
+
+export interface MemberReference extends SourceNode {
+  kind: "member";
+  instance: Identifier;
+  member: Identifier;
+}
+
+export type AssignmentTarget = NameReference | MemberReference;
+
+export interface UnaryExpression extends SourceNode {
+  kind: "unary";
+  operator: UnaryOperator;
+  operand: Expression;
+}
+
+export interface BinaryExpression extends SourceNode {
+  kind: "binary";
+  operator: BinaryOperator;
+  left: Expression;
+  right: Expression;
+}
+
+/** Parentheses have their own span, leaving the enclosed node's span exact. */
+export interface GroupExpression extends SourceNode {
+  kind: "group";
+  expression: Expression;
+}
+
+export interface FunctionCall extends SourceNode {
+  kind: "functionCall";
+  name: Identifier;
+  args: Expression[];
+}
+
+export type Expression =
+  Literal | AssignmentTarget | UnaryExpression | BinaryExpression | GroupExpression | FunctionCall;
+
+export interface Assignment extends SourceNode {
+  kind: "assignment";
+  target: AssignmentTarget;
+  value: Expression;
+}
+
+export interface NamedInput extends SourceNode {
+  name: Identifier;
+  value: Expression;
+}
+
+export interface FunctionBlockCall extends SourceNode {
+  kind: "fbCall";
+  instance: Identifier;
+  inputs: NamedInput[];
+}
+
+export interface ConditionalBranch extends SourceNode {
+  condition: Expression;
+  body: Statement[];
+}
+
+export interface IfStatement extends SourceNode {
+  kind: "if";
+  branches: [ConditionalBranch, ...ConditionalBranch[]];
+  elseBody: Statement[];
+}
+
+/** Labels are expressions until the semantic pass checks integer constants. */
+export type CaseLabel = SourceNode &
+  ({ kind: "value"; value: Expression } | { kind: "range"; lower: Expression; upper: Expression });
+
+export interface CaseBranch extends SourceNode {
+  labels: [CaseLabel, ...CaseLabel[]];
+  body: Statement[];
+}
+
+export interface CaseStatement extends SourceNode {
+  kind: "case";
+  selector: Expression;
+  branches: CaseBranch[];
+  elseBody: Statement[];
+}
+
+export interface ForStatement extends SourceNode {
+  kind: "for";
+  variable: Identifier;
+  from: Expression;
+  to: Expression;
+  /** Omitted BY stays absent; the semantic pass supplies the default. */
+  step?: Expression;
+  body: Statement[];
+}
+
+export interface WhileStatement extends SourceNode {
+  kind: "while";
+  condition: Expression;
+  body: Statement[];
+}
+
+export interface RepeatStatement extends SourceNode {
+  kind: "repeat";
+  body: Statement[];
+  until: Expression;
+}
+
+export type Statement =
+  | Assignment
+  | FunctionBlockCall
+  | IfStatement
+  | CaseStatement
+  | ForStatement
+  | WhileStatement
+  | RepeatStatement
+  | (SourceNode & { kind: "exit" | "return" });
