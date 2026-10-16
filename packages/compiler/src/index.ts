@@ -14,3 +14,7 @@ export type {
   ResolvedReference,
   VariableSymbol,
 } from "./checked.js";
+
+export { compile } from "./compile.js";
+export type { CompileResult } from "./compile.js";
+export { lower } from "./lower.js";
