@@ -64,6 +64,7 @@ export function escapeXml(text: string): string {
 
 export function element(name: string, attributes: object = {}, body = ""): string {
   const attrs = Object.entries(attributes)
+    .filter(([, value]) => value !== undefined)
     .map(([key, value]) => ` ${key}="${escapeXml(String(value))}"`)
     .join("");
   return body ? `<${name}${attrs}>${body}</${name}>` : `<${name}${attrs}/>`;

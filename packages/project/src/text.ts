@@ -59,11 +59,17 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
   };
 }
 
+/** Add only missing line separators so canonical imports remain stable on repeated exchanges. */
+export function canonicalBody(body: string): string {
+  const separated = /^[\r\n]/.test(body) ? body : `\n${body}`;
+  return /[\r\n]$/.test(separated) ? separated : `${separated}\n`;
+}
+
 /** External files without our source extension receive a canonical declaration section. */
 export function joinProgram(program: SplitProgram): string {
   const declarations = program.variables.map(
     (variable) =>
       `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};`,
   );
-  return `PROGRAM ${program.name}\nVAR\n${declarations.join("\n")}\nEND_VAR\n${program.body}\nEND_PROGRAM\n`;
+  return `PROGRAM ${program.name}\nVAR\n${declarations.join("\n")}\nEND_VAR${canonicalBody(program.body)}END_PROGRAM\n`;
 }

@@ -8,7 +8,7 @@ import type {
   SplitProgram,
   VariableDeclaration,
 } from "./model.js";
-import { joinProgram, splitProgram } from "./text.js";
+import { canonicalBody, joinProgram, splitProgram } from "./text.js";
 import {
   element,
   escapeXml,
@@ -312,7 +312,9 @@ export function readProject(xml: string): ProjectResult<Project> {
     let program = joinProgram(split);
     const parsed = splitProgram(program);
     if (!parsed.value) return { value: null, diagnostics: [...diagnostics, ...parsed.diagnostics] };
-    if (JSON.stringify(parsed.value) !== JSON.stringify({ ...split, body: `\n${split.body}\n` })) {
+    if (
+      JSON.stringify(parsed.value) !== JSON.stringify({ ...split, body: canonicalBody(split.body) })
+    ) {
       // Re-parsing must not allow XML attributes or initializer text to inject declarations.
       fail("project.invalid", "pou/interface");
     }

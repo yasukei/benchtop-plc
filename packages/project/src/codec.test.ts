@@ -271,3 +271,59 @@ it("preserves every supported optional header field", () => {
   });
   expect(readProject(xml(project)).value).toEqual(project);
 });
+
+it.each(["companyURL", "productRelease", "contentDescription"] as const)(
+  "omits an explicitly undefined optional file header field: %s",
+  (field) => {
+    const project = sampleProject();
+    project.fileHeader[field] = undefined;
+    const written = xml(project);
+    expect(written).not.toContain('="undefined"');
+    expect(readProject(written).value!.fileHeader).not.toHaveProperty(field);
+    delete project.fileHeader[field];
+    expect(written).toBe(xml(project));
+  },
+);
+it.each(["version", "modificationDateTime", "organization", "author", "language"] as const)(
+  "omits an explicitly undefined optional content header field: %s",
+  (field) => {
+    const project = sampleProject();
+    project.contentHeader[field] = undefined;
+    const written = xml(project);
+    expect(written).not.toContain('="undefined"');
+    expect(readProject(written).value!.contentHeader).not.toHaveProperty(field);
+    delete project.contentHeader[field];
+    expect(written).toBe(xml(project));
+  },
+);
+it("retains explicitly empty optional string attributes", () => {
+  const project = sampleProject();
+  project.fileHeader.companyURL = "";
+  expect(readProject(xml(project)).value).toEqual(project);
+});
+it.each([
+  ["", "\n"],
+  ["x := TRUE;", "\nx := TRUE;\n"],
+  ["\nx := TRUE;\n", "\nx := TRUE;\n"],
+  ["\n\nx := TRUE;\n\n", "\n\nx := TRUE;\n\n"],
+  ["\r\nx := TRUE;\r\n", "\r\nx := TRUE;\r\n"],
+  ["\rx := TRUE;\r", "\rx := TRUE;\r"],
+  ["// trailing comment", "\n// trailing comment\n"],
+])("keeps external ST body separators stable across repeated imports %#", (body, expectedBody) => {
+  const encoded = body.replace(/\r/g, "&#13;").replace(/\n/g, "&#10;");
+  const input = stripExtension(xml(), SOURCE_NAMESPACE).replace(
+    /<xhtml:p>[\s\S]*?<\/xhtml:p>/,
+    `<xhtml:p>${encoded}</xhtml:p>`,
+  );
+  const first = readProject(input);
+  expect(first.diagnostics).toEqual([]);
+  expect(first.value).not.toBeNull();
+  expect(splitProgram(first.value!.program).value?.body).toBe(expectedBody);
+  let current = first.value!;
+  for (let cycle = 0; cycle < 3; cycle++) {
+    const read = readProject(stripExtension(xml(current), SOURCE_NAMESPACE));
+    expect(read.diagnostics).toEqual([]);
+    expect(read.value).toEqual(first.value);
+    current = read.value!;
+  }
+});

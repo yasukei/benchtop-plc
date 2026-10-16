@@ -46,6 +46,9 @@ Unknown vendor data, including nested `addData`, is warned about and dropped.
 Unsupported versions of our own root extensions return an error. A project
 round trip preserves metadata, exact editor source and JSON layout. Other tools
 may remove the source extension; in that case declaration formatting is rebuilt.
+Canonical imports add body separator line breaks only when missing, so repeated
+exchanges do not accumulate blank lines. Optional header fields set to
+`undefined` are omitted, just like absent fields; empty strings remain explicit.
 
 ## Official schema test
 
