@@ -88,7 +88,7 @@ export const diagnosticEn = {
   "call.argument-type": ({ name, index, expected, found }) =>
     `Argument ${index + 1} of ${name} requires ${expected.join(" / ")}; found ${found}.`,
   "runtime.invalid-value": () => "Non-finite result or REAL overflow.",
-  "runtime.division-by-zero": () => "Division or MOD by zero.",
+  "runtime.division-by-zero": () => "Division by zero.",
   "runtime.watchdog": ({ limit }) => `Loop iteration limit (${limit}) exceeded.`,
   "runtime.for-by-zero": () => "FOR step must not be zero.",
   "runtime.debug-target": () =>
@@ -166,7 +166,7 @@ export const diagnosticJa = {
   "call.argument-type": ({ name, index, expected, found }) =>
     `${name}の${index + 1}番目の引数には${expected.join(" / ")}が必要ですが、${found}です。`,
   "runtime.invalid-value": () => "非有限の計算結果、またはREALのオーバーフローが発生しました。",
-  "runtime.division-by-zero": () => "ゼロによる除算またはMODが発生しました。",
+  "runtime.division-by-zero": () => "ゼロによる除算が発生しました。",
   "runtime.watchdog": ({ limit }) => `ループの反復回数の上限（${limit}回）を超えました。`,
   "runtime.for-by-zero": () => "FORの増分をゼロにすることはできません。",
   "runtime.debug-target": () =>

@@ -113,7 +113,8 @@ All IR expressions and statements are supported. Both binary operands and functi
 arguments are evaluated in source order. Operators use the IR result type for
 coercion; real literals and their unary signs preserve binary64 precision until
 an operator or destination coercion, matching compiler semantics. Integer division
-truncates toward zero; integer arithmetic and assignments wrap through core helpers.
+truncates toward zero; MOD with a zero divisor returns zero. Integer arithmetic
+and assignments wrap through core helpers.
 FOR evaluates its bounds and step once on entry, assigns its control variable,
 and compares its current value inclusively on each iteration. Its increment is
 coerced like an assignment; an overflowing control variable can reach the watchdog.
@@ -121,7 +122,7 @@ EXIT leaves the innermost loop; RETURN leaves the program for that scan.
 
 The shared scan watchdog allows 200,000 total loop-body iterations, including
 nested loops, and faults on iteration 200,001. It reports the offending loop span.
-Zero division/MOD reports the expression span; zero FOR step reports the step
+Division by zero reports the expression span; zero FOR step reports the step
 expression span. Non-finite values and REAL overflow use `runtime.invalid-value`
 at the innermost expression or assignment/FB call that detected the invalid value.
 These faults cancel the ticker, clear outputs, latch FAULT and expose a copied
