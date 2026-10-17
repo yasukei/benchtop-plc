@@ -2,8 +2,20 @@ import type { IoBit } from "@benchtop-plc/core";
 
 export const partKinds = ["led", "pushbutton", "selector", "estop"] as const;
 export const ledColors = ["green", "amber", "red", "blue", "white"] as const;
+export const buttonColors = ["green", "red", "yellow", "blue", "black", "white"] as const;
 export type PartKind = (typeof partKinds)[number];
 export type LedColor = (typeof ledColors)[number];
+export type PartColor = LedColor | (typeof buttonColors)[number];
+export function colorsFor(kind: PartKind): readonly PartColor[] {
+  return kind === "pushbutton" || kind === "selector" ? buttonColors : ledColors;
+}
+export const partFootprint = { width: 56, height: 84 } as const;
+// Fractional positions must leave enough space at the smallest supported canvas size.
+export const minimumCanvasSize = { width: 300, height: 190 } as const;
+export interface PanelSize {
+  width: number;
+  height: number;
+}
 export interface PanelPart {
   id: string;
   kind: PartKind;
@@ -11,7 +23,7 @@ export interface PanelPart {
   x: number;
   y: number;
   bit: IoBit | null;
-  color: LedColor;
+  color: PartColor;
 }
 export type PanelLayout = PanelPart[];
 const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
@@ -25,7 +37,37 @@ export function assignAddress(part: PanelPart, address: string): PanelPart {
     throw new RangeError("Invalid panel address");
   return { ...part, bit: Number(match[2]) as IoBit };
 }
-export function addPart(layout: PanelLayout, kind: PartKind, label: string): PanelLayout {
+/** Search row by row using the same fixed footprint in edit and operate modes. */
+export function findPartPosition(layout: PanelLayout, size: PanelSize): { x: number; y: number } {
+  if (
+    Number.isFinite(size.width) &&
+    Number.isFinite(size.height) &&
+    size.width > 0 &&
+    size.height > 0
+  ) {
+    const spacingX = partFootprint.width + 8;
+    const spacingY = partFootprint.height + 8;
+    for (let top = 0; top <= size.height; top += spacingY) {
+      for (let left = 0; left <= size.width; left += spacingX) {
+        if (
+          layout.every(
+            (part) =>
+              Math.abs(part.x * size.width - left) >= spacingX ||
+              Math.abs(part.y * size.height - top) >= spacingY,
+          )
+        )
+          return { x: left / size.width, y: top / size.height };
+      }
+    }
+  }
+  return { x: 0.5, y: 0.5 };
+}
+export function addPart(
+  layout: PanelLayout,
+  kind: PartKind,
+  label: string,
+  size: PanelSize = minimumCanvasSize,
+): PanelLayout {
   if (kind === "estop" && layout.some((part) => part.kind === "estop")) return layout;
   let id = 1;
   while (layout.some((part) => part.id === String(id))) id++;
@@ -41,8 +83,7 @@ export function addPart(layout: PanelLayout, kind: PartKind, label: string): Pan
       id: String(id),
       kind,
       label,
-      x: 0.5,
-      y: 0.5,
+      ...findPartPosition(layout, size),
       bit: kind === "estop" ? null : (bit as IoBit),
       color: "green",
     },
@@ -67,7 +108,10 @@ export function readLayout(value: unknown): PanelLayout | null {
       ids.has(p.id) ||
       typeof p.label !== "string" ||
       !partKinds.includes(p.kind!) ||
-      !ledColors.includes(p.color!) ||
+      !(
+        colorsFor(p.kind!).includes(p.color!) ||
+        ((p.kind === "pushbutton" || p.kind === "selector") && p.color === "amber")
+      ) ||
       typeof p.x !== "number" ||
       !Number.isFinite(p.x) ||
       p.x < 0 ||
@@ -84,7 +128,10 @@ export function readLayout(value: unknown): PanelLayout | null {
       id: p.id,
       label: p.label,
       kind: p.kind!,
-      color: p.color!,
+      color:
+        (p.kind === "pushbutton" || p.kind === "selector") && p.color === "amber"
+          ? "yellow"
+          : p.color!,
       x: p.x,
       y: p.y,
       bit: p.bit!,
