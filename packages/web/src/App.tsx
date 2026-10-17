@@ -1,7 +1,7 @@
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { bannerFor } from "./banner.js";
 import { catalogs } from "./catalog.js";
-import { demoSource } from "./demo.js";
+import { StEditor, type StEditorHandle } from "./editor/StEditor.js";
 import { formatDiagnostic } from "./diagnostic-catalog.js";
 import { isLanguage, type I18n } from "./i18n.js";
 import { cycleOptions, type AppStore } from "./store.js";
@@ -13,6 +13,11 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
   const banner = bannerFor(state);
+  const editor = useRef<StEditorHandle>(null);
+  const unapplied = state.source !== state.loadedSource;
+  const online = !unapplied && !disconnected;
+  const diagnostics =
+    online && state.diagnostic ? [...state.diagnostics, state.diagnostic] : state.diagnostics;
 
   return (
     <div className="workbench" data-theme={state.theme}>
@@ -50,8 +55,8 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
           <div className="actions">
             <button
               className="run"
-              disabled={disconnected || !stopped}
-              onClick={() => store.send({ type: "run" })}
+              disabled={disconnected || (!stopped && !(state.runtimeState === "RUN" && unapplied))}
+              onClick={() => store.run()}
             >
               {text.run}
             </button>
@@ -59,7 +64,7 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
               {text.stop}
             </button>
             <button
-              disabled={disconnected || !stopped}
+              disabled={disconnected || !stopped || unapplied}
               onClick={() => store.send({ type: "step" })}
             >
               {text.step}
@@ -117,11 +122,48 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
           <section className="panel editor" aria-labelledby="editor-title">
             <div className="panel-heading">
               <h2 id="editor-title">{text.editor}</h2>
-              <span>{text.fixture}</span>
+              <span className="apply-status" data-unapplied={unapplied}>
+                {unapplied ? text.unapplied : text.applied}
+              </span>
             </div>
-            <pre>
-              <code>{demoSource}</code>
-            </pre>
+            <StEditor
+              ref={editor}
+              source={state.source}
+              onChange={store.setSource}
+              diagnostics={state.diagnostics}
+              snapshot={state.snapshot}
+              online={online}
+              fault={state.diagnostic}
+              language={language}
+            />
+            <section className="diagnostics" aria-labelledby="diagnostics-title">
+              <h3 id="diagnostics-title">{text.diagnostics}</h3>
+              {diagnostics.length === 0 ? (
+                <p role="status">{text.noDiagnostics}</p>
+              ) : (
+                <ul>
+                  {diagnostics.map((diagnostic, index) => (
+                    <li key={index}>
+                      <button
+                        disabled={!diagnostic.span}
+                        onClick={() => {
+                          if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
+                        }}
+                      >
+                        {diagnostic.span && (
+                          <span className="diagnostic-location">
+                            {text.location
+                              .replace("{line}", String(diagnostic.span.line))
+                              .replace("{column}", String(diagnostic.span.column))}
+                          </span>
+                        )}
+                        {formatDiagnostic(language, diagnostic)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </section>
           <div className="side-panels">
             <section className="panel" aria-labelledby="operator-title">

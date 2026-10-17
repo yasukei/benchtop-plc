@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { lex } from "./index.js";
+import { isElementaryTypeName, isKeyword, lex } from "./index.js";
 
 describe("ST lexer", () => {
+  it.each([
+    ["var", true, false],
+    ["eNd_iF", true, false],
+    ["VAR_CONFIG", true, false],
+    ["bool", true, true],
+    ["wStRiNg", true, true],
+    ["DATE_AND_TIME", true, true],
+    ["ton", false, false],
+    ["intensity", false, false],
+  ])("shares case-insensitive keyword and type classification for %s", (name, keyword, type) => {
+    expect(isKeyword(name)).toBe(keyword);
+    expect(isElementaryTypeName(name)).toBe(type);
+    expect(lex(name).tokens?.[0]?.kind).toBe(keyword ? "keyword" : "identifier");
+  });
+
   it.each([
     ["0", "integer", 0],
     ["123", "integer", 123],
