@@ -234,3 +234,47 @@ describe("editor state", () => {
     }
   });
 });
+
+it("latches emergency stop locally, blocks RUN, and requires explicit RUN after release", () => {
+  const { store, worker } = setup();
+  store.setEmergency(true);
+  store.run();
+  expect(worker.sent).toEqual([{ type: "estop", active: true }]);
+  expect(store.getSnapshot().emergencyActive).toBe(true);
+  store.setEmergency(false);
+  expect(store.getSnapshot().emergencyReleased).toBe(true);
+  expect(worker.sent.at(-1)).toEqual({ type: "estop", active: false });
+  store.run();
+  expect(worker.sent.at(-1)).toEqual({ type: "run" });
+  expect(store.getSnapshot().emergencyReleased).toBe(false);
+  store.dispose();
+});
+
+it("round trips source and panel through the project package and rejects loading during RUN", () => {
+  const { store, worker } = setup();
+  const part = {
+    id: "lamp",
+    kind: "led",
+    label: "Lamp",
+    x: 0.25,
+    y: 0.75,
+    bit: 1,
+    color: "amber",
+  } as const;
+  store.setLayout([part]);
+  const xml = store.saveProject()!;
+  store.setLayout([]);
+  expect(store.openProject(xml)).toBe(true);
+  expect(store.getSnapshot().layout).toEqual([part]);
+  expect(worker.sent.map((message) => message.type)).toEqual(["setCycle", "load"]);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  worker.receive({ type: "state", state: "RUN" });
+  const before = store.getSnapshot();
+  expect(store.openProject(xml)).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+  worker.receive({ type: "state", state: "STOP" });
+  const stopped = store.getSnapshot();
+  expect(store.openProject("invalid")).toBe(false);
+  expect(store.getSnapshot()).toBe(stopped);
+  store.dispose();
+});

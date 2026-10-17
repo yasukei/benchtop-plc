@@ -1,4 +1,7 @@
 import { compile } from "@benchtop-plc/compiler";
+import type { Project } from "@benchtop-plc/project";
+import { openPanelProject, savePanelProject } from "./panel/project.js";
+import type { PanelLayout } from "./panel/layout.js";
 import { demoSource } from "./demo.js";
 import type {
   CommandRejectionMessage,
@@ -14,6 +17,10 @@ export type CycleMs = (typeof cycleOptions)[number];
 
 export interface AppState {
   source: string;
+  layout: PanelLayout;
+  project: Project | null;
+  emergencyActive: boolean;
+  emergencyReleased: boolean;
   loadedSource: string | null;
   diagnostics: Diagnostic[];
   theme: "light" | "dark";
@@ -29,6 +36,10 @@ export interface AppState {
 export function createAppStore(client: RuntimeClient, source = demoSource) {
   let state: AppState = {
     source,
+    layout: [],
+    project: null,
+    emergencyActive: false,
+    emergencyReleased: false,
     loadedSource: null,
     diagnostics: compile(source).diagnostics,
     theme: "light",
@@ -92,6 +103,40 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
   };
   return {
     getSnapshot: () => state,
+    setLayout(layout: PanelLayout) {
+      update({ layout });
+    },
+    saveProject() {
+      return savePanelProject(state.source, state.layout, state.cycleMs, state.project);
+    },
+    openProject(xml: string) {
+      if (
+        pendingLoads.length > 0 ||
+        state.runtimeState !== "STOP" ||
+        state.emergencyActive ||
+        state.connection !== "connected"
+      )
+        return false;
+      const opened = openPanelProject(xml);
+      if (!opened || !compile(opened.project.program).ir) return false;
+      const ms = Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000;
+      if (!cycleOptions.includes(ms as CycleMs)) return false;
+      clearTimeout(compileTimer);
+      update({
+        source: opened.project.program,
+        layout: opened.layout,
+        project: opened.project,
+        diagnostics: compile(opened.project.program).diagnostics,
+        cycleMs: ms as CycleMs,
+      });
+      client.send({ type: "setCycle", ms });
+      return loadEditor();
+    },
+    setEmergency(active: boolean) {
+      if (state.connection !== "connected") return;
+      update({ emergencyActive: active, emergencyReleased: !active });
+      client.send({ type: "estop", active });
+    },
     setSource(source: string) {
       if (source === state.source) return;
       clearTimeout(compileTimer);
@@ -100,10 +145,11 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
     },
     loadEditor,
     run() {
-      if (state.connection !== "connected" || pendingLoads.length) return;
+      if (state.connection !== "connected" || pendingLoads.length || state.emergencyActive) return;
       if (state.runtimeState !== "STOP" && state.runtimeState !== "RUN") return;
       if (state.source !== state.loadedSource && !loadEditor()) return;
       if (state.rejection) update({ rejection: null });
+      update({ emergencyReleased: false });
       client.send({ type: "run" });
     },
     setTheme(theme: AppState["theme"]) {

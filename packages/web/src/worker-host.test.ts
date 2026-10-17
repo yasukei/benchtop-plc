@@ -183,3 +183,16 @@ describe("Worker host", () => {
     expect(messages.at(-1)?.type).toBe("snapshot");
   });
 });
+
+it("publishes panel inputs immediately while STOP or ESTOP prevents scan sampling", () => {
+  const { host, snapshot, state } = setup();
+  for (const emergency of [false, true]) {
+    host.handle({ type: "estop", active: emergency });
+    host.handle({ type: "setInput", bit: 0, value: true });
+    expect(snapshot()?.inputs[0]).toBe(true);
+    expect(snapshot()?.scanCount).toBe(0);
+    expect(state()).toBe(emergency ? "ESTOP" : "STOP");
+    host.handle({ type: "setInput", bit: 0, value: false });
+    expect(snapshot()?.inputs[0]).toBe(false);
+  }
+});
