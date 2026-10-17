@@ -3,12 +3,14 @@
 Run `pnpm dev` to open the Vite development server. The left side displays an
 editable Structured Text program; the right side reserves space for the operator
 panel, I/O image and variable monitor. The layout becomes a single column below
-760 px. The theme selector switches CSS custom properties between light and dark.
+760 px. The theme selector offers System (the default), Light and Dark. System
+follows the operating system's color scheme, including live changes. An explicit
+selection is saved in this browser's `localStorage`, like the language.
 Panel implementations remain separate issues. The shell and diagnostics
 support English and Japanese as required by ADR 0008; see [i18n.md](i18n.md).
 
 `main.tsx` creates a module Worker, a `RuntimeClient` and a plain TypeScript app
-store, then compiles and loads `demoSource`. React subscribes with
+store, then restores saved work or opens the bundled blink example. React subscribes with
 `useSyncExternalStore`. Runtime state and scan telemetry come from Worker
 messages; the UI does not optimistically claim that RUN succeeded. Worker errors
 terminate the connection, show a banner and disable runtime controls. Reload the
@@ -32,6 +34,23 @@ counts continue through rejected commands.
 The core protocol has no nullable fault message, so the store clears an old
 diagnostic when it receives the zero-scan snapshot from load or cold reset. It
 retains a latched diagnostic through STOP requests and emergency-stop transitions.
+
+## Browser autosave
+
+Editor text (including code that does not compile), panel layout, cycle time and
+project metadata are saved to a versioned JSON record in `localStorage` 500 ms
+after the last change. Pending changes are also saved when the page is hidden or
+left. Reloading restores that work and loads compilable source into a fresh PLC
+in STOP, with initialized memory, no forces and no active emergency stop. Invalid
+source stays in the editor with diagnostics until it is fixed and applied; it is
+never run automatically. Missing, invalid or unsupported records, or unavailable
+storage, fall back to the bundled example without blocking startup.
+
+Autosave is a per-browser convenience. It is not shared between browsers or
+devices, and browser settings or storage limits may prevent persistence. Use
+**Save project** to keep or share a project. **Restore example** replaces the
+current work and is autosaved like other edits. Runtime state and `RETAIN` values
+are not saved.
 
 ## Structured Text editor
 

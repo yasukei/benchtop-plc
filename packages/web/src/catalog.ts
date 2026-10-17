@@ -80,6 +80,7 @@ export const en = {
   scansLabel: "Scans:",
   executionLabel: "Execution (ms):",
   theme: "Theme",
+  system: "System",
   light: "Light",
   dark: "Dark",
 } as const;
@@ -165,6 +166,7 @@ export const ja: Record<keyof typeof en, string> = {
   scansLabel: "スキャン数:",
   executionLabel: "実行時間 (ms):",
   theme: "テーマ",
+  system: "システム",
   light: "ライト",
   dark: "ダーク",
 };

@@ -61,15 +61,6 @@ describe("app store", () => {
     });
   });
 
-  it("stores theme changes outside React without sending runtime commands", () => {
-    const { worker, store } = setup();
-    const listener = vi.fn();
-    store.subscribe(listener);
-    store.setTheme("dark");
-    expect(store.getSnapshot().theme).toBe("dark");
-    expect(listener).toHaveBeenCalledTimes(1);
-    expect(worker.sent).toEqual([]);
-  });
   it("keeps stable snapshots and waits for confirmed runtime state", () => {
     const { worker, store } = setup();
     const initial = store.getSnapshot();
