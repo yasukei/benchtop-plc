@@ -1,4 +1,8 @@
-import { useRef, useSyncExternalStore } from "react";
+import { compile } from "@benchtop-plc/compiler";
+import { OperatorPanel } from "./panel/OperatorPanel.js";
+import { VariableMonitor } from "./VariableMonitor.js";
+import { IoImage } from "./IoImage.js";
+import { useMemo, useRef, useSyncExternalStore } from "react";
 import { bannerFor } from "./banner.js";
 import { catalogs } from "./catalog.js";
 import { StEditor, type StEditorHandle } from "./editor/StEditor.js";
@@ -10,6 +14,10 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
   const language = useSyncExternalStore(i18n.subscribe, i18n.getSnapshot);
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const variables = useMemo(
+    () => (state.loadedSource ? (compile(state.loadedSource).ir?.variables ?? []) : []),
+    [state.loadedSource],
+  );
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
   const banner = bannerFor(state);
@@ -55,7 +63,11 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
           <div className="actions">
             <button
               className="run"
-              disabled={disconnected || (!stopped && !(state.runtimeState === "RUN" && unapplied))}
+              disabled={
+                state.emergencyActive ||
+                disconnected ||
+                (!stopped && !(state.runtimeState === "RUN" && unapplied))
+              }
               onClick={() => store.run()}
             >
               {text.run}
@@ -166,18 +178,15 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
             </section>
           </section>
           <div className="side-panels">
-            <section className="panel" aria-labelledby="operator-title">
-              <h2 id="operator-title">{text.operator}</h2>
-              <p>{text.operatorHint}</p>
-            </section>
-            <section className="panel" aria-labelledby="io-title">
-              <h2 id="io-title">{text.io}</h2>
-              <p>{text.ioHint}</p>
-            </section>
-            <section className="panel" aria-labelledby="monitor-title">
-              <h2 id="monitor-title">{text.monitor}</h2>
-              <p>{text.monitorHint}</p>
-            </section>
+            <OperatorPanel state={state} store={store} text={text} />
+            <IoImage state={state} text={text} />
+            <VariableMonitor
+              key={state.loadedSource}
+              state={state}
+              store={store}
+              text={text}
+              variables={variables}
+            />
           </div>
         </div>
       </main>

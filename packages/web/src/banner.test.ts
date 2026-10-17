@@ -69,3 +69,14 @@ describe("banner selection", () => {
     expect(bannerFor(state)).toEqual(expected);
   });
 });
+
+it("asks for RUN after emergency stop release", () => {
+  expect(
+    bannerFor({
+      connection: "connected",
+      runtimeState: "STOP",
+      diagnostic: null,
+      emergencyReleased: true,
+    }),
+  ).toEqual({ key: "released", urgent: false });
+});

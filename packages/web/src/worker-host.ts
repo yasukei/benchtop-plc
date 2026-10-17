@@ -15,7 +15,8 @@ export function createWorkerHost(
   const inputs: IoImage = [false, false, false, false, false, false, false, false];
   const publish = () => {
     post({ type: "state", state: runtime.state });
-    post({ type: "snapshot", snapshot: runtime.snapshot() });
+    // The panel input image is live even while STOP prevents scan sampling.
+    post({ type: "snapshot", snapshot: { ...runtime.snapshot(), inputs: [...inputs] } });
     if (runtime.diagnostic) post({ type: "fault", diagnostic: runtime.diagnostic });
   };
   const start = () => {
