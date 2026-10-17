@@ -11,6 +11,7 @@ import {
   movePart,
   partKinds,
   partFootprint,
+  minimumCanvasSize,
   type PanelPart,
   type PartKind,
 } from "./layout.js";
@@ -197,8 +198,7 @@ export function OperatorPanel({
             <button
               disabled={kind === "estop" && state.layout.some((p) => p.kind === "estop")}
               onClick={() => {
-                const rect = canvas.current!.getBoundingClientRect();
-                const next = addPart(state.layout, kind, kindLabels[kind], rect);
+                const next = addPart(state.layout, kind, kindLabels[kind]);
                 store.setLayout(next);
                 setSelected(next.at(-1)!.id);
               }}
@@ -209,7 +209,11 @@ export function OperatorPanel({
         </>
       )}
       <div className="operator-surface">
-        <div ref={canvas} className="operator-canvas">
+        <div
+          ref={canvas}
+          className="operator-canvas"
+          style={{ minWidth: minimumCanvasSize.width, minHeight: minimumCanvasSize.height }}
+        >
           {state.layout.map((p) => (
             <div
               key={p.id}

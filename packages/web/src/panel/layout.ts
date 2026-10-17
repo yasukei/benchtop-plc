@@ -10,6 +10,8 @@ export function colorsFor(kind: PartKind): readonly PartColor[] {
   return kind === "pushbutton" || kind === "selector" ? buttonColors : ledColors;
 }
 export const partFootprint = { width: 56, height: 84 } as const;
+// Fractional positions must leave enough space at the smallest supported canvas size.
+export const minimumCanvasSize = { width: 300, height: 190 } as const;
 export interface PanelSize {
   width: number;
   height: number;
@@ -64,7 +66,7 @@ export function addPart(
   layout: PanelLayout,
   kind: PartKind,
   label: string,
-  size: PanelSize = { width: 300, height: 190 },
+  size: PanelSize = minimumCanvasSize,
 ): PanelLayout {
   if (kind === "estop" && layout.some((part) => part.kind === "estop")) return layout;
   let id = 1;

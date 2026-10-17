@@ -81,11 +81,13 @@ test("keeps example controls separated even at twenty-percent spacing and with l
 });
 
 for (const initial of ["empty", "example"] as const) {
-  test(`places three consecutive push buttons without overlap in an ${initial} panel`, async ({
+  test(`keeps three added push buttons separated after narrowing and reopening an ${initial} panel`, async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
     if (initial === "example") await openReference(page);
     else await page.goto("/");
+    expect((await page.locator(".operator-canvas").boundingBox())!.width).toBeGreaterThan(500);
     await expectNoOverlap(page);
     await page.getByRole("button", { name: "Edit panel", exact: true }).click();
     await page.getByRole("combobox", { name: "Part type", exact: true }).selectOption("pushbutton");
@@ -94,12 +96,26 @@ for (const initial of ["empty", "example"] as const) {
       await page.getByLabel("Label", { exact: true }).fill(`New button ${i}`);
       await expectNoOverlap(page);
     }
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Save project", exact: true }).click();
+    const saved = await (await downloadPromise).path();
+    expect(saved).toBeTruthy();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoOverlap(page);
     await page.getByRole("button", { name: "Operate", exact: true }).click();
     await expectNoOverlap(page);
     for (let i = 0; i < 3; i++)
       await expect(
         page.getByRole("button", { name: `New button ${i}`, exact: true }),
       ).toBeVisible();
+    await page.reload();
+    await page.getByLabel("Open project", { exact: true }).setInputFiles(saved!);
+    await expect(page.locator(".positioned-part")).toHaveCount(
+      (initial === "example" ? layout.length : 0) + 3,
+    );
+    await expectNoOverlap(page);
+    await page.getByRole("button", { name: "Edit panel", exact: true }).click();
+    await expectNoOverlap(page);
   });
 }
 

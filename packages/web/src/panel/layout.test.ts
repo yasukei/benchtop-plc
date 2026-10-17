@@ -87,7 +87,7 @@ describe("panel placement", () => {
     expect(findPartPosition(layout, size)).toEqual({ x: 0.5, y: 0 });
     expect(findPartPosition(deletePart(layout, "1"), size)).toEqual({ x: 0, y: 0 });
   });
-  it("uses the measured canvas dimensions", () => {
+  it("uses the supplied canvas dimensions", () => {
     const layout = addPart([], "led", "A");
     expect(findPartPosition(layout, { width: 128, height: 184 })).toEqual({ x: 0.5, y: 0 });
   });
