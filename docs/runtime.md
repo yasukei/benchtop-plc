@@ -26,6 +26,11 @@ belong to the Worker host (#12).
 
 ## Scan and state
 
+Operating-state transitions, restart semantics and run-time error reactions are
+defined in [ADR 0010](adr/0010-operating-states-restarts-and-runtime-errors.md).
+STOP → RUN resumes with existing variable and FB state; cold reset or loading a
+program initializes it. Outputs remain subject to the state rules below.
+
 `ScanStages` supplies the input/output image boundary and extension points for
 pending writes and forces. The sequence is read inputs, copy mapped inputs into
 memory, apply pending writes, apply forces, interpret the body, apply forces again,
@@ -126,6 +131,10 @@ expression span. Non-finite values and REAL overflow use `runtime.invalid-value`
 at the innermost expression or assignment/FB call that detected the invalid value.
 These faults cancel the ticker, clear outputs, latch FAULT and expose a copied
 `diagnostic`. Cold reset or loading a program clears FAULT.
+
+The current `x MOD 0` fault is the exception to ADR 0010's error-reaction table.
+[Issue #34](https://github.com/yasukei/benchtop-plc/issues/34) tracks returning `0`
+without a fault as required by the ADR.
 
 Unexpected host/library programming errors also clear outputs and latch FAULT,
 then propagate to the host; they are not PLC-language diagnostics.
