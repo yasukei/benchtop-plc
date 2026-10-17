@@ -17,7 +17,7 @@ test("switches the whole shell without reload and remembers the choice", async (
   for (const name of ["操作パネル", "I/Oイメージ", "変数モニター"]) {
     await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   }
-  await expect(page.getByLabel("テーマ")).toHaveValue("light");
+  await expect(page.getByLabel("テーマ")).toHaveValue("system");
   await expect(page.getByLabel("周期 (ms)")).toHaveValue("10");
   await expect(page.getByLabel("ランタイム状態")).toHaveText("STOP");
   await expect(page.locator(".banner")).toContainText("プログラムを読み込みました");

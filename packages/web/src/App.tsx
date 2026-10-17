@@ -9,8 +9,10 @@ import { StEditor, type StEditorHandle } from "./editor/StEditor.js";
 import { formatDiagnostic } from "./diagnostic-catalog.js";
 import { isLanguage, type I18n } from "./i18n.js";
 import { cycleOptions, type AppStore } from "./store.js";
+import { isTheme, type ThemeStore } from "./theme.js";
 
-export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
+export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme: ThemeStore }) {
+  const appearance = useSyncExternalStore(theme.subscribe, theme.getSnapshot);
   const language = useSyncExternalStore(i18n.subscribe, i18n.getSnapshot);
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
@@ -28,7 +30,7 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
     online && state.diagnostic ? [...state.diagnostics, state.diagnostic] : state.diagnostics;
 
   return (
-    <div className="workbench" data-theme={state.theme}>
+    <div className="workbench" data-theme={appearance.resolved}>
       <header className="app-header">
         <div>
           <h1>{text.title}</h1>
@@ -50,9 +52,13 @@ export function App({ store, i18n }: { store: AppStore; i18n: I18n }) {
         <label>
           {text.theme}
           <select
-            value={state.theme}
-            onChange={(event) => store.setTheme(event.target.value as "light" | "dark")}
+            value={appearance.selection}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (isTheme(next)) theme.setTheme(next);
+            }}
           >
+            <option value="system">{text.system}</option>
             <option value="light">{text.light}</option>
             <option value="dark">{text.dark}</option>
           </select>

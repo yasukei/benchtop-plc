@@ -11,9 +11,10 @@ import type {
   UiToRuntimeMessage,
 } from "@benchtop-plc/core";
 import type { ClientEvent, RuntimeClient } from "./runtime-client.js";
+import { cycleOptions, type CycleMs, type SavedWork } from "./autosave.js";
 
-export const cycleOptions = [10, 20, 50, 100] as const;
-export type CycleMs = (typeof cycleOptions)[number];
+export { cycleOptions } from "./autosave.js";
+export type { CycleMs } from "./autosave.js";
 
 export interface AppState {
   source: string;
@@ -23,7 +24,6 @@ export interface AppState {
   emergencyReleased: boolean;
   loadedSource: string | null;
   diagnostics: Diagnostic[];
-  theme: "light" | "dark";
   runtimeState: RuntimeState;
   snapshot: RuntimeSnapshot | null;
   diagnostic: Diagnostic | null;
@@ -33,21 +33,21 @@ export interface AppState {
 }
 
 /** A cached snapshot and subscription API suitable for React's useSyncExternalStore. */
-export function createAppStore(client: RuntimeClient, source = "") {
+export function createAppStore(client: RuntimeClient, initial: string | SavedWork = "") {
+  const source = typeof initial === "string" ? initial : initial.source;
   let state: AppState = {
     source,
-    layout: [],
-    project: null,
+    layout: typeof initial === "string" ? [] : initial.layout,
+    project: typeof initial === "string" ? null : initial.project,
     emergencyActive: false,
     emergencyReleased: false,
     loadedSource: null,
     diagnostics: compile(source).diagnostics,
-    theme: "light",
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
     rejection: null,
-    cycleMs: 10,
+    cycleMs: typeof initial === "string" ? 10 : initial.cycleMs,
     connection: "connected",
   };
   let compileTimer: ReturnType<typeof setTimeout> | undefined;
@@ -153,9 +153,6 @@ export function createAppStore(client: RuntimeClient, source = "") {
       if (state.rejection) update({ rejection: null });
       update({ emergencyReleased: false });
       client.send({ type: "run" });
-    },
-    setTheme(theme: AppState["theme"]) {
-      update({ theme });
     },
     subscribe(listener: () => void) {
       listeners.add(listener);

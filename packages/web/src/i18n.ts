@@ -1,4 +1,5 @@
 import { catalogs, type Language } from "./catalog.js";
+import { browserStorage } from "./browser-storage.js";
 
 export const languageStorageKey = "benchtop-plc.language";
 
@@ -56,15 +57,9 @@ export function createI18n(preferences: LanguagePreferences = {}) {
 export type I18n = ReturnType<typeof createI18n>;
 
 export function createBrowserI18n(): I18n {
-  let storage: Storage | undefined;
-  try {
-    storage = window.localStorage;
-  } catch {
-    // Access to the storage property itself can throw.
-  }
   return createI18n({
     languages: navigator.languages,
-    storage,
+    storage: browserStorage(),
     onChange(language) {
       document.documentElement.lang = language;
       document.title = catalogs[language].title;
