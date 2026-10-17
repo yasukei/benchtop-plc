@@ -179,3 +179,21 @@ test("edits and drags fractional panel layouts and persists through the project 
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
+
+test("opens the checked-in blink project without panel data and replaces an existing layout", async ({
+  page,
+}) => {
+  await openReference(page);
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "blink.xml",
+    mimeType: "application/xml",
+    buffer: readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url)),
+  });
+  await expect(page.getByRole("button", { name: "START", exact: true })).toHaveCount(0);
+  await expect(page.locator(".positioned-part")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("rowheader", { name: "BlinkTime", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+});

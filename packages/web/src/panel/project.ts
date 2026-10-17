@@ -37,6 +37,6 @@ export function savePanelProject(
 export function openPanelProject(xml: string): { project: Project; layout: PanelLayout } | null {
   const result = readProject(xml);
   if (!result.value) return null;
-  const layout = readLayout(result.value.panel);
+  const layout = result.value.panel === null ? [] : readLayout(result.value.panel);
   return layout ? { project: result.value, layout } : null;
 }

@@ -1,9 +1,26 @@
+import sampleXml from "../../../../examples/blink/project.xml?raw";
+import { readProject, writeProject } from "@benchtop-plc/project";
 import { describe, expect, it } from "vitest";
 import { addPart, movePart } from "./layout.js";
 import { openPanelProject, savePanelProject } from "./project.js";
 import { demoSource } from "../demo.js";
 
 describe("panel project persistence", () => {
+  it.each([sampleXml, sampleXml.replace(/<addData>[\s\S]*?<\/addData>/, "")])(
+    "opens projects with null or absent panel data as empty layouts",
+    (xml) => {
+      expect(readProject(xml).value?.panel).toBeNull();
+      const opened = openPanelProject(xml);
+      expect(opened?.layout).toEqual([]);
+      expect(opened?.project.program).toContain("PROGRAM Main");
+      expect(opened?.project.program).toContain("Running := (StartPB OR Running) AND NOT StopPB;");
+    },
+  );
+  it.each([{}, false, [{ kind: "led" }]])("rejects malformed non-null panel data: %j", (panel) => {
+    const project = readProject(sampleXml).value!;
+    const xml = writeProject({ ...project, panel }).value!;
+    expect(openPanelProject(xml)).toBeNull();
+  });
   it("round trips layout, fractional positions, source and project metadata through PLCopen XML", () => {
     const layout = movePart(
       addPart(addPart([], "led", "Lamp"), "estop", "Emergency"),
