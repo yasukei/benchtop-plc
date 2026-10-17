@@ -115,6 +115,22 @@ test("uses spaces on Tab, indents Enter and preserves editor history through the
   await expect(editor.locator(".cm-line").first()).toHaveText("PROGRAM Test");
 });
 
+test("Tab indents selected lines without replacing code and Shift-Tab restores them", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const lines = ["PROGRAM Test", "VAR x: INT; END_VAR", "x := x + 1;", "END_PROGRAM"];
+  const editor = await replaceSource(page, lines.join("\n"));
+  await editor.press("ControlOrMeta+a");
+  await editor.press("Tab");
+  await expect
+    .poll(() => editor.locator(".cm-line").allTextContents())
+    .toEqual(lines.map((line) => `  ${line}`));
+  expect(await editor.textContent()).not.toContain("\t");
+  await editor.press("Shift+Tab");
+  await expect.poll(() => editor.locator(".cm-line").allTextContents()).toEqual(lines);
+});
+
 test("highlights a real runtime fault line only while its source matches", async ({ page }) => {
   await page.goto("/");
   await replaceSource(page, "PROGRAM Fault\nVAR x: INT; END_VAR\nx := 1 / x;\nEND_PROGRAM");

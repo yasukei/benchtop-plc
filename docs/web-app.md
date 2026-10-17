@@ -38,7 +38,9 @@ retains a latched diagnostic through STOP requests and emergency-stop transition
 A thin React wrapper owns a CodeMirror 6 editor controller. Highlighting is a
 line-oriented tokenizer tolerant of incomplete input, with nested block comments,
 keywords, elementary and function block types, literals and direct addresses.
-Enter indents ST blocks and Tab inserts two spaces. Theme and language changes
+Keyword and elementary type classification comes from the compiler to keep it
+in sync with the lexer. Enter indents ST blocks. Tab inserts two spaces at a
+cursor or indents selected lines without replacing their code. Theme and language changes
 reconfigure the existing editor without replacing its selection or undo history.
 
 The store compiles 250 ms after the last edit. Diagnostics use the existing

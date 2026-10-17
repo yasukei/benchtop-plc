@@ -18,7 +18,7 @@ export type LexResult =
   { tokens: Token[]; diagnostics: [] } | { tokens: null; diagnostics: [Diagnostic] };
 
 /** Reserved elementary type names are legal in type position, even before type checking. */
-export const elementaryTypeKeywords = new Set(
+const elementaryTypeKeywords = new Set(
   `BOOL INT DINT UINT REAL LREAL TIME SINT USINT UDINT LINT ULINT BYTE WORD DWORD
    LWORD DATE TIME_OF_DAY TOD DATE_AND_TIME DT STRING WSTRING`.split(/\s+/),
 );
@@ -35,6 +35,13 @@ const keywords = new Set([
    EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE
    TASK WITH ON READ_ONLY READ_WRITE`.split(/\s+/),
 ]);
+
+/** Case-insensitive ST keyword classification, including reserved type names. */
+export const isKeyword = (name: string): boolean => keywords.has(name.toUpperCase());
+
+/** Includes reserved elementary types that are not yet supported by the checker. */
+export const isElementaryTypeName = (name: string): boolean =>
+  elementaryTypeKeywords.has(name.toUpperCase());
 
 const digits = "[0-9]+(?:_[0-9]+)*";
 const decimalInteger = new RegExp(`^${digits}$`);
@@ -218,7 +225,7 @@ class Lexer {
       }
       if (key === "TRUE" || key === "FALSE")
         return this.token("boolean", start, span, key === "TRUE");
-      return this.token(keywords.has(key) ? "keyword" : "identifier", start, span);
+      return this.token(isKeyword(key) ? "keyword" : "identifier", start, span);
     }
     if (/[0-9]/.test(this.char)) return this.number(start, span, false);
     if (this.char === "%") {

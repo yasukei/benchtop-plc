@@ -1,3 +1,4 @@
+import { isElementaryTypeName, isKeyword } from "@benchtop-plc/compiler";
 import { isFunctionBlockType } from "@benchtop-plc/core";
 
 export interface TokenizerState {
@@ -13,20 +14,6 @@ export type TokenStyle =
   | "comment"
   | "variableName"
   | "operator";
-
-const types = new Set(
-  `BOOL INT DINT UINT REAL LREAL TIME SINT USINT UDINT LINT ULINT BYTE WORD DWORD
-   LWORD DATE TIME_OF_DAY TOD DATE_AND_TIME DT STRING WSTRING`.split(/\s+/),
-);
-const keywords = new Set(
-  `PROGRAM END_PROGRAM VAR END_VAR AT IF THEN ELSIF ELSE END_IF CASE OF END_CASE
-   FOR TO BY DO END_FOR WHILE END_WHILE REPEAT UNTIL END_REPEAT EXIT RETURN
-   NOT MOD AND XOR OR FUNCTION END_FUNCTION FUNCTION_BLOCK END_FUNCTION_BLOCK
-   VAR_INPUT VAR_OUTPUT VAR_IN_OUT VAR_TEMP VAR_GLOBAL VAR_EXTERNAL VAR_ACCESS
-   VAR_CONFIG RETAIN NON_RETAIN CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE
-   EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE TASK WITH ON
-   READ_ONLY READ_WRITE`.split(/\s+/),
-);
 
 /** Tolerant, line-oriented highlighting, including incomplete input and nested comments. */
 export function readStToken(
@@ -61,11 +48,11 @@ export function readStToken(
     const style =
       key === "TRUE" || key === "FALSE"
         ? "bool"
-        : types.has(key)
+        : isElementaryTypeName(key)
           ? "typeName"
           : isFunctionBlockType(key)
             ? "className"
-            : keywords.has(key)
+            : isKeyword(key)
               ? "keyword"
               : "variableName";
     return { length: identifier[0].length, style };

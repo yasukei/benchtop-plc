@@ -13,7 +13,7 @@ import type {
   Statement,
 } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
-import { elementaryTypeKeywords, lex } from "./lexer.js";
+import { isElementaryTypeName, lex } from "./lexer.js";
 import type { Token } from "./lexer.js";
 
 export type ParseResult =
@@ -104,7 +104,7 @@ class Parser {
 
   private identifier(allowType = false): Identifier {
     const token = this.current;
-    if (token.kind === "identifier" || (allowType && elementaryTypeKeywords.has(token.key))) {
+    if (token.kind === "identifier" || (allowType && isElementaryTypeName(token.key))) {
       this.take();
       return { name: token.text, key: token.key, span: token.span };
     }

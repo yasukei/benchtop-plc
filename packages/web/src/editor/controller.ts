@@ -14,6 +14,7 @@ import {
 } from "@codemirror/view";
 import { catalogs, type Language } from "../catalog.js";
 import { formatDiagnostic } from "../diagnostic-catalog.js";
+import { insertSpacesOrIndent } from "./commands.js";
 import { stLanguage } from "./language.js";
 import { mapAnnotations, spanRange, type InlineAnnotation } from "./mapping.js";
 
@@ -77,18 +78,7 @@ export function createStEditor(
         drawSelection(),
         bracketMatching(),
         keymap.of([
-          {
-            key: "Tab",
-            run: ({ state, dispatch }) => {
-              dispatch(
-                state.update(state.replaceSelection("  "), {
-                  scrollIntoView: true,
-                  userEvent: "input",
-                }),
-              );
-              return true;
-            },
-          },
+          { key: "Tab", run: insertSpacesOrIndent },
           { key: "Shift-Tab", run: indentLess },
           ...defaultKeymap,
           ...historyKeymap,

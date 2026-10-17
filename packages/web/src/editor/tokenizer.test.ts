@@ -13,6 +13,15 @@ function tokens(line: string, state: TokenizerState = { commentDepth: 0 }) {
 }
 
 describe("ST highlighting tokenizer", () => {
+  it("highlights reserved declarations and types from the compiler's classification", () => {
+    expect(tokens("vAr_cOnFiG RETAIN date_and_time WSTRING intensity")).toEqual([
+      ["vAr_cOnFiG", "keyword"],
+      ["RETAIN", "keyword"],
+      ["date_and_time", "typeName"],
+      ["WSTRING", "typeName"],
+      ["intensity", "variableName"],
+    ]);
+  });
   it("distinguishes case-insensitive keywords, elementary types, FB types and names", () => {
     expect(tokens("var flag: bool; timer: ton; scans: DINT;")).toEqual([
       ["var", "keyword"],
