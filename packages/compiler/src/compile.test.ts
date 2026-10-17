@@ -60,6 +60,17 @@ describe("compile entry point", () => {
 });
 
 describe("declarations and resolved expressions", () => {
+  it.each([
+    ["INT", 7],
+    ["INT", -7],
+    ["DINT", 40000],
+    ["DINT", -40000],
+    ["UINT", 7],
+  ] as const)("initializes %s from %s MOD 0 without diagnostics", (type, dividend) => {
+    const ir = valid(`x : ${type} := ${dividend} MOD 0;`);
+    expect(ir.variables[0]).toMatchObject({ kind: "scalar", dataType: type, initialValue: 0 });
+  });
+
   it("retains declaration order, spelling, defaults, coerced initializers and BOOL addresses", () => {
     const ir = valid(`a, B : INT := 32767 + 1;
 u : UINT := -1;

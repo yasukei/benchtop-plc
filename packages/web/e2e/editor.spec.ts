@@ -139,7 +139,12 @@ test("highlights a real runtime fault line only while its source matches", async
   await expect(page.locator(".runtime-fault-line")).toContainText("x := 1 / x;");
   const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
   await expect(diagnostics).toContainText("Line 3");
-  await expect(diagnostics).toContainText("Division or MOD by zero.");
+  await expect(diagnostics).toContainText("Division by zero.");
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(
+    "ゼロによる除算が発生しました。",
+  );
+  await page.getByRole("combobox", { name: "言語", exact: true }).selectOption("en");
   await replaceSource(page, "PROGRAM Fixed END_PROGRAM");
   await expect(page.locator(".runtime-fault-line")).toHaveCount(0);
   await page.getByRole("button", { name: "Cold reset", exact: true }).click();

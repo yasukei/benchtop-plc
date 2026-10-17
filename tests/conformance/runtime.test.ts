@@ -342,16 +342,16 @@ describe("runtime scans over hand-written IR", () => {
     expect(value(runtime.scanOnce())).toBe(10);
   });
 
-  it.each(["/", "MOD"] as const)(
-    "faults on %s zero with the expression span and clears outputs",
-    (operator) => {
+  it.each(["INT", "REAL", "LREAL"] as const)(
+    "faults on %s division by zero with the expression span and clears outputs",
+    (type) => {
       const { runtime, clock } = setup(
         program(
           [
             assign(0, literal(true), 2, "BOOL"),
-            assign(1, binary(operator, literal(1), literal(0))),
+            assign(1, binary("/", literal(1, type), literal(0, type), type), 1, type),
           ],
-          [output, scalar("n")],
+          [output, scalar("n", type)],
         ),
       );
       runtime.run();

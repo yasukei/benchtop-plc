@@ -124,7 +124,7 @@ as syntax errors.
 | `call.argument-count`            | Function call supplies the wrong number of arguments | `{ name: string; min: number; max: number \| null; found: number }`                              |
 | `call.argument-type`             | Function argument has an unsupported type            | `{ name: string; index: number; expected: readonly [DataType, ...DataType[]]; found: DataType }` |
 | `runtime.invalid-value`          | Non-finite result or REAL overflow                   | `{}`                                                                                             |
-| `runtime.division-by-zero`       | Division or MOD has a zero divisor                   | `{}`                                                                                             |
+| `runtime.division-by-zero`       | Division has a zero divisor                          | `{}`                                                                                             |
 | `runtime.watchdog`               | Loop iteration limit exceeded                        | `{ limit: number }`                                                                              |
 | `runtime.for-by-zero`            | FOR step evaluates to zero                           | `{}`                                                                                             |
 | `runtime.debug-target`           | Debug command target is not a loaded scalar          | `{}`                                                                                             |

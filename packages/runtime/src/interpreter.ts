@@ -32,7 +32,7 @@ function binary(operator: BinaryOperator, left: ScalarValue, right: ScalarValue)
     case "/":
       return a / b;
     case "MOD":
-      return a % b;
+      return b === 0 ? 0 : a % b;
     case "AND":
       return typeof left === "boolean" ? left && Boolean(right) : a & b;
     case "OR":
@@ -124,7 +124,7 @@ export class Interpreter {
       case "binary": {
         const left = this.expression(expr.left),
           right = this.expression(expr.right);
-        if ((expr.operator === "/" || expr.operator === "MOD") && Number(right) === 0) {
+        if (expr.operator === "/" && Number(right) === 0) {
           this.fault("runtime.division-by-zero", expr.span);
         }
         return coerceValue(expr.dataType, binary(expr.operator, left, right));

@@ -30,7 +30,7 @@ export function binaryConstant(
     case "/":
       return a / b;
     case "MOD":
-      return a % b;
+      return b === 0 ? 0 : a % b;
     case "AND":
       return typeof left === "boolean" ? left && Boolean(right) : a & b;
     case "OR":
