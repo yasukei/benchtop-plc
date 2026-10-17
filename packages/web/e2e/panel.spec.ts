@@ -40,6 +40,7 @@ for (const color of ["green", "red"] as const) {
           background: style.backgroundColor,
           color: style.color,
           shadow: style.boxShadow,
+          lever: getComputedStyle(element.querySelector(".input-cap")!, "::after").transform,
         };
       });
     for (const theme of ["light", "dark"]) {
@@ -66,6 +67,151 @@ async function hold(page: Page, name: string, assertion: () => Promise<void>) {
     await page.mouse.up();
   }
 }
+
+async function expectNoOverlap(page: Page) {
+  const parts = page.locator(".positioned-part");
+  const boxes = await parts.evaluateAll((parts) =>
+    parts.map((part) => {
+      const { x, y, width, height } = part.getBoundingClientRect();
+      return { x, y, width, height };
+    }),
+  );
+  for (const [index, a] of boxes.entries())
+    for (const b of boxes.slice(index + 1))
+      expect(
+        a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y,
+      ).toBe(true);
+}
+
+test("keeps example controls separated even at twenty-percent spacing and with long labels", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const compact = layout.map((part, index) => ({
+    ...part,
+    x: (index % 3) * 0.2,
+    label: `${part.label} with a very long label that must stay within its footprint`,
+  }));
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "compact.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(savePanelProject(reference, compact, 10, null)!),
+  });
+  await expect(page.locator(".positioned-part")).toHaveCount(compact.length);
+  await expectNoOverlap(page);
+  for (const part of compact)
+    await expect(page.getByLabel(part.label, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit panel", exact: true }).click();
+  await expectNoOverlap(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoOverlap(page);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
+for (const initial of ["empty", "example"] as const) {
+  test(`keeps three added push buttons separated after narrowing and reopening an ${initial} panel`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    if (initial === "example") await openReference(page);
+    else {
+      await page.goto("/");
+      await page.getByLabel("Open project", { exact: true }).setInputFiles({
+        name: "empty.xml",
+        mimeType: "application/xml",
+        buffer: Buffer.from(savePanelProject(reference, [], 10, null)!),
+      });
+      await expect(page.locator(".positioned-part")).toHaveCount(0);
+    }
+    expect((await page.locator(".operator-canvas").boundingBox())!.width).toBeGreaterThan(500);
+    await expectNoOverlap(page);
+    await page.getByRole("button", { name: "Edit panel", exact: true }).click();
+    await page.getByRole("combobox", { name: "Part type", exact: true }).selectOption("pushbutton");
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: "Add part", exact: true }).click();
+      await page.getByLabel("Label", { exact: true }).fill(`New button ${i}`);
+      await expectNoOverlap(page);
+    }
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Save project", exact: true }).click();
+    const saved = await (await downloadPromise).path();
+    expect(saved).toBeTruthy();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoOverlap(page);
+    await page.getByRole("button", { name: "Operate", exact: true }).click();
+    await expectNoOverlap(page);
+    for (let i = 0; i < 3; i++)
+      await expect(
+        page.getByRole("button", { name: `New button ${i}`, exact: true }),
+      ).toBeVisible();
+    await page.reload();
+    await page.getByLabel("Open project", { exact: true }).setInputFiles(saved!);
+    await expect(page.locator(".positioned-part")).toHaveCount(
+      (initial === "example" ? layout.length : 0) + 3,
+    );
+    await expectNoOverlap(page);
+    await page.getByRole("button", { name: "Edit panel", exact: true }).click();
+    await expectNoOverlap(page);
+  });
+}
+
+test("offers only each kind's palette, renders button colors and imports legacy amber as yellow", async ({
+  page,
+}) => {
+  await openReference(page);
+  await page.getByRole("button", { name: "Edit panel", exact: true }).click();
+  const color = page.getByRole("combobox", { name: "Color", exact: true });
+  for (const name of ["START", "RESET"]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await expect(color.locator("option")).toHaveText([
+      "Green",
+      "Red",
+      "Yellow",
+      "Blue",
+      "Black",
+      "White",
+    ]);
+    await color.selectOption(name === "START" ? "yellow" : "black");
+  }
+  await page.getByRole("button", { name: "Lamp", exact: true }).click();
+  await expect(color.locator("option")).toHaveText(["Green", "Amber", "Red", "Blue", "White"]);
+  await expect(color).toHaveValue("amber");
+  await page.getByRole("button", { name: "Operate", exact: true }).click();
+  const capColor = (name: string, role: "button" | "switch") =>
+    page
+      .getByRole(role, { name, exact: true })
+      .locator(".input-cap")
+      .evaluate((cap) => getComputedStyle(cap).backgroundColor);
+  expect(await capColor("START", "button")).toBe("rgb(250, 204, 21)");
+  expect(await capColor("RESET", "switch")).toBe("rgb(17, 24, 39)");
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "legacy.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(
+      savePanelProject(
+        reference,
+        layout.map((part) =>
+          part.kind === "pushbutton" || part.kind === "selector"
+            ? { ...part, color: "amber" }
+            : part,
+        ),
+        10,
+        null,
+      )!,
+    ),
+  });
+  await expect(page.getByRole("switch", { name: "RESET", exact: true })).toHaveAttribute(
+    "data-color",
+    "yellow",
+  );
+  expect(await capColor("START", "button")).toBe("rgb(250, 204, 21)");
+  await page.getByRole("button", { name: "Edit panel", exact: true }).click();
+  await page.getByRole("button", { name: "START", exact: true }).click();
+  await expect(color).toHaveValue("yellow");
+});
 
 test("operates the reference PLC, debug values and emergency stop through the real Worker", async ({
   page,

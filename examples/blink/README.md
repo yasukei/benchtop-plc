@@ -15,7 +15,7 @@
 The counter persists on stop; use ResetPB to clear it. StopPB is a program input;
 the runtime's system emergency stop is a separate mechanism. The included panel
 has START (green), STOP (red), and RESET push buttons, Running (green), Lamp
-(amber), and Alarm (red) LEDs, and a separate emergency stop. Two columns keep
+(amber), and Alarm (red) LEDs, and a separate emergency stop. Three columns keep
 the controls apart on narrow screens.
 
 The web app opens this project on startup. Press RUN, then hold START briefly to

@@ -7,9 +7,11 @@ import {
   addressFor,
   assignAddress,
   deletePart,
-  ledColors,
+  colorsFor,
   movePart,
   partKinds,
+  partFootprint,
+  minimumCanvasSize,
   type PanelPart,
   type PartKind,
 } from "./layout.js";
@@ -57,14 +59,17 @@ function Part({
     return (
       <output className="led-part" aria-label={part.label} data-on={active} data-color={part.color}>
         <span className="led-light" aria-hidden="true" />
-        <span>{part.label}</span>
+        <span className="part-label" title={part.label}>
+          {part.label}
+        </span>
         <span className="part-state">{active ? text.on : text.off}</span>
       </output>
     );
   return (
     <button
       className={part.kind === "estop" ? "estop-part" : "input-part"}
-      data-color={part.color}
+      aria-label={part.label}
+      data-color={part.color === "amber" ? "yellow" : part.color}
       disabled={state.connection !== "connected"}
       role={part.kind === "selector" ? "switch" : undefined}
       aria-checked={part.kind === "selector" ? active : undefined}
@@ -96,7 +101,10 @@ function Part({
       }}
       onBlur={input.release}
     >
-      {part.label}
+      <span className="input-cap" aria-hidden="true" />
+      <span className="part-label" title={part.label}>
+        {part.label}
+      </span>
     </button>
   );
 }
@@ -226,16 +234,26 @@ export function OperatorPanel({
         </>
       )}
       <div className="operator-surface">
-        <div ref={canvas} className="operator-canvas">
+        <div
+          ref={canvas}
+          className="operator-canvas"
+          style={{ minWidth: minimumCanvasSize.width, minHeight: minimumCanvasSize.height }}
+        >
           {state.layout.map((p) => (
             <div
               key={p.id}
               className="positioned-part"
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+              style={{
+                left: `${p.x * 100}%`,
+                top: `${p.y * 100}%`,
+                width: partFootprint.width,
+                height: partFootprint.height,
+              }}
             >
               {editing ? (
                 <button
                   className="edit-part"
+                  aria-label={p.label}
                   aria-pressed={p.id === selected}
                   onClick={() => setSelected(p.id)}
                   onPointerDown={(event) => {
@@ -286,7 +304,9 @@ export function OperatorPanel({
                     }
                   }}
                 >
-                  {p.label}
+                  <span className="part-label" title={p.label}>
+                    {p.label}
+                  </span>
                 </button>
               ) : (
                 <Part part={p} state={state} store={store} text={text} />
@@ -321,7 +341,7 @@ export function OperatorPanel({
               </select>
             </label>
           )}
-          {part.kind === "led" && (
+          {part.kind !== "estop" && (
             <label>
               {text.color}
               <select
@@ -330,7 +350,7 @@ export function OperatorPanel({
                   change({ ...part, color: event.target.value as PanelPart["color"] })
                 }
               >
-                {ledColors.map((color) => (
+                {colorsFor(part.kind).map((color) => (
                   <option key={color} value={color}>
                     {text[color]}
                   </option>
