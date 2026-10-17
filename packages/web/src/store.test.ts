@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { en, ja } from "./catalog.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
+import { demoSource } from "./demo.js";
 import { createAppStore } from "./store.js";
 
 const snapshot: RuntimeSnapshot = {
@@ -19,7 +20,7 @@ const fault: Diagnostic = { code: "runtime.division-by-zero", severity: "error",
 function setup() {
   const worker = new FakeWorker();
   const client = new RuntimeClient(worker);
-  return { worker, client, store: createAppStore(client) };
+  return { worker, client, store: createAppStore(client, demoSource) };
 }
 
 describe("app store", () => {
@@ -278,3 +279,53 @@ it("round trips source and panel through the project package and rejects loading
   expect(store.getSnapshot()).toBe(stopped);
   store.dispose();
 });
+
+it("restores the bundled example's source, panel and cycle through the project loader", () => {
+  const { store, worker } = setup();
+  store.setSource("PROGRAM Changed END_PROGRAM");
+  store.setLayout([]);
+  store.send({ type: "setCycle", ms: 100 });
+  expect(store.restoreExample()).toBe(true);
+  const restored = store.getSnapshot();
+  expect(restored.source).toContain("PROGRAM Main");
+  expect(restored.diagnostics).toEqual([]);
+  expect(restored.layout).toHaveLength(7);
+  expect(
+    restored.layout.map(({ kind, label, bit, color }) => ({ kind, label, bit, color })),
+  ).toEqual([
+    { kind: "pushbutton", label: "START", bit: 0, color: "green" },
+    { kind: "pushbutton", label: "STOP", bit: 1, color: "red" },
+    { kind: "pushbutton", label: "RESET", bit: 2, color: "white" },
+    { kind: "led", label: "Running", bit: 0, color: "green" },
+    { kind: "led", label: "Lamp", bit: 1, color: "amber" },
+    { kind: "led", label: "Alarm", bit: 2, color: "red" },
+    { kind: "estop", label: "Emergency stop", bit: null, color: "red" },
+  ]);
+  expect(restored.project?.program).toBe(restored.source);
+  expect(restored.cycleMs).toBe(10);
+  expect(worker.sent.slice(-2)).toMatchObject([
+    { type: "setCycle", ms: 10 },
+    { type: "load", ir: { name: "Main" } },
+  ]);
+  // Replacing a project cannot race an unacknowledged load.
+  expect(store.restoreExample()).toBe(false);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(store.getSnapshot().loadedSource).toBe(restored.source);
+  store.dispose();
+});
+
+it.each(["RUN", "FAULT", "ESTOP", "emergency", "disconnected"] as const)(
+  "blocks restoring the example while %s without changing the current project",
+  (condition) => {
+    const { store, worker } = setup();
+    if (condition === "emergency") store.setEmergency(true);
+    else if (condition === "disconnected") worker.dispatchEvent(new Event("error"));
+    else worker.receive({ type: "state", state: condition });
+    const before = store.getSnapshot();
+    const sent = worker.sent.length;
+    expect(store.restoreExample()).toBe(false);
+    expect(store.getSnapshot()).toBe(before);
+    expect(worker.sent).toHaveLength(sent);
+    store.dispose();
+  },
+);

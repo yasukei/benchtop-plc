@@ -9,7 +9,7 @@ const client = new RuntimeClient(
   new Worker(new URL("./runtime.worker.ts", import.meta.url), { type: "module" }),
 );
 const store = createAppStore(client);
-store.loadEditor();
+store.restoreExample();
 const element = document.getElementById("root");
 if (!element) throw new Error("Missing app root");
 const root = createRoot(element);

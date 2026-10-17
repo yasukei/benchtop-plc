@@ -2,7 +2,7 @@ import { compile } from "@benchtop-plc/compiler";
 import type { Project } from "@benchtop-plc/project";
 import { openPanelProject, savePanelProject } from "./panel/project.js";
 import type { PanelLayout } from "./panel/layout.js";
-import { demoSource } from "./demo.js";
+import blinkProjectXml from "../../../examples/blink/project.xml?raw";
 import type {
   CommandRejectionMessage,
   Diagnostic,
@@ -33,7 +33,7 @@ export interface AppState {
 }
 
 /** A cached snapshot and subscription API suitable for React's useSyncExternalStore. */
-export function createAppStore(client: RuntimeClient, source = demoSource) {
+export function createAppStore(client: RuntimeClient, source = "") {
   let state: AppState = {
     source,
     layout: [],
@@ -101,6 +101,29 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
     client.send({ type: "load", ir: result.ir });
     return true;
   };
+  const openProject = (xml: string) => {
+    if (
+      pendingLoads.length > 0 ||
+      state.runtimeState !== "STOP" ||
+      state.emergencyActive ||
+      state.connection !== "connected"
+    )
+      return false;
+    const opened = openPanelProject(xml);
+    if (!opened || !compile(opened.project.program).ir) return false;
+    const ms = Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000;
+    if (!cycleOptions.includes(ms as CycleMs)) return false;
+    clearTimeout(compileTimer);
+    update({
+      source: opened.project.program,
+      layout: opened.layout,
+      project: opened.project,
+      diagnostics: compile(opened.project.program).diagnostics,
+      cycleMs: ms as CycleMs,
+    });
+    client.send({ type: "setCycle", ms });
+    return loadEditor();
+  };
   return {
     getSnapshot: () => state,
     setLayout(layout: PanelLayout) {
@@ -109,29 +132,8 @@ export function createAppStore(client: RuntimeClient, source = demoSource) {
     saveProject() {
       return savePanelProject(state.source, state.layout, state.cycleMs, state.project);
     },
-    openProject(xml: string) {
-      if (
-        pendingLoads.length > 0 ||
-        state.runtimeState !== "STOP" ||
-        state.emergencyActive ||
-        state.connection !== "connected"
-      )
-        return false;
-      const opened = openPanelProject(xml);
-      if (!opened || !compile(opened.project.program).ir) return false;
-      const ms = Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000;
-      if (!cycleOptions.includes(ms as CycleMs)) return false;
-      clearTimeout(compileTimer);
-      update({
-        source: opened.project.program,
-        layout: opened.layout,
-        project: opened.project,
-        diagnostics: compile(opened.project.program).diagnostics,
-        cycleMs: ms as CycleMs,
-      });
-      client.send({ type: "setCycle", ms });
-      return loadEditor();
-    },
+    openProject,
+    restoreExample: () => openProject(blinkProjectXml),
     setEmergency(active: boolean) {
       if (state.connection !== "connected") return;
       update({ emergencyActive: active, emergencyReleased: !active });
