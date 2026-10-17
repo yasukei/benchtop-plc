@@ -16,14 +16,44 @@ const layout: PanelLayout = [
   { id: "6", kind: "led", label: "Alarm LED", bit: 2, color: "red", x: 1, y: 0.5 },
   { id: "7", kind: "estop", label: "Emergency stop", bit: null, color: "red", x: 0.5, y: 1 },
 ];
-async function openReference(page: Page) {
+async function openReference(page: Page, panelLayout = layout) {
   await page.goto("/");
   await page.getByLabel("Open project", { exact: true }).setInputFiles({
     name: "reference.xml",
     mimeType: "application/xml",
-    buffer: Buffer.from(savePanelProject(reference, layout, 10, null)!),
+    buffer: Buffer.from(savePanelProject(reference, panelLayout, 10, null)!),
   });
   await expect(page.getByRole("button", { name: "START", exact: true })).toBeVisible();
+}
+
+for (const color of ["green", "red"] as const) {
+  test(`visually distinguishes ${color} selector states in both themes`, async ({ page }) => {
+    await openReference(
+      page,
+      layout.map((part) => (part.kind === "selector" ? { ...part, color } : part)),
+    );
+    const selector = page.getByRole("switch", { name: "RESET", exact: true });
+    const appearance = () =>
+      selector.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          background: style.backgroundColor,
+          color: style.color,
+          shadow: style.boxShadow,
+        };
+      });
+    for (const theme of ["light", "dark"]) {
+      await page.getByLabel("Theme").selectOption(theme);
+      await expect(selector).not.toBeChecked();
+      const off = await appearance();
+      await selector.press("Space");
+      await expect(selector).toBeChecked();
+      await expect.poll(appearance).not.toEqual(off);
+      await selector.press("Enter");
+      await expect(selector).not.toBeChecked();
+      await expect.poll(appearance).toEqual(off);
+    }
+  });
 }
 async function hold(page: Page, name: string, assertion: () => Promise<void>) {
   const button = page.getByRole("button", { name, exact: true });
