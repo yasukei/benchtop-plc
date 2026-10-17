@@ -26,6 +26,11 @@ belong to the Worker host (#12).
 
 ## Scan and state
 
+Operating-state transitions, restart semantics and run-time error reactions are
+defined in [ADR 0010](adr/0010-operating-states-restarts-and-runtime-errors.md).
+STOP → RUN resumes with existing variable and FB state; cold reset or loading a
+program initializes it. Outputs remain subject to the state rules below.
+
 `ScanStages` supplies the input/output image boundary and extension points for
 pending writes and forces. The sequence is read inputs, copy mapped inputs into
 memory, apply pending writes, apply forces, interpret the body, apply forces again,

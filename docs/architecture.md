@@ -42,6 +42,8 @@ Operating states are `STOP`, `RUN` and `FAULT`. An independent emergency stop fl
 overlays the operating state and reports `ESTOP` while active. Every reported state
 except `RUN` keeps outputs OFF. Releasing emergency stop preserves a pending FAULT;
 otherwise it leaves STOP without restarting. See [ADR 0009](adr/0009-emergency-stop-overlay.md).
+Operating-state transitions, restart semantics and run-time error reactions are
+recorded in [ADR 0010](adr/0010-operating-states-restarts-and-runtime-errors.md).
 
 ## Testing
 
