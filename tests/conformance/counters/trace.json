@@ -68,8 +68,22 @@
       }
     },
     {
-      "label": "Reset and load take priority",
+      "label": "Release edge before simultaneous controls and count edge",
       "set": {
+        "Edge": false
+      },
+      "scans": 1,
+      "expect": {
+        "Up.CV": 2,
+        "Up.Q": true,
+        "Down.CV": 0,
+        "Down.Q": true
+      }
+    },
+    {
+      "label": "Reset and load take priority over a simultaneous count edge",
+      "set": {
+        "Edge": true,
         "Reset": true,
         "Load": true
       },
