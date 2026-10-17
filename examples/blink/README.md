@@ -13,8 +13,15 @@
 | `%QX0.2` | Alarm   | True after 10 rising lamp edges          |
 
 The counter persists on stop; use ResetPB to clear it. StopPB is a program input;
-the runtime's system emergency stop is a separate mechanism. The project has no
-panel layout; a host can import it using `@benchtop-plc/project`'s `readProject`.
+the runtime's system emergency stop is a separate mechanism. The included panel
+has START (green), STOP (red), and RESET push buttons, Running (green), Lamp
+(amber), and Alarm (red) LEDs, and a separate emergency stop. Two columns keep
+the controls apart on narrow screens.
+
+The web app opens this project on startup. Press RUN, then hold START briefly to
+latch Running and blink the Lamp LED. Use **Restore example** and confirm on the
+page to replace the current program, panel layout, and task cycle with this
+project. A host can also import it using `@benchtop-plc/project`'s `readProject`.
 
 `pnpm test tests/conformance/traces.test.ts` loads this XML, compiles its source,
 and runs the same trace as the ST reference case. See

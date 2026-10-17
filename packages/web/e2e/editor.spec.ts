@@ -61,7 +61,7 @@ test("runs the reference program with changing inline values and hides values fo
   await expect(page.locator('.inline-values [data-type="BOOL"]').first()).toHaveText("TRUE");
   await expect(page.locator(".st-keyword").first()).toHaveText("PROGRAM");
   await expect(page.locator(".st-fb").first()).toHaveText("TON");
-  await page.getByRole("button", { name: "STOP", exact: true }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
   await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
   await replaceSource(page, source + "\n// editing");
   await expect(page.getByText("Unapplied changes", { exact: true })).toBeVisible();
@@ -91,7 +91,7 @@ test("cold-starts edited code on RUN and preserves the running program when comp
   );
   await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
   await expect(page.getByText("Unapplied changes", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "STOP", exact: true }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
   await expect(page.getByRole("button", { name: "Single scan", exact: true })).toBeDisabled();
 });
 

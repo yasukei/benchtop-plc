@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { RuntimeSnapshot, RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
-import { demoProgram } from "../src/demo.js";
+import { demoProgram, demoSource } from "../src/demo.js";
 
 test("keeps the real Worker and RUN session alive after rejected debug commands", async ({
   page,
@@ -17,6 +17,14 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
     };
   });
   await page.goto("/");
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await editor.click();
+  await editor.press("ControlOrMeta+a");
+  await page.keyboard.insertText(demoSource);
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
   await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
   const ir = structuredClone(demoProgram);
   ir.variables.push({
@@ -81,9 +89,11 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
     await expect
       .poll(async () => Number(await page.getByLabel("Scans", { exact: true }).textContent()))
       .toBeGreaterThan(snapshot.scanCount);
-    await expect(page.getByRole("button", { name: "STOP", exact: true })).toBeEnabled();
+    await expect(
+      page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }),
+    ).toBeEnabled();
   }
-  await page.getByRole("button", { name: "STOP", exact: true }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
   await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByRole("button", { name: "Single scan", exact: true }).click();
@@ -91,7 +101,9 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
   expect(errors).toEqual([]);
 });
 
-test("loads the demo and runs, stops, steps and resets through the Worker", async ({ page }) => {
+test("loads the blink example and runs, stops, steps and resets through the Worker", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
@@ -112,7 +124,7 @@ test("loads the demo and runs, stops, steps and resets through the Worker", asyn
   await expect(banner).toHaveText("The program is running in a Web Worker.");
   await expect.poll(async () => Number(await scans.textContent())).toBeGreaterThan(1);
   await expect(page.getByRole("button", { name: "Single scan", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "STOP", exact: true }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
   await expect(state).toHaveText("STOP");
   await expect(banner).toHaveText("Program loaded. Choose RUN or single scan to begin.");
   await page.getByRole("button", { name: "Cold reset", exact: true }).click();
@@ -142,6 +154,10 @@ test("shows Worker startup failures and disables runtime controls", async ({ pag
   await page.goto("/");
   await expect(page.getByRole("alert")).toContainText("Worker is unavailable");
   for (const name of ["RUN", "STOP", "Single scan", "Cold reset"]) {
-    await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
+    await expect(
+      page.locator(".toolbar").getByRole("button", { name, exact: true }),
+    ).toBeDisabled();
   }
+  await expect(page.getByRole("button", { name: "Restore example", exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Open project", { exact: true })).toBeDisabled();
 });

@@ -64,6 +64,7 @@ function Part({
   return (
     <button
       className={part.kind === "estop" ? "estop-part" : "input-part"}
+      data-color={part.color}
       disabled={state.connection !== "connected"}
       role={part.kind === "selector" ? "switch" : undefined}
       aria-checked={part.kind === "selector" ? active : undefined}
@@ -113,6 +114,12 @@ export function OperatorPanel({
   const [kind, setKind] = useState<PartKind>("led");
   const [selected, setSelected] = useState<string | null>(null);
   const [projectError, setProjectError] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const canOpenProject =
+    state.runtimeState === "STOP" && !state.emergencyActive && state.connection === "connected";
+  useEffect(() => {
+    setConfirmRestore(false);
+  }, [state.source, state.layout, state.cycleMs, state.project, canOpenProject]);
   const canvas = useRef<HTMLDivElement>(null);
   const dragging = useRef<{ id: string; pointer: number; dx: number; dy: number } | null>(null);
   const part = state.layout.find((p) => p.id === selected);
@@ -154,11 +161,7 @@ export function OperatorPanel({
           <input
             type="file"
             accept=".xml"
-            disabled={
-              state.runtimeState !== "STOP" ||
-              state.emergencyActive ||
-              state.connection !== "connected"
-            }
+            disabled={!canOpenProject}
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
@@ -171,6 +174,29 @@ export function OperatorPanel({
           />
         </label>
       </div>
+      <div className="panel-tools">
+        <button
+          disabled={!canOpenProject}
+          aria-describedby={confirmRestore ? "restore-example-confirmation" : undefined}
+          onClick={() => {
+            if (!confirmRestore) {
+              setConfirmRestore(true);
+              return;
+            }
+            setProjectError(!store.restoreExample());
+            setConfirmRestore(false);
+            setSelected(null);
+          }}
+        >
+          {text.restoreExample}
+        </button>
+        {confirmRestore && <button onClick={() => setConfirmRestore(false)}>{text.cancel}</button>}
+      </div>
+      {confirmRestore && (
+        <p id="restore-example-confirmation" role="status">
+          {text.confirmRestoreExample}
+        </p>
+      )}
       {projectError && <p role="alert">{text.projectError}</p>}
       {editing && (
         <>
