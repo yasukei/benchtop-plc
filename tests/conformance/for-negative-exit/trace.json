@@ -1,0 +1,17 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Descending loops include endpoint; EXIT leaves innermost loop",
+      "scans": 1,
+      "expect": {
+        "Sum": 18,
+        "Visits": 3,
+        "NoIterations": 0,
+        "I": 3,
+        "J": 1
+      }
+    }
+  ]
+}

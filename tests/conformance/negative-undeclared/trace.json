@@ -1,0 +1,4 @@
+{
+  "kind": "compile-error",
+  "diagnostics": ["name.undeclared"]
+}

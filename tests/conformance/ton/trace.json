@@ -1,0 +1,60 @@
+{
+  "kind": "run",
+  "cycleMs": 1,
+  "steps": [
+    {
+      "label": "Initially reset",
+      "scans": 1,
+      "expect": {
+        "Output": false,
+        "Timer.ET": 0
+      }
+    },
+    {
+      "label": "Start delay",
+      "set": {
+        "Input": true
+      },
+      "scans": 1,
+      "expect": {
+        "Output": false,
+        "Timer.ET": 0
+      }
+    },
+    {
+      "label": "PT minus one",
+      "advanceMs": 9,
+      "expect": {
+        "Output": false,
+        "Timer.ET": 9
+      }
+    },
+    {
+      "label": "PT boundary",
+      "advanceMs": 1,
+      "expect": {
+        "Output": true,
+        "Timer.ET": 10
+      }
+    },
+    {
+      "label": "Completed timer stays on",
+      "scans": 5,
+      "expect": {
+        "Output": true,
+        "Timer.ET": 10
+      }
+    },
+    {
+      "label": "False resets timer",
+      "set": {
+        "Input": false
+      },
+      "scans": 1,
+      "expect": {
+        "Output": false,
+        "Timer.ET": 0
+      }
+    }
+  ]
+}

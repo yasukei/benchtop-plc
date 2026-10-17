@@ -1,0 +1,37 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Negative dividend truncates toward zero",
+      "scans": 1,
+      "expect": {
+        "Quotient": -3,
+        "Remainder": -1
+      }
+    },
+    {
+      "label": "Negative divisor preserves dividend remainder sign",
+      "set": {
+        "Dividend": 7,
+        "Divisor": -2
+      },
+      "scans": 1,
+      "expect": {
+        "Quotient": -3,
+        "Remainder": 1
+      }
+    },
+    {
+      "label": "Both negative",
+      "set": {
+        "Dividend": -7
+      },
+      "scans": 1,
+      "expect": {
+        "Quotient": 3,
+        "Remainder": -1
+      }
+    }
+  ]
+}

@@ -63,17 +63,22 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     expect(written.value).not.toBeNull();
     expect(readProject(written.value!)).toEqual({ value: project, diagnostics: [] });
   });
-  it("validates written XML against the official v2.01 XSD and detects an invalid document", () => {
+  it("validates written and example XML against the official v2.01 XSD and detects an invalid document", () => {
     const schema = XmlDocument.fromString(loadSchema());
     const validator = XsdValidator.fromDoc(schema);
     const xml = writeProject(project).value!;
     const document = XmlDocument.fromString(xml);
+    const example = XmlDocument.fromString(
+      readFileSync(new URL("../../examples/blink/project.xml", import.meta.url), "utf8"),
+    );
     const invalid = XmlDocument.fromString(xml.replace('priority="1"', 'priority="65536"'));
     try {
       expect(() => validator.validate(document)).not.toThrow();
+      expect(() => validator.validate(example)).not.toThrow();
       expect(() => validator.validate(invalid)).toThrow();
     } finally {
       invalid.dispose();
+      example.dispose();
       document.dispose();
       validator.dispose();
       schema.dispose();

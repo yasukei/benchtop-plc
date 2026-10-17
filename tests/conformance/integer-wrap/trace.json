@@ -1,0 +1,24 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Arithmetic wraps at each integer width",
+      "scans": 1,
+      "expect": {
+        "Signed": -32768,
+        "Unsigned": 65535,
+        "Wide": -2147483648
+      }
+    },
+    {
+      "label": "Wrapped values persist between scans",
+      "scans": 1,
+      "expect": {
+        "Signed": -32767,
+        "Unsigned": 65534,
+        "Wide": -2147483647
+      }
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+PROGRAM Bad
+Missing := 1;
+END_PROGRAM

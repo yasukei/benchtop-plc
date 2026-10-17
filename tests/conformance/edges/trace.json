@@ -1,0 +1,53 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Suppress initial high",
+      "set": {
+        "Input": true
+      },
+      "scans": 1,
+      "expect": {
+        "Rising.Q": false,
+        "Falling.Q": false
+      }
+    },
+    {
+      "label": "Falling edge pulse",
+      "set": {
+        "Input": false
+      },
+      "scans": 1,
+      "expect": {
+        "Rising.Q": false,
+        "Falling.Q": true
+      }
+    },
+    {
+      "label": "Pulse lasts one scan",
+      "scans": 1,
+      "expect": {
+        "Falling.Q": false
+      }
+    },
+    {
+      "label": "Rising edge pulse",
+      "set": {
+        "Input": true
+      },
+      "scans": 1,
+      "expect": {
+        "Rising.Q": true,
+        "Falling.Q": false
+      }
+    },
+    {
+      "label": "Held high does not repeat",
+      "scans": 2,
+      "expect": {
+        "Rising.Q": false
+      }
+    }
+  ]
+}

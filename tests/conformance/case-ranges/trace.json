@@ -1,0 +1,93 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "ELSE handles zero",
+      "scans": 1,
+      "expect": {
+        "Result": 30
+      }
+    },
+    {
+      "label": "Range selector -3",
+      "set": {
+        "Selector": -3
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 10
+      }
+    },
+    {
+      "label": "Range selector -1",
+      "set": {
+        "Selector": -1
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 10
+      }
+    },
+    {
+      "label": "Range selector -4",
+      "set": {
+        "Selector": -4
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 30
+      }
+    },
+    {
+      "label": "Range selector 1",
+      "set": {
+        "Selector": 1
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 20
+      }
+    },
+    {
+      "label": "Range selector 3",
+      "set": {
+        "Selector": 3
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 20
+      }
+    },
+    {
+      "label": "Range selector 5",
+      "set": {
+        "Selector": 5
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 20
+      }
+    },
+    {
+      "label": "Range selector 6",
+      "set": {
+        "Selector": 6
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 30
+      }
+    },
+    {
+      "label": "Range selector 2",
+      "set": {
+        "Selector": 2
+      },
+      "scans": 1,
+      "expect": {
+        "Result": 30
+      }
+    }
+  ]
+}
