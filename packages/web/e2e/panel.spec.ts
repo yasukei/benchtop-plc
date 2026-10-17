@@ -174,6 +174,8 @@ test("edits and drags fractional panel layouts and persists through the project 
     "data-color",
     "blue",
   );
+  // CI uses wider system-font metrics than the local Chromium default.
+  await page.addStyleTag({ content: ' :root { font-family: "DejaVu Sans", sans-serif; }' });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });

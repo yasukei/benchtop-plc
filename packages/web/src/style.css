@@ -289,6 +289,7 @@ pre {
 }
 
 .side-panels {
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   align-content: start;
 }
@@ -311,6 +312,10 @@ input:focus-visible {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 12px;
+}
+.panel-tools label {
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 .panel-tools input[type="file"] {
   width: 180px;
