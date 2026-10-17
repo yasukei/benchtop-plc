@@ -1,7 +1,7 @@
 import sampleXml from "../../../../examples/blink/project.xml?raw";
 import { readProject, writeProject } from "@benchtop-plc/project";
 import { describe, expect, it } from "vitest";
-import { addPart, movePart } from "./layout.js";
+import { addPart, buttonColors, movePart } from "./layout.js";
 import { openPanelProject, savePanelProject } from "./project.js";
 import { demoSource } from "../demo.js";
 
@@ -42,5 +42,21 @@ describe("panel project persistence", () => {
   it("rejects invalid source and malformed XML", () => {
     expect(savePanelProject("invalid", [], 10, null)).toBeNull();
     expect(openPanelProject("invalid")).toBeNull();
+  });
+  it("round trips both input palettes and migrates legacy amber through XML", () => {
+    const layout = (["pushbutton", "selector"] as const).flatMap((kind) =>
+      ([...buttonColors, "amber"] as const).map((color, index) => ({
+        ...addPart([], kind, "Input")[0]!,
+        id: `${kind}-${index}`,
+        color,
+      })),
+    );
+    const opened = openPanelProject(savePanelProject(demoSource, layout, 10, null)!)!;
+    expect(opened.layout).toEqual(
+      layout.map((part) => ({
+        ...part,
+        color: part.color === "amber" ? "yellow" : part.color,
+      })),
+    );
   });
 });

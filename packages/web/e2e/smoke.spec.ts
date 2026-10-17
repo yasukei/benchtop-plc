@@ -2,6 +2,30 @@ import { expect, test } from "@playwright/test";
 import type { RuntimeSnapshot, RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
 import { demoProgram } from "../src/demo.js";
 
+test("loads the app and favicon without console errors or failed requests", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("requestfailed", (request) =>
+    errors.push(`${request.url()}: ${request.failure()?.errorText}`),
+  );
+  page.on("response", (response) => {
+    if (response.status() >= 400) errors.push(`${response.url()}: ${response.status()}`);
+  });
+  await page.goto("/");
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  const icon = page.locator('link[rel="icon"]');
+  await expect(icon).toHaveAttribute("type", "image/svg+xml");
+  // Headless browsers do not always request favicons automatically.
+  const status = await icon.evaluate(
+    async (link: HTMLLinkElement) => (await fetch(link.href)).status,
+  );
+  expect(status).toBe(200);
+  expect(errors).toEqual([]);
+});
+
 test("keeps the real Worker and RUN session alive after rejected debug commands", async ({
   page,
 }) => {
