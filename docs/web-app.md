@@ -1,13 +1,13 @@
 # Web workbench
 
 Run `pnpm dev` to open the Vite development server. The left side displays an
-editable Structured Text program; the right side reserves space for the operator
-panel, I/O image and variable monitor. The layout becomes a single column below
-760 px. The theme selector offers System (the default), Light and Dark. System
+editable Structured Text program; the right side shows the operator panel, the
+I/O image and the variable monitor. The layout becomes a single column below 760
+px. The theme selector offers System (the default), Light and Dark. System
 follows the operating system's color scheme, including live changes. An explicit
-selection is saved in this browser's `localStorage`, like the language.
-Panel implementations remain separate issues. The shell and diagnostics
-support English and Japanese as required by ADR 0008; see [i18n.md](i18n.md).
+selection is saved in this browser's `localStorage`, like the language. The
+shell and diagnostics support English and Japanese as required by ADR 0008; see
+[i18n.md](i18n.md).
 
 `main.tsx` creates a module Worker, a `RuntimeClient` and a plain TypeScript app
 store, then restores saved work or opens the bundled blink example. React subscribes with
@@ -22,7 +22,7 @@ runtime and sends state, snapshots and faults after commands and scheduled scans
 Changing the cycle reschedules the ticker without clearing memory or changing
 operating state. Single scan is accepted only in STOP. Cold reset and load clear
 the program's memory and input image; the runtime preserves an active emergency stop.
-The host accepts emergency-stop messages for the future operator panel and routes
+The host accepts emergency-stop messages from the operator panel and routes
 scalar force/write commands to the debug API. Expected debug validation errors
 produce a non-fatal `rejected` event instead of escaping the Worker listener.
 The client forwards this event without terminating the connection. The store
