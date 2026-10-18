@@ -15,6 +15,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Direct addresses such as `%IX0.0` are now highlighted in the editor, and the
+  browser console no longer warns about an unknown highlighting tag.
 - Saved PLCopen projects now identify the writing app's package version, including
   when resaving older projects, while preserving unrelated project metadata.
 

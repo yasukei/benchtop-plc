@@ -10,7 +10,7 @@ export type TokenStyle =
   | "className"
   | "number"
   | "bool"
-  | "special(variableName)"
+  | "variableName.special"
   | "comment"
   | "variableName"
   | "operator";
@@ -37,7 +37,7 @@ export function readStToken(
   const whitespace = /^\s+/.exec(source);
   if (whitespace) return { length: whitespace[0].length, style: null };
   const address = /^%[A-Za-z0-9_.]*/.exec(source);
-  if (address) return { length: address[0].length, style: "special(variableName)" };
+  if (address) return { length: address[0].length, style: "variableName.special" };
   const time = /^(?:TIME|T)#[+-]?[A-Za-z0-9_.]*/i.exec(source);
   if (time) return { length: time[0].length, style: "number" };
   const number = /^(?:\d+#[A-Za-z0-9_]*|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?[\d_]*)?)/.exec(source);
