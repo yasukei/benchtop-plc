@@ -1,6 +1,6 @@
 {
   "name": "benchtop-plc",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Browser-based software PLC aiming at IEC 61131-3 compliance.",
   "license": "MIT",

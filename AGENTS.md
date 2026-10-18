@@ -33,6 +33,7 @@ Design decisions are recorded in `docs/adr/` (overview: `docs/architecture.md`).
 - Every user-facing string goes through the i18n catalog (`en`, `ja`).
 - Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`, `chore:`).
 - One issue per PR. Reference it with `Closes #N`.
+- Changes users can notice (the web app, accepted ST, the project file format, user docs) add an entry under `[Unreleased]` in `CHANGELOG.md` in the same PR (ADR 0011).
 
 ## Verification
 Before finishing, `pnpm typecheck && pnpm lint && pnpm test` must pass.
