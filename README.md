@@ -28,6 +28,7 @@ Other scripts:
 - `pnpm build` – build every package
 - `pnpm format` – format all files with Prettier
 - `pnpm test:e2e` – end-to-end tests (Playwright)
+- `pnpm test:e2e:pages` – smoke tests against the GitHub Pages build under `/benchtop-plc/`
 
 The repository is a pnpm workspace. Packages live in `packages/` (`core`, `compiler`,
 `runtime`, `project`, `web`); language conformance tests live in `tests/conformance/`.
