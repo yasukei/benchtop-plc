@@ -16,6 +16,8 @@ pnpm lint        # ESLint, dependency direction (dependency-cruiser), Prettier c
 pnpm test        # unit and conformance tests (Vitest)
 ```
 
+GitHub Actions workflows are checked by zizmor in CI; run `uvx zizmor==1.31.1 .github/` locally.
+
 Other scripts:
 
 - `pnpm dev` – start the web app
