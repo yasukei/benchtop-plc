@@ -1,11 +1,42 @@
 import sampleXml from "../../../../examples/blink/project.xml?raw";
 import { readProject, writeProject } from "@benchtop-plc/project";
 import { describe, expect, it } from "vitest";
+import packageJson from "../../package.json" with { type: "json" };
 import { addPart, buttonColors, movePart } from "./layout.js";
 import { openPanelProject, savePanelProject } from "./project.js";
 import { demoSource } from "../demo.js";
 
 describe("panel project persistence", () => {
+  it("stamps new projects with the app package version", () => {
+    const project = readProject(savePanelProject(demoSource, [], 10, null)!).value!;
+    expect(project.fileHeader.productVersion).toBe(packageJson.version);
+  });
+  it("keeps the checked-in example header at the current release version", () => {
+    expect(readProject(sampleXml).value!.fileHeader.productVersion).toBe(packageJson.version);
+  });
+  it.each(["bundled example", "older project"])(
+    "stamps the app version when resaving a %s and preserves unrelated metadata",
+    (kind) => {
+      const opened = openPanelProject(sampleXml)!;
+      const project = opened.project;
+      if (kind === "older project") project.fileHeader.productVersion = "0.0.0";
+      project.fileHeader.companyName = "Example company";
+      project.fileHeader.companyURL = "https://example.com";
+      project.fileHeader.productRelease = "Original release";
+      project.fileHeader.contentDescription = "Original description";
+      project.contentHeader.author = "Example author";
+      project.contentHeader.version = "Project revision 3";
+      const original = structuredClone(project);
+      const saved = readProject(
+        savePanelProject(project.program, opened.layout, 10, project)!,
+      ).value!;
+      expect(saved).toEqual({
+        ...original,
+        fileHeader: { ...original.fileHeader, productVersion: packageJson.version },
+      });
+      expect(project).toEqual(original);
+    },
+  );
   it.each([
     sampleXml.replace(
       /<panel:panel version="1">[\s\S]*?<\/panel:panel>/,

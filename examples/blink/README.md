@@ -3,6 +3,12 @@
 `project.xml` is a PLCopen TC6 v2.01 project with one ST program (`Main`) and a
 10 ms cyclic task. Its source matches `tests/conformance/reference/program.st`.
 
+The checked-in `fileHeader.productVersion` represents the current release. When
+updating the package versions for a release, update this header to the same
+version; a regression test checks it against `packages/web/package.json`. Saving
+from the web app always stamps that app's package version, including when opening
+an older project, while preserving unrelated header metadata.
+
 | Address  | Name    | Behavior                                 |
 | -------- | ------- | ---------------------------------------- |
 | `%IX0.0` | StartPB | Momentary start; latches Running         |
