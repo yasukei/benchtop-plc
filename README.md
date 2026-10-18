@@ -2,6 +2,9 @@
 
 A browser-based software PLC that aims at IEC 61131-3 compliance.
 
+**Try it:** [yasukei.github.io/benchtop-plc](https://yasukei.github.io/benchtop-plc/) runs the latest
+`main` in your browser, no installation needed.
+
 See the [architecture overview](docs/architecture.md) for the package structure and design decisions.
 
 ## Development
@@ -25,6 +28,7 @@ Other scripts:
 - `pnpm build` – build every package
 - `pnpm format` – format all files with Prettier
 - `pnpm test:e2e` – end-to-end tests (Playwright)
+- `pnpm test:e2e:pages` – smoke tests against the GitHub Pages build under `/benchtop-plc/`
 
 The repository is a pnpm workspace. Packages live in `packages/` (`core`, `compiler`,
 `runtime`, `project`, `web`); language conformance tests live in `tests/conformance/`.

@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- A public demo at https://yasukei.github.io/benchtop-plc/ always runs the latest
+  `main` in the browser.
+
 ### Fixed
 
 - Saved PLCopen projects now identify the writing app's package version, including

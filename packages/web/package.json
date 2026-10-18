@@ -16,9 +16,11 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && vite build",
+    "build:pages": "vite build --base /benchtop-plc/ --outDir dist/pages --emptyOutDir",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tools.json",
     "dev": "vite --host 0.0.0.0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:pages": "vite preview --base /benchtop-plc/ --outDir dist/pages"
   },
   "dependencies": {
     "@benchtop-plc/compiler": "workspace:*",

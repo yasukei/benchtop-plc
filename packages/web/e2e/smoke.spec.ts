@@ -14,7 +14,7 @@ test("loads the app and favicon without console errors or failed requests", asyn
   page.on("response", (response) => {
     if (response.status() >= 400) errors.push(`${response.url()}: ${response.status()}`);
   });
-  await page.goto("/");
+  await page.goto("./");
   await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
   const icon = page.locator('link[rel="icon"]');
   await expect(icon).toHaveAttribute("type", "image/svg+xml");
@@ -40,7 +40,7 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
       }
     };
   });
-  await page.goto("/");
+  await page.goto("./");
   await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
   const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
   await editor.click();
@@ -130,7 +130,7 @@ test("loads the blink example and runs, stops, steps and resets through the Work
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
+  await page.goto("./");
   await expect(page.getByRole("heading", { name: "benchtop-plc", exact: true })).toBeVisible();
   const state = page.getByLabel("Runtime state");
   const scans = page.getByLabel("Scans", { exact: true });
@@ -158,7 +158,7 @@ test("loads the blink example and runs, stops, steps and resets through the Work
 });
 
 test("supports dark theme and a single column on narrow screens", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("./");
   await page.getByLabel("Theme").selectOption("dark");
   await expect(page.locator(".workbench")).toHaveAttribute("data-theme", "dark");
   const editor = page.getByRole("region", { name: "Structured Text" });
@@ -175,7 +175,7 @@ test("supports dark theme and a single column on narrow screens", async ({ page 
 
 test("shows Worker startup failures and disables runtime controls", async ({ page }) => {
   await page.route("**/assets/runtime.worker-*.js", (route) => route.abort());
-  await page.goto("/");
+  await page.goto("./");
   await expect(page.getByRole("alert")).toContainText("Worker is unavailable");
   for (const name of ["RUN", "STOP", "Single scan", "Cold reset"]) {
     await expect(
