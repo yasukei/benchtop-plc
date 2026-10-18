@@ -51,8 +51,8 @@ describe("ST highlighting tokenizer", () => {
       ["t#500ms", "number"],
       ["true", "bool"],
       ["FALSE", "bool"],
-      ["%IX0.0", "special(variableName)"],
-      ["%qx0.7", "special(variableName)"],
+      ["%IX0.0", "variableName.special"],
+      ["%qx0.7", "variableName.special"],
     ]);
   });
   it("continues nested block comments across lines and resumes highlighting", () => {
@@ -71,7 +71,7 @@ describe("ST highlighting tokenizer", () => {
   it("keeps highlighting after incomplete and invalid input", () => {
     expect(tokens("@ % TIME# 1e+ IF")).toEqual([
       ["@", "operator"],
-      ["%", "special(variableName)"],
+      ["%", "variableName.special"],
       ["TIME#", "number"],
       ["1e+", "number"],
       ["IF", "keyword"],

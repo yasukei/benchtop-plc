@@ -61,6 +61,7 @@ test("runs the reference program with changing inline values and hides values fo
   await expect(page.locator('.inline-values [data-type="BOOL"]').first()).toHaveText("TRUE");
   await expect(page.locator(".st-keyword").first()).toHaveText("PROGRAM");
   await expect(page.locator(".st-fb").first()).toHaveText("TON");
+  await expect(page.locator(".st-address").first()).toHaveText("%IX0.0");
   await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
   await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
   await replaceSource(page, source + "\n// editing");

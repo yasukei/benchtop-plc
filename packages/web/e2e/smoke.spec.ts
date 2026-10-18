@@ -2,10 +2,12 @@ import { expect, test } from "@playwright/test";
 import type { RuntimeSnapshot, RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
 import { demoProgram, demoSource } from "../src/demo.js";
 
-test("loads the app and favicon without console errors or failed requests", async ({ page }) => {
+test("loads the app and favicon without console errors, warnings or failed requests", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+    if (message.type() === "error" || message.type() === "warning") errors.push(message.text());
   });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("requestfailed", (request) =>
