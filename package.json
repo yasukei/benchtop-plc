@@ -16,7 +16,8 @@
     "lint": "eslint . && depcruise packages tests && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:pages": "playwright test -c playwright.pages.config.ts"
   },
   "devDependencies": {
     "@benchtop-plc/compiler": "workspace:*",

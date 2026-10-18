@@ -97,5 +97,13 @@ failure it uploads the HTML report and retained traces. On a machine with a
 system Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path
 to use it instead of Playwright's downloaded browser.
 
+The public demo on GitHub Pages is served from `/benchtop-plc/`. The `Pages`
+workflow builds it with `pnpm --filter @benchtop-plc/web build:pages` (Vite's
+`base` set to the sub-path, output in `packages/web/dist/pages`) on every push to
+`main` and deploys it. `pnpm dev`, `pnpm build` and `pnpm test:e2e` keep using `/`.
+`pnpm test:e2e:pages` builds the Pages bundle, serves it with `vite preview` at
+`http://127.0.0.1:4174/benchtop-plc/` and runs `smoke.spec.ts` against it, so a
+URL that ignores the sub-path fails CI.
+
 Client and store unit tests use a fake Worker. Host tests use the real runtime
 with its virtual clock and ticker, without React or a browser.
