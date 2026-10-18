@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Fixed
+
+- Saved PLCopen projects now identify the writing app's package version, including
+  when resaving older projects, while preserving unrelated project metadata.
+
 ## [0.1.0] - 2026-10-18
 
 First release: the single-file HTML prototype rebuilt as a tested monorepo.

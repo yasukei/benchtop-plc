@@ -1,5 +1,6 @@
 import { compile } from "@benchtop-plc/compiler";
 import { readProject, writeProject, type Project } from "@benchtop-plc/project";
+import packageJson from "../../package.json" with { type: "json" };
 import { readLayout, type PanelLayout } from "./layout.js";
 
 export function savePanelProject(
@@ -12,18 +13,20 @@ export function savePanelProject(
   if (!ir) return null;
   const result = writeProject({
     ...(project ?? {
-      fileHeader: {
-        companyName: "benchtop-plc",
-        productName: "benchtop-plc",
-        productVersion: "0.0.0",
-        creationDateTime: new Date().toISOString(),
-      },
       contentHeader: { name: ir.name },
       configuration: "Config",
       resource: "Res",
       task: { name: "Cyclic", interval: "PT0.01S", priority: 1 },
       instance: { name: "mainInstance", typeName: ir.name },
     }),
+    fileHeader: {
+      ...(project?.fileHeader ?? {
+        companyName: "benchtop-plc",
+        productName: "benchtop-plc",
+        creationDateTime: new Date().toISOString(),
+      }),
+      productVersion: packageJson.version,
+    },
     program: source,
     instance: { ...(project?.instance ?? { name: "mainInstance" }), typeName: ir.name },
     task: {
