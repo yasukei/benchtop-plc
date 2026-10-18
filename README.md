@@ -17,6 +17,7 @@ pnpm test        # unit and conformance tests (Vitest)
 ```
 
 GitHub Actions workflows are checked by zizmor in CI; run `uvx zizmor==1.31.1 .github/` locally.
+Dependabot opens grouped npm and GitHub Actions update PRs monthly; major updates come one per PR.
 
 Other scripts:
 
