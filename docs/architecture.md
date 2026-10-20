@@ -11,11 +11,15 @@ scan cycles and debugs it, all inside the browser.
 | `core` | Data types, tree IR, UI⇔runtime protocol, diagnostic codes, standard FB/function descriptors | – |
 | `compiler` | Source (ST) → AST → checked AST → IR | `core` |
 | `runtime` | Executes IR in scan cycles; standard FB/function implementations; debug features | `core` |
-| `project` | Project model; PLCopen XML (TC6 v2.01) read/write | `core`, `compiler` (declaration parsing only) |
+| `project` | Project model; PLCopen XML (TC6 v2.01) read/write | `core`, `compiler` (declaration parsing and initializer validation) |
 | `web` | React UI; hosts the runtime in a Web Worker | all of the above |
 
 `compiler`, `runtime`, `project` and `core` do not use DOM APIs, so they run in Node, in a
 Web Worker, and later on a device.
+
+Project imports and exports reuse the compiler to validate scalar initializer
+expressions against their declared types, as required by
+[ADR 0012](adr/0012-elementary-data-types.md).
 
 The compiler semantic-checking API is documented in [type-checking.md](type-checking.md).
 The complete source-to-IR API is documented in [compiler.md](compiler.md).
