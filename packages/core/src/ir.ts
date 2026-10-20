@@ -1,5 +1,13 @@
 import type { SourceNode } from "./source.js";
-import type { DataType, IntegerType, NumericType, TypedValue, ValueByType } from "./values.js";
+import type {
+  BitType,
+  BitStringType,
+  DataType,
+  IntegerType,
+  NumericType,
+  TypedValue,
+  ValueByType,
+} from "./values.js";
 
 /** Zero-based index into ProgramIR.variables, stable for the lifetime of a loaded program. */
 export type VariableId = number;
@@ -16,10 +24,15 @@ export type ConversionFunction =
   | {
       [A in NumericType]: `${A}_TO_${Exclude<NumericType, A>}`;
     }[NumericType]
+  | { [A in BitType]: `${A}_TO_${Exclude<BitType, A>}` }[BitType]
+  | `${IntegerType}_TO_${BitStringType}`
+  | `${BitStringType}_TO_${IntegerType}`
+  | "REAL_TO_DWORD"
+  | "DWORD_TO_REAL"
   | `BOOL_TO_${IntegerType}`
   | `TIME_TO_${IntegerType}`
   | `${IntegerType}_TO_TIME`
-  | `TO_${NumericType | "TIME"}`;
+  | `TO_${NumericType | BitType | "TIME"}`;
 export type StandardFunction = "ABS" | "MIN" | "MAX" | "LIMIT" | "SEL" | ConversionFunction;
 
 interface VariableBase extends SourceNode {
@@ -73,8 +86,15 @@ export interface FunctionBlockMemberReference extends SourceNode {
   dataType: DataType;
 }
 
+/** A bit of a scalar bit-string variable; assignment preserves all other bits. */
+export interface BitReference extends SourceNode {
+  kind: "bit";
+  variable: VariableId;
+  bit: number;
+  dataType: "BOOL";
+}
 export type AssignmentTarget =
-  VariableReference | (FunctionBlockMemberReference & { port: "input" });
+  VariableReference | BitReference | (FunctionBlockMemberReference & { port: "input" });
 
 export type UnaryOperator = "+" | "-" | "NOT";
 export type BinaryOperator =
@@ -106,6 +126,7 @@ export interface FunctionCallExpression extends SourceNode {
 export type Expression =
   | LiteralExpression
   | VariableReference
+  | BitReference
   | FunctionBlockMemberReference
   | UnaryExpression
   | BinaryExpression

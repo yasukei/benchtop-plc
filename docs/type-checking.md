@@ -1,7 +1,7 @@
 # Semantic checking
 
 `check(ast)` accepts the `Program` returned by `parse(source)`. It returns either
-`{ checked: CheckedProgram, diagnostics: [] }` or `{ checked: null, diagnostics }`.
+`{ checked: CheckedProgram, diagnostics }` (warnings only) or `{ checked: null, diagnostics }`.
 It collects semantic errors with source spans and never exposes a partially
 checked program. Parsing remains separate; [`compile(source)`](compiler.md)
 combines parsing, checking and IR lowering.
@@ -12,7 +12,7 @@ The checked result retains the original AST without modifying it, plus:
   identifier, type and coerced initial value (scalar defaults are FALSE/zero;
   FB initialization is null).
 - `expressions`: AST expression object to result type and optional constant value.
-- `references`: AST identifier object to variable index and optional FB port/index.
+- `references`: AST identifier object to variable index and optional FB port/index or bit index.
   Declaration names, assignment targets, reads, FOR variables, FB instances and
   named inputs all use the same symbol IDs.
 - `functions`: AST function-call object to canonical standard-function opcode.
@@ -29,9 +29,11 @@ labels may use constant expressions, including typed literals and conversion cal
 variable references, FB members and other function calls are not constants.
 
 Implicit conversions follow [ADR 0013](adr/0013-conversions-literals-and-operators.md).
-For the current types they are INT/UINT → DINT, INT/UINT → REAL, INT/UINT/DINT →
-LREAL and REAL → LREAL. Every narrowing conversion requires a conversion function;
-the diagnostic includes the localizable `explicit-conversion` hint.
+The supported paths are SINT → INT → DINT; USINT → UINT → UDINT;
+USINT → INT and UINT → DINT; integers up to 16 bits → REAL; integers up to
+32 bits and REAL → LREAL; and BOOL → BYTE → WORD → DWORD. Every narrowing
+conversion requires a conversion function; the diagnostic includes the localizable
+`explicit-conversion` hint.
 These rules apply to assignments, initializers, FB inputs, fixed function
 parameters, CASE labels and FOR start/end/step values (the control variable's type).
 
@@ -40,9 +42,15 @@ type, independent of argument order: select a candidate all operands can widen t
 that itself widens to all other candidates. If none exists and all operands are
 integers, repeat that selection with only integer candidates. For example INT +
 UINT is DINT, DINT + REAL is LREAL, REAL + LREAL is LREAL, and MAX(INT, UINT, REAL)
-is REAL. Incompatible types are errors. Unary minus accepts signed integers, reals
-and TIME, and rejects UINT. All comparisons accept BOOL (`FALSE < TRUE`).
-Integer bitwise operators remain an extension until bit-string types arrive (#69).
+is REAL. Selection considers the full ADR 0012 type set, including types not yet
+implemented. DINT + UDINT selects LINT, then reports an error because LINT is
+unavailable; it never falls back to LREAL. Incompatible types are errors. Unary minus accepts signed integers, reals
+and TIME, and rejects unsigned integers. All comparisons accept BOOL (`FALSE < TRUE`).
+AND, &, OR, XOR and NOT accept BOOL and bit strings only. Operands widen to their
+common bit type (TRUE AND BYTE#3 is BYTE#1). Comparisons order bit strings by their
+unsigned numeric value. Bit access `x.n` reads or assigns a BOOL on a BYTE, WORD or
+DWORD variable; n is a decimal constant index, zero-based and less than its width.
+An invalid index reports `type.invalid-bit-access`. Assignment changes only that bit.
 TIME supports TIME ± TIME and scaling with an independently typed numeric factor.
 
 ### Literals and constants
@@ -75,7 +83,8 @@ outside ±10,000 are also rejected with this diagnostic before constructing a
 power of ten, keeping compilation responsive while editing or restoring source.
 This is a compiler resource limit, including for values that would round to zero.
 
-Typed literals are BOOL#, INT#, DINT#, UINT#, REAL#, LREAL#, plus T#/TIME#.
+Typed literals cover BOOL, SINT, USINT, INT, UINT, DINT, UDINT, BYTE, WORD, DWORD,
+REAL and LREAL, plus T#/TIME#.
 Examples include `BOOL#1`, `INT#-5`, `UINT#16#FF` and `REAL#1.5`.
 Untyped integers accept decimal, binary `2#` and hexadecimal `16#`; octal `8#`
 reports `lex.malformed-number`. Every numeric literal retains its source text for
@@ -103,17 +112,26 @@ provided inputs must be unique, writable and assignable to their declared types.
 | `<A>_TO_<B>` | One value assignable to A                           | B                              |
 | `TO_<B>`     | One value from a supported conversion source family | B                              |
 
-Numeric conversion functions exist for every distinct ordered pair among INT,
-DINT, UINT, REAL and LREAL. BOOL_TO_INT/DINT/UINT return 0 or 1. TIME_TO_INT/DINT/UINT
-and INT/DINT/UINT_TO_TIME are extensions in milliseconds. Overloaded TO_INT,
-TO_DINT, TO_UINT, TO_REAL, TO_LREAL and TO_TIME select the conversion from the
-argument type; numeric identity inputs are also accepted. No conversion to BOOL,
-BOOL to real, or TIME to real exists. Fixed source parameters accept implicit
-widening, with untyped constants checked directly against that source type.
+Numeric conversions cover every distinct ordered pair among the supported integers
+and reals. BOOL_TO_<integer> returns 0 or 1. TIME ↔ integer conversions are extensions
+in milliseconds. Overloaded TO_<type> selects from the argument's actual type;
+identity inputs are accepted. Fixed source parameters accept implicit widening,
+with untyped constants checked directly against that source type.
 
 Integer conversions wrap; real → integer rounds nearest, ties to even, then wraps.
 Integer → real and LREAL → REAL round nearest, ties to even. REAL overflow faults
-at runtime and is rejected in a constant expression. TIME's range is unchanged (#24).
+at runtime and is rejected in a constant expression.
+
+Conversions among BOOL/BYTE/WORD/DWORD keep the rightmost bits and zero-fill wider
+results; conversion to BOOL tests only bit zero. Integer ↔ bit-string conversions
+transfer the source-width two's-complement pattern without sign extension:
+INT_TO_DWORD(-1) is 16#0000FFFF, while WORD_TO_INT(16#FFFF) is -1.
+REAL_TO_DWORD and DWORD_TO_REAL reinterpret IEEE binary32 bits. NaN and infinity
+patterns fault, and the negative-zero pattern becomes positive zero.
+These reinterpretations and bit strings → BOOL report a `type.portability` warning
+because some vendor runtimes differ. Warnings preserve a successful checked result
+and executable IR. BOOL → real, integer → BOOL, BYTE/WORD → real and TIME → real
+conversions do not exist.
 
 Diagnostics identify offending names, members, address tokens, expressions or
 EXIT statements. The codes and argument shapes are in

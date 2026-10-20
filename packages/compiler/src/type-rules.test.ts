@@ -3,24 +3,33 @@ import { assignable, binaryType, commonType, scalarTypes, unaryType } from "./ty
 import type { DataType } from "@benchtop-plc/core";
 
 it("allows precisely identity and the current ADR 0013 widening paths", () => {
-  const paths = [
-    "INT:DINT",
-    "UINT:DINT",
-    "INT:REAL",
-    "UINT:REAL",
-    "INT:LREAL",
-    "UINT:LREAL",
-    "DINT:LREAL",
-    "REAL:LREAL",
-  ];
+  const paths: Record<DataType, string> = {
+    BOOL: "BYTE WORD DWORD",
+    BYTE: "WORD DWORD",
+    WORD: "DWORD",
+    DWORD: "",
+    SINT: "INT DINT REAL LREAL",
+    USINT: "UINT UDINT INT DINT REAL LREAL",
+    INT: "DINT REAL LREAL",
+    UINT: "UDINT DINT REAL LREAL",
+    DINT: "LREAL",
+    UDINT: "LREAL",
+    REAL: "LREAL",
+    LREAL: "",
+    TIME: "",
+  };
   for (const from of scalarTypes)
     for (const to of scalarTypes)
       expect(assignable(to, from), `${from} -> ${to}`).toBe(
-        from === to || paths.includes(`${from}:${to}`),
+        from === to || paths[from].split(" ").includes(to),
       );
 });
 it.each<[DataType[], DataType | null]>([
   [["INT", "UINT"], "DINT"],
+  [["SINT", "USINT"], "INT"],
+  [["DINT", "UDINT"], null],
+  [["BOOL", "BYTE"], "BYTE"],
+  [["UDINT", "REAL"], "LREAL"],
   [["DINT", "REAL"], "LREAL"],
   [["REAL", "LREAL"], "LREAL"],
   [["INT", "UINT", "REAL"], "REAL"],

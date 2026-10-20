@@ -1,5 +1,8 @@
 import {
   coerceValue,
+  bitWidths,
+  isBitType,
+  isIntegerType,
   timeBinary,
   conversionFunctions,
   convertValue,
@@ -45,7 +48,8 @@ import {
 } from "./type-rules.js";
 
 export type CheckResult =
-  { checked: CheckedProgram; diagnostics: [] } | { checked: null; diagnostics: Diagnostic[] };
+  | { checked: CheckedProgram; diagnostics: Diagnostic[] }
+  | { checked: null; diagnostics: Diagnostic[] };
 const isScalar = (name: string): name is DataType => scalarTypes.some((type) => type === name);
 
 class Checker {
@@ -71,7 +75,8 @@ class Checker {
     for (const declaration of ast.declarations) this.declare(declaration);
     for (const declaration of ast.declarations) this.initializer(declaration);
     this.statements(ast.body, 0);
-    if (this.diagnostics.length) return { checked: null, diagnostics: this.diagnostics };
+    if (this.diagnostics.some((item) => item.severity === "error"))
+      return { checked: null, diagnostics: this.diagnostics };
     return {
       checked: {
         ast,
@@ -80,7 +85,7 @@ class Checker {
         references: this.references,
         functions: this.functions,
       },
-      diagnostics: [],
+      diagnostics: this.diagnostics,
     };
   }
 
@@ -141,7 +146,7 @@ class Checker {
     if (!info || !isScalar(type)) return;
     if (!this.assignment(type, info, value.span)) return;
     if (info.constant === undefined) {
-      if (before === this.diagnostics.length)
+      if (!this.diagnostics.slice(before).some((item) => item.severity === "error"))
         this.report(
           "decl.nonconstant-initializer",
           { name: declaration.names[0].name },
@@ -176,6 +181,19 @@ class Checker {
         return null;
       }
       return { dataType: symbol.type };
+    }
+    if (isScalar(symbol.type) && /^\d+$/.test(node.member.key)) {
+      const bit = Number(node.member.key);
+      if (!Number.isSafeInteger(bit)) {
+        this.report("type.invalid-constant", {}, node.member.span);
+        return null;
+      }
+      if (!isBitType(symbol.type) || symbol.type === "BOOL" || bit >= bitWidths[symbol.type]) {
+        this.report("type.invalid-bit-access", { type: symbol.type, bit }, node.member.span);
+        return null;
+      }
+      this.references.set(node.member, { variable: symbol.id, bit });
+      return { dataType: "BOOL" };
     }
     if (!isBlock(symbol.type)) {
       this.report("fb.not-function-block", { name: name.name }, name.span);
@@ -299,7 +317,9 @@ class Checker {
                       Number(right.constant!),
                       right.dataType,
                     )
-                  : binaryConstant(node.operator, left.constant!, right.constant!),
+                  : node.operator === "*" && isIntegerType(dataType)
+                    ? Math.imul(Number(left.constant!), Number(right.constant!))
+                    : binaryConstant(node.operator, left.constant!, right.constant!),
         );
         break;
       }
@@ -388,7 +408,11 @@ class Checker {
       if (!arg) return;
       const expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
       // A fixed source parameter is a typed slot and accepts implicit widening.
-      if (!expected.some((to) => assignable(to, arg.dataType))) {
+      if (
+        !expected.some((to) =>
+          name.startsWith("TO_") ? to === arg.dataType : assignable(to, arg.dataType),
+        )
+      ) {
         if (expected.length === 1 && isNumeric(expected[0]!) && isNumeric(arg.dataType))
           this.assignment(expected[0]!, arg, node.args[index]!.span);
         else
@@ -401,12 +425,31 @@ class Checker {
     });
     if (signature.result) {
       const arg = args[0];
+      // Resolve overloaded conversions now, while the operand type is still available.
+      const concrete = arg ? `${arg.dataType}_TO_${signature.result}` : name;
+      const resolved =
+        name.startsWith("TO_") && Object.hasOwn(conversionFunctions, concrete)
+          ? (concrete as ConversionFunction)
+          : (name as ConversionFunction);
+      this.functions.set(node, resolved);
+      if (
+        resolved === "REAL_TO_DWORD" ||
+        resolved === "DWORD_TO_REAL" ||
+        ["BYTE_TO_BOOL", "WORD_TO_BOOL", "DWORD_TO_BOOL"].includes(resolved)
+      ) {
+        this.diagnostics.push({
+          code: "type.portability",
+          severity: "warning",
+          args: { name },
+          span: node.span,
+        });
+      }
       return this.constant(
         { dataType: signature.result },
         node,
         arg?.constant === undefined || node.args.length !== 1
           ? undefined
-          : () => convertValue(name as ConversionFunction, arg.constant!),
+          : () => convertValue(resolved, arg.constant!),
       );
     }
     const values = (name === "SEL" ? args.slice(1) : args).filter((arg) => arg !== null);

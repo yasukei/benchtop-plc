@@ -1,6 +1,12 @@
-/** Milestone 1 elementary types. TIME is a signed 32-bit count of milliseconds. */
+/** Elementary types through 32 bits. TIME is a signed 32-bit count of milliseconds. */
 export interface ValueByType {
   BOOL: boolean;
+  SINT: number;
+  USINT: number;
+  UDINT: number;
+  BYTE: number;
+  WORD: number;
+  DWORD: number;
   INT: number;
   DINT: number;
   UINT: number;
@@ -10,7 +16,45 @@ export interface ValueByType {
 }
 
 export type DataType = keyof ValueByType;
-export type IntegerType = "INT" | "DINT" | "UINT";
+export const integerTypes = ["SINT", "USINT", "INT", "UINT", "DINT", "UDINT"] as const;
+export type IntegerType = (typeof integerTypes)[number];
+export type BitStringType = "BYTE" | "WORD" | "DWORD";
+export type BitType = "BOOL" | BitStringType;
+export const bitWidths = { BOOL: 1, BYTE: 8, WORD: 16, DWORD: 32 } as const;
+export const integerWidths = { SINT: 8, USINT: 8, INT: 16, UINT: 16, DINT: 32, UDINT: 32 } as const;
+export const integerRanges = {
+  SINT: [-128, 127],
+  USINT: [0, 255],
+  INT: [-32768, 32767],
+  UINT: [0, 65535],
+  DINT: [-2147483648, 2147483647],
+  UDINT: [0, 4294967295],
+  BYTE: [0, 255],
+  WORD: [0, 65535],
+  DWORD: [0, 4294967295],
+  TIME: [-2147483648, 2147483647],
+} as const;
+export const isIntegerType = (type: string): type is IntegerType =>
+  integerTypes.some((item) => item === type);
+export const isBitType = (type: string): type is BitType => Object.hasOwn(bitWidths, type);
+
+/** External values are checked, never wrapped. Computed results use coerceValue. */
+export function validateValue(dataType: DataType, value: unknown): void {
+  if (dataType === "BOOL") {
+    if (typeof value !== "boolean") throw new RangeError("Expected BOOL");
+    return;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value) || Object.is(value, -0))
+    throw new RangeError("Expected a finite canonical number");
+  if (dataType === "REAL" || dataType === "LREAL") {
+    if (dataType === "REAL" && Math.fround(value) !== value)
+      throw new RangeError("Expected binary32 value");
+    return;
+  }
+  const [min, max] = integerRanges[dataType];
+  if (!Number.isInteger(value) || value < min || value > max)
+    throw new RangeError("Value outside type range");
+}
 export type NumericType = IntegerType | "REAL" | "LREAL";
 export type ScalarValue = boolean | number;
 export type TypedValue<T extends DataType = DataType> = {
@@ -53,6 +97,12 @@ export function coerceTime(value: ScalarValue): number {
 
 const coercers = {
   BOOL: coerceBool,
+  SINT: (value: ScalarValue) => (finite(value) << 24) >> 24,
+  USINT: (value: ScalarValue) => finite(value) & 0xff,
+  UDINT: (value: ScalarValue) => finite(value) >>> 0,
+  BYTE: (value: ScalarValue) => finite(value) & 0xff,
+  WORD: coerceUint,
+  DWORD: (value: ScalarValue) => finite(value) >>> 0,
   INT: coerceInt,
   DINT: coerceDint,
   UINT: coerceUint,
@@ -99,6 +149,11 @@ export function formatValue<T extends DataType>(dataType: T, value: ValueByType[
   const coerced = coerceValue(dataType, value);
   if (dataType === "BOOL") return coerced ? "TRUE" : "FALSE";
   if (dataType === "TIME") return formatTime(Number(coerced));
+  if (dataType === "BYTE" || dataType === "WORD" || dataType === "DWORD")
+    return `16#${Number(coerced)
+      .toString(16)
+      .toUpperCase()
+      .padStart(bitWidths[dataType as BitStringType] / 4, "0")}`;
   const text = dataType === "REAL" ? shortestReal(Number(coerced)) : String(coerced);
   if (dataType !== "REAL" && dataType !== "LREAL") return text;
   const [mantissa = "0", exponent] = text.split("e");

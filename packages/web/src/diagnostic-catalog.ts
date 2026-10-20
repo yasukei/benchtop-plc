@@ -54,6 +54,10 @@ export const diagnosticEn = {
   "decl.fb-initializer": ({ name }) =>
     `Function block instance ${name} cannot have an initializer.`,
   "name.undeclared": ({ name }) => `Undeclared identifier: ${name}.`,
+  "type.invalid-bit-access": ({ type, bit }) =>
+    `Bit ${bit} is outside the width of ${type}, or the type does not support bit access.`,
+  "type.portability": ({ name }) =>
+    `${name} follows IEC bit-pattern conversion rules; some vendor runtimes give different results.`,
   "type.invalid-constant": () => "Invalid constant or numeric value outside the supported range.",
   "type.case-label-not-constant": () => "CASE label must be an integer constant expression.",
   "fb.duplicate-input": ({ name, member }) => `Input ${name}.${member} is supplied more than once.`,
@@ -131,6 +135,10 @@ export const diagnosticJa = {
   "decl.fb-initializer": ({ name }) =>
     `ファンクションブロックのインスタンス${name}には初期値を指定できません。`,
   "name.undeclared": ({ name }) => `宣言されていない識別子です: ${name}。`,
+  "type.invalid-bit-access": ({ type, bit }) =>
+    `${type}のビット${bit}は範囲外、またはビットアクセス非対応の型です。`,
+  "type.portability": ({ name }) =>
+    `${name}はIECのビットパターン変換規則に従います。一部のベンダーの実行環境では結果が異なります。`,
   "type.invalid-constant": () => "定数が不正、または数値が対応範囲外です。",
   "type.case-label-not-constant": () => "CASEラベルには整数の定数式が必要です。",
   "fb.duplicate-input": ({ name, member }) => `入力${name}.${member}が複数回指定されています。`,

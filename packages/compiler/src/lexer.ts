@@ -236,7 +236,23 @@ class Lexer {
         this.advance();
         return this.number(start, span, true);
       }
-      if (["BOOL", "INT", "DINT", "UINT", "REAL", "LREAL"].includes(key) && this.char === "#") {
+      if (
+        [
+          "BOOL",
+          "SINT",
+          "USINT",
+          "INT",
+          "UINT",
+          "DINT",
+          "UDINT",
+          "BYTE",
+          "WORD",
+          "DWORD",
+          "REAL",
+          "LREAL",
+        ].includes(key) &&
+        this.char === "#"
+      ) {
         this.advance();
         return this.number(start, span, false, key as DataType);
       }

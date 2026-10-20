@@ -79,9 +79,12 @@ describe("runtime debug conformance", () => {
     expect(value()).toBe(41);
   });
 
-  it("gives forces priority over writes and keeps a copied, coerced force until cleared", () => {
+  it("gives forces priority over writes and keeps a copied, validated force until cleared", () => {
     const { runtime, clock, value } = setup("n : INT;", "n := n + 1;");
-    const force: TypedValue = { dataType: "INT", value: 32768 };
+    expect(() => runtime.force(0, { dataType: "INT", value: 32768 })).toThrow(
+      "runtime.debug-value",
+    );
+    const force: TypedValue = { dataType: "INT", value: -32768 };
     runtime.force(0, force);
     force.value = 1;
     runtime.run();

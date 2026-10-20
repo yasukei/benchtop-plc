@@ -2,7 +2,7 @@
 
 `@benchtop-plc/compiler` exports `compile(source): CompileResult`. It runs the
 [parser](compiler-parser.md), [semantic checker](type-checking.md) and IR lowering
-in order. Success returns `{ ir: ProgramIR, diagnostics: [] }`. Failure returns
+in order. Success returns `{ ir: ProgramIR, diagnostics }`, with any portability warnings. Failure returns
 `{ diagnostics: Diagnostic[] }` with the `ir` property omitted; no partially valid
 IR is exposed. Diagnostics retain the earlier stage's codes, arguments and spans.
 

@@ -8,7 +8,7 @@ import type {
   TypedValue,
   VariableId,
 } from "@benchtop-plc/core";
-import { validateTime } from "@benchtop-plc/core";
+import { validateValue } from "@benchtop-plc/core";
 import { checkInterval } from "./clock.js";
 import type { Clock, Ticker } from "./clock.js";
 import { Interpreter, RuntimeFault } from "./interpreter.js";
@@ -191,7 +191,7 @@ class PlcRuntime implements Runtime {
         args: {},
       });
     try {
-      if (value.dataType === "TIME") validateTime(value.value);
+      validateValue(value.dataType, value.value);
       return typed(declaration.dataType, value.value);
     } catch (error) {
       if (!(error instanceof RangeError)) throw error;

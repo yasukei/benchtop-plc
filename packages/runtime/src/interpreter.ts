@@ -1,4 +1,4 @@
-import { coerceValue, timeBinary } from "@benchtop-plc/core";
+import { coerceValue, isIntegerType, timeBinary } from "@benchtop-plc/core";
 import type {
   BinaryOperator,
   Diagnostic,
@@ -34,15 +34,19 @@ function binary(operator: BinaryOperator, left: ScalarValue, right: ScalarValue)
     case "MOD":
       return b === 0 ? 0 : a % b;
     case "AND":
-      return typeof left === "boolean" ? left && Boolean(right) : a & b;
+      return typeof left === "boolean" && typeof right === "boolean"
+        ? left && Boolean(right)
+        : a & b;
     case "OR":
-      return typeof left === "boolean" ? left || Boolean(right) : a | b;
+      return typeof left === "boolean" && typeof right === "boolean"
+        ? left || Boolean(right)
+        : a | b;
     case "XOR":
-      return typeof left === "boolean" ? left !== right : a ^ b;
+      return typeof left === "boolean" && typeof right === "boolean" ? left !== right : a ^ b;
     case "=":
-      return left === right;
+      return a === b;
     case "<>":
-      return left !== right;
+      return a !== b;
     case "<":
       return a < b;
     case ">":
@@ -102,6 +106,7 @@ export class Interpreter {
       case "literal":
         return expr.value;
       case "variable":
+      case "bit":
       case "fbMember":
         return this.memory.value(expr).value;
       case "unary": {
@@ -129,7 +134,12 @@ export class Interpreter {
               Number(right),
               expr.right.dataType,
             )
-          : coerceValue(expr.dataType, binary(expr.operator, left, right));
+          : coerceValue(
+              expr.dataType,
+              expr.operator === "*" && isIntegerType(expr.dataType)
+                ? Math.imul(Number(left), Number(right))
+                : binary(expr.operator, left, right),
+            );
       }
       case "functionCall": {
         if (!this.library) throw new Error("A runtime library is required for functions");

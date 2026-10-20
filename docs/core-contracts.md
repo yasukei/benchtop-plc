@@ -7,20 +7,25 @@ untrusted-input validator.
 
 ## Values
 
-`BOOL` uses `boolean`; `INT`, `UINT`, `DINT`, `REAL`, `LREAL` and `TIME` use `number`.
+`BOOL` uses `boolean`; SINT, USINT, INT, UINT, DINT, UDINT, BYTE, WORD, DWORD,
+REAL, LREAL and TIME use `number`.
 TIME ranges from `T#-24d20h31m23s648ms` to `T#24d20h31m23s647ms`.
 `TypedValue` pairs a `dataType` discriminator with a matching `value`.
-`coerceValue(type, value)` dispatches to the exported per-type helpers:
+`coerceValue(type, value)` dispatches by type:
 
-| Type  | Coercion                                                     |
-| ----- | ------------------------------------------------------------ |
-| BOOL  | Zero becomes FALSE; any other finite number becomes TRUE     |
-| INT   | Truncate toward zero, wrap to signed 16 bits                 |
-| UINT  | Truncate toward zero, wrap to unsigned 16 bits               |
-| DINT  | Truncate toward zero, wrap to signed 32 bits                 |
-| REAL  | Round with `Math.fround` to IEEE 754 binary32                |
-| LREAL | Preserve JavaScript binary64 precision                       |
-| TIME  | Truncate toward zero to milliseconds, wrap to signed 32 bits |
+| Type         | Coercion                                                     |
+| ------------ | ------------------------------------------------------------ |
+| BOOL         | Zero becomes FALSE; any other finite number becomes TRUE     |
+| SINT         | Truncate toward zero, wrap to signed 8 bits                  |
+| USINT, BYTE  | Truncate toward zero, wrap to unsigned 8 bits                |
+| UDINT, DWORD | Truncate toward zero, wrap to unsigned 32 bits (`>>> 0`)     |
+| WORD         | Truncate toward zero, wrap to unsigned 16 bits               |
+| INT          | Truncate toward zero, wrap to signed 16 bits                 |
+| UINT         | Truncate toward zero, wrap to unsigned 16 bits               |
+| DINT         | Truncate toward zero, wrap to signed 32 bits                 |
+| REAL         | Round with `Math.fround` to IEEE 754 binary32                |
+| LREAL        | Preserve JavaScript binary64 precision                       |
+| TIME         | Truncate toward zero to milliseconds, wrap to signed 32 bits |
 
 Helpers accept boolean or numeric values (TRUE converts to 1, FALSE to 0).
 They are representation helpers, not the compiler's implicit-conversion rules.
@@ -35,11 +40,15 @@ toward zero. `timeBinary` shares this calculation between compiler and runtime.
 TIME literals are checked against the range by exact value before fractional
 milliseconds are truncated; out-of-range literals are `type.invalid-constant`.
 Typed constant operations follow runtime arithmetic. IR initial values and
-write/force TIME values must be integer milliseconds within range (and not negative zero);
-`validateTime` rejects them without coercion. TON, TOF and TP treat negative PT as zero.
+write/force values must satisfy their declared type's range and representation.
+`validateValue` rejects out-of-range or fractional integers, non-finite reals, REAL
+values not representable as binary32, negative zero and incorrectly represented BOOLs
+without coercion. `validateTime` remains available for TIME-only validation.
+The project codec checks scalar initializer ranges on import and export. TON, TOF and TP treat negative PT as zero.
 
 `formatValue(type, value)` uses IEC syntax independent of UI locale: TRUE/FALSE,
-decimal integers, a decimal point for REAL/LREAL (also in an exponent's mantissa),
+decimal integers, full-width uppercase hexadecimal bit strings (`16#00FF` for WORD),
+a decimal point for REAL/LREAL (also in an exponent's mantissa),
 and TIME as `T#1s500ms`. `formatTime` emits d/h/m/s/ms in descending order, omits
 zero components, uses `T#0ms` for zero, and places a minus sign after `T#` for
 negative durations. Formatting coerces the value to its declared type first.
@@ -57,6 +66,11 @@ its source spelling and upper-case key. Scalar declarations contain their coerce
 request the standard FB's initial state; user initializers on FBs are unsupported.
 Only BOOL declarations may have a direct bit address; milestone 1 uses byte 0,
 bits 0–7 in areas I and Q.
+
+Bit references (`kind: "bit"`) contain a scalar variable index, a checked bit index
+and `dataType: "BOOL"`. Reads test that bit; writes preserve all other bits, including
+DWORD's unsigned representation. Integer multiplication keeps the low width bits
+with `Math.imul`, avoiding binary64 precision loss for 32-bit products.
 
 Variable references, assignment targets, FOR variables and FB calls use zero-based
 indices into `ProgramIR.variables`. FB member references use an input/output

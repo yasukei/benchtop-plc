@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- **Breaking:** AND, &, OR, XOR and NOT now accept BOOL and bit strings only;
+  integer operands require an explicit conversion to a bit-string type.
+- Runtime initial values and write/force commands reject out-of-range values for
+  every supported type. Project imports and exports reject out-of-range initializers.
+
 - TIME is now signed 32-bit milliseconds. Out-of-range duration literals, IR initial
   values and write/force values are rejected. TIME arithmetic wraps modulo 2^32;
   real scaling rounds the exact result once to milliseconds, nearest with ties to even.
@@ -23,6 +28,16 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 - Octal literals (`8#`) are rejected.
 
 ### Added
+
+- SINT, USINT, UDINT, BYTE, WORD and DWORD throughout the compiler, runtime,
+  PLCopen XML and variable monitor, with typed literals, width-based wrapping,
+  unsigned 32-bit values and full-width hexadecimal display for bit strings.
+- Bit-string operators, comparisons and readable/writable bit access (`w.15`).
+- Numeric, bit-pattern and TIME conversion families for the new types, including
+  overloaded TO_ forms and REAL ↔ DWORD IEEE binary32 reinterpretation.
+  Portability warnings identify conversions whose vendor semantics may differ.
+- Monitor writes and forces for the new types; bit strings accept decimal,
+  hexadecimal (`16#`) and binary (`2#`) input.
 
 - Typed literals for BOOL, INT, DINT, UINT, REAL and LREAL, including based integers,
   with editor highlighting; integer constants 0/1 in BOOL positions and BOOL ordering.

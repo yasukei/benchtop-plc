@@ -18,7 +18,7 @@ VAR
   wrapped : UINT := INT_TO_UINT(-1);
   duration : TIME := T#1s * 1.5;
   logical : BOOL := TRUE AND NOT FALSE;
-  bits : INT := INT#16#0F AND INT#16#03;
+  bits : WORD := WORD#16#0F AND WORD#16#03;
 END_VAR
 END_PROGRAM`);
   expect(parsed.diagnostics).toEqual([]);

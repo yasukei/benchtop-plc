@@ -30,7 +30,11 @@ function literal(
 function ref(variable: number, dataType: DataType = "INT"): VariableReference {
   return { kind: "variable", variable, dataType, span };
 }
-function scalar(name: string, dataType: DataType = "INT", initialValue: ScalarValue = 0): Variable {
+function scalar(
+  name: string,
+  dataType: DataType = "INT",
+  initialValue: ScalarValue = dataType === "BOOL" ? false : 0,
+): Variable {
   return {
     kind: "scalar",
     name,
@@ -179,7 +183,12 @@ describe("runtime scans over hand-written IR", () => {
     ["OR", false, true, true],
     ["XOR", true, true, false],
   ] as const)("evaluates %s (%s, %s)", (operator, left, right, expected) => {
-    const type = typeof expected === "boolean" ? "BOOL" : "INT";
+    const type =
+      typeof expected === "boolean"
+        ? "BOOL"
+        : ["AND", "OR", "XOR"].includes(operator)
+          ? "WORD"
+          : "INT";
     const { runtime } = setup(
       program(
         [assign(0, binary(operator, literal(left), literal(right), type), 2, type)],
@@ -192,10 +201,10 @@ describe("runtime scans over hand-written IR", () => {
   it.each([
     ["+", -2, -2],
     ["-", 2, -2],
-    ["NOT", 0, -1],
+    ["NOT", 0, 65535],
     ["NOT", true, false],
   ] as const)("evaluates unary %s %s", (operator, operand, expected) => {
-    const type = typeof operand === "boolean" ? "BOOL" : "INT";
+    const type = typeof operand === "boolean" ? "BOOL" : operator === "NOT" ? "WORD" : "INT";
     const { runtime } = setup(
       program(
         [

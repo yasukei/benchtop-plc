@@ -163,3 +163,8 @@ Paths identify XML elements/attributes or model fields; they are diagnostic
 arguments, not rendered English messages. Project conversion can also return the
 compiler's lexer/parser diagnostics with source spans. See
 [Project files](project-format.md) for the supported format and extension rules.
+
+`type.invalid-bit-access` carries `{ type, bit }` for an unsupported scalar type or
+an index outside a bit string's width. `type.portability` is a warning carrying
+`{ name }` for REAL ↔ DWORD and bit strings → BOOL conversions whose vendor semantics
+may differ; it does not prevent compilation.

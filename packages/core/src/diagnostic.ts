@@ -38,6 +38,8 @@ export interface DiagnosticArgs {
   "decl.fb-initializer": { name: string };
 
   "name.undeclared": { name: string };
+  "type.invalid-bit-access": { type: DataType; bit: number };
+  "type.portability": { name: string };
   "type.invalid-constant": NoArguments;
   "type.case-label-not-constant": NoArguments;
   "fb.duplicate-input": { name: string; member: string };

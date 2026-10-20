@@ -327,3 +327,43 @@ it.each([
     current = read.value!;
   }
 });
+
+it("round trips the small integer and bit-string types using TC6 elementary elements", () => {
+  const project = sampleProject(`PROGRAM Main
+VAR s: SINT := -128; u: USINT := 255; ud: UDINT := 4294967295;
+ b: BYTE := 16#FF; w: WORD := WORD#16#00FF; dw: DWORD := DWORD#16#FFFFFFFF;
+END_VAR
+w.15 := TRUE;
+END_PROGRAM`);
+  const saved = xml(project);
+  for (const type of ["SINT", "USINT", "UDINT", "BYTE", "WORD", "DWORD"])
+    expect(saved).toContain(`<${type}/>`);
+  expect(readProject(saved).value).toEqual(project);
+  const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(splitProgram(canonical.value!.program).value).toEqual(splitProgram(project.program).value);
+});
+it.each([
+  ["SINT", "128"],
+  ["USINT", "256"],
+  ["UDINT", "4294967296"],
+  ["BYTE", "16#100"],
+  ["WORD", "16#10000"],
+  ["DWORD", "16#100000000"],
+  ["INT", "40000"],
+  ["UINT", "-1"],
+  ["DINT", "2147483648"],
+  ["TIME", "T#30d"],
+  ["REAL", "1e39"],
+  ["BYTE", "WORD#256"],
+  ["INT", "DINT#40000"],
+])("rejects out-of-range %s project initializers on import and export", (type, initial) => {
+  const zero = type === "TIME" ? "T#0ms" : "0";
+  const project = sampleProject(`PROGRAM Main VAR x: ${type} := ${zero}; END_VAR END_PROGRAM`);
+  const saved = xml(project);
+  const imported = readProject(saved.replace(`value="${zero}"`, `value="${initial}"`));
+  expect(imported.value).toBeNull();
+  expect(imported.diagnostics).toContainEqual(expect.objectContaining({ code: "project.invalid" }));
+  project.program = `PROGRAM Main VAR x: ${type} := ${initial}; END_VAR END_PROGRAM`;
+  expect(writeProject(project).value).toBeNull();
+});

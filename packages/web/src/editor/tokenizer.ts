@@ -41,7 +41,7 @@ export function readStToken(
   const time = /^(?:TIME|T)#[+-]?[A-Za-z0-9_.]*/i.exec(source);
   if (time) return { length: time[0].length, style: "number" };
   const typed =
-    /^(?:BOOL|INT|DINT|UINT|REAL|LREAL)#[+-]?(?:TRUE|FALSE|\d+#[A-Za-z0-9_]*|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?[\d_]*)?)?/i.exec(
+    /^(?:BOOL|SINT|USINT|INT|UINT|DINT|UDINT|BYTE|WORD|DWORD|REAL|LREAL)#[+-]?(?:TRUE|FALSE|\d+#[A-Za-z0-9_]*|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?[\d_]*)?)?/i.exec(
       source,
     );
   if (typed) return { length: typed[0].length, style: "number" };
