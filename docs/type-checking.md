@@ -24,64 +24,96 @@ the plain tree IR. Source spelling and spans stay in the AST.
 ## Rules
 
 Names are matched by their parser-supplied upper-case keys, across all VAR blocks.
-All declarations are collected before checking expressions. Initializers may use
-literals, parentheses, unary operators and binary operators; variable references,
-FB members and function calls are not constant expressions. CASE labels and range
-endpoints must also be integer constant expressions. Integer literals must fit DINT;
-`2147483648` is accepted only as the magnitude directly negated to form
-`-2147483648` (parentheses around the magnitude are allowed). Other out-of-range
-integer literals produce `type.invalid-constant` at the literal, regardless of
-the destination type. Literal typing remains INT for magnitudes up to 32767,
-otherwise DINT.
+All declarations are collected before checking expressions. Initializers and CASE
+labels may use constant expressions, including typed literals and conversion calls;
+variable references, FB members and other function calls are not constants.
 
-Real literals retain their binary64 value, including through parentheses and
-unary signs, while their nominal expression type remains REAL. REAL destination
-coercion rounds to binary32; LREAL destination coercion preserves binary64. A
-binary arithmetic result is still coerced to its promoted type, so an expression
-such as `0.1 + 0.0` produces a binary32 REAL even when assigned to LREAL.
+Implicit conversions follow [ADR 0013](adr/0013-conversions-literals-and-operators.md).
+For the current types they are INT/UINT → DINT, INT/UINT → REAL, INT/UINT/DINT →
+LREAL and REAL → LREAL. Every narrowing conversion requires a conversion function;
+the diagnostic includes the localizable `explicit-conversion` hint.
+These rules apply to assignments, initializers, FB inputs, fixed function
+parameters, CASE labels and FOR start/end/step values (the control variable's type).
 
-Operator results are coerced to their expression type: integer division truncates
-toward zero and integer results wrap. Division by zero, non-finite constants,
-and REAL overflow produce `type.invalid-constant` at the expression. Destination
-coercion checks finite values and REAL overflow; integer destination coercion
-truncates and wraps rather than rejecting values outside its range. This
-evaluation validates initializers and CASE labels; it does not replace AST
-expressions or optimize executable IR.
+Operators and generic MIN/MAX/LIMIT/SEL value arguments use one set-based common
+type, independent of argument order: select a candidate all operands can widen to
+that itself widens to all other candidates. If none exists and all operands are
+integers, repeat that selection with only integer candidates. For example INT +
+UINT is DINT, DINT + REAL is LREAL, REAL + LREAL is LREAL, and MAX(INT, UINT, REAL)
+is REAL. Incompatible types are errors. Unary minus accepts signed integers, reals
+and TIME, and rejects UINT. All comparisons accept BOOL (`FALSE < TRUE`).
+Integer bitwise operators remain an extension until bit-string types arrive (#69).
+TIME supports TIME ± TIME and scaling with an independently typed numeric factor.
 
-Assignment follows issue #6. Arithmetic returns REAL when either numeric operand
-is REAL/LREAL, otherwise DINT when either is DINT, otherwise INT (including UINT
-pairs). TIME supports addition/subtraction with TIME and multiplication/division
-with a numeric right operand. Unary plus/minus support numeric types and TIME;
-NOT supports BOOL and integers. Real-to-integer assignments include the existing
-`explicit-conversion` hint identifier for the UI to localize.
+### Literals and constants
+
+Numeric literals without a type, and expressions containing only these literals,
+parentheses, unary signs and arithmetic operators, are untyped constants. They
+use unbounded integer arithmetic (division toward zero) when every literal is an
+integer, otherwise exact fractions. They receive a type after evaluation:
+
+1. From the common type of originally typed neighbors or generic arguments, if
+   that type can hold the kind of constant (real constants need REAL/LREAL).
+   Defaults chosen for other untyped constants do not influence this step.
+2. From a typed destination when the whole value is untyped: assignment, initializer,
+   FB input, fixed parameter, CASE label or FOR bound/step. Integer 0 and 1 also
+   work in BOOL positions, including conditions.
+3. Otherwise DINT for an integer in range, then LREAL only if it holds that integer
+   exactly; real constants default to LREAL. The intermediate LINT fallback from
+   ADR 0013 will become available when LINT is implemented.
+
+The destination never supplies a type inside a larger typed expression:
+`l := i + 40000` with `i : INT` rejects 40000 even if `l : LREAL`. Likewise,
+`MAX(i, 1.5, 40000)` rejects 40000 as an INT constant; the fallback LREAL type of
+1.5 does not widen it. `MAX(i, 1.5, DINT#40000)` is valid: the originally typed
+arguments have common type DINT, and the final call has common type LREAL after
+1.5 receives its default type.
+`x : INT := 30000 + 30000` is invalid, while `x : INT := 1 + 2` is 3.
+`l : LREAL := 1 / 2` is 0.0 because the arithmetic uses only integer literals.
+Out-of-range constants report `type.invalid-constant` at the constant's span. Decimal scales
+outside ±10,000 are also rejected with this diagnostic before constructing a
+power of ten, keeping compilation responsive while editing or restoring source.
+This is a compiler resource limit, including for values that would round to zero.
+
+Typed literals are BOOL#, INT#, DINT#, UINT#, REAL#, LREAL#, plus T#/TIME#.
+Examples include `BOOL#1`, `INT#-5`, `UINT#16#FF` and `REAL#1.5`.
+Untyped integers accept decimal, binary `2#` and hexadecimal `16#`; octal `8#`
+reports `lex.malformed-number`. Every numeric literal retains its source text for
+exact evaluation. Real constants round once directly from their exact decimal or
+fraction value to binary32/64, nearest with ties to even, including subnormals.
+`REAL#1.000000178813934326171874999` therefore prints as 1.0000001.
+
+Operations on typed constants have runtime semantics: integer results wrap,
+every REAL intermediate rounds to binary32, and LREAL keeps binary64 precision.
+`INT#32767 + INT#1` is -32768. Runtime faults (division by zero or non-finite
+results) become `type.invalid-constant`. Negative zero normalizes to zero.
 
 ## Standard signatures
 
-The compiler consumes `standardFunctionBlocks` and `standardFunctions` from core,
-shared with the runtime. Port order follows [core-contracts.md](core-contracts.md);
-implementations remain in runtime. Function descriptors record minimum/maximum
-arity (`null` means extensible), positional accepted types (the last entry repeats)
-and a fixed conversion result type when applicable. SEL's value arguments must
-also be compatible with each other; polymorphic results follow the promotion rules below.
-Omitted FB inputs retain their values. Provided inputs must be unique, writable
-and assignable to the declared input type. Outputs may be read but never assigned,
-including in a named-input call.
+The compiler consumes the shared core function/block descriptors. Port order follows
+[core-contracts.md](core-contracts.md). Omitted FB inputs retain their values;
+provided inputs must be unique, writable and assignable to their declared types.
 
-| Function    | Arguments                            | Result                                        |
-| ----------- | ------------------------------------ | --------------------------------------------- |
-| ABS         | One numeric value                    | Argument type                                 |
-| MIN, MAX    | Two or more numeric values           | Numeric promotion across arguments            |
-| LIMIT       | Three numeric values                 | Numeric promotion across arguments            |
-| SEL         | BOOL selector, two compatible values | Numeric promotion, or matching BOOL/TIME type |
-| REAL_TO_INT | One REAL                             | INT                                           |
-| INT_TO_REAL | One INT                              | REAL                                          |
-| TIME_TO_INT | One TIME                             | INT                                           |
-| INT_TO_TIME | One INT                              | TIME                                          |
-| BOOL_TO_INT | One BOOL                             | INT                                           |
+| Function     | Arguments                                           | Result                         |
+| ------------ | --------------------------------------------------- | ------------------------------ |
+| ABS          | One numeric value                                   | Argument type                  |
+| MIN, MAX     | Two or more numeric values                          | Set-based common type          |
+| LIMIT        | Three numeric values                                | Set-based common type          |
+| SEL          | BOOL selector, two compatible values                | Common type of value arguments |
+| `<A>_TO_<B>` | One value assignable to A                           | B                              |
+| `TO_<B>`     | One value from a supported conversion source family | B                              |
 
-Numeric promotion across multiple arguments uses the arithmetic rule above.
-Conversion arguments match their declared source type exactly; assignment's
-implicit integer/real widening does not apply to explicit conversions.
+Numeric conversion functions exist for every distinct ordered pair among INT,
+DINT, UINT, REAL and LREAL. BOOL_TO_INT/DINT/UINT return 0 or 1. TIME_TO_INT/DINT/UINT
+and INT/DINT/UINT_TO_TIME are extensions in milliseconds. Overloaded TO_INT,
+TO_DINT, TO_UINT, TO_REAL, TO_LREAL and TO_TIME select the conversion from the
+argument type; numeric identity inputs are also accepted. No conversion to BOOL,
+BOOL to real, or TIME to real exists. Fixed source parameters accept implicit
+widening, with untyped constants checked directly against that source type.
+
+Integer conversions wrap; real → integer rounds nearest, ties to even, then wraps.
+Integer → real and LREAL → REAL round nearest, ties to even. REAL overflow faults
+at runtime and is rejected in a constant expression. TIME's range is unchanged (#24).
 
 Diagnostics identify offending names, members, address tokens, expressions or
 EXIT statements. The codes and argument shapes are in

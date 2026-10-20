@@ -75,3 +75,20 @@ describe("shared standard-library descriptors", () => {
     }
   });
 });
+
+it("registers exactly the current conversion families and no unrelated conversions", () => {
+  const numbers = ["INT", "DINT", "UINT", "REAL", "LREAL"];
+  const integers = ["INT", "DINT", "UINT"];
+  const names = numbers.flatMap((from) =>
+    numbers.filter((to) => to !== from).map((to) => `${from}_TO_${to}`),
+  );
+  names.push(
+    ...integers.flatMap((type) => [`BOOL_TO_${type}`, `TIME_TO_${type}`, `${type}_TO_TIME`]),
+    ...[...numbers, "TIME"].map((type) => `TO_${type}`),
+  );
+  expect(
+    Object.keys(standardFunctions)
+      .filter((name) => !["ABS", "MIN", "MAX", "LIMIT", "SEL"].includes(name))
+      .sort(),
+  ).toEqual(names.sort());
+});

@@ -1,4 +1,4 @@
-import type { FunctionBlockType, StandardFunction } from "./ir.js";
+import type { ConversionFunction, FunctionBlockType, StandardFunction } from "./ir.js";
 import type { DataType } from "./values.js";
 
 const numericTypes = ["INT", "UINT", "DINT", "REAL", "LREAL"] as const;
@@ -61,17 +61,41 @@ export interface StandardFunctionSignature {
   /** Omitted for polymorphic results resolved by the compiler. */
   result?: DataType;
 }
+const integers = ["INT", "DINT", "UINT"] as const;
+const conversionEntries: [string, StandardFunctionSignature][] = [];
+for (const to of [...numericTypes, "TIME"] as const) {
+  const sources: Types =
+    to === "TIME"
+      ? integers
+      : integers.some((type) => type === to)
+        ? [...numericTypes, "BOOL", "TIME"]
+        : numericTypes;
+  conversionEntries.push([`TO_${to}`, { min: 1, max: 1, arguments: [sources], result: to }]);
+  for (const from of sources) {
+    if (from !== to)
+      conversionEntries.push([
+        `${from}_TO_${to}`,
+        {
+          min: 1,
+          max: 1,
+          arguments: [[from]],
+          result: to,
+        },
+      ]);
+  }
+}
+// Every conversion opcode is generated from the families in ConversionFunction.
+export const conversionFunctions = Object.fromEntries(conversionEntries) as Record<
+  ConversionFunction,
+  StandardFunctionSignature
+>;
 export const standardFunctions = {
   ABS: { min: 1, max: 1, arguments: [numericTypes] },
   MIN: { min: 2, max: null, arguments: [numericTypes] },
   MAX: { min: 2, max: null, arguments: [numericTypes] },
   LIMIT: { min: 3, max: 3, arguments: [numericTypes] },
   SEL: { min: 3, max: 3, arguments: [["BOOL"], scalarTypes] },
-  REAL_TO_INT: { min: 1, max: 1, arguments: [["REAL"]], result: "INT" },
-  INT_TO_REAL: { min: 1, max: 1, arguments: [["INT"]], result: "REAL" },
-  TIME_TO_INT: { min: 1, max: 1, arguments: [["TIME"]], result: "INT" },
-  INT_TO_TIME: { min: 1, max: 1, arguments: [["INT"]], result: "TIME" },
-  BOOL_TO_INT: { min: 1, max: 1, arguments: [["BOOL"]], result: "INT" },
+  ...conversionFunctions,
 } as const satisfies Record<StandardFunction, StandardFunctionSignature>;
 
 export const isFunctionBlockType = (name: string): name is FunctionBlockType =>

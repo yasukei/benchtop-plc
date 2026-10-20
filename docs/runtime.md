@@ -116,8 +116,8 @@ programming errors still propagate to the host.
 
 All IR expressions and statements are supported. Both binary operands and function
 arguments are evaluated in source order. Operators use the IR result type for
-coercion; real literals and their unary signs preserve binary64 precision until
-an operator or destination coercion, matching compiler semantics. Integer division
+coercion; every REAL result is binary32 and LREAL results preserve binary64
+precision, matching compiler semantics. Integer division
 truncates toward zero; MOD with a zero divisor returns zero. Integer arithmetic
 and assignments wrap through core helpers.
 FOR evaluates its bounds and step once on entry, assigns its control variable,
@@ -185,12 +185,21 @@ standalone R_TRIG/F_TRIG blocks. Cold reset restores each block's own startup ru
 ABS, MIN, MAX and LIMIT operate on numeric values. LIMIT(MN, IN, MX) evaluates
 `MIN(MAX(IN, MN), MX)`, including when bounds are reversed. SEL(G, IN0, IN1)
 returns IN0 for FALSE and IN1 for TRUE; argument evaluation remains eager.
-REAL_TO_INT first represents its input as binary32, then rounds to nearest with
-ties to even (2.5 → 2, 3.5 → 4, -2.5 → -2). INT_TO_REAL converts to binary32;
-TIME_TO_INT/INT_TO_TIME use milliseconds without scaling; BOOL_TO_INT returns
-0/1. Integer conversions and polymorphic integer results use core's wrapping
-coercion, so ABS(INT_MIN) remains INT_MIN. Non-finite values/REAL overflow fault
-through `runtime.invalid-value`, just like other runtime expressions.
+Numeric conversions exist for every distinct ordered pair of INT, DINT, UINT,
+REAL and LREAL, with overloaded TO_INT/DINT/UINT/REAL/LREAL forms. Integer → integer
+wraps. Real → integer rounds nearest, ties to even (2.5 → 2, 3.5 → 4, -2.5 → -2),
+then wraps: REAL_TO_INT(40000.0) and DINT_TO_INT(40000) are -25536. Integer → real
+and LREAL → REAL round nearest, ties to even. REAL source values and every REAL
+operator result, including unary signs, are binary32; LREAL arithmetic keeps
+binary64 precision. Non-finite results and REAL overflow fault with
+`runtime.invalid-value`.
+
+BOOL_TO_INT/DINT/UINT return 0/1. TIME_TO_INT/DINT/UINT and INT/DINT/UINT_TO_TIME
+(and their overloaded forms) are extensions using milliseconds without scaling;
+integer destinations wrap, so TIME_TO_INT(T#40s) is -25536. TIME range enforcement
+is still tracked in #24. No conversion to BOOL, BOOL → real or TIME → real exists.
+Polymorphic integer results wrap, so ABS(INT_MIN) remains INT_MIN. Negative zero
+normalizes to zero for every numeric type.
 
 ## Snapshots
 

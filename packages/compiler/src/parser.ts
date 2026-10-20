@@ -172,6 +172,7 @@ class Parser {
       const match = /^%([IQ])X([0-9]+)\.([0-9]+)$/.exec(token.key)!;
       address = {
         text: token.text,
+        ...(token.dataType ? { dataType: token.dataType } : {}),
         area: match[1] as "I" | "Q",
         byte: Number(match[2]),
         bit: Number(match[3]),
@@ -403,6 +404,7 @@ class Parser {
         kind: "literal",
         literalKind: token.kind,
         text: token.text,
+        ...(token.dataType ? { dataType: token.dataType } : {}),
         value: token.value as number,
         span: token.span,
       };
@@ -413,6 +415,7 @@ class Parser {
         kind: "literal",
         literalKind: "boolean",
         text: token.text,
+        ...(token.dataType ? { dataType: token.dataType } : {}),
         value: token.value as boolean,
         span: token.span,
       };

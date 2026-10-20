@@ -68,17 +68,19 @@ Binary operators associate left; unary operators nest right. Calls bind more
 tightly than unary operators. Function and FB names are not resolved here.
 
 Literal nodes retain original text and a lexical kind (`integer`, `real`, `time`,
-`boolean`), with a numeric or boolean value. Decimal and base 2/8/16 integers
-support underscores between digits. Reals support decimal points and signed
-exponents. TIME/T durations have an optional sign after `#` and descending,
-nonrepeated d/h/m/s/ms components, optionally separated by a single underscore.
-Only the final component may be fractional; values are milliseconds. Signs on
-ordinary numbers remain unary operators. Numeric values
-are finite; integer literals and address components must be safe integers, and
-duration magnitudes may not exceed `Number.MAX_SAFE_INTEGER`. Values outside
-these representation limits produce the corresponding malformed-literal/address
-diagnostic. REAL rounding, integer wrapping and TIME coercion belong to later
-compilation stages.
+`boolean`), with an approximate numeric or boolean value. Exact numeric checking
+uses the source text, so lexical numeric magnitudes are unbounded; a non-finite
+approximation is stored as zero to keep AST data JSON-safe. Decimal and base 2/16
+integers support underscores between digits. Octal `8#` is rejected. Reals support
+decimal points and signed exponents. BOOL/INT/DINT/UINT/REAL/LREAL typed literals
+are single tokens with a `dataType`, including `INT#-5` and `UINT#16#FF`.
+TIME/T durations have an optional sign after `#` and descending, nonrepeated
+d/h/m/s/ms components, optionally separated by a single underscore. Only the final
+component may be fractional; values are milliseconds. Signs on untyped numbers
+remain unary operators. Address components must be safe integers, and duration
+magnitudes may not exceed `Number.MAX_SAFE_INTEGER`. Values outside those limits
+produce the corresponding malformed-literal/address diagnostic. Exact constant
+arithmetic, range checks and binary32/64 rounding belong to semantic checking.
 
 The AST contains only plain, JSON-safe data. It does not enforce supported types,
 I/O ranges, name resolution, writable FB members, constant initializers or operand

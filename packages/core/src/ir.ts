@@ -1,5 +1,5 @@
 import type { SourceNode } from "./source.js";
-import type { DataType, IntegerType, TypedValue, ValueByType } from "./values.js";
+import type { DataType, IntegerType, NumericType, TypedValue, ValueByType } from "./values.js";
 
 /** Zero-based index into ProgramIR.variables, stable for the lifetime of a loaded program. */
 export type VariableId = number;
@@ -12,17 +12,15 @@ export interface DirectAddress {
 }
 
 export type FunctionBlockType = "TON" | "TOF" | "TP" | "R_TRIG" | "F_TRIG" | "CTU" | "CTD";
-export type StandardFunction =
-  | "ABS"
-  | "MIN"
-  | "MAX"
-  | "LIMIT"
-  | "SEL"
-  | "REAL_TO_INT"
-  | "INT_TO_REAL"
-  | "TIME_TO_INT"
-  | "INT_TO_TIME"
-  | "BOOL_TO_INT";
+export type ConversionFunction =
+  | {
+      [A in NumericType]: `${A}_TO_${Exclude<NumericType, A>}`;
+    }[NumericType]
+  | `BOOL_TO_${IntegerType}`
+  | `TIME_TO_${IntegerType}`
+  | `${IntegerType}_TO_TIME`
+  | `TO_${NumericType | "TIME"}`;
+export type StandardFunction = "ABS" | "MIN" | "MAX" | "LIMIT" | "SEL" | ConversionFunction;
 
 interface VariableBase extends SourceNode {
   /** Original spelling for display. */
