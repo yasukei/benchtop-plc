@@ -20,3 +20,5 @@ docs/adr/0008-english-and-japanese-from-the-start.md
 docs/adr/0010-operating-states-restarts-and-runtime-errors.md
 # Content is specified verbatim by issue #65.
 docs/adr/0012-elementary-data-types.md
+# Content is specified verbatim by issue #76.
+docs/adr/0013-conversions-literals-and-operators.md
