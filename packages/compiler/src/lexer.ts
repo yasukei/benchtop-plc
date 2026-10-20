@@ -205,7 +205,7 @@ class Lexer {
         }
       }
     }
-    if (Number.isNaN(value) || (kind === "time" && Math.abs(value) > Number.MAX_SAFE_INTEGER)) {
+    if (Number.isNaN(value)) {
       this.fail({
         code: "lex.malformed-number",
         severity: "error",
@@ -218,7 +218,11 @@ class Lexer {
         kind,
         start,
         span,
-        kind === "boolean" ? Boolean(value) : Number.isFinite(value) ? value || 0 : 0,
+        kind === "boolean"
+          ? Boolean(value)
+          : kind === "time" || Number.isFinite(value)
+            ? value || 0
+            : 0,
       ),
       ...(dataType ? { dataType } : {}),
     };

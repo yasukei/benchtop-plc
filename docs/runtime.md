@@ -196,8 +196,9 @@ binary64 precision. Non-finite results and REAL overflow fault with
 
 BOOL_TO_INT/DINT/UINT return 0/1. TIME_TO_INT/DINT/UINT and INT/DINT/UINT_TO_TIME
 (and their overloaded forms) are extensions using milliseconds without scaling;
-integer destinations wrap, so TIME_TO_INT(T#40s) is -25536. TIME range enforcement
-is still tracked in #24. No conversion to BOOL, BOOL → real or TIME → real exists.
+integer destinations wrap, so TIME_TO_INT(T#40s) is -25536. TIME is signed 32-bit milliseconds; arithmetic wraps, while out-of-range external
+TIME values are rejected. Real scaling rounds once from the exact result to nearest
+milliseconds, ties to even; integer division truncates toward zero. No conversion to BOOL, BOOL → real or TIME → real exists.
 Polymorphic integer results wrap, so ABS(INT_MIN) remains INT_MIN. Negative zero
 normalizes to zero for every numeric type.
 

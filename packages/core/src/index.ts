@@ -5,3 +5,4 @@ export * from "./diagnostic.js";
 export * from "./protocol.js";
 export * from "./standard-library.js";
 export * from "./conversions.js";
+export * from "./time.js";

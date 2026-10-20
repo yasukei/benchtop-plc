@@ -1,5 +1,6 @@
 import {
   coerceValue,
+  timeBinary,
   conversionFunctions,
   convertValue,
   standardFunctionBlocks as blocks,
@@ -30,6 +31,7 @@ import {
   exactNumber,
   isUntyped,
   materialize,
+  timeLiteral,
 } from "./exact.js";
 import { binaryConstant, unaryConstant, withConstant } from "./constants.js";
 import {
@@ -226,9 +228,11 @@ class Checker {
         const dataType = node.dataType ?? (node.literalKind === "boolean" ? "BOOL" : "TIME");
         try {
           const constant =
-            node.literalKind === "boolean" || node.literalKind === "time"
-              ? coerceValue(dataType, node.value)
-              : materialize(exactNumber(node.text.slice(node.text.indexOf("#") + 1)), dataType);
+            node.literalKind === "time"
+              ? timeLiteral(node.text)
+              : node.literalKind === "boolean"
+                ? coerceValue(dataType, node.value)
+                : materialize(exactNumber(node.text.slice(node.text.indexOf("#") + 1)), dataType);
           info = { dataType, constant };
         } catch (error) {
           if (!(error instanceof RangeError)) throw error;
@@ -287,7 +291,15 @@ class Checker {
           node,
           left.constant === undefined || right.constant === undefined
             ? undefined
-            : () => binaryConstant(node.operator, left.constant!, right.constant!),
+            : () =>
+                dataType === "TIME"
+                  ? timeBinary(
+                      node.operator as "+" | "-" | "*" | "/",
+                      Number(left.constant!),
+                      Number(right.constant!),
+                      right.dataType,
+                    )
+                  : binaryConstant(node.operator, left.constant!, right.constant!),
         );
         break;
       }

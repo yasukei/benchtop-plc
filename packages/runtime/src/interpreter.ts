@@ -1,4 +1,4 @@
-import { coerceValue } from "@benchtop-plc/core";
+import { coerceValue, timeBinary } from "@benchtop-plc/core";
 import type {
   BinaryOperator,
   Diagnostic,
@@ -122,7 +122,14 @@ export class Interpreter {
         if (expr.operator === "/" && Number(right) === 0) {
           this.fault("runtime.division-by-zero", expr.span);
         }
-        return coerceValue(expr.dataType, binary(expr.operator, left, right));
+        return expr.dataType === "TIME"
+          ? timeBinary(
+              expr.operator as "+" | "-" | "*" | "/",
+              Number(left),
+              Number(right),
+              expr.right.dataType,
+            )
+          : coerceValue(expr.dataType, binary(expr.operator, left, right));
       }
       case "functionCall": {
         if (!this.library) throw new Error("A runtime library is required for functions");

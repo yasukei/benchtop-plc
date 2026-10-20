@@ -1,4 +1,4 @@
-/** Milestone 1 elementary types. TIME is measured in integer milliseconds. */
+/** Milestone 1 elementary types. TIME is a signed 32-bit count of milliseconds. */
 export interface ValueByType {
   BOOL: boolean;
   INT: number;
@@ -48,8 +48,7 @@ export function coerceLreal(value: ScalarValue): number {
 }
 
 export function coerceTime(value: ScalarValue): number {
-  // Normalize negative zero so JSON round trips preserve the value.
-  return Math.trunc(finite(value)) || 0;
+  return coerceDint(value);
 }
 
 const coercers = {

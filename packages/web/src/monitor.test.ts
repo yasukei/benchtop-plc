@@ -19,8 +19,19 @@ describe("monitor values", () => {
     expect(parseWrittenValue("UINT", "-1")).toBeNull();
     expect(parseWrittenValue("DINT", "2147483648")).toBeNull();
     expect(parseWrittenValue("TIME", "T#garbage")).toBeNull();
+    expect(parseWrittenValue("TIME", `T#${"9".repeat(309)}ms`)).toBeNull();
     expect(parseWrittenValue("TIME", "T#1s T#2s")).toBeNull();
     expect(parseWrittenValue("TIME", "1.5")).toBeNull();
+    for (const text of [
+      "2147483648",
+      "-2147483649",
+      "T#30d",
+      "T#-25d",
+      "T#2147483647.0000000001ms",
+    ])
+      expect(parseWrittenValue("TIME", text)).toBeNull();
+    expect(parseWrittenValue("TIME", "2147483647")?.value).toBe(2147483647);
+    expect(parseWrittenValue("TIME", "-2147483648")?.value).toBe(-2147483648);
     expect(parseWrittenValue("REAL", "1e100")).toBeNull();
   });
   it("shows FB outputs with descriptor names and IEC formatting", () => {

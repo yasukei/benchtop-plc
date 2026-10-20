@@ -102,7 +102,6 @@ describe("ST lexer", () => {
     "T#1h_30.5m_1s",
     "T#1s_1s",
     "T#1ms_1s",
-    "T#9007199254740993ms",
   ])("reports a malformed number for %s", (literal) => {
     expect(lex(literal)).toEqual({
       tokens: null,
@@ -231,4 +230,9 @@ describe("ST lexer", () => {
       expect(lex(source).tokens).toHaveLength(1);
     }
   });
+});
+
+it("leaves out-of-range durations to semantic validation", () => {
+  expect(lex("T#9007199254740993ms").diagnostics).toEqual([]);
+  expect(lex(`T#${"9".repeat(309)}ms`).tokens?.[0]?.value).toBe(Infinity);
 });

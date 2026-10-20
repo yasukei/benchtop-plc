@@ -267,9 +267,19 @@ test("operates the reference PLC, debug values and emergency stop through the re
     await time.getByRole("button", { name: "Write", exact: true }).click();
     await expect(time).toContainText(value === "750" ? "T#750ms" : value);
   }
-  await time.getByLabel("Value to write").fill("invalid");
-  await time.getByRole("button", { name: "Write", exact: true }).click();
-  await expect(time.getByRole("alert")).toContainText("valid value");
+  for (const value of [
+    "invalid",
+    "T#30d",
+    "2147483648",
+    "-2147483649",
+    "T#2147483647.0000000001ms",
+    `T#${"9".repeat(309)}ms`,
+  ]) {
+    await time.getByLabel("Value to write").fill(value);
+    await time.getByRole("button", { name: "Write", exact: true }).click();
+    await expect(time.getByRole("alert")).toContainText("valid value");
+    await expect(time.locator("td").nth(2)).toHaveText("T#750ms");
+  }
   await expect(
     page
       .getByRole("row")

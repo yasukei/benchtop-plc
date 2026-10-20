@@ -33,18 +33,18 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Elementary data types
 
-| Type                                            | Status  | Notes                                                   |
-| ----------------------------------------------- | ------- | ------------------------------------------------------- |
-| BOOL                                            | Yes     |                                                         |
-| INT, DINT, UINT                                 | Yes     |                                                         |
-| SINT, USINT, UDINT                              | No      |                                                         |
-| LINT, ULINT                                     | No      |                                                         |
-| BYTE, WORD, DWORD, LWORD                        | No      |                                                         |
-| REAL, LREAL                                     | Yes     | REAL uses binary32 at every result; LREAL uses binary64 |
-| TIME                                            | Partial | Range not yet enforced (#24)                            |
-| LTIME                                           | No      |                                                         |
-| DATE, TIME_OF_DAY, DATE_AND_TIME and long forms | No      |                                                         |
-| CHAR, WCHAR, STRING, WSTRING                    | No      |                                                         |
+| Type                                            | Status | Notes                                                   |
+| ----------------------------------------------- | ------ | ------------------------------------------------------- |
+| BOOL                                            | Yes    |                                                         |
+| INT, DINT, UINT                                 | Yes    |                                                         |
+| SINT, USINT, UDINT                              | No     |                                                         |
+| LINT, ULINT                                     | No     |                                                         |
+| BYTE, WORD, DWORD, LWORD                        | No     |                                                         |
+| REAL, LREAL                                     | Yes    | REAL uses binary32 at every result; LREAL uses binary64 |
+| TIME                                            | Yes    | Signed 32-bit milliseconds (ADR 0012)                   |
+| LTIME                                           | No     |                                                         |
+| DATE, TIME_OF_DAY, DATE_AND_TIME and long forms | No     |                                                         |
+| CHAR, WCHAR, STRING, WSTRING                    | No     |                                                         |
 
 ## Literals
 
@@ -110,14 +110,14 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Standard function blocks
 
-| Feature                                           | Status | Notes        |
-| ------------------------------------------------- | ------ | ------------ |
-| `TON`, `TOF`, `TP`                                | Yes    |              |
-| `R_TRIG`, `F_TRIG`                                | Yes    |              |
-| `CTU`, `CTD`                                      | Yes    | INT counters |
-| `CTUD`, typed counters (`CTU_INT`, `CTU_DINT`, …) | No     |              |
-| `SR`, `RS`                                        | No     |              |
-| Typed timers (`TON_TIME`, `TON_LTIME`, …)         | No     |              |
+| Feature                                           | Status | Notes                          |
+| ------------------------------------------------- | ------ | ------------------------------ |
+| `TON`, `TOF`, `TP`                                | Yes    | Negative PT is treated as T#0s |
+| `R_TRIG`, `F_TRIG`                                | Yes    |                                |
+| `CTU`, `CTD`                                      | Yes    | INT counters                   |
+| `CTUD`, typed counters (`CTU_INT`, `CTU_DINT`, …) | No     |                                |
+| `SR`, `RS`                                        | No     |                                |
+| Typed timers (`TON_TIME`, `TON_LTIME`, …)         | No     |                                |
 
 ## Configuration elements
 
@@ -127,20 +127,20 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Implementation-dependent parameters
 
-| Parameter                                 | Value                                                                                                                                                                        |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Range and resolution of TIME              | Integer milliseconds in a JavaScript number; intended range not yet enforced (#24); fractional results truncate toward zero                                                  |
-| Range of INT, DINT and UINT               | Signed 16-bit, signed 32-bit and unsigned 16-bit, respectively                                                                                                               |
-| Default scalar values                     | FALSE for BOOL, zero for the other supported types                                                                                                                           |
-| Negative zero                             | Normalized to zero for every numeric type; a deviation from IEC 60559                                                                                                        |
-| Type of untyped literals                  | Exact constants typed by typed neighbors, otherwise destination, otherwise DINT or exactly representable LREAL (LINT not yet implemented); real defaults to LREAL (ADR 0013) |
-| Conversion of operands of different types | Set-based common type (ADR 0013): INT + UINT → DINT, DINT + REAL → LREAL, REAL + LREAL → LREAL, MAX(INT, UINT, REAL) → REAL                                                  |
-| Reaction to integer overflow              | Computed typed results and out-of-range integer conversions wrap (ADR 0010); out-of-range literals/untyped constants are compile errors                                      |
-| Real → integer conversion                 | Nearest, ties to even, then wraps into the destination; vendor tie-breaking rules can differ                                                                                 |
-| TIME ↔ integer extensions                 | INT/DINT/UINT ↔ TIME use milliseconds, integer results wrap; TIME range unchanged (#24)                                                                                      |
-| Reaction to division by zero              | FAULT; `x MOD 0` is 0 (ADR 0010)                                                                                                                                             |
-| Reaction to non-finite REAL results       | FAULT (ADR 0010)                                                                                                                                                             |
-| Constant evaluation budget                | Decimal scales within ±10,000; larger powers are rejected as `type.invalid-constant` before allocation, including underflows                                                 |
-| Maximum loop iterations per scan          | 200,000, then FAULT (ADR 0010)                                                                                                                                               |
-| Task cycle times                          | 10, 20, 50 and 100 ms                                                                                                                                                        |
-| Direct-address ranges                     | `%IX0.0`–`%IX0.7`, `%QX0.0`–`%QX0.7`                                                                                                                                         |
+| Parameter                                 | Value                                                                                                                                                                                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Range and resolution of TIME              | Signed 32-bit milliseconds, −2147483648 to 2147483647; arithmetic wraps modulo 2^32; real scaling is exact then rounds once, nearest with ties to even; integer division truncates toward zero; out-of-range literals and external values are rejected |
+| Range of INT, DINT and UINT               | Signed 16-bit, signed 32-bit and unsigned 16-bit, respectively                                                                                                                                                                                         |
+| Default scalar values                     | FALSE for BOOL, zero for the other supported types                                                                                                                                                                                                     |
+| Negative zero                             | Normalized to zero for every numeric type; a deviation from IEC 60559                                                                                                                                                                                  |
+| Type of untyped literals                  | Exact constants typed by typed neighbors, otherwise destination, otherwise DINT or exactly representable LREAL (LINT not yet implemented); real defaults to LREAL (ADR 0013)                                                                           |
+| Conversion of operands of different types | Set-based common type (ADR 0013): INT + UINT → DINT, DINT + REAL → LREAL, REAL + LREAL → LREAL, MAX(INT, UINT, REAL) → REAL                                                                                                                            |
+| Reaction to integer overflow              | Computed typed results and out-of-range integer conversions wrap (ADR 0010); out-of-range literals/untyped constants are compile errors                                                                                                                |
+| Real → integer conversion                 | Nearest, ties to even, then wraps into the destination; vendor tie-breaking rules can differ                                                                                                                                                           |
+| TIME ↔ integer extensions                 | INT/DINT/UINT ↔ TIME use milliseconds, integer and TIME results wrap to their destination width                                                                                                                                                        |
+| Reaction to division by zero              | FAULT; `x MOD 0` is 0 (ADR 0010)                                                                                                                                                                                                                       |
+| Reaction to non-finite REAL results       | FAULT (ADR 0010)                                                                                                                                                                                                                                       |
+| Constant evaluation budget                | Decimal scales within ±10,000; larger powers are rejected as `type.invalid-constant` before allocation, including underflows                                                                                                                           |
+| Maximum loop iterations per scan          | 200,000, then FAULT (ADR 0010)                                                                                                                                                                                                                         |
+| Task cycle times                          | 10, 20, 50 and 100 ms                                                                                                                                                                                                                                  |
+| Direct-address ranges                     | `%IX0.0`–`%IX0.7`, `%QX0.0`–`%QX0.7`                                                                                                                                                                                                                   |

@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- TIME is now signed 32-bit milliseconds. Out-of-range duration literals, IR initial
+  values and write/force values are rejected. TIME arithmetic wraps modulo 2^32;
+  real scaling rounds the exact result once to milliseconds, nearest with ties to even.
+
 - Narrowing assignments and typed inputs now require explicit conversions. Numeric
   operators and generic functions use ADR 0013 common types; REAL + LREAL is LREAL.
 - Untyped constants are evaluated exactly and checked against the type supplied by

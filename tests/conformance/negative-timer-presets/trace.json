@@ -1,0 +1,132 @@
+{
+  "kind": "run",
+  "cycleMs": 1,
+  "steps": [
+    {
+      "label": "Initially reset",
+      "set": {
+        "Input": false
+      },
+      "scans": 1,
+      "expect": {
+        "OnNegative.ET": 0,
+        "OnNegative.Q": false,
+        "OnZero.ET": 0,
+        "OnZero.Q": false,
+        "OffNegative.ET": 0,
+        "OffNegative.Q": false,
+        "OffZero.ET": 0,
+        "OffZero.Q": false,
+        "PulseNegative.ET": 0,
+        "PulseNegative.Q": false,
+        "PulseZero.ET": 0,
+        "PulseZero.Q": false
+      }
+    },
+    {
+      "label": "Rising edge",
+      "set": {
+        "Input": true
+      },
+      "scans": 1,
+      "expect": {
+        "OnNegative.ET": 0,
+        "OnNegative.Q": true,
+        "OnZero.ET": 0,
+        "OnZero.Q": true,
+        "OffNegative.ET": 0,
+        "OffNegative.Q": true,
+        "OffZero.ET": 0,
+        "OffZero.Q": true,
+        "PulseNegative.ET": 0,
+        "PulseNegative.Q": false,
+        "PulseZero.ET": 0,
+        "PulseZero.Q": false
+      }
+    },
+    {
+      "label": "Held high",
+      "set": {
+        "Input": true
+      },
+      "scans": 4,
+      "expect": {
+        "OnNegative.ET": 0,
+        "OnNegative.Q": true,
+        "OnZero.ET": 0,
+        "OnZero.Q": true,
+        "OffNegative.ET": 0,
+        "OffNegative.Q": true,
+        "OffZero.ET": 0,
+        "OffZero.Q": true,
+        "PulseNegative.ET": 0,
+        "PulseNegative.Q": false,
+        "PulseZero.ET": 0,
+        "PulseZero.Q": false
+      }
+    },
+    {
+      "label": "Falling edge",
+      "set": {
+        "Input": false
+      },
+      "scans": 1,
+      "expect": {
+        "OnNegative.ET": 0,
+        "OnNegative.Q": false,
+        "OnZero.ET": 0,
+        "OnZero.Q": false,
+        "OffNegative.ET": 0,
+        "OffNegative.Q": false,
+        "OffZero.ET": 0,
+        "OffZero.Q": false,
+        "PulseNegative.ET": 0,
+        "PulseNegative.Q": false,
+        "PulseZero.ET": 0,
+        "PulseZero.Q": false
+      }
+    },
+    {
+      "label": "Held low",
+      "set": {
+        "Input": false
+      },
+      "scans": 4,
+      "expect": {
+        "OnNegative.ET": 0,
+        "OnNegative.Q": false,
+        "OnZero.ET": 0,
+        "OnZero.Q": false,
+        "OffNegative.ET": 0,
+        "OffNegative.Q": false,
+        "OffZero.ET": 0,
+        "OffZero.Q": false,
+        "PulseNegative.ET": 0,
+        "PulseNegative.Q": false,
+        "PulseZero.ET": 0,
+        "PulseZero.Q": false
+      }
+    },
+    {
+      "label": "Retrigger",
+      "set": {
+        "Input": true
+      },
+      "scans": 1,
+      "expect": {
+        "OnNegative.ET": 0,
+        "OnNegative.Q": true,
+        "OnZero.ET": 0,
+        "OnZero.Q": true,
+        "OffNegative.ET": 0,
+        "OffNegative.Q": true,
+        "OffZero.ET": 0,
+        "OffZero.Q": true,
+        "PulseNegative.ET": 0,
+        "PulseNegative.Q": false,
+        "PulseZero.ET": 0,
+        "PulseZero.Q": false
+      }
+    }
+  ]
+}
