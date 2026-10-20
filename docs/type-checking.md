@@ -52,8 +52,9 @@ parentheses, unary signs and arithmetic operators, are untyped constants. They
 use unbounded integer arithmetic (division toward zero) when every literal is an
 integer, otherwise exact fractions. They receive a type after evaluation:
 
-1. From the common type of typed neighbors or generic arguments, if that type can
-   hold the kind of constant (real constants need REAL/LREAL).
+1. From the common type of originally typed neighbors or generic arguments, if
+   that type can hold the kind of constant (real constants need REAL/LREAL).
+   Defaults chosen for other untyped constants do not influence this step.
 2. From a typed destination when the whole value is untyped: assignment, initializer,
    FB input, fixed parameter, CASE label or FOR bound/step. Integer 0 and 1 also
    work in BOOL positions, including conditions.
@@ -62,7 +63,11 @@ integer, otherwise exact fractions. They receive a type after evaluation:
    ADR 0013 will become available when LINT is implemented.
 
 The destination never supplies a type inside a larger typed expression:
-`l := i + 40000` with `i : INT` rejects 40000 even if `l : LREAL`.
+`l := i + 40000` with `i : INT` rejects 40000 even if `l : LREAL`. Likewise,
+`MAX(i, 1.5, 40000)` rejects 40000 as an INT constant; the fallback LREAL type of
+1.5 does not widen it. `MAX(i, 1.5, DINT#40000)` is valid: the originally typed
+arguments have common type DINT, and the final call has common type LREAL after
+1.5 receives its default type.
 `x : INT := 30000 + 30000` is invalid, while `x : INT := 1 + 2` is 3.
 `l : LREAL := 1 / 2` is 0.0 because the arithmetic uses only integer literals.
 Out-of-range constants report `type.invalid-constant` at the constant's span. Decimal scales

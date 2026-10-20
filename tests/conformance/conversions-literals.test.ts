@@ -116,6 +116,26 @@ describe("ADR 0013 conversions and constants", () => {
       );
     },
   );
+  it.each([
+    "i, 1.5, 40000",
+    "i, 40000, 1.5",
+    "1.5, i, 40000",
+    "1.5, 40000, i",
+    "40000, i, 1.5",
+    "40000, 1.5, i",
+  ])("types untyped integers only from original typed arguments: MAX(%s)", (args) => {
+    expect(program("i: INT; result: LREAL;", `result := MAX(${args});`).diagnostics).toEqual([
+      expect.objectContaining({ code: "type.invalid-constant" }),
+    ]);
+  });
+  it.each(["i, 1.5, DINT#40000", "DINT#40000, i, 1.5", "1.5, DINT#40000, i"])(
+    "lets a typed literal participate in the original common type: MAX(%s)",
+    (args) => {
+      const { values, ir } = execute("i: INT := 1; result: LREAL;", `result := MAX(${args});`);
+      expect(values.result).toBe(40000);
+      expect(ir.body[0]).toMatchObject({ value: { kind: "functionCall", dataType: "LREAL" } });
+    },
+  );
   it("marks the literal rather than the assignment for a local range failure", () => {
     expect(program("i: INT; l: LREAL;", "l := i + 40000;").diagnostics).toEqual([
       {

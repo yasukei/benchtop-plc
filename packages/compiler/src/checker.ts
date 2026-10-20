@@ -311,13 +311,14 @@ class Checker {
     }
   }
 
-  /** Typed neighbors supply a type only to whole untyped constants. TIME scaling
+  /** Original typed neighbors supply a type only to whole untyped constants.
+   * Defaults chosen for other constants never influence this contextual type. TIME scaling
    * has independent operand types, so its numeric factor uses the default. */
   private operands(nodes: AST.Expression[], independent = false): (ExpressionInfo | null)[] {
     const infos = nodes.map((node) => (isUntyped(node) ? null : this.expression(node)));
     const pending = new Set(nodes.flatMap((node, index) => (isUntyped(node) ? [index] : [])));
     independent = independent && infos[0]?.dataType === "TIME";
-    let common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
+    const common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
     for (const index of pending) {
       const node = nodes[index]!;
       let useDefault = independent || !common;
@@ -332,7 +333,6 @@ class Checker {
         pending.delete(index);
       }
     }
-    common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
     for (const index of pending) infos[index] = this.expression(nodes[index]!, common ?? undefined);
     return infos;
   }
