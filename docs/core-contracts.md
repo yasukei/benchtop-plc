@@ -32,9 +32,10 @@ TIME arithmetic results wrap modulo 2^32. TIME * or / REAL/LREAL computes the
 exact product or quotient of the represented operands and rounds once to whole
 milliseconds, nearest with ties to even, before wrapping; TIME / integer truncates
 toward zero. `timeBinary` shares this calculation between compiler and runtime.
-TIME literals outside the range are `type.invalid-constant`; typed constant
-operations follow runtime arithmetic. IR initial values and write/force TIME
-values must be integer milliseconds within range (and not negative zero);
+TIME literals are checked against the range by exact value before fractional
+milliseconds are truncated; out-of-range literals are `type.invalid-constant`.
+Typed constant operations follow runtime arithmetic. IR initial values and
+write/force TIME values must be integer milliseconds within range (and not negative zero);
 `validateTime` rejects them without coercion. TON, TOF and TP treat negative PT as zero.
 
 `formatValue(type, value)` uses IEC syntax independent of UI locale: TRUE/FALSE,

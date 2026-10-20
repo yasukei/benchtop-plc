@@ -48,16 +48,16 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Literals
 
-| Feature                                   | Status  | Notes                                                                               |
-| ----------------------------------------- | ------- | ----------------------------------------------------------------------------------- |
-| Integer literals, decimal, `2#` and `16#` | Partial | Exact constants, typed by position (ADR 0013); checked against the resulting type   |
-| Octal literals `8#`                       | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number` |
-| Real literals with exponent               | Yes     |                                                                                     |
-| Boolean literals `TRUE`, `FALSE`          | Yes     |                                                                                     |
-| Boolean literals `0`, `1`                 | Yes     | Integer constants in BOOL positions                                                 |
-| Duration literals `T#`, `TIME#`           | Yes     | Units d, h, m, s and ms; fractional milliseconds truncate toward zero               |
-| Typed literals `<type>#<value>`           | Partial | BOOL, INT, DINT, UINT, REAL, LREAL and TIME; based integer forms included           |
-| Date and time-of-day literals             | No      |                                                                                     |
+| Feature                                   | Status  | Notes                                                                                                               |
+| ----------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
+| Integer literals, decimal, `2#` and `16#` | Partial | Exact constants, typed by position (ADR 0013); checked against the resulting type                                   |
+| Octal literals `8#`                       | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number`                                 |
+| Real literals with exponent               | Yes     |                                                                                                                     |
+| Boolean literals `TRUE`, `FALSE`          | Yes     |                                                                                                                     |
+| Boolean literals `0`, `1`                 | Yes     | Integer constants in BOOL positions                                                                                 |
+| Duration literals `T#`, `TIME#`           | Yes     | Units d, h, m, s and ms; exact literal values are range-checked before fractional milliseconds truncate toward zero |
+| Typed literals `<type>#<value>`           | Partial | BOOL, INT, DINT, UINT, REAL, LREAL and TIME; based integer forms included                                           |
+| Date and time-of-day literals             | No      |                                                                                                                     |
 
 ## Derived types and variables
 
