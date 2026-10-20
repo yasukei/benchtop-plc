@@ -234,5 +234,7 @@ describe("ST lexer", () => {
 
 it("leaves out-of-range durations to semantic validation", () => {
   expect(lex("T#9007199254740993ms").diagnostics).toEqual([]);
-  expect(lex(`T#${"9".repeat(309)}ms`).tokens?.[0]?.value).toBe(Infinity);
+  const tokens = lex(`T#${"9".repeat(309)}ms`).tokens;
+  expect(tokens?.[0]?.value).toBe(0);
+  expect(JSON.parse(JSON.stringify(tokens))).toStrictEqual(tokens);
 });

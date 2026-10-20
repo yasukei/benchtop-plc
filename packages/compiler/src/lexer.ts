@@ -218,11 +218,7 @@ class Lexer {
         kind,
         start,
         span,
-        kind === "boolean"
-          ? Boolean(value)
-          : kind === "time" || Number.isFinite(value)
-            ? value || 0
-            : 0,
+        kind === "boolean" ? Boolean(value) : Number.isFinite(value) ? value || 0 : 0,
       ),
       ...(dataType ? { dataType } : {}),
     };
