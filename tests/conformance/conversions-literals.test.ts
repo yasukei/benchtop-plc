@@ -95,8 +95,15 @@ describe("ADR 0013 conversions and constants", () => {
       }),
     );
   });
-  it("keeps integer MOD exact inside arithmetic containing a real sibling", () => {
-    expect(execute("x: LREAL := (5 MOD 2) + 0.5;").values.x).toBe(1.5);
+  it.each([
+    ["(5 MOD 2) + 0.5", 1.5],
+    ["(9 / 2 MOD 3) + 0.5", 1.5],
+    ["(10 / 4 MOD 2) * 1.0", 0],
+    ["(-9 / 2 MOD 3) + 0.5", -0.5],
+  ])("evaluates integer MOD subtrees inside real arithmetic: %s", (source, expected) => {
+    expect(
+      execute(`initial: LREAL := ${source}; result: LREAL;`, `result := ${source};`).values,
+    ).toEqual({ initial: expected, result: expected });
   });
   it.each(["BOOL", "TIME"])(
     "includes an available %s-to-integer conversion in the hint",

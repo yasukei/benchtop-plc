@@ -84,8 +84,11 @@ export function exactConstant(node: Expression, real = hasReal(node)): Exact {
       return { ...a, n: node.operator === "-" ? -a.n : a.n };
     }
     case "binary": {
-      const a = exactConstant(node.left, real),
-        b = exactConstant(node.right, real);
+      // MOD accepts integer operands; division below it must truncate even when
+      // a real literal elsewhere makes the enclosing arithmetic fractional.
+      const operandReal = node.operator === "MOD" ? false : real;
+      const a = exactConstant(node.left, operandReal),
+        b = exactConstant(node.right, operandReal);
       switch (node.operator) {
         case "+":
           return fraction(a.n * b.d + b.n * a.d, a.d * b.d, real);
