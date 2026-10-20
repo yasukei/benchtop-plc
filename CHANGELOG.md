@@ -12,6 +12,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - ADR 0012 documents the planned elementary data types, ranges, defaults and
   overflow rules for Milestone 3.
+- ADR 0013 documents the planned implicit and explicit conversions, literal
+  typing and operators for Milestone 3.
 
 ## [0.2.0] - 2026-10-20
 
