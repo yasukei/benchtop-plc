@@ -1,11 +1,13 @@
 import {
   coerceValue,
+  convertValue,
   standardFunctionBlocks as blocks,
   getStandardFunctionSignature as getSignature,
   isFunctionBlockType as isBlock,
   isStandardFunction as isFunction,
 } from "@benchtop-plc/core";
 import type {
+  ConversionFunction,
   DataType,
   Diagnostic,
   DiagnosticArgs,
@@ -20,15 +22,21 @@ import type {
   ResolvedReference,
   VariableSymbol,
 } from "./checked.js";
+import {
+  acceptsKind,
+  defaultType,
+  exactConstant,
+  exactNumber,
+  isUntyped,
+  materialize,
+} from "./exact.js";
 import { binaryConstant, unaryConstant, withConstant } from "./constants.js";
 import {
   assignable,
   binaryType,
   isInteger,
   isNumeric,
-  isReal,
-  numericTypes,
-  promote,
+  commonType,
   scalarTypes,
   unaryType,
 } from "./type-rules.js";
@@ -36,11 +44,6 @@ import {
 export type CheckResult =
   { checked: CheckedProgram; diagnostics: [] } | { checked: null; diagnostics: Diagnostic[] };
 const isScalar = (name: string): name is DataType => scalarTypes.some((type) => type === name);
-
-function withoutGroups(node: AST.Expression): AST.Expression {
-  while (node.kind === "group") node = node.expression;
-  return node;
-}
 
 class Checker {
   private readonly diagnostics: Diagnostic[] = [];
@@ -131,7 +134,7 @@ class Checker {
       return;
     }
     const before = this.diagnostics.length;
-    const info = this.expression(value);
+    const info = this.expression(value, isScalar(type) ? type : undefined);
     if (!info || !isScalar(type)) return;
     if (!this.assignment(type, info, value.span)) return;
     if (info.constant === undefined) {
@@ -200,38 +203,32 @@ class Checker {
     return null;
   }
 
-  private expression(node: AST.Expression, allowDintMinMagnitude = false): ExpressionInfo | null {
+  private expression(node: AST.Expression, expected?: DataType): ExpressionInfo | null {
     const cached = this.expressions.get(node);
     if (cached) return cached;
     let info: ExpressionInfo | null;
+    if (isUntyped(node)) {
+      try {
+        const exact = exactConstant(node);
+        const dataType = expected && acceptsKind(expected, exact) ? expected : defaultType(exact);
+        info = { dataType, constant: materialize(exact, dataType), untyped: true };
+        this.expressions.set(node, info);
+        return info;
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        this.report("type.invalid-constant", {}, node.span);
+        return null;
+      }
+    }
     switch (node.kind) {
       case "literal": {
-        if (
-          node.literalKind === "integer" &&
-          (node.value < -2147483648 ||
-            node.value > (allowDintMinMagnitude ? 2147483648 : 2147483647))
-        ) {
-          this.report("type.invalid-constant", {}, node.span);
-          return null;
-        }
-        const dataType =
-          node.literalKind === "boolean"
-            ? "BOOL"
-            : node.literalKind === "time"
-              ? "TIME"
-              : node.literalKind === "real"
-                ? "REAL"
-                : Math.abs(node.value) <= 32767
-                  ? "INT"
-                  : "DINT";
+        const dataType = node.dataType ?? (node.literalKind === "boolean" ? "BOOL" : "TIME");
         try {
-          // Preserve numeric literal precision until destination or operator coercion.
-          // The positive magnitude of DINT_MIN is allowed only under unary minus.
-          info = withConstant(
-            { dataType },
-            node.value,
-            node.literalKind === "real" || node.literalKind === "integer" ? "LREAL" : dataType,
-          );
+          const constant =
+            node.literalKind === "boolean" || node.literalKind === "time"
+              ? coerceValue(dataType, node.value)
+              : materialize(exactNumber(node.text.slice(node.text.indexOf("#") + 1)), dataType);
+          info = { dataType, constant };
         } catch (error) {
           if (!(error instanceof RangeError)) throw error;
           this.report("type.invalid-constant", {}, node.span);
@@ -244,16 +241,13 @@ class Checker {
         info = this.reference(node);
         break;
       case "group":
-        info = this.expression(node.expression, allowDintMinMagnitude);
+        info = this.expression(node.expression);
         break;
       case "functionCall":
         info = this.functionCall(node);
         break;
       case "unary": {
-        const operand = this.expression(
-          node.operand,
-          node.operator === "-" && withoutGroups(node.operand).kind === "literal",
-        );
+        const operand = this.expression(node.operand);
         if (!operand) return null;
         const dataType = unaryType(node.operator, operand.dataType);
         if (!dataType) {
@@ -270,13 +264,13 @@ class Checker {
           operand.constant === undefined
             ? undefined
             : () => unaryConstant(node.operator, operand.constant!),
-          isReal(dataType) ? "LREAL" : dataType,
         );
         break;
       }
       case "binary": {
-        const left = this.expression(node.left),
-          right = this.expression(node.right);
+        const scaling = (node.operator === "*" || node.operator === "/") && !isUntyped(node.left);
+        const values = this.operands([node.left, node.right], scaling);
+        const [left, right] = values;
         if (!left || !right) return null;
         const dataType = binaryType(node.operator, left.dataType, right.dataType);
         if (!dataType) {
@@ -305,11 +299,10 @@ class Checker {
     info: ExpressionInfo,
     node: AST.Expression,
     compute?: () => number | boolean,
-    representation = info.dataType,
   ): ExpressionInfo {
     if (!compute) return info;
     try {
-      return withConstant(info, compute(), representation);
+      return withConstant(info, compute());
     } catch (error) {
       if (!(error instanceof RangeError)) throw error;
       this.report("type.invalid-constant", {}, node.span);
@@ -317,55 +310,107 @@ class Checker {
     }
   }
 
+  /** Typed neighbors supply a type only to whole untyped constants. TIME scaling
+   * has independent operand types, so its numeric factor uses the default. */
+  private operands(nodes: AST.Expression[], independent = false): (ExpressionInfo | null)[] {
+    const infos = nodes.map((node) => (isUntyped(node) ? null : this.expression(node)));
+    const pending = new Set(nodes.flatMap((node, index) => (isUntyped(node) ? [index] : [])));
+    independent = independent && infos[0]?.dataType === "TIME";
+    let common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
+    for (const index of pending) {
+      const node = nodes[index]!;
+      let useDefault = independent || !common;
+      try {
+        useDefault ||= !acceptsKind(common!, exactConstant(node));
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        useDefault = true;
+      }
+      if (useDefault) {
+        infos[index] = this.expression(node);
+        pending.delete(index);
+      }
+    }
+    common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
+    for (const index of pending) infos[index] = this.expression(nodes[index]!, common ?? undefined);
+    return infos;
+  }
+
   private functionCall(node: AST.FunctionCall): ExpressionInfo | null {
-    const args = node.args.map((arg) => this.expression(arg));
     const symbol = this.names.get(node.name.key);
     if (symbol && isBlock(symbol.type)) {
       this.report("fb.call-in-expression", { name: node.name.name }, node.span);
       return null;
     }
     if (!isFunction(node.name.key)) {
+      node.args.forEach((arg) => this.expression(arg));
       this.report("call.unknown-function", { name: node.name.name }, node.name.span);
       return null;
     }
     const name = node.name.key;
     this.functions.set(node, name);
     const signature = getSignature(name);
-    if (args.length < signature.min || (signature.max !== null && args.length > signature.max)) {
+    if (
+      node.args.length < signature.min ||
+      (signature.max !== null && node.args.length > signature.max)
+    ) {
       this.report(
         "call.argument-count",
-        { name: node.name.name, min: signature.min, max: signature.max, found: args.length },
+        { name: node.name.name, min: signature.min, max: signature.max, found: node.args.length },
         node.span,
       );
     }
+    const args = signature.result
+      ? node.args.map((arg, index) => {
+          const types = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+          return this.expression(arg, types.length === 1 ? types[0] : undefined);
+        })
+      : name === "SEL"
+        ? [
+            node.args[0] ? this.expression(node.args[0], "BOOL") : null,
+            ...this.operands(node.args.slice(1)),
+          ]
+        : this.operands(node.args);
     args.forEach((arg, index) => {
       if (!arg) return;
-      let expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
-      if (name === "SEL" && index > 0) {
-        const other = args[index === 1 ? 2 : 1];
-        if (!other) return;
-        expected = isNumeric(other.dataType) ? numericTypes : [other.dataType];
+      const expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+      // A fixed source parameter is a typed slot and accepts implicit widening.
+      if (!expected.some((to) => assignable(to, arg.dataType))) {
+        if (expected.length === 1 && isNumeric(expected[0]!) && isNumeric(arg.dataType))
+          this.assignment(expected[0]!, arg, node.args[index]!.span);
+        else
+          this.report(
+            "call.argument-type",
+            { name: node.name.name, index, expected, found: arg.dataType },
+            node.args[index]!.span,
+          );
       }
-      if (!expected.includes(arg.dataType))
-        this.report(
-          "call.argument-type",
-          { name: node.name.name, index, expected, found: arg.dataType },
-          node.args[index]!.span,
-        );
     });
-    if (signature.result) return { dataType: signature.result };
+    if (signature.result) {
+      const arg = args[0];
+      return this.constant(
+        { dataType: signature.result },
+        node,
+        arg?.constant === undefined || node.args.length !== 1
+          ? undefined
+          : () => convertValue(name as ConversionFunction, arg.constant!),
+      );
+    }
     const values = (name === "SEL" ? args.slice(1) : args).filter((arg) => arg !== null);
-    const first = values[0];
-    if (!first) return null;
-    return {
-      dataType: values
-        .slice(1)
-        .reduce(
-          (type, arg) =>
-            isNumeric(type) && isNumeric(arg.dataType) ? promote(type, arg.dataType) : type,
-          first.dataType,
-        ),
-    };
+    const dataType = commonType(values.map((arg) => arg.dataType));
+    if (!dataType && values.length) {
+      this.report(
+        "call.argument-type",
+        {
+          name: node.name.name,
+          index: name === "SEL" ? 2 : 1,
+          expected: [values[0]!.dataType],
+          found: values.at(-1)!.dataType,
+        },
+        node.span,
+      );
+    }
+    return dataType ? { dataType } : null;
   }
 
   private assignment(to: DataType, info: ExpressionInfo, span: SourceSpan): boolean {
@@ -376,7 +421,7 @@ class Checker {
         {
           from,
           to,
-          ...(isInteger(to) && isReal(from) ? { hint: "explicit-conversion" as const } : {}),
+          ...(isNumeric(to) && isNumeric(from) ? { hint: "explicit-conversion" as const } : {}),
         },
         span,
       );
@@ -398,7 +443,7 @@ class Checker {
     node: AST.Expression,
     statement: DiagnosticArgs["type.condition-not-bool"]["statement"],
   ): void {
-    const info = this.expression(node);
+    const info = this.expression(node, "BOOL");
     if (info && info.dataType !== "BOOL")
       this.report("type.condition-not-bool", { statement }, node.span);
   }
@@ -408,7 +453,7 @@ class Checker {
       switch (node.kind) {
         case "assignment": {
           const target = this.reference(node.target, true),
-            value = this.expression(node.value);
+            value = this.expression(node.value, target?.dataType);
           if (target) this.expressions.set(node.target, target);
           if (target && value) this.assignment(target.dataType, value, node.value.span);
           break;
@@ -426,7 +471,7 @@ class Checker {
               span: input.span,
             };
             const target = symbol && isBlock(symbol.type) ? this.reference(reference, true) : null;
-            const value = this.expression(input.value);
+            const value = this.expression(input.value, target?.dataType);
             if (seen.has(input.name.key))
               this.report(
                 "fb.duplicate-input",
@@ -458,12 +503,16 @@ class Checker {
               for (const value of label.kind === "value"
                 ? [label.value]
                 : [label.lower, label.upper]) {
-                const info = this.expression(value);
+                const info = this.expression(value, selector?.dataType);
                 if (!info) continue;
                 if (!isInteger(info.dataType))
                   this.report("type.case-label-not-integer", { type: info.dataType }, value.span);
-                else if (info.constant === undefined)
-                  this.report("type.case-label-not-constant", {}, value.span);
+                else {
+                  if (selector && isInteger(selector.dataType))
+                    this.assignment(selector.dataType, info, value.span);
+                  if (info.constant === undefined)
+                    this.report("type.case-label-not-constant", {}, value.span);
+                }
               }
             this.statements(branch.body, depth);
           }
@@ -485,7 +534,10 @@ class Checker {
           for (const bound of ["from", "to", "step"] as const) {
             const value = node[bound];
             if (!value) continue;
-            const info = this.expression(value);
+            const type =
+              symbol && isScalar(symbol.type) && isInteger(symbol.type) ? symbol.type : undefined;
+            const info = this.expression(value, type);
+            if (info && type && isInteger(info.dataType)) this.assignment(type, info, value.span);
             if (info && !isInteger(info.dataType))
               this.report("type.for-bound-not-integer", { bound, type: info.dataType }, value.span);
           }

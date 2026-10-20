@@ -21,17 +21,16 @@ values. BOOL addresses are copied only when present. FB initial values are null.
 Variable references, FB members, named FB inputs and function calls use their
 resolved IDs, port indices and canonical opcodes, with explicit expression types.
 
-Integer literals are INT through magnitude 32767 and DINT beyond it. Unary signs
-remain operators, including the DINT minimum's positive magnitude 2147483648 under
-unary minus. TIME literals contain integer milliseconds. Numeric literals retain
-the checker's precision: a nominal REAL literal can retain binary64 precision for
-an LREAL destination; REAL rounding occurs at destination or arithmetic-result
-coercion. Lowering does not pre-coerce these operands or fold executable operators.
-Declaration initializers and CASE constants are already evaluated by checking.
+Untyped constants are evaluated exactly and materialized as one literal of the
+position's type (see [type-checking.md](type-checking.md)). This prevents premature
+wrapping or real rounding inside an untyped expression. Typed operators remain in
+the executable tree and use their checked type at every step. REAL literals are
+already binary32; LREAL literals are binary64. TIME literals contain integer
+milliseconds. Initializers and CASE constants are evaluated during checking.
 
 Every IR node has a one-based, end-exclusive source span. Parentheses have no IR
 node, so the enclosed root receives the complete parenthesized span and descendants
-keep their original spans. An omitted FOR step becomes an INT literal 1 located
+keep their original spans. An omitted FOR step becomes a literal 1 of the control variable's type located
 at the loop variable token, giving the synthetic node a meaningful source span.
 
 Each assignment and FB call retains the whole statement's span. Its `span.line`

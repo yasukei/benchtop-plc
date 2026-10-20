@@ -96,3 +96,13 @@ describe("ST indentation", () => {
     expect(nextIndent(before, after)).toBe(expected);
   });
 });
+
+it.each(["UINT#16#FF", "INT#-5", "REAL#1.5", "LREAL#1.5e-20", "BOOL#TRUE", "BOOL#1"])(
+  "highlights %s as one number",
+  (source) => {
+    expect(readStToken(source + "+2", { commentDepth: 0 })).toEqual({
+      length: source.length,
+      style: "number",
+    });
+  },
+);

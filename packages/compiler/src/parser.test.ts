@@ -130,7 +130,7 @@ END_PROGRAM`);
     ["max(1, min(2, 3)) + t1.ET", ["+", ["MAX", 1, ["MIN", 2, 3]], "T1.ET"]],
     ["future()", ["FUTURE"]],
     ["true OR false", ["OR", true, false]],
-    ["2#10 + 8#10 + 16#10 + 1.0e3 + T#-1s", ["+", ["+", ["+", ["+", 2, 8], 16], 1000], -1000]],
+    ["2#10 + 2#1000 + 16#10 + 1.0e3 + T#-1s", ["+", ["+", ["+", ["+", 2, 8], 16], 1000], -1000]],
   ])("respects precedence and associativity in %s", (source, expected) => {
     expect(shape(expression(source))).toEqual(expected);
   });

@@ -16,8 +16,8 @@ export interface VariableSymbol {
 
 export interface ExpressionInfo {
   dataType: DataType;
-  /** Literal/sign values retain binary64 precision; binary results use their result type.
-   * Present only for constant expressions, including FALSE and zero. */
+  /** Untyped arithmetic is folded exactly before materialization at its typed position. */
+  untyped?: boolean;
   constant?: ScalarValue;
 }
 

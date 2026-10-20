@@ -21,7 +21,7 @@ describe("compile entry point", () => {
     for (const source of [
       "PROGRAM P @ END_PROGRAM",
       "PROGRAM P VAR x : INT END_VAR END_PROGRAM",
-      "PROGRAM P VAR x : BOOL; END_VAR x := 1; END_PROGRAM",
+      "PROGRAM P VAR x : BOOL; END_VAR x := 2; END_PROGRAM",
       "PROGRAM P missing := 1; END_PROGRAM",
     ]) {
       const parsed = parse(source);
@@ -72,8 +72,8 @@ describe("declarations and resolved expressions", () => {
   });
 
   it("retains declaration order, spelling, defaults, coerced initializers and BOOL addresses", () => {
-    const ir = valid(`a, B : INT := 32767 + 1;
-u : UINT := -1;
+    const ir = valid(`a, B : INT := INT#32767 + INT#1;
+u : UINT := INT_TO_UINT(-1);
 d : DINT;
 r : REAL := 0.1;
 l : LREAL := 0.1;
@@ -103,24 +103,20 @@ timer : tOn;`);
     expect(ir.variables[0]).not.toHaveProperty("address");
   });
 
-  it("types integer boundaries and preserves executable operators without constant folding", () => {
+  it("types integer boundaries by destination and folds untyped arithmetic exactly", () => {
     const ir = valid(
       "x : DINT;",
       "x := 32767; x := 32768; x := -32767; x := -32768; x := -2147483648; x := 1 + 2 * 3;",
     );
     const expressions = values(ir);
-    expect(expressions.slice(0, 5)).toMatchObject([
-      { kind: "literal", dataType: "INT", value: 32767 },
+    expect(expressions).toMatchObject([
+      { kind: "literal", dataType: "DINT", value: 32767 },
       { kind: "literal", dataType: "DINT", value: 32768 },
-      { kind: "unary", operator: "-", dataType: "INT", operand: { value: 32767 } },
-      { kind: "unary", operator: "-", dataType: "DINT", operand: { value: 32768 } },
-      { kind: "unary", operator: "-", dataType: "DINT", operand: { value: 2147483648 } },
+      { kind: "literal", dataType: "DINT", value: -32767 },
+      { kind: "literal", dataType: "DINT", value: -32768 },
+      { kind: "literal", dataType: "DINT", value: -2147483648 },
+      { kind: "literal", dataType: "DINT", value: 7 },
     ]);
-    expect(expressions[5]).toMatchObject({
-      kind: "binary",
-      operator: "+",
-      right: { kind: "binary", operator: "*" },
-    });
   });
 
   it("represents TIME as integer milliseconds and preserves real literal precision", () => {
@@ -134,11 +130,11 @@ timer : tOn;`);
     ).toMatchObject([
       { kind: "literal", dataType: "TIME", value: 1234 },
       {
-        kind: "unary",
-        dataType: "REAL",
-        operand: { kind: "literal", dataType: "REAL", value: 0.1 },
+        kind: "literal",
+        dataType: "LREAL",
+        value: -0.1,
       },
-      { kind: "literal", dataType: "REAL", value: 1e100 },
+      { kind: "literal", dataType: "LREAL", value: 1e100 },
       { kind: "literal", dataType: "BOOL", value: false },
     ]);
   });
@@ -146,7 +142,7 @@ timer : tOn;`);
   it("normalizes operators and resolves function opcodes and mixed-case variable references", () => {
     const ir = valid(
       "Value : INT; flag : BOOL;",
-      "vAlUe := abs(-2); flag := TRUE & NOT FALSE; Value := max(value, 32768);",
+      "vAlUe := abs(INT#-2); flag := TRUE & NOT FALSE; Value := max(value, 32767);",
     );
     expect(ir.body[0]).toMatchObject({
       target: { kind: "variable", variable: 0, dataType: "INT" },
@@ -160,8 +156,8 @@ timer : tOn;`);
     });
     expect(values(ir)[2]).toMatchObject({
       function: "MAX",
-      dataType: "DINT",
-      args: [{ kind: "variable", variable: 0, dataType: "INT" }, { value: 32768 }],
+      dataType: "INT",
+      args: [{ kind: "variable", variable: 0, dataType: "INT" }, { value: 32767 }],
     });
   });
 
@@ -241,7 +237,7 @@ RETURN;`,
       variable: { variable: 0, dataType: "UINT" },
       from: { value: 1 },
       to: { value: 3 },
-      step: { kind: "literal", dataType: "INT", value: 1 },
+      step: { kind: "literal", dataType: "UINT", value: 1 },
       body: [{ kind: "while", condition: { variable: 2 }, body: [{ kind: "exit" }] }],
     });
     if (ir.body[0]!.kind !== "for") throw new Error("Expected FOR");
@@ -249,7 +245,7 @@ RETURN;`,
     expect(ir.body[1]).toMatchObject({
       kind: "for",
       variable: { variable: 1, dataType: "DINT" },
-      step: { kind: "unary", operator: "-" },
+      step: { kind: "literal", dataType: "DINT", value: -1 },
       body: [{ kind: "repeat", body: [{ kind: "assignment" }], until: { variable: 2 } }],
     });
     expect(ir.body[2]).toMatchObject({ kind: "return" });
@@ -257,7 +253,7 @@ RETURN;`,
 
   it("uses complete grouping spans while preserving child and per-statement locations", () => {
     const source =
-      "PROGRAM P\r\nVAR x : INT; timer : TON; END_VAR\r\nx := ((1 + 2)); x := 3;\r\ntimer(\r\n IN := TRUE\r\n);\r\nEND_PROGRAM";
+      "PROGRAM P\r\nVAR x : INT; timer : TON; END_VAR\r\nx := ((x + 2)); x := 3;\r\ntimer(\r\n IN := TRUE\r\n);\r\nEND_PROGRAM";
     const ir = compile(source).ir!;
     expect(ir.body[0]).toMatchObject({
       span: { line: 3, column: 1, endLine: 3, endColumn: 16 },

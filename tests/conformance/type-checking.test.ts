@@ -15,10 +15,10 @@ it("keeps integer division, wrapping and TIME arithmetic distinct from implicit 
   const parsed = parse(`PROGRAM Semantics
 VAR
   truncated : INT := -7 / 2;
-  wrapped : UINT := -1;
+  wrapped : UINT := INT_TO_UINT(-1);
   duration : TIME := T#1s * 1.5;
   logical : BOOL := TRUE AND NOT FALSE;
-  bits : INT := 16#0F AND 16#03;
+  bits : INT := INT#16#0F AND INT#16#03;
 END_VAR
 END_PROGRAM`);
   expect(parsed.diagnostics).toEqual([]);
@@ -39,10 +39,10 @@ VAR
   precise : LREAL := 0.1;
   large : LREAL := -1.0e100;
   rounded : REAL := 0.1;
-  arithmetic : LREAL := 0.1 + 0.0;
+  arithmetic : LREAL := REAL#0.1 + REAL#0.0;
   minimum : DINT := -2147483648;
   maximum : DINT := 2147483647;
-  wrapped : DINT := 2147483647 + 1;
+  wrapped : DINT := DINT#2147483647 + DINT#1;
 END_VAR
 END_PROGRAM`);
   expect(parsed.diagnostics).toEqual([]);
@@ -59,20 +59,17 @@ END_PROGRAM`);
   ]);
 });
 
-it.each(["DINT", "REAL", "LREAL"])(
-  "rejects integer literal overflow before %s initialization",
-  (type) => {
-    const parsed = parse(`PROGRAM P\nVAR x : ${type} := 3000000000; END_VAR\nEND_PROGRAM`);
-    expect(parsed.diagnostics).toEqual([]);
-    const result = check(parsed.ast!);
-    expect(result.checked).toBeNull();
-    expect(result.diagnostics).toEqual([
-      {
-        code: "type.invalid-constant",
-        severity: "error",
-        args: {},
-        span: { line: 2, column: type.length + 13, endLine: 2, endColumn: type.length + 23 },
-      },
-    ]);
-  },
-);
+it.each(["DINT"])("rejects integer literal overflow at %s initialization", (type) => {
+  const parsed = parse(`PROGRAM P\nVAR x : ${type} := 3000000000; END_VAR\nEND_PROGRAM`);
+  expect(parsed.diagnostics).toEqual([]);
+  const result = check(parsed.ast!);
+  expect(result.checked).toBeNull();
+  expect(result.diagnostics).toEqual([
+    {
+      code: "type.invalid-constant",
+      severity: "error",
+      args: {},
+      span: { line: 2, column: type.length + 13, endLine: 2, endColumn: type.length + 23 },
+    },
+  ]);
+});

@@ -1,4 +1,4 @@
-import type { BinaryOperator, SourceNode, UnaryOperator } from "@benchtop-plc/core";
+import type { BinaryOperator, DataType, SourceNode, UnaryOperator } from "@benchtop-plc/core";
 
 /** Names remain unresolved; spelling is retained and key is the case-insensitive identity. */
 export interface Identifier extends SourceNode {
@@ -29,7 +29,7 @@ export interface Declaration extends SourceNode {
   initializer?: Expression;
 }
 
-export type Literal = SourceNode & { kind: "literal"; text: string } & (
+export type Literal = SourceNode & { kind: "literal"; text: string; dataType?: DataType } & (
     | { literalKind: "integer" | "real" | "time"; value: number }
     | { literalKind: "boolean"; value: boolean }
   );

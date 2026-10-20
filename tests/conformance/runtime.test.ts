@@ -212,7 +212,7 @@ describe("runtime scans over hand-written IR", () => {
     expect(value(runtime.scanOnce())).toBe(expected);
   });
 
-  it("coerces each operator result while preserving literal precision", () => {
+  it("coerces every typed REAL operator result, including unary signs", () => {
     const { runtime } = setup(
       program(
         [
@@ -230,7 +230,7 @@ describe("runtime scans over hand-written IR", () => {
     );
     const snapshot = runtime.scanOnce();
     expect(value(snapshot)).toBe(-32768);
-    expect(value(snapshot, 1)).toBe(-0.1);
+    expect(value(snapshot, 1)).toBe(Math.fround(-0.1));
     expect(value(snapshot, 2)).toBe(Math.fround(0.1));
   });
 

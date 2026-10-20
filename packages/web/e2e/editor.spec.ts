@@ -153,3 +153,23 @@ test("highlights a real runtime fault line only while its source matches", async
   await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
   await expect(page.locator(".runtime-fault-line")).toHaveCount(0);
 });
+
+test("highlights complete typed literals and displays their rounded runtime values", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const editor = await replaceSource(
+    page,
+    "PROGRAM Typed\nVAR u: UINT; i: INT; r: REAL; END_VAR\nu := UINT#16#FF;\ni := INT#-5;\nr := REAL#1.000000178813934326171874999;\nEND_PROGRAM",
+  );
+  await expect(editor.locator(".st-literal")).toHaveText([
+    "UINT#16#FF",
+    "INT#-5",
+    "REAL#1.000000178813934326171874999",
+  ]);
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  await expect(page.locator('.inline-values[data-line="3"]')).toHaveText("255");
+  await expect(page.locator('.inline-values[data-line="4"]')).toHaveText("-5");
+  await expect(page.locator('.inline-values[data-line="5"]')).toHaveText("1.0000001");
+});

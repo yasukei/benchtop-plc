@@ -114,12 +114,7 @@ export class Interpreter {
               : typeof value === "boolean"
                 ? !value
                 : ~value;
-        // Literal signs preserve binary64 precision, matching compiler constant evaluation.
-        const representation =
-          expr.operator !== "NOT" && this.literalSign(expr) && expr.dataType === "REAL"
-            ? "LREAL"
-            : expr.dataType;
-        return coerceValue(representation, result);
+        return coerceValue(expr.dataType, result);
       }
       case "binary": {
         const left = this.expression(expr.left),
@@ -140,13 +135,6 @@ export class Interpreter {
         );
       }
     }
-  }
-
-  private literalSign(expr: Expression): boolean {
-    return (
-      expr.kind === "literal" ||
-      (expr.kind === "unary" && expr.operator !== "NOT" && this.literalSign(expr.operand))
-    );
   }
 
   private annotate(statement: Statement, values: TypedValue[]): void {

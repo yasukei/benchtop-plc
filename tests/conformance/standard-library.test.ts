@@ -164,15 +164,15 @@ describe("standard-library ST conformance", () => {
   });
 
   it.each([
-    ["INT", "ABS(-32768)", -32768],
+    ["INT", "ABS(INT#-32768)", -32768],
     ["DINT", "ABS(-2147483648)", -2147483648],
-    ["INT", "MIN(3, -2, 1)", -2],
-    ["REAL", "MAX(3, 4.5, -2)", 4.5],
-    ["INT", "LIMIT(0, -5, 10)", 0],
-    ["REAL", "LIMIT(0.5, 20, 10)", 10],
+    ["INT", "MIN(INT#3, -2, 1)", -2],
+    ["REAL", "MAX(3, REAL#4.5, -2)", 4.5],
+    ["INT", "LIMIT(INT#0, -5, 10)", 0],
+    ["REAL", "LIMIT(REAL#0.5, 20, 10)", 10],
     ["BOOL", "SEL(FALSE, TRUE, FALSE)", true],
     ["TIME", "SEL(TRUE, T#1s, T#2s)", 2000],
-    ["REAL", "SEL(TRUE, 1, 2.5)", 2.5],
+    ["REAL", "SEL(TRUE, 1, REAL#2.5)", 2.5],
     ["INT", "REAL_TO_INT(2.5)", 2],
     ["INT", "REAL_TO_INT(-2.5)", -2],
     ["INT", "REAL_TO_INT(32767.5)", -32768],
@@ -187,7 +187,10 @@ describe("standard-library ST conformance", () => {
   });
 
   it("reports non-finite conversion results as a source-spanned runtime fault", () => {
-    const { runtime } = setup("result : INT;", "result := REAL_TO_INT(1.0e39);");
+    const { runtime } = setup(
+      "source : LREAL := 1.0e39; result : REAL;",
+      "result := LREAL_TO_REAL(source);",
+    );
     runtime.scanOnce();
     expect(runtime.state).toBe("FAULT");
     expect(runtime.diagnostic).toMatchObject({ code: "runtime.invalid-value", span: { line: 1 } });

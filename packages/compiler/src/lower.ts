@@ -86,6 +86,15 @@ class Lowerer {
   private expression(node: AST.Expression): IR.Expression {
     const info = required(this.checked.expressions.get(node));
     const base = { dataType: info.dataType, span: span(node) };
+    if (info.untyped)
+      return info.dataType === "BOOL"
+        ? { ...base, kind: "literal", dataType: "BOOL", value: Boolean(required(info.constant)) }
+        : {
+            ...base,
+            kind: "literal",
+            dataType: info.dataType,
+            value: Number(required(info.constant)),
+          };
     switch (node.kind) {
       case "literal":
         // Only literal representation is normalized here. Executable operators stay in the tree.
@@ -211,7 +220,7 @@ class Lowerer {
           to: this.expression(node.to),
           step: node.step
             ? this.expression(node.step)
-            : { kind: "literal", dataType: "INT", value: 1, span: span(node.variable) },
+            : { kind: "literal", dataType, value: 1, span: span(node.variable) },
           body: this.statements(node.body),
         };
       }

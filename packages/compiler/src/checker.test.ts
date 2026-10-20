@@ -78,9 +78,9 @@ describe("declarations and symbols", () => {
     ["x AT «%IX1.0» : BOOL;", "decl.address-out-of-range"],
     ["x AT «%QX0.8» : BOOL;", "decl.address-out-of-range"],
     ["x : INT; y : INT := «x»;", "decl.nonconstant-initializer"],
-    ["x : INT := «ABS(1)»;", "decl.nonconstant-initializer"],
+    ["x : DINT := «ABS(1)»;", "decl.nonconstant-initializer"],
     ["t : TON := «0»;", "decl.fb-initializer"],
-    ["x : BOOL := «1»;", "type.assign-mismatch"],
+    ["x : BOOL := «2»;", "type.invalid-constant"],
     ["x : INT := «1.5»;", "type.assign-mismatch"],
     ["x : REAL := «T#1s»;", "type.assign-mismatch"],
     ["x : TIME := «1»;", "type.assign-mismatch"],
@@ -116,7 +116,7 @@ describe("declarations and symbols", () => {
 
   it("checks literals, groups and constant operators with PLC coercion", () => {
     const checked = valid(
-      "a,b : INT := (7 / -2) + 1; c : UINT := -1; d : BOOL := NOT FALSE AND TRUE; e : TIME := (T#1s + T#500ms) / 2; f : REAL := 1 + 1.5; g : DINT := 40000; h : INT := 5 MOD 2; i : INT := NOT 0; j : BOOL := (2 < 3) XOR (1 = 2);",
+      "a,b : INT := (7 / -2) + 1; c : UINT := UINT#0 - UINT#1; d : BOOL := NOT FALSE AND TRUE; e : TIME := (T#1s + T#500ms) / 2; f : REAL := 1 + 1.5; g : DINT := 40000; h : INT := 5 MOD 2; i : INT := NOT INT#0; j : BOOL := (2 < 3) XOR (1 = 2);",
     );
     expect(checked.symbols.map((symbol) => symbol.initialValue)).toEqual([
       -2,
@@ -145,7 +145,7 @@ describe("declarations and symbols", () => {
 
   it("rounds REAL destinations and arithmetic results to binary32", () => {
     const checked = valid(
-      "a : REAL := 0.1; b : LREAL := 0.1 + 0.0; c : INT := 40000; d : DINT := 2147483647 + 1;",
+      "a : REAL := 0.1; b : LREAL := REAL#0.1 + REAL#0.0; c : INT := DINT_TO_INT(40000); d : DINT := DINT#2147483647 + DINT#1;",
     );
     expect(checked.symbols.map((symbol) => symbol.initialValue)).toEqual([
       Math.fround(0.1),
@@ -156,21 +156,18 @@ describe("declarations and symbols", () => {
     failure("x : REAL := «-1.0e100»;", "", "type.invalid-constant");
     failure("x : REAL;", "x := «1.0e100»;", "type.invalid-constant");
     valid("x : LREAL;", "x := 1.0e100;");
-    failure("x : LREAL := «1.0e100 + 0.0»;", "", "type.invalid-constant");
+    valid("x : LREAL := 1.0e100 + 0.0;");
+    failure("x : LREAL := «REAL#3e38 * REAL#2.0»;", "", "type.invalid-constant");
   });
 
-  it.each(["DINT", "REAL", "LREAL"])(
-    "rejects out-of-range integer literals before conversion to %s",
-    (type) => {
-      failure(`x : ${type} := «3000000000»;`, "", "type.invalid-constant");
-      failure(`x : ${type} := «2147483648»;`, "", "type.invalid-constant");
-      failure(`x : ${type} := -«2147483649»;`, "", "type.invalid-constant");
-      failure(`x : ${type};`, "x := «3000000000»;", "type.invalid-constant");
-    },
-  );
+  it("checks an untyped integer against its destination", () => {
+    for (const text of ["3000000000", "2147483648", "-2147483649"])
+      failure(`x : DINT := «${text}»;`, "", "type.invalid-constant");
+    valid("x : REAL := 3000000000; y : LREAL := 2147483648;");
+  });
 
   it.each([
-    ["32767", "INT", 32767],
+    ["32767", "DINT", 32767],
     ["32768", "DINT", 32768],
     ["2147483647", "DINT", 2147483647],
     ["-2147483648", "DINT", -2147483648],
@@ -186,9 +183,9 @@ describe("declarations and symbols", () => {
     });
   });
 
-  it("rejects unsigned and compound uses of the minimum DINT's magnitude", () => {
-    failure("x : DINT := +«2147483648»;", "", "type.invalid-constant");
-    failure("x : DINT := -(«2147483648» + 0);", "", "type.invalid-constant");
+  it("checks complete untyped expressions before typing", () => {
+    failure("x : DINT := «+2147483648»;", "", "type.invalid-constant");
+    valid("x : DINT := -(2147483648 + 0);");
     failure("x : DINT := «16#FFFF_FFFF»;", "", "type.invalid-constant");
   });
 
@@ -218,11 +215,11 @@ describe("declarations and symbols", () => {
 describe("assignments and operands", () => {
   it.each([
     ["BOOL", "BOOL"],
-    ["INT", "UINT"],
-    ["UINT", "DINT"],
+    ["DINT", "UINT"],
+    ["REAL", "UINT"],
     ["DINT", "INT"],
-    ["REAL", "DINT"],
-    ["REAL", "LREAL"],
+    ["LREAL", "DINT"],
+    ["LREAL", "LREAL"],
     ["LREAL", "REAL"],
     ["TIME", "TIME"],
   ])("assigns %s from %s", (to, from) => {
@@ -246,16 +243,16 @@ describe("assignments and operands", () => {
 
   it("supplies a localizable explicit-conversion hint for real to integer", () => {
     expect(failure("a : INT;", "a := «1.5»;", "type.assign-mismatch").args).toEqual({
-      from: "REAL",
+      from: "LREAL",
       to: "INT",
       hint: "explicit-conversion",
     });
   });
 
   it.each([
-    ["a + b", "INT", "UINT", "INT"],
+    ["a + b", "INT", "UINT", "DINT"],
     ["a - b", "DINT", "INT", "DINT"],
-    ["a + b", "LREAL", "INT", "REAL"],
+    ["a + b", "LREAL", "INT", "LREAL"],
     ["a * b", "UINT", "REAL", "REAL"],
     ["a / b", "INT", "INT", "INT"],
     ["a MOD b", "DINT", "UINT", "DINT"],
@@ -265,7 +262,7 @@ describe("assignments and operands", () => {
     ["a / b", "TIME", "REAL", "TIME"],
     ["a AND b", "BOOL", "BOOL", "BOOL"],
     ["a & b", "INT", "DINT", "DINT"],
-    ["a OR b", "UINT", "INT", "INT"],
+    ["a OR b", "UINT", "INT", "DINT"],
     ["a XOR b", "BOOL", "BOOL", "BOOL"],
     ["a = b", "BOOL", "BOOL", "BOOL"],
     ["a <> b", "INT", "REAL", "BOOL"],
@@ -292,7 +289,7 @@ describe("assignments and operands", () => {
     ["XOR", "BOOL", "REAL"],
     ["=", "TIME", "INT"],
     ["<>", "BOOL", "INT"],
-    ["<", "BOOL", "BOOL"],
+    ["<", "BOOL", "TIME"],
     [">", "TIME", "INT"],
     ["<=", "REAL", "BOOL"],
     [">=", "TIME", "REAL"],
@@ -335,14 +332,14 @@ describe("control flow", () => {
   it("accepts nested statements, integer labels, bounds and loop-scoped EXIT", () => {
     valid(
       "i : INT; u : UINT; d : DINT; b : BOOL;",
-      "IF b THEN RETURN; ELSIF NOT b THEN i := 2; ELSE i := 3; END_IF; CASE i OF 1, 2..4: i := 0; -1: i := 1; ELSE i := 2; END_CASE; FOR u := i TO d BY -1 DO IF b THEN EXIT; END_IF; END_FOR; WHILE b DO EXIT; END_WHILE; REPEAT EXIT; UNTIL b END_REPEAT;",
+      "IF b THEN RETURN; ELSIF NOT b THEN i := 2; ELSE i := 3; END_IF; CASE i OF 1, 2..4: i := 0; -1: i := 1; ELSE i := 2; END_CASE; FOR i := 3 TO DINT_TO_INT(d) BY -1 DO IF b THEN EXIT; END_IF; END_FOR; WHILE b DO EXIT; END_WHILE; REPEAT EXIT; UNTIL b END_REPEAT;",
     );
   });
   it.each([
-    ["IF «1» THEN END_IF;", "type.condition-not-bool"],
-    ["IF TRUE THEN ELSIF «1» THEN END_IF;", "type.condition-not-bool"],
-    ["WHILE «1» DO END_WHILE;", "type.condition-not-bool"],
-    ["REPEAT UNTIL «1» END_REPEAT;", "type.condition-not-bool"],
+    ["IF «2» THEN END_IF;", "type.invalid-constant"],
+    ["IF TRUE THEN ELSIF «2» THEN END_IF;", "type.invalid-constant"],
+    ["WHILE «2» DO END_WHILE;", "type.invalid-constant"],
+    ["REPEAT UNTIL «2» END_REPEAT;", "type.invalid-constant"],
     ["CASE «TRUE» OF 1: END_CASE;", "type.case-selector-not-integer"],
     ["CASE i OF «TRUE»: END_CASE;", "type.case-label-not-integer"],
     ["CASE i OF 1..«1.5»: END_CASE;", "type.case-label-not-integer"],
@@ -389,7 +386,7 @@ describe("function blocks", () => {
     ["timer(«Q» := b);", "fb.output-not-writable"],
     ["timer.«unknown» := b;", "fb.unknown-member"],
     ["timer(«unknown» := b);", "fb.unknown-member"],
-    ["timer(IN := «1»);", "type.assign-mismatch"],
+    ["timer(IN := «2»);", "type.invalid-constant"],
     ["timer(IN := TRUE, «in» := FALSE);", "fb.duplicate-input"],
     ["«b»();", "fb.not-function-block"],
     ["b := «b».Q;", "fb.not-function-block"],
@@ -402,12 +399,12 @@ describe("function blocks", () => {
 
 describe("standard functions", () => {
   it.each([
-    ["ABS(-1)", "INT"],
-    ["abs(1.5)", "REAL"],
-    ["MIN(1,2)", "INT"],
-    ["MAX(1,2,3,4.5)", "REAL"],
-    ["LIMIT(0,1,2)", "INT"],
-    ["SEL(TRUE,1,2.5)", "REAL"],
+    ["ABS(-1)", "DINT"],
+    ["abs(1.5)", "LREAL"],
+    ["MIN(1,2)", "DINT"],
+    ["MAX(1,2,3,4.5)", "LREAL"],
+    ["LIMIT(0,1,2)", "DINT"],
+    ["SEL(TRUE,1,2.5)", "LREAL"],
     ["SEL(FALSE,TRUE,FALSE)", "BOOL"],
     ["SEL(TRUE,T#1s,T#2s)", "TIME"],
     ["REAL_TO_INT(1.5)", "INT"],
@@ -441,13 +438,13 @@ describe("standard functions", () => {
     "MIN(1,«T#1s»)",
     "MAX(«FALSE»,1)",
     "LIMIT(0,«FALSE»,1)",
-    "SEL(«1»,1,2)",
-    "SEL(TRUE,«FALSE»,1)",
-    "REAL_TO_INT(«1»)",
+    "SEL(«T#1s»,1,2)",
+    "«SEL(TRUE,FALSE,T#1s)»",
+    "REAL_TO_INT(«TRUE»)",
     "INT_TO_REAL(«TRUE»)",
     "TIME_TO_INT(«1»)",
     "INT_TO_TIME(«T#1s»)",
-    "BOOL_TO_INT(«1»)",
+    "BOOL_TO_INT(«T#1s»)",
   ])("checks argument types for %s", (expression) => {
     failure("x : INT;", `x := ${expression};`, "call.argument-type");
   });

@@ -8,7 +8,21 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Changed
+
+- Narrowing assignments and typed inputs now require explicit conversions. Numeric
+  operators and generic functions use ADR 0013 common types; REAL + LREAL is LREAL.
+- Untyped constants are evaluated exactly and checked against the type supplied by
+  their position. Out-of-range constants are errors instead of silently wrapping.
+  Real constants round directly to binary32 or binary64, once.
+- Octal literals (`8#`) are rejected.
+
 ### Added
+
+- Typed literals for BOOL, INT, DINT, UINT, REAL and LREAL, including based integers,
+  with editor highlighting; integer constants 0/1 in BOOL positions and BOOL ordering.
+- Explicit and overloaded conversions across the supported numeric types,
+  BOOL to integer conversions, and TIME ↔ integer extensions in milliseconds.
 
 - ADR 0012 documents the planned elementary data types, ranges, defaults and
   overflow rules for Milestone 3.

@@ -1,4 +1,4 @@
-import type { Diagnostic, SourceSpan } from "@benchtop-plc/core";
+import type { DataType, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import { FrontendError } from "./diagnostic.js";
 
 export type TokenKind =
@@ -11,7 +11,9 @@ export interface Token {
   /** Upper-case spelling for case-insensitive comparisons. */
   key: string;
   span: SourceSpan;
+  /** Approximate lexical value; numeric source text is authoritative for exact evaluation. */
   value?: number | boolean;
+  dataType?: DataType;
 }
 
 export type LexResult =
@@ -138,15 +140,18 @@ class Lexer {
     }
   }
 
-  private number(start: number, span: SourceSpan, time: boolean): Token {
-    if (time && (this.char === "+" || this.char === "-")) this.advance();
+  private number(start: number, span: SourceSpan, time: boolean, dataType?: DataType): Token {
+    if ((time || dataType) && (this.char === "+" || this.char === "-")) this.advance();
     while (this.char) {
       if (/[A-Za-z0-9_#]/.test(this.char) || (this.char === "." && !this.starts(".."))) {
         this.advance();
       } else if (
         !time &&
         /[eE]/.test(this.source[this.offset - 1] ?? "") &&
-        !this.source.slice(start, this.offset).includes("#") &&
+        !this.source
+          .slice(start, this.offset)
+          .replace(/^[A-Za-z]+#/, "")
+          .includes("#") &&
         (this.char === "+" || this.char === "-")
       ) {
         this.advance();
@@ -154,8 +159,9 @@ class Lexer {
         break;
       }
     }
-    const text = this.source.slice(start, this.offset);
-    let kind: "integer" | "real" | "time" = "integer";
+    const fullText = this.source.slice(start, this.offset);
+    const text = dataType ? fullText.slice(fullText.indexOf("#") + 1) : fullText;
+    let kind: "integer" | "real" | "time" | "boolean" = "integer";
     let value = NaN;
     if (time) {
       kind = "time";
@@ -181,34 +187,41 @@ class Lexer {
       }
       if (end !== parts.length || end === 0) value = NaN;
       value *= sign;
-    } else if (decimalInteger.test(text)) {
+    } else if (dataType === "BOOL" && /^(TRUE|FALSE)$/i.test(text)) {
+      kind = "boolean";
+      value = text.toUpperCase() === "TRUE" ? 1 : 0;
+    } else if (decimalInteger.test(text.replace(/^[+-]/, ""))) {
       value = Number(text.replaceAll("_", ""));
-    } else if (realNumber.test(text)) {
+    } else if (realNumber.test(text.replace(/^[+-]/, ""))) {
       kind = "real";
       value = Number(text.replaceAll("_", ""));
     } else {
-      const based = /^(2|8|16)#(.+)$/.exec(text);
+      const based = /^([+-]?)(2|16)#(.+)$/.exec(text);
       if (based) {
-        const base = Number(based[1]);
-        const digitClass = base === 2 ? "[01]" : base === 8 ? "[0-7]" : "[0-9a-fA-F]";
-        if (new RegExp(`^${digitClass}+(?:_${digitClass}+)*$`).test(based[2]!)) {
-          value = parseInt(based[2]!.replaceAll("_", ""), base);
+        const base = Number(based[2]);
+        const digitClass = base === 2 ? "[01]" : "[0-9a-fA-F]";
+        if (new RegExp(`^${digitClass}+(?:_${digitClass}+)*$`).test(based[3]!)) {
+          value = parseInt(based[3]!.replaceAll("_", ""), base) * (based[1] === "-" ? -1 : 1);
         }
       }
     }
-    if (
-      !Number.isFinite(value) ||
-      (kind === "integer" && !Number.isSafeInteger(value)) ||
-      (kind === "time" && Math.abs(value) > Number.MAX_SAFE_INTEGER)
-    ) {
+    if (Number.isNaN(value) || (kind === "time" && Math.abs(value) > Number.MAX_SAFE_INTEGER)) {
       this.fail({
         code: "lex.malformed-number",
         severity: "error",
         span: this.finishSpan(span),
-        args: { literal: text },
+        args: { literal: fullText },
       });
     }
-    return this.token(kind, start, span, value === 0 ? 0 : value);
+    return {
+      ...this.token(
+        kind,
+        start,
+        span,
+        kind === "boolean" ? Boolean(value) : Number.isFinite(value) ? value || 0 : 0,
+      ),
+      ...(dataType ? { dataType } : {}),
+    };
   }
 
   private next(): Token {
@@ -222,6 +235,10 @@ class Lexer {
       if ((key === "T" || key === "TIME") && this.char === "#") {
         this.advance();
         return this.number(start, span, true);
+      }
+      if (["BOOL", "INT", "DINT", "UINT", "REAL", "LREAL"].includes(key) && this.char === "#") {
+        this.advance();
+        return this.number(start, span, false, key as DataType);
       }
       if (key === "TRUE" || key === "FALSE")
         return this.token("boolean", start, span, key === "TRUE");

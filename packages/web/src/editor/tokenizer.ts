@@ -40,6 +40,11 @@ export function readStToken(
   if (address) return { length: address[0].length, style: "variableName.special" };
   const time = /^(?:TIME|T)#[+-]?[A-Za-z0-9_.]*/i.exec(source);
   if (time) return { length: time[0].length, style: "number" };
+  const typed =
+    /^(?:BOOL|INT|DINT|UINT|REAL|LREAL)#[+-]?(?:TRUE|FALSE|\d+#[A-Za-z0-9_]*|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?[\d_]*)?)?/i.exec(
+      source,
+    );
+  if (typed) return { length: typed[0].length, style: "number" };
   const number = /^(?:\d+#[A-Za-z0-9_]*|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?[\d_]*)?)/.exec(source);
   if (number) return { length: number[0].length, style: "number" };
   const identifier = /^[A-Za-z_][A-Za-z0-9_]*/.exec(source);

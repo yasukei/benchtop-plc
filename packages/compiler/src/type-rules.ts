@@ -1,4 +1,4 @@
-import type { BinaryOperator, DataType, NumericType, UnaryOperator } from "@benchtop-plc/core";
+import type { BinaryOperator, DataType, UnaryOperator } from "@benchtop-plc/core";
 
 export const integerTypes = ["INT", "UINT", "DINT"] as const;
 export const numericTypes = ["INT", "UINT", "DINT", "REAL", "LREAL"] as const;
@@ -7,21 +7,31 @@ export const isInteger = (type: DataType): boolean => integerTypes.some((item) =
 export const isNumeric = (type: DataType): boolean => numericTypes.some((item) => item === type);
 export const isReal = (type: DataType): boolean => type === "REAL" || type === "LREAL";
 
+const widening: Record<DataType, readonly DataType[]> = {
+  BOOL: [],
+  TIME: [],
+  INT: ["DINT", "REAL", "LREAL"],
+  UINT: ["DINT", "REAL", "LREAL"],
+  DINT: ["LREAL"],
+  REAL: ["LREAL"],
+  LREAL: [],
+};
 export function assignable(to: DataType, from: DataType): boolean {
-  return to === from || (isInteger(to) && isInteger(from)) || (isReal(to) && isNumeric(from));
+  return to === from || widening[from].includes(to);
 }
 
-/** Milestone arithmetic promotion deliberately produces REAL even for LREAL operands. */
-export function promote(left: DataType, right: DataType): NumericType {
-  return isReal(left) || isReal(right)
-    ? "REAL"
-    : left === "DINT" || right === "DINT"
-      ? "DINT"
-      : "INT";
+/** ADR 0013: choose a least candidate from the entire set, then try integers only. */
+export function commonType(types: readonly DataType[]): DataType | null {
+  if (!types.length) return null;
+  const candidates = scalarTypes.filter((to) => types.every((from) => assignable(to, from)));
+  const least = (items: readonly DataType[]) =>
+    items.find((from) => items.every((to) => assignable(to, from))) ?? null;
+  return least(candidates) ?? (types.every(isInteger) ? least(candidates.filter(isInteger)) : null);
 }
 
 export function unaryType(operator: UnaryOperator, operand: DataType): DataType | null {
   if (operator === "NOT") return operand === "BOOL" || isInteger(operand) ? operand : null;
+  if (operator === "-" && operand === "UINT") return null;
   return isNumeric(operand) || operand === "TIME" ? operand : null;
 }
 
@@ -30,29 +40,29 @@ export function binaryType(
   left: DataType,
   right: DataType,
 ): DataType | null {
+  const common = commonType([left, right]);
   const numeric = isNumeric(left) && isNumeric(right);
   const integers = isInteger(left) && isInteger(right);
   const times = left === "TIME" && right === "TIME";
   switch (operator) {
     case "+":
     case "-":
-      return numeric ? promote(left, right) : times ? "TIME" : null;
+      return numeric ? common : times ? "TIME" : null;
     case "*":
     case "/":
-      return numeric ? promote(left, right) : left === "TIME" && isNumeric(right) ? "TIME" : null;
+      return numeric ? common : left === "TIME" && isNumeric(right) ? "TIME" : null;
     case "MOD":
-      return integers ? promote(left, right) : null;
+      return integers ? common : null;
     case "AND":
     case "OR":
     case "XOR":
-      return integers ? promote(left, right) : left === "BOOL" && right === "BOOL" ? "BOOL" : null;
+      return integers ? common : left === "BOOL" && right === "BOOL" ? "BOOL" : null;
     case "=":
     case "<>":
-      return numeric || times || (left === "BOOL" && right === "BOOL") ? "BOOL" : null;
     case "<":
     case ">":
     case "<=":
     case ">=":
-      return numeric || times ? "BOOL" : null;
+      return common ? "BOOL" : null;
   }
 }
