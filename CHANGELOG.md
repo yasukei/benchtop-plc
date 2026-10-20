@@ -8,6 +8,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
+Release process, workflow security checks, automated dependency updates and a public demo. No language changes.
+
 ### Added
 
 - A public demo at https://yasukei.github.io/benchtop-plc/ always runs the latest
@@ -45,5 +49,6 @@ First release: the single-file HTML prototype rebuilt as a tested monorepo.
   setting unless you choose Light or Dark.
 - The app opens with the blink example and its panel.
 
-[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/yasukei/benchtop-plc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yasukei/benchtop-plc/releases/tag/v0.1.0
