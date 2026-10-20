@@ -1,5 +1,6 @@
 import {
   coerceValue,
+  conversionFunctions,
   convertValue,
   standardFunctionBlocks as blocks,
   getStandardFunctionSignature as getSignature,
@@ -421,7 +422,9 @@ class Checker {
         {
           from,
           to,
-          ...(isNumeric(to) && isNumeric(from) ? { hint: "explicit-conversion" as const } : {}),
+          ...(Object.hasOwn(conversionFunctions, `${from}_TO_${to}`)
+            ? { hint: "explicit-conversion" as const }
+            : {}),
         },
         span,
       );

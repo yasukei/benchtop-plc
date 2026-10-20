@@ -17,6 +17,9 @@ function fraction(n: bigint, d = 1n, real = false): Exact {
   while (b) [a, b] = [b, a % b];
   return { n: n / a, d: d / a, real };
 }
+// Bound decimal power construction so editing or restoring source cannot allocate
+// enormous BigInts on the browser main thread. Arithmetic within the budget is exact.
+export const MAX_DECIMAL_SCALE = 10000;
 export function exactNumber(text: string): Exact {
   const clean = text.replaceAll("_", "");
   const based = /^([+-]?)(2|16)#(.+)$/i.exec(clean);
@@ -26,7 +29,8 @@ export function exactNumber(text: string): Exact {
     );
   const [mantissa = "0", exponent = "0"] = clean.toLowerCase().split("e");
   const scale = Number(exponent) - (mantissa.split(".")[1]?.length ?? 0);
-  if (!Number.isSafeInteger(scale)) throw new RangeError("Constant exponent too large");
+  if (!Number.isSafeInteger(scale) || Math.abs(scale) > MAX_DECIMAL_SCALE)
+    throw new RangeError("Constant decimal scale exceeds evaluation budget");
   const n = BigInt(mantissa.replace(".", "").replace(/^\+/, ""));
   return fraction(
     scale >= 0 ? n * 10n ** BigInt(scale) : n,
@@ -47,6 +51,7 @@ export function isUntyped(node: Expression): boolean {
     case "binary":
       return (
         ["+", "-", "*", "/", "MOD"].includes(node.operator) &&
+        (node.operator !== "MOD" || !hasReal(node)) &&
         isUntyped(node.left) &&
         isUntyped(node.right)
       );
@@ -93,7 +98,7 @@ export function exactConstant(node: Expression, real = hasReal(node)): Exact {
           return real ? result : fraction(result.n / result.d);
         }
         case "MOD":
-          if (real) throw new RangeError("MOD needs integers");
+          if (hasReal(node)) throw new RangeError("MOD needs integers");
           return fraction(b.n === 0n ? 0n : a.n % b.n);
       }
     }

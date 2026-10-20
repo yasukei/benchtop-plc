@@ -14,7 +14,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   operators and generic functions use ADR 0013 common types; REAL + LREAL is LREAL.
 - Untyped constants are evaluated exactly and checked against the type supplied by
   their position. Out-of-range constants are errors instead of silently wrapping.
-  Real constants round directly to binary32 or binary64, once.
+  Real constants round directly to binary32 or binary64, once. Decimal scales
+  outside ±10,000 are rejected before allocation to keep compilation responsive.
 - Octal literals (`8#`) are rejected.
 
 ### Added

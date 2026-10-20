@@ -65,7 +65,10 @@ The destination never supplies a type inside a larger typed expression:
 `l := i + 40000` with `i : INT` rejects 40000 even if `l : LREAL`.
 `x : INT := 30000 + 30000` is invalid, while `x : INT := 1 + 2` is 3.
 `l : LREAL := 1 / 2` is 0.0 because the arithmetic uses only integer literals.
-Out-of-range constants report `type.invalid-constant` at the constant's span.
+Out-of-range constants report `type.invalid-constant` at the constant's span. Decimal scales
+outside ±10,000 are also rejected with this diagnostic before constructing a
+power of ten, keeping compilation responsive while editing or restoring source.
+This is a compiler resource limit, including for values that would round to zero.
 
 Typed literals are BOOL#, INT#, DINT#, UINT#, REAL#, LREAL#, plus T#/TIME#.
 Examples include `BOOL#1`, `INT#-5`, `UINT#16#FF` and `REAL#1.5`.

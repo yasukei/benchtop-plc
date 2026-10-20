@@ -74,6 +74,41 @@ describe("ADR 0013 conversions and constants", () => {
       expect.objectContaining({ code: "type.invalid-constant" }),
     );
   });
+  it.each(["1e99999999", "1e-99999999", "REAL#1e99999999", "LREAL#1e-99999999"])(
+    "rejects an excessive decimal scale in %s",
+    (source) => {
+      expect(program(`x: LREAL := ${source};`).diagnostics).toEqual([
+        expect.objectContaining({ code: "type.invalid-constant" }),
+      ]);
+    },
+  );
+  it.each([
+    ["5.5 MOD 2", "LREAL", "DINT"],
+    ["5 MOD 2.5", "DINT", "LREAL"],
+    ["5 MOD (1 + 1.5)", "DINT", "LREAL"],
+    ["LREAL#5.5 MOD 2", "LREAL", "LREAL"],
+  ])("reports a type mismatch for %s", (source, left, right) => {
+    expect(program(`x: LREAL := ${source};`).diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "type.operand-mismatch",
+        args: { operator: "MOD", left, right },
+      }),
+    );
+  });
+  it("keeps integer MOD exact inside arithmetic containing a real sibling", () => {
+    expect(execute("x: LREAL := (5 MOD 2) + 0.5;").values.x).toBe(1.5);
+  });
+  it.each(["BOOL", "TIME"])(
+    "includes an available %s-to-integer conversion in the hint",
+    (from) => {
+      expect(program(`x: INT; source: ${from};`, "x := source;").diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "type.assign-mismatch",
+          args: { from, to: "INT", hint: "explicit-conversion" },
+        }),
+      );
+    },
+  );
   it("marks the literal rather than the assignment for a local range failure", () => {
     expect(program("i: INT; l: LREAL;", "l := i + 40000;").diagnostics).toEqual([
       {
