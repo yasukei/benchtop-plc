@@ -8,24 +8,35 @@ untrusted-input validator.
 ## Values
 
 `BOOL` uses `boolean`; `INT`, `UINT`, `DINT`, `REAL`, `LREAL` and `TIME` use `number`.
+TIME ranges from `T#-24d20h31m23s648ms` to `T#24d20h31m23s647ms`.
 `TypedValue` pairs a `dataType` discriminator with a matching `value`.
 `coerceValue(type, value)` dispatches to the exported per-type helpers:
 
-| Type  | Coercion                                                 |
-| ----- | -------------------------------------------------------- |
-| BOOL  | Zero becomes FALSE; any other finite number becomes TRUE |
-| INT   | Truncate toward zero, wrap to signed 16 bits             |
-| UINT  | Truncate toward zero, wrap to unsigned 16 bits           |
-| DINT  | Truncate toward zero, wrap to signed 32 bits             |
-| REAL  | Round with `Math.fround` to IEEE 754 binary32            |
-| LREAL | Preserve JavaScript binary64 precision                   |
-| TIME  | Truncate toward zero to integer milliseconds             |
+| Type  | Coercion                                                     |
+| ----- | ------------------------------------------------------------ |
+| BOOL  | Zero becomes FALSE; any other finite number becomes TRUE     |
+| INT   | Truncate toward zero, wrap to signed 16 bits                 |
+| UINT  | Truncate toward zero, wrap to unsigned 16 bits               |
+| DINT  | Truncate toward zero, wrap to signed 32 bits                 |
+| REAL  | Round with `Math.fround` to IEEE 754 binary32                |
+| LREAL | Preserve JavaScript binary64 precision                       |
+| TIME  | Truncate toward zero to milliseconds, wrap to signed 32 bits |
 
 Helpers accept boolean or numeric values (TRUE converts to 1, FALSE to 0).
 They are representation helpers, not the compiler's implicit-conversion rules.
 NaN, infinity and REAL overflow raise `RangeError`; negative zero is normalized
 to zero so that valid values survive JSON transport. The compiler/runtime must
 translate invalid computations into diagnostics at their source spans.
+
+TIME arithmetic results wrap modulo 2^32. TIME * or / REAL/LREAL computes the
+exact product or quotient of the represented operands and rounds once to whole
+milliseconds, nearest with ties to even, before wrapping; TIME / integer truncates
+toward zero. `timeBinary` shares this calculation between compiler and runtime.
+TIME literals are checked against the range by exact value before fractional
+milliseconds are truncated; out-of-range literals are `type.invalid-constant`.
+Typed constant operations follow runtime arithmetic. IR initial values and
+write/force TIME values must be integer milliseconds within range (and not negative zero);
+`validateTime` rejects them without coercion. TON, TOF and TP treat negative PT as zero.
 
 `formatValue(type, value)` uses IEC syntax independent of UI locale: TRUE/FALSE,
 decimal integers, a decimal point for REAL/LREAL (also in an exponent's mantissa),

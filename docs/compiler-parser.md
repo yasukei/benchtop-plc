@@ -77,9 +77,10 @@ are single tokens with a `dataType`, including `INT#-5` and `UINT#16#FF`.
 TIME/T durations have an optional sign after `#` and descending, nonrepeated
 d/h/m/s/ms components, optionally separated by a single underscore. Only the final
 component may be fractional; values are milliseconds. Signs on untyped numbers
-remain unary operators. Address components must be safe integers, and duration
-magnitudes may not exceed `Number.MAX_SAFE_INTEGER`. Values outside those limits
-produce the corresponding malformed-literal/address diagnostic. Exact constant
+remain unary operators. Address components must be safe integers; values outside
+that limit produce `lex.malformed-direct-address`. Duration magnitudes are
+unbounded lexically; the checker validates the TIME range from the exact source
+text and reports `type.invalid-constant` for out-of-range durations. Exact constant
 arithmetic, range checks and binary32/64 rounding belong to semantic checking.
 
 The AST contains only plain, JSON-safe data. It does not enforce supported types,

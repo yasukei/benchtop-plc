@@ -1,4 +1,4 @@
-import { coerceValue } from "@benchtop-plc/core";
+import { coerceValue, validateTime } from "@benchtop-plc/core";
 import type {
   AssignmentTarget,
   FunctionBlockMemberReference,
@@ -39,6 +39,7 @@ export class Memory implements ScanMemory {
   ) {
     this.cells = ir.variables.map((variable) => {
       if (variable.kind === "scalar") {
+        if (variable.dataType === "TIME") validateTime(variable.initialValue);
         return { kind: "scalar", value: typed(variable.dataType, variable.initialValue) };
       }
       if (!library) throw new Error("A runtime library is required for function blocks");

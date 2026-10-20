@@ -57,6 +57,17 @@ describe("compile entry point", () => {
     expect(ast).toStrictEqual(before);
     expect(lower(checked)).toStrictEqual(again);
   });
+
+  it("keeps enormous TIME literals JSON-safe while checking their exact text", () => {
+    const source = `PROGRAM P VAR x : TIME := T#${"9".repeat(309)}ms; END_VAR END_PROGRAM`;
+    const parsed = parse(source);
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.ast).not.toBeNull();
+    const restored = JSON.parse(JSON.stringify(parsed.ast));
+    expect(restored).toStrictEqual(parsed.ast);
+    expect(check(restored).diagnostics).toMatchObject([{ code: "type.invalid-constant" }]);
+    expect(compile(source).diagnostics).toMatchObject([{ code: "type.invalid-constant" }]);
+  });
 });
 
 describe("declarations and resolved expressions", () => {

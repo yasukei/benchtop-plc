@@ -159,3 +159,21 @@ export function defaultType(value: Exact): DataType {
   if (BigInt(result) !== value.n) throw new RangeError("No exact default type");
   return "LREAL";
 }
+
+/** Duration syntax is already validated by the lexer; retain exact decimal milliseconds. */
+export function timeLiteral(text: string): number {
+  const duration = text.slice(text.indexOf("#") + 1);
+  const units: Record<string, bigint> = { d: 86400000n, h: 3600000n, m: 60000n, s: 1000n, ms: 1n };
+  let value = fraction(0n);
+  for (const part of duration.matchAll(/([\d_]+(?:\.[\d_]+)?)(ms|d|h|m|s)/gi)) {
+    const amount = exactNumber(part[1]!);
+    value = fraction(
+      value.n * amount.d + amount.n * units[part[2]!.toLowerCase()]! * value.d,
+      value.d * amount.d,
+    );
+  }
+  if (duration.startsWith("-")) value.n = -value.n;
+  if (value.n < -2147483648n * value.d || value.n > 2147483647n * value.d)
+    throw new RangeError("TIME literal out of range");
+  return Number(value.n / value.d);
+}

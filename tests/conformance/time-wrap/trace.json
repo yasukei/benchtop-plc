@@ -1,0 +1,15 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "scans": 1,
+      "expect": {
+        "Wrapped": -147767296,
+        "Initial": -147767296,
+        "Rounded": 2
+      },
+      "label": "Variable arithmetic matches constant initialization"
+    }
+  ]
+}

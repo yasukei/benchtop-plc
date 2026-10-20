@@ -1,4 +1,4 @@
-import { lex } from "@benchtop-plc/compiler";
+import { compile, lex } from "@benchtop-plc/compiler";
 import {
   coerceValue,
   formatValue,
@@ -20,6 +20,13 @@ export function parseWrittenValue(dataType: DataType, source: string): TypedValu
     if (!result.tokens || result.tokens.length !== 2 || result.tokens[0]?.kind !== "time")
       return null;
     number = Number(result.tokens[0].value);
+    if (!Number.isFinite(number) || !Number.isInteger(number)) return null;
+    // Check the exact literal text too: binary64 can round an out-of-range decimal
+    // back to the boundary. The single-token guard above excludes statements.
+    const declaration = compile(`PROGRAM Written VAR value : TIME := ${text}; END_VAR END_PROGRAM`)
+      .ir?.variables[0];
+    if (declaration?.kind !== "scalar" || declaration.dataType !== "TIME") return null;
+    number = declaration.initialValue;
   } else {
     if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) return null;
     number = Number(text);
@@ -32,7 +39,7 @@ export function parseWrittenValue(dataType: DataType, source: string): TypedValu
   if (
     (dataType === "INT" && (number < -32768 || number > 32767)) ||
     (dataType === "UINT" && (number < 0 || number > 65535)) ||
-    (dataType === "DINT" && (number < -2147483648 || number > 2147483647))
+    ((dataType === "DINT" || dataType === "TIME") && (number < -2147483648 || number > 2147483647))
   )
     return null;
   try {
