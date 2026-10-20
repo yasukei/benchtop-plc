@@ -357,7 +357,12 @@ class Parser {
 
   private reference(name: Identifier): AssignmentTarget {
     if (this.accept(".")) {
-      const member = this.identifier();
+      const token = this.current;
+      // A numeric selector is checked against the variable's bit width in the semantic pass.
+      const member =
+        token.kind === "integer" && !token.dataType && /^\d+$/.test(token.text)
+          ? (this.take(), { name: token.text, key: token.key, span: token.span })
+          : this.identifier();
       return { kind: "member", instance: name, member, span: joinedSpan(name.span, member.span) };
     }
     return { kind: "name", name, span: name.span };

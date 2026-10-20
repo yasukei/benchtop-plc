@@ -27,6 +27,8 @@ const examples = {
   "decl.nonconstant-initializer": { name: "Counter" },
   "decl.fb-initializer": { name: "Timer" },
   "name.undeclared": { name: "Missing" },
+  "type.invalid-bit-access": { type: "WORD", bit: 16 },
+  "type.portability": { name: "DWORD_TO_REAL" },
   "type.invalid-constant": {},
   "type.case-label-not-constant": {},
   "fb.duplicate-input": { name: "Timer", member: "IN" },

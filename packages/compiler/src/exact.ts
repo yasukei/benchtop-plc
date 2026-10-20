@@ -1,3 +1,4 @@
+import { integerRanges } from "@benchtop-plc/core";
 import type { DataType, ScalarValue } from "@benchtop-plc/core";
 import type { Expression } from "./ast.js";
 
@@ -139,13 +140,8 @@ export function materialize(value: Exact, type: DataType): ScalarValue {
     if (value.n !== 0n && value.n !== value.d) throw new RangeError("BOOL constant out of range");
     return value.n !== 0n;
   }
-  const ranges = {
-    INT: [-32768n, 32767n],
-    UINT: [0n, 65535n],
-    DINT: [-2147483648n, 2147483647n],
-  } as const;
   if (type === "TIME") throw new RangeError("Numeric constant is not TIME");
-  const [min, max] = ranges[type];
+  const [min, max] = integerRanges[type].map(BigInt) as [bigint, bigint];
   if (value.d !== 1n || value.n < min || value.n > max)
     throw new RangeError("Integer constant out of range");
   return Number(value.n);

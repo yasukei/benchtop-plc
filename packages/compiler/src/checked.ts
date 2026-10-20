@@ -25,6 +25,7 @@ export interface ResolvedReference {
   variable: number;
   port?: "input" | "output";
   member?: number;
+  bit?: number;
 }
 
 /** Semantic side tables use AST object identity; they are compiler-local, not wire IR. */

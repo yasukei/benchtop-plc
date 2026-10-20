@@ -9,24 +9,33 @@ function WriteValue({
   id,
   store,
   disabled,
+  forced,
   text,
 }: {
   variable: Variable;
   id: number;
   store: AppStore;
   disabled: boolean;
+  forced: boolean;
   text: ShellCatalog;
 }) {
   const [value, setValue] = useState("");
   const [invalid, setInvalid] = useState(false);
+  function send(type: "write" | "force") {
+    const parsed = variable.kind === "scalar" ? parseWrittenValue(variable.dataType, value) : null;
+    setInvalid(!parsed);
+    if (parsed)
+      store.send(
+        type === "write"
+          ? { type: "write", variable: id, value: parsed }
+          : { type: "force", variable: id, value: parsed },
+      );
+  }
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        const parsed =
-          variable.kind === "scalar" ? parseWrittenValue(variable.dataType, value) : null;
-        setInvalid(!parsed);
-        if (parsed) store.send({ type: "write", variable: id, value: parsed });
+        send("write");
       }}
     >
       <input
@@ -40,6 +49,16 @@ function WriteValue({
         }}
       />
       <button disabled={disabled}>{text.write}</button>
+      <button type="button" disabled={disabled} onClick={() => send("force")}>
+        {text.force}
+      </button>
+      <button
+        type="button"
+        disabled={disabled || !forced}
+        onClick={() => store.send({ type: "force", variable: id, value: null })}
+      >
+        {text.unforce}
+      </button>
       {invalid && <span role="alert">{text.invalidValue}</span>}
     </form>
   );
@@ -132,6 +151,7 @@ export function VariableMonitor({
                             id={id}
                             store={store}
                             disabled={disabled}
+                            forced={forced}
                             text={text}
                           />
                         ))}

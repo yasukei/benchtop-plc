@@ -62,7 +62,21 @@ describe("shared standard-library descriptors", () => {
     });
     expect(getStandardFunctionSignature("SEL").arguments).toEqual([
       ["BOOL"],
-      ["BOOL", "INT", "UINT", "DINT", "REAL", "LREAL", "TIME"],
+      [
+        "BOOL",
+        "BYTE",
+        "WORD",
+        "DWORD",
+        "SINT",
+        "USINT",
+        "INT",
+        "UINT",
+        "DINT",
+        "UDINT",
+        "REAL",
+        "LREAL",
+        "TIME",
+      ],
     ]);
   });
 
@@ -77,14 +91,22 @@ describe("shared standard-library descriptors", () => {
 });
 
 it("registers exactly the current conversion families and no unrelated conversions", () => {
-  const numbers = ["INT", "DINT", "UINT", "REAL", "LREAL"];
-  const integers = ["INT", "DINT", "UINT"];
+  const numbers = ["SINT", "USINT", "INT", "UINT", "DINT", "UDINT", "REAL", "LREAL"];
+  const integers = ["SINT", "USINT", "INT", "UINT", "DINT", "UDINT"];
   const names = numbers.flatMap((from) =>
     numbers.filter((to) => to !== from).map((to) => `${from}_TO_${to}`),
   );
   names.push(
     ...integers.flatMap((type) => [`BOOL_TO_${type}`, `TIME_TO_${type}`, `${type}_TO_TIME`]),
-    ...[...numbers, "TIME"].map((type) => `TO_${type}`),
+    ...[...numbers, "BOOL", "BYTE", "WORD", "DWORD", "TIME"].map((type) => `TO_${type}`),
+    ...["BOOL", "BYTE", "WORD", "DWORD"].flatMap((from) =>
+      ["BOOL", "BYTE", "WORD", "DWORD"].filter((to) => to !== from).map((to) => `${from}_TO_${to}`),
+    ),
+    ...integers.flatMap((type) =>
+      ["BYTE", "WORD", "DWORD"].flatMap((bits) => [`${type}_TO_${bits}`, `${bits}_TO_${type}`]),
+    ),
+    "REAL_TO_DWORD",
+    "DWORD_TO_REAL",
   );
   expect(
     Object.keys(standardFunctions)

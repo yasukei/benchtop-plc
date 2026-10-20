@@ -1,3 +1,4 @@
+import { compile } from "@benchtop-plc/compiler";
 import type { Diagnostic } from "@benchtop-plc/core";
 import type {
   ContentHeader,
@@ -143,6 +144,23 @@ function interval(value: string): boolean {
 function validateIdentifier(name: string, path: string): void {
   const result = splitProgram(`PROGRAM ${name}\nEND_PROGRAM`);
   if (!result.value || result.value.name !== name) fail("project.invalid", path);
+}
+
+function validateInitializers(program: SplitProgram): void {
+  for (const variable of program.variables) {
+    if (variable.initialValue === undefined) continue;
+    const result = compile(
+      joinProgram({
+        name: "Initial",
+        variables: [{ name: "value", type: variable.type, initialValue: variable.initialValue }],
+        body: "",
+      }),
+    );
+    // Preserve unsupported declarations for exchange, but validate supported scalar slots.
+    if (result.diagnostics.some((item) => item.code === "decl.unknown-type")) continue;
+    if (result.diagnostics.some((item) => item.severity === "error"))
+      fail("project.invalid", `variable/${variable.name}/initialValue`);
+  }
 }
 
 function readVariables(pou: XmlNode): VariableDeclaration[] {
@@ -309,6 +327,7 @@ export function readProject(xml: string): ProjectResult<Project> {
       fail("project.unsupported", "body/ST/xhtml");
     if (st.text.trim()) fail("project.invalid", "body/ST/text()");
     const split: SplitProgram = { name, variables, body: text.text };
+    validateInitializers(split);
     let program = joinProgram(split);
     const parsed = splitProgram(program);
     if (!parsed.value) return { value: null, diagnostics: [...diagnostics, ...parsed.diagnostics] };

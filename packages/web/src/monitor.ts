@@ -1,6 +1,8 @@
 import { compile, lex } from "@benchtop-plc/compiler";
 import {
   coerceValue,
+  isBitType,
+  validateValue,
   formatValue,
   standardFunctionBlocks,
   type DataType,
@@ -8,6 +10,27 @@ import {
   type Variable,
   type VariableSnapshot,
 } from "@benchtop-plc/core";
+
+/** Decimal input for integer storage must be exact even at a range boundary.
+ * Work on digits so a tiny fraction cannot round back into range as binary64. */
+function decimalInteger(text: string): number | null {
+  const [mantissa = "", exponent = "0"] = text.toLowerCase().split("e");
+  const fractionLength = mantissa.split(".")[1]?.length ?? 0;
+  const scale = Number(exponent) - fractionLength;
+  if (!Number.isSafeInteger(scale)) return null;
+  let digits = mantissa.replace(/^[+-]/, "").replace(".", "").replace(/^0+/, "");
+  if (!digits) return text.startsWith("-") ? null : 0;
+  if (scale < 0) {
+    const count = -scale;
+    if (count >= digits.length || !/^0*$/.test(digits.slice(-count))) return null;
+    digits = digits.slice(0, -count);
+  } else {
+    // All supported integer storage types fit in ten decimal digits.
+    if (digits.length + scale > 10) return null;
+    digits += "0".repeat(scale);
+  }
+  return Number(`${text.startsWith("-") ? "-" : ""}${digits}`);
+}
 
 /** Reuse ST literal syntax without compiling user-supplied statements. */
 export function parseWrittenValue(dataType: DataType, source: string): TypedValue | null {
@@ -28,21 +51,22 @@ export function parseWrittenValue(dataType: DataType, source: string): TypedValu
     if (declaration?.kind !== "scalar" || declaration.dataType !== "TIME") return null;
     number = declaration.initialValue;
   } else {
-    if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) return null;
-    number = Number(text);
+    if (isBitType(dataType) && /^(?:2#[01]+(?:_[01]+)*|16#[0-9a-f]+(?:_[0-9a-f]+)*)$/i.test(text)) {
+      number = Number(
+        BigInt(text.toLowerCase().replaceAll("_", "").replace(/^2#/, "0b").replace(/^16#/, "0x")),
+      );
+    } else {
+      if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) return null;
+      const parsed =
+        dataType === "REAL" || dataType === "LREAL" ? Number(text) : decimalInteger(text);
+      if (parsed === null) return null;
+      number = parsed;
+    }
   }
-  if (
-    !Number.isFinite(number) ||
-    (["INT", "UINT", "DINT", "TIME"].includes(dataType) && !Number.isInteger(number))
-  )
-    return null;
-  if (
-    (dataType === "INT" && (number < -32768 || number > 32767)) ||
-    (dataType === "UINT" && (number < 0 || number > 65535)) ||
-    ((dataType === "DINT" || dataType === "TIME") && (number < -2147483648 || number > 2147483647))
-  )
-    return null;
   try {
+    // REAL text is rounded once to its storage precision; integer inputs must fit exactly.
+    const value = dataType === "REAL" ? coerceValue("REAL", number) : number;
+    validateValue(dataType, value);
     return { dataType, value: coerceValue(dataType, number) } as TypedValue;
   } catch {
     return null;

@@ -20,6 +20,7 @@ it("represents every milestone IR variant as transportable data", () => {
   };
   const expressions: Record<Expression["kind"], Expression> = {
     literal: int,
+    bit: { kind: "bit", variable: 2, bit: 15, dataType: "BOOL", span },
     variable,
     fbMember: { kind: "fbMember", variable: 1, port: "input", member: 0, dataType: "BOOL", span },
     unary: { kind: "unary", operator: "-", operand: int, dataType: "INT", span },

@@ -116,7 +116,7 @@ describe("declarations and symbols", () => {
 
   it("checks literals, groups and constant operators with PLC coercion", () => {
     const checked = valid(
-      "a,b : INT := (7 / -2) + 1; c : UINT := UINT#0 - UINT#1; d : BOOL := NOT FALSE AND TRUE; e : TIME := (T#1s + T#500ms) / 2; f : REAL := 1 + 1.5; g : DINT := 40000; h : INT := 5 MOD 2; i : INT := NOT INT#0; j : BOOL := (2 < 3) XOR (1 = 2);",
+      "a,b : INT := (7 / -2) + 1; c : UINT := UINT#0 - UINT#1; d : BOOL := NOT FALSE AND TRUE; e : TIME := (T#1s + T#500ms) / 2; f : REAL := 1 + 1.5; g : DINT := 40000; h : INT := 5 MOD 2; i : WORD := NOT WORD#0; j : BOOL := (2 < 3) XOR (1 = 2);",
     );
     expect(checked.symbols.map((symbol) => symbol.initialValue)).toEqual([
       -2,
@@ -127,7 +127,7 @@ describe("declarations and symbols", () => {
       2.5,
       40000,
       1,
-      -1,
+      65535,
       true,
     ]);
   });
@@ -261,8 +261,8 @@ describe("assignments and operands", () => {
     ["a * b", "TIME", "INT", "TIME"],
     ["a / b", "TIME", "REAL", "TIME"],
     ["a AND b", "BOOL", "BOOL", "BOOL"],
-    ["a & b", "INT", "DINT", "DINT"],
-    ["a OR b", "UINT", "INT", "DINT"],
+    ["a & b", "BYTE", "DWORD", "DWORD"],
+    ["a OR b", "BOOL", "WORD", "WORD"],
     ["a XOR b", "BOOL", "BOOL", "BOOL"],
     ["a = b", "BOOL", "BOOL", "BOOL"],
     ["a <> b", "INT", "REAL", "BOOL"],
@@ -303,9 +303,9 @@ describe("assignments and operands", () => {
 
   it.each([
     ["NOT", "BOOL"],
-    ["NOT", "INT"],
-    ["NOT", "UINT"],
-    ["NOT", "DINT"],
+    ["NOT", "BYTE"],
+    ["NOT", "WORD"],
+    ["NOT", "DWORD"],
     ["-", "REAL"],
     ["+", "LREAL"],
     ["-", "TIME"],
@@ -313,6 +313,9 @@ describe("assignments and operands", () => {
     valid(`a,b : ${type};`, `a := ${operator} b;`);
   });
   it.each([
+    ["NOT", "INT"],
+    ["NOT", "UINT"],
+    ["NOT", "DINT"],
     ["NOT", "REAL"],
     ["NOT", "TIME"],
     ["-", "BOOL"],

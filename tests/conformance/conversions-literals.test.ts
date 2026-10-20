@@ -9,7 +9,7 @@ function program(declarations: string, body = "") {
 }
 function execute(declarations: string, body = "") {
   const result = program(declarations, body);
-  expect(result.diagnostics).toEqual([]);
+  expect(result.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const clock = new VirtualClock();
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(result.ir!);
@@ -220,7 +220,17 @@ describe("ADR 0013 conversions and constants", () => {
           `source: ${from} := ${input}; result: ${signature.result};`,
           `result := ${name}(source);`,
         );
-        expect(values.result, `${name}(${from})`).toBe(from === "BOOL" ? 1 : 3);
+        const expected =
+          signature.result === "BOOL"
+            ? true
+            : from === "DWORD" && signature.result === "REAL"
+              ? 3 * 2 ** -149
+              : from === "REAL" && signature.result === "DWORD"
+                ? 0x40400000
+                : from === "BOOL"
+                  ? 1
+                  : 3;
+        expect(values.result, `${name}(${from})`).toBe(expected);
       }
     }
   });

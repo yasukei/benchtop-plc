@@ -32,15 +32,19 @@ export function binaryConstant(
     case "MOD":
       return b === 0 ? 0 : a % b;
     case "AND":
-      return typeof left === "boolean" ? left && Boolean(right) : a & b;
+      return typeof left === "boolean" && typeof right === "boolean"
+        ? left && Boolean(right)
+        : a & b;
     case "OR":
-      return typeof left === "boolean" ? left || Boolean(right) : a | b;
+      return typeof left === "boolean" && typeof right === "boolean"
+        ? left || Boolean(right)
+        : a | b;
     case "XOR":
-      return typeof left === "boolean" ? left !== right : a ^ b;
+      return typeof left === "boolean" && typeof right === "boolean" ? left !== right : a ^ b;
     case "=":
-      return left === right;
+      return a === b;
     case "<>":
-      return left !== right;
+      return a !== b;
     case "<":
       return a < b;
     case ">":

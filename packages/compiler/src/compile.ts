@@ -4,7 +4,7 @@ import { lower } from "./lower.js";
 import { parse } from "./parser.js";
 
 export type CompileResult =
-  { ir: ProgramIR; diagnostics: [] } | { ir?: never; diagnostics: Diagnostic[] };
+  { ir: ProgramIR; diagnostics: Diagnostic[] } | { ir?: never; diagnostics: Diagnostic[] };
 
 /** Parse, check and lower a single ST program. Failed compilation never exposes partial IR. */
 export function compile(source: string): CompileResult {
@@ -12,5 +12,5 @@ export function compile(source: string): CompileResult {
   if (!parsed.ast) return { diagnostics: parsed.diagnostics };
   const result = check(parsed.ast);
   if (!result.checked) return { diagnostics: result.diagnostics };
-  return { ir: lower(result.checked), diagnostics: [] };
+  return { ir: lower(result.checked), diagnostics: result.diagnostics };
 }

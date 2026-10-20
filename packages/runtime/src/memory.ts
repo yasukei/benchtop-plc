@@ -1,6 +1,7 @@
-import { coerceValue, validateTime } from "@benchtop-plc/core";
+import { coerceValue, validateValue } from "@benchtop-plc/core";
 import type {
   AssignmentTarget,
+  BitReference,
   FunctionBlockMemberReference,
   IoImage,
   ProgramIR,
@@ -39,7 +40,7 @@ export class Memory implements ScanMemory {
   ) {
     this.cells = ir.variables.map((variable) => {
       if (variable.kind === "scalar") {
-        if (variable.dataType === "TIME") validateTime(variable.initialValue);
+        validateValue(variable.dataType, variable.initialValue);
         return { kind: "scalar", value: typed(variable.dataType, variable.initialValue) };
       }
       if (!library) throw new Error("A runtime library is required for function blocks");
@@ -68,7 +69,9 @@ export class Memory implements ScanMemory {
     scalar.value = coerceValue(scalar.dataType, value);
   }
 
-  value(ref: VariableReference | FunctionBlockMemberReference): TypedValue {
+  value(ref: VariableReference | BitReference | FunctionBlockMemberReference): TypedValue {
+    if (ref.kind === "bit")
+      return { dataType: "BOOL", value: (Number(this.read(ref.variable)) & (1 << ref.bit)) !== 0 };
     if (ref.kind === "variable") return { ...this.scalar(ref.variable) };
     const instance = this.block(ref.variable);
     const value = (ref.port === "input" ? instance.inputs : instance.outputs)[ref.member];
@@ -77,7 +80,11 @@ export class Memory implements ScanMemory {
   }
 
   assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
-    if (target.kind === "variable") this.write(target.variable, value);
+    if (target.kind === "bit") {
+      const pattern = Number(this.read(target.variable)),
+        mask = 1 << target.bit;
+      this.write(target.variable, value ? pattern | mask : pattern & ~mask);
+    } else if (target.kind === "variable") this.write(target.variable, value);
     else this.input(target.variable, target.member, value);
     return this.value(target);
   }

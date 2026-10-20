@@ -1,4 +1,4 @@
-import { isFunctionBlockType as isBlock } from "@benchtop-plc/core";
+import { isIntegerType, isFunctionBlockType as isBlock } from "@benchtop-plc/core";
 import type * as IR from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
 import type { CheckedProgram } from "./checked.js";
@@ -56,7 +56,7 @@ class Lowerer {
 
   private reference(
     node: AST.AssignmentTarget,
-  ): IR.VariableReference | IR.FunctionBlockMemberReference {
+  ): IR.VariableReference | IR.BitReference | IR.FunctionBlockMemberReference {
     const dataType = required(this.checked.expressions.get(node)).dataType;
     if (node.kind === "name")
       return {
@@ -66,6 +66,14 @@ class Lowerer {
         span: span(node),
       };
     const reference = required(this.checked.references.get(node.member));
+    if (reference.bit !== undefined)
+      return {
+        kind: "bit",
+        variable: reference.variable,
+        bit: reference.bit,
+        dataType: "BOOL",
+        span: span(node),
+      };
     return {
       kind: "fbMember",
       variable: reference.variable,
@@ -78,7 +86,7 @@ class Lowerer {
 
   private target(node: AST.AssignmentTarget): IR.AssignmentTarget {
     const reference = this.reference(node);
-    if (reference.kind === "variable") return reference;
+    if (reference.kind === "variable" || reference.kind === "bit") return reference;
     if (reference.port !== "input") throw new Error("Checked assignment targets an FB output");
     return { ...reference, port: "input" };
   }
@@ -210,8 +218,7 @@ class Lowerer {
       case "for": {
         const variable = required(this.checked.references.get(node.variable)).variable;
         const dataType = required(this.checked.symbols[variable]).type;
-        if (dataType !== "INT" && dataType !== "UINT" && dataType !== "DINT")
-          throw new Error("Checked FOR variable is not an integer");
+        if (!isIntegerType(dataType)) throw new Error("Checked FOR variable is not an integer");
         return {
           ...base,
           kind: "for",

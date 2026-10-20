@@ -49,3 +49,40 @@ describe("monitor values", () => {
     expect(variableValue(variable, undefined)).toBe("—");
   });
 });
+
+it.each([
+  ["SINT", "-128", -128],
+  ["USINT", "255", 255],
+  ["UDINT", "4294967295", 4294967295],
+  ["BYTE", "16#ff", 255],
+  ["WORD", "16#00_FF", 255],
+  ["WORD", "2#1000_0000_0000_0000", 32768],
+  ["DWORD", "16#FFFF_FFFF", 4294967295],
+  ["WORD", "65535", 65535],
+  ["USINT", "2.55e2", 255],
+  ["UDINT", "42949672950e-1", 4294967295],
+] as const)("parses monitor input %s %s", (type, text, value) => {
+  expect(parseWrittenValue(type, text)).toEqual({ dataType: type, value });
+});
+it.each([
+  ["SINT", "128"],
+  ["SINT", "-129"],
+  ["USINT", "256"],
+  ["USINT", "-1"],
+  ["UDINT", "4294967296"],
+  ["BYTE", "16#100"],
+  ["WORD", "65536"],
+  ["DWORD", "16#100000000"],
+  ["DWORD", "-1"],
+  ["WORD", "2#102"],
+  ["WORD", "1.5"],
+  ["WORD", "16#FF; x := 1"],
+  ["WORD", "16#__FF"],
+  ["INT", "32767.00000000000000001"],
+  ["UDINT", "4294967295.00000000001"],
+  ["BYTE", "255.00000000000000001"],
+  ["UINT", "-0.00000000000000000001"],
+  ["WORD", "1e-99999999999999999999"],
+] as const)("rejects monitor input %s %s", (type, text) => {
+  expect(parseWrittenValue(type, text)).toBeNull();
+});
