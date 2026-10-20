@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- An IEC 61131-3 compliance table documents current language support, limits and
+  implementation-dependent choices.
+
 ## [0.2.0] - 2026-10-20
 
 Release process, workflow security checks, automated dependency updates and a public demo. No language changes.
