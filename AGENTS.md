@@ -40,6 +40,7 @@ Before finishing, `pnpm typecheck && pnpm lint && pnpm test` must pass.
 - New behavior needs a test in the same PR.
 - Language semantics: add a case under `tests/conformance/`.
 - UI behavior: add or update a Playwright test in `packages/web/e2e/`.
+- Language features: update `docs/compliance.md` in the same PR.
 
 ## Don'ts
 - Don't add a dependency without stating why in the PR description.

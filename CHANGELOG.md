@@ -14,6 +14,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   overflow rules for Milestone 3.
 - ADR 0013 documents the planned implicit and explicit conversions, literal
   typing and operators for Milestone 3.
+- An IEC 61131-3 compliance table documents current language support, limits and
+  implementation-dependent choices.
 
 ## [0.2.0] - 2026-10-20
 

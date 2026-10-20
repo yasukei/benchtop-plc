@@ -19,6 +19,8 @@ Web Worker, and later on a device.
 
 The compiler semantic-checking API is documented in [type-checking.md](type-checking.md).
 The complete source-to-IR API is documented in [compiler.md](compiler.md).
+Current language support and implementation-dependent choices are documented in
+[compliance.md](compliance.md).
 
 ## Data flow
 
