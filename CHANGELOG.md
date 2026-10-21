@@ -10,6 +10,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- New standard function names (including SUB, EQ and LT) are reserved against
+  variable declarations; existing programs using those names must rename them.
+
 - **Breaking:** AND, &, OR, XOR and NOT now accept BOOL and bit strings only;
   integer operands require an explicit conversion to a bit-string type.
 - Runtime initial values and write/force commands reject out-of-range values for
@@ -28,6 +31,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 - Octal literals (`8#`) are rejected.
 
 ### Added
+
+- Standard numeric and arithmetic functions, `**` exponentiation, width-aware
+  shifts/rotates, bitwise calls, MOVE/MUX and comparison functions, including
+  exact 64-bit arithmetic. Selection functions now cover all compatible elementary
+  types, including BOOL and calendar values. Typed TRUNC and packed BCD conversion
+  families wrap integer results and fault on invalid input.
 
 - DATE, TOD, DT, LDATE, LTOD and LDT throughout the compiler, runtime, variable
   monitor and PLCopen XML, with Gregorian literals (including unpadded fields and

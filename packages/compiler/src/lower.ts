@@ -143,7 +143,7 @@ class Lowerer {
           (node.operator === "*" || node.operator === "/") &&
           (left.dataType === "TIME" || left.dataType === "LTIME");
         const common =
-          scaling || isCalendarType(left.dataType)
+          node.operator === "**" || scaling || isCalendarType(left.dataType)
             ? null
             : commonType([left.dataType, right.dataType]);
         return {
@@ -154,22 +154,32 @@ class Lowerer {
           right: common ? this.widen(right, common) : right,
         };
       }
-      case "functionCall":
+      case "functionCall": {
+        const name = required(this.checked.functions.get(node));
+        const signature = getStandardFunctionSignature(name);
+        const start = signature.genericStart;
+        const common =
+          start === undefined
+            ? null
+            : commonType(
+                node.args
+                  .slice(start)
+                  .map((arg) => required(this.checked.expressions.get(arg)).dataType),
+              );
         return {
           ...base,
           kind: "functionCall",
-          function: required(this.checked.functions.get(node)),
+          function: name,
           args: node.args.map((arg, index) => {
             const expression = this.expression(arg);
-            const name = required(this.checked.functions.get(node));
-            const accepted = getStandardFunctionSignature(name).arguments[index];
+            const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)];
+            if (start !== undefined && index >= start && common)
+              return this.widen(expression, common);
             if (accepted?.length === 1) return this.widen(expression, accepted[0]!);
-            return ["ABS", "MIN", "MAX", "LIMIT", "SEL"].includes(name) &&
-              !(name === "SEL" && index === 0)
-              ? this.widen(expression, info.dataType)
-              : expression;
+            return expression;
           }),
         };
+      }
     }
   }
 

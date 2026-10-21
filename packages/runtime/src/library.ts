@@ -1,5 +1,6 @@
 import type {
   FunctionBlockType,
+  DataType,
   StandardFunction,
   TypedValue,
   ScalarValue,
@@ -15,5 +16,9 @@ export interface FunctionBlockInstance {
 /** Replaceable dispatch; defaults to the standard library in createRuntime. */
 export interface RuntimeLibrary {
   createFunctionBlock(type: FunctionBlockType): FunctionBlockInstance;
-  callFunction(name: StandardFunction, args: readonly ScalarValue[]): ScalarValue;
+  callFunction(
+    name: StandardFunction,
+    args: readonly ScalarValue[],
+    dataType?: DataType,
+  ): ScalarValue;
 }

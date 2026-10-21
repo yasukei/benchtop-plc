@@ -54,7 +54,52 @@ export type ConversionFunction =
   | `TIME_TO_${IntegerType}`
   | `${IntegerType}_TO_TIME`
   | `TO_${DataType}`;
-export type StandardFunction = "ABS" | "MIN" | "MAX" | "LIMIT" | "SEL" | ConversionFunction;
+export type TruncationFunction =
+  `TRUNC_${IntegerType}` | `${"REAL" | "LREAL"}_TRUNC_${IntegerType}`;
+export type BcdFunction =
+  `${BitStringType}_BCD_TO_${IntegerType}` | `${IntegerType}_TO_BCD_${BitStringType}`;
+export type StandardFunction =
+  | "ABS"
+  | "SQRT"
+  | "LN"
+  | "LOG"
+  | "EXP"
+  | "SIN"
+  | "COS"
+  | "TAN"
+  | "ASIN"
+  | "ACOS"
+  | "ATAN"
+  | "ATAN2"
+  | "ADD"
+  | "MUL"
+  | "SUB"
+  | "DIV"
+  | "MOD"
+  | "EXPT"
+  | "MOVE"
+  | "SHL"
+  | "SHR"
+  | "ROL"
+  | "ROR"
+  | "AND"
+  | "OR"
+  | "XOR"
+  | "NOT"
+  | "MIN"
+  | "MAX"
+  | "LIMIT"
+  | "SEL"
+  | "MUX"
+  | "GT"
+  | "GE"
+  | "EQ"
+  | "LE"
+  | "LT"
+  | "NE"
+  | TruncationFunction
+  | BcdFunction
+  | ConversionFunction;
 
 interface VariableBase extends SourceNode {
   /** Original spelling for display. */
@@ -119,7 +164,21 @@ export type AssignmentTarget =
 
 export type UnaryOperator = "+" | "-" | "NOT";
 export type BinaryOperator =
-  "+" | "-" | "*" | "/" | "MOD" | "AND" | "OR" | "XOR" | "=" | "<>" | "<" | ">" | "<=" | ">=";
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "**"
+  | "MOD"
+  | "AND"
+  | "OR"
+  | "XOR"
+  | "="
+  | "<>"
+  | "<"
+  | ">"
+  | "<="
+  | ">=";
 
 export interface UnaryExpression extends SourceNode {
   kind: "unary";

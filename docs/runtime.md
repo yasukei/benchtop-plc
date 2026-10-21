@@ -155,9 +155,13 @@ and receives the same scan-start time on every call in a scan. FB input assignme
 and named call inputs coerce to the input port type; omitted inputs retain their
 previous values. FB outputs and function results are coerced before use. Cold
 reset requests fresh instances. `createStandardFunctionBlock(type)` and
-`callStandardFunction(name, args)` also expose the implementations directly;
+`callStandardFunction(name, args, dataType?)` also expose the implementations directly;
 direct callers supply compiler-checked, typed/coerced inputs. Polymorphic function
 results require coercion to the result type, as performed by the interpreter.
+The interpreter passes the IR result type as the optional third dispatch argument;
+direct callers must provide it for shifts/rotates and for type-specific arithmetic
+wrapping or REAL intermediate rounding. Existing two-argument custom dispatchers
+remain compatible.
 
 ### Timers and edges
 
@@ -191,9 +195,45 @@ This difference from R_TRIG is intentional: counters retain FALSE-initialized ed
 memory, while issue #9 explicitly requires first-call pulse suppression for the
 standalone R_TRIG/F_TRIG blocks. Cold reset restores each block's own startup rule.
 
-ABS, MIN, MAX and LIMIT operate on numeric values. LIMIT(MN, IN, MX) evaluates
+ABS operates on all numeric types. SQRT, LN, LOG (base 10), EXP, SIN, COS, TAN,
+ASIN, ACOS and ATAN operate on REAL/LREAL. Trigonometric arguments/results use
+radians; ATAN2(y, x) selects the quadrant. EXPT and `**` keep the real base's type
+and accept an independently typed numeric exponent. Non-finite results fault at
+the call or operator span with `runtime.invalid-value`.
+
+ADD and MUL accept two or more numeric arguments; SUB and DIV take two, and MOD
+takes two integer arguments. Integer arithmetic is exact before width-based
+wrapping, including 64-bit operands and 32-bit multiplication. DIV truncates
+integer results toward zero and division by zero faults with
+`runtime.division-by-zero`. MOD has the dividend's sign and MOD(x, 0) is zero.
+REAL results round to binary32 at each intermediate addition/multiplication.
+
+SHL/SHR/ROL/ROR operate at the value's width (BOOL is one bit) with an independent
+integer count. Shifts zero-fill; counts at or above the width return zero.
+Rotations reduce the count modulo the width. Negative counts fault with
+`runtime.invalid-value`. All 64 bits of LWORD are preserved. AND, OR and XOR
+are extensible; NOT takes one argument. Both call and operator forms accept
+BOOL/bit strings and preserve their common bit type.
+
+MIN, MAX and LIMIT accept all compatible elementary values, including BOOL
+(FALSE < TRUE), bit strings, durations and chronological calendar values. LIMIT(MN, IN, MX) evaluates
 `MIN(MAX(IN, MN), MX)`, including when bounds are reversed. SEL(G, IN0, IN1)
-returns IN0 for FALSE and IN1 for TRUE; argument evaluation remains eager.
+returns IN0 for FALSE and IN1 for TRUE. MUX(K, IN0, IN1, ...) selects the
+zero-based Kth value. An out-of-range K (including a negative value) faults with
+`runtime.invalid-value`; this is an implementation-dependent choice. MOVE returns
+its single argument. GT/GE/EQ/LE/LT require every adjacent comparison to hold;
+NE takes exactly two values. Generic values use the ADR 0013 common type.
+All function arguments, including unselected SEL/MUX values, evaluate eagerly.
+
+TRUNC_<integer> and REAL_TRUNC_<integer>/LREAL_TRUNC_<integer> truncate toward
+zero, then wrap. They preserve source real precision before truncation.
+<bit-string>_BCD_TO_<integer> decodes packed unsigned decimal digits (four bits
+per digit); any nibble above nine faults with `runtime.invalid-value`.
+<integer>_TO_BCD_<bit-string> encodes a nonnegative integer; a negative input
+faults. Results wrap to the destination width, retaining the low decimal digits
+when an encoded result exceeds the bit-string width. All integer/bit-string pairs
+are available, including LWORD/ULINT. These calls are not constant expressions.
+
 Numeric conversions exist for every distinct ordered pair of supported integer
 and real types, with overloaded TO_<type> forms. LREAL ↔ LWORD reinterprets the
 binary64 pattern; nonfinite patterns fault. LTIME ↔ integer extensions count

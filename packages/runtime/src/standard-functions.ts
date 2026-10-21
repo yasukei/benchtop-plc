@@ -1,10 +1,26 @@
-import { convertValue, getStandardFunctionSignature } from "@benchtop-plc/core";
-import type { ScalarValue, StandardFunction } from "@benchtop-plc/core";
+import {
+  binaryValue,
+  bitWidths,
+  coerceValue,
+  convertValue,
+  getStandardFunctionSignature,
+  isBitType,
+  isIntegerType,
+  unaryValue,
+} from "@benchtop-plc/core";
+import type {
+  BinaryOperator,
+  ConversionFunction,
+  DataType,
+  ScalarValue,
+  StandardFunction,
+} from "@benchtop-plc/core";
 
-/** Arguments are compiler-checked; the interpreter coerces polymorphic results to the IR type. */
+/** Arguments are compiler-checked. Width-dependent operations require the IR result type. */
 export function callStandardFunction(
   name: StandardFunction,
   args: readonly ScalarValue[],
+  dataType?: DataType,
 ): ScalarValue {
   const signature = getStandardFunctionSignature(name);
   if (args.length < signature.min || (signature.max !== null && args.length > signature.max))
@@ -15,13 +31,119 @@ export function callStandardFunction(
   const long = args.some((value) => typeof value === "string" || typeof value === "bigint");
   const compare = (a: ScalarValue, b: ScalarValue) =>
     long ? BigInt(a) < BigInt(b) : Number(a) < Number(b);
+  const quantize = (value: ScalarValue): ScalarValue =>
+    dataType ? coerceValue(dataType, value) : value;
+  const numeric = (operation: (value: number) => number): ScalarValue => {
+    const result = operation(first);
+    if (!Number.isFinite(result)) throw new RangeError("Non-finite function result");
+    return quantize(result);
+  };
+  const fold = (operator: BinaryOperator): ScalarValue =>
+    args.reduce((left, right) => {
+      // BigInt also protects 32-bit products from binary64 rounding before wrapping.
+      const exact = long || (dataType !== undefined && isIntegerType(dataType));
+      return quantize(
+        binaryValue(operator, exact ? BigInt(left) : left, exact ? BigInt(right) : right),
+      );
+    });
+  if (name.includes("TRUNC_")) {
+    const source = name.startsWith("TRUNC_") ? null : (name.split("_TRUNC_")[0] as DataType);
+    const value = source ? coerceValue(source, args[0]!) : args[0]!;
+    return coerceValue(signature.result!, BigInt(Math.trunc(Number(value))));
+  }
+  if (name.includes("_BCD_TO_")) {
+    const source = name.split("_BCD_TO_")[0] as DataType;
+    let bits = BigInt(coerceValue(source, args[0]!)),
+      result = 0n,
+      place = 1n;
+    while (bits) {
+      const digit = bits & 15n;
+      if (digit > 9n) throw new RangeError("Invalid BCD digit");
+      result += digit * place;
+      place *= 10n;
+      bits >>= 4n;
+    }
+    return coerceValue(signature.result!, result);
+  }
+  if (name.includes("_TO_BCD_")) {
+    const source = name.split("_TO_BCD_")[0] as DataType;
+    let value = BigInt(coerceValue(source, args[0]!)),
+      result = 0n,
+      shift = 0n;
+    if (value < 0n) throw new RangeError("BCD requires a nonnegative integer");
+    while (value) {
+      result |= (value % 10n) << shift;
+      value /= 10n;
+      shift += 4n;
+    }
+    return coerceValue(signature.result!, result);
+  }
   switch (name) {
     case "ABS":
-      return long
-        ? BigInt(args[0]!) < 0n
-          ? -BigInt(args[0]!)
-          : BigInt(args[0]!)
-        : Math.abs(first);
+      return quantize(
+        long ? (BigInt(args[0]!) < 0n ? -BigInt(args[0]!) : BigInt(args[0]!)) : Math.abs(first),
+      );
+    case "SQRT":
+      return numeric(Math.sqrt);
+    case "LN":
+      return numeric(Math.log);
+    case "LOG":
+      return numeric(Math.log10);
+    case "EXP":
+      return numeric(Math.exp);
+    case "SIN":
+      return numeric(Math.sin);
+    case "COS":
+      return numeric(Math.cos);
+    case "TAN":
+      return numeric(Math.tan);
+    case "ASIN":
+      return numeric(Math.asin);
+    case "ACOS":
+      return numeric(Math.acos);
+    case "ATAN":
+      return numeric(Math.atan);
+    case "ATAN2":
+      return numeric((value) => Math.atan2(value, Number(args[1])));
+    case "EXPT":
+      return numeric(() => Number(binaryValue("**", args[0]!, args[1]!)));
+    case "ADD":
+      return fold("+");
+    case "MUL":
+      return fold("*");
+    case "SUB":
+      return fold("-");
+    case "DIV":
+      if (Number(args[1]) === 0) throw new RangeError("Division by zero");
+      return fold("/");
+    case "MOD":
+      return fold("MOD");
+    case "AND":
+      return fold("AND");
+    case "OR":
+      return fold("OR");
+    case "XOR":
+      return fold("XOR");
+    case "NOT":
+      return quantize(unaryValue("NOT", args[0]!));
+    case "SHL":
+    case "SHR":
+    case "ROL":
+    case "ROR": {
+      if (!dataType || !isBitType(dataType)) throw new Error("Shift requires a bit result type");
+      const width = BigInt(bitWidths[dataType]);
+      let count = BigInt(args[1]!);
+      if (count < 0n) throw new RangeError("Negative shift count");
+      const value = BigInt(args[0]!);
+      if (name === "SHL" || name === "SHR")
+        return quantize(count >= width ? 0n : name === "SHL" ? value << count : value >> count);
+      count %= width;
+      return quantize(
+        name === "ROL"
+          ? (value << count) | (value >> (width - count))
+          : (value >> count) | (value << (width - count)),
+      );
+    }
     case "MIN":
       return args.reduce((value, arg) => (compare(arg, value) ? arg : value));
     case "MAX":
@@ -32,7 +154,38 @@ export function callStandardFunction(
     }
     case "SEL":
       return args[args[0] ? 2 : 1]!;
+    case "MUX": {
+      const selector = BigInt(args[0]!);
+      if (selector < 0n || selector >= BigInt(args.length - 1))
+        throw new RangeError("MUX selector out of range");
+      return args[Number(selector) + 1]!;
+    }
+    case "MOVE":
+      return args[0]!;
+    case "GT":
+    case "GE":
+    case "EQ":
+    case "LE":
+    case "LT":
+    case "NE":
+      return args.slice(1).every((right, index) => {
+        const left = args[index]!;
+        switch (name) {
+          case "GT":
+            return compare(right, left);
+          case "GE":
+            return !compare(left, right);
+          case "LT":
+            return compare(left, right);
+          case "LE":
+            return !compare(right, left);
+          case "EQ":
+            return !compare(left, right) && !compare(right, left);
+          case "NE":
+            return compare(left, right) || compare(right, left);
+        }
+      });
     default:
-      return convertValue(name, args[0]!);
+      return convertValue(name as ConversionFunction, args[0]!);
   }
 }

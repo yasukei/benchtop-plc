@@ -151,8 +151,8 @@ describe("bit-string operators and bit access", () => {
     });
     expect(
       execute(`a: DWORD := TRUE OR DWORD#16#80000000;
-      eq: BOOL := TRUE = BYTE#1; n: BYTE := NOT BYTE#0;`).values,
-    ).toEqual({ a: 2147483649, eq: true, n: 255 });
+      same: BOOL := TRUE = BYTE#1; n: BYTE := NOT BYTE#0;`).values,
+    ).toEqual({ a: 2147483649, same: true, n: 255 });
   });
   it.each(["AND", "&", "OR", "XOR"])("rejects integer %s", (operator) => {
     expect(program("i: INT;", `i := i ${operator} 1;`).diagnostics).toContainEqual(

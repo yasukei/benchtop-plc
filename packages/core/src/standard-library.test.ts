@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  conversionFunctions,
+  truncationFunctions,
+  bcdFunctions,
   getStandardFunctionSignature,
   isFunctionBlockType,
   isStandardFunction,
@@ -160,9 +163,33 @@ it("registers exactly the current conversion families and no unrelated conversio
     "TIME_TO_LTIME",
     "LTIME_TO_TIME",
   );
-  expect(
-    Object.keys(standardFunctions)
-      .filter((name) => !["ABS", "MIN", "MAX", "LIMIT", "SEL"].includes(name))
+  expect(Object.keys(conversionFunctions).sort()).toEqual(names.sort());
+});
+
+it("registers the complete truncation and BCD families", () => {
+  const integers = ["SINT", "USINT", "INT", "UINT", "DINT", "UDINT", "LINT", "ULINT"];
+  expect(Object.keys(truncationFunctions).sort()).toEqual(
+    integers.flatMap((to) => [`TRUNC_${to}`, `REAL_TRUNC_${to}`, `LREAL_TRUNC_${to}`]).sort(),
+  );
+  expect(Object.keys(bcdFunctions).sort()).toEqual(
+    integers
+      .flatMap((integer) =>
+        ["BYTE", "WORD", "DWORD", "LWORD"].flatMap((bits) => [
+          `${bits}_BCD_TO_${integer}`,
+          `${integer}_TO_BCD_${bits}`,
+        ]),
+      )
       .sort(),
-  ).toEqual(names.sort());
+  );
+  expect(isStandardFunction("TRUNC")).toBe(false);
+  expect(getStandardFunctionSignature("EXPT")).toMatchObject({
+    arguments: [["REAL", "LREAL"], expect.arrayContaining(["LINT", "ULINT"])],
+    resultArgument: 0,
+  });
+  expect(getStandardFunctionSignature("MUX")).toMatchObject({ genericStart: 1, min: 3, max: null });
+  expect(getStandardFunctionSignature("EQ")).toMatchObject({
+    genericStart: 0,
+    result: "BOOL",
+    max: null,
+  });
 });
