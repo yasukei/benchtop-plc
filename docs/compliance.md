@@ -49,16 +49,16 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Literals
 
-| Feature                                          | Status  | Notes                                                                               |
-| ------------------------------------------------ | ------- | ----------------------------------------------------------------------------------- |
-| Integer literals, decimal, `2#` and `16#`        | Partial | Exact constants, typed by position (ADR 0013); checked against the resulting type   |
-| Octal literals `8#`                              | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number` |
-| Real literals with exponent                      | Yes     |                                                                                     |
-| Boolean literals `TRUE`, `FALSE`                 | Yes     |                                                                                     |
-| Boolean literals `0`, `1`                        | Yes     | Integer constants in BOOL positions                                                 |
-| Duration literals `T#`, `TIME#`, `LT#`, `LTIME#` | Yes     | Units d/h/m/s/ms, plus us/ns for LTIME; exact range checks precede TIME truncation  |
-| Typed literals `<type>#<value>`                  | Partial | All supported elementary types; based integer and bit-string forms included         |
-| Date and time-of-day literals                    | Yes     | All short and full prefixes; Gregorian dates, precision and ranges checked          |
+| Feature                                          | Status  | Notes                                                                                                                 |
+| ------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| Integer literals, decimal, `2#` and `16#`        | Partial | Exact constants, typed by position (ADR 0013); checked against the resulting type                                     |
+| Octal literals `8#`                              | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number`                                   |
+| Real literals with exponent                      | Yes     |                                                                                                                       |
+| Boolean literals `TRUE`, `FALSE`                 | Yes     |                                                                                                                       |
+| Boolean literals `0`, `1`                        | Yes     | Integer constants in BOOL positions                                                                                   |
+| Duration literals `T#`, `TIME#`, `LT#`, `LTIME#` | Yes     | Units d/h/m/s/ms, plus us/ns for LTIME; exact range checks precede TIME truncation                                    |
+| Typed literals `<type>#<value>`                  | Partial | All supported elementary types; based integer and bit-string forms included                                           |
+| Date and time-of-day literals                    | Yes     | All short and full prefixes; unpadded fields and underscore separators; Gregorian dates, precision and ranges checked |
 
 ## Derived types and variables
 

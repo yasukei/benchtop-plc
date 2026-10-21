@@ -275,3 +275,17 @@ it.each(["LDT_TO_DATE(INT#1)", "LDATE_TO_DATE(TOD#00:00:01)", "LDT_TO_DT(TRUE)",
     );
   },
 );
+
+it.each([
+  ["DATE", "D#2026-1-5", "D#2026-01-05"],
+  ["DATE", "DATE#2_026-01-0_5", "D#2026-01-05"],
+  ["LDATE", "LD#1_677-9-22", "LDATE#1677-09-22"],
+  ["TOD", "TOD#8:05:00", "TOD#08:05:00"],
+  ["TOD", "TIME_OF_DAY#8:5:0.1_20", "TOD#08:05:00.12"],
+  ["LTOD", "LTOD#15:36:55.360_227_400", "LTOD#15:36:55.3602274"],
+  ["DT", "DT#2_026-1-5-8:5:0", "DT#2026-01-05-08:05:00"],
+  ["LDT", "LDATE_AND_TIME#1_969-12-31-23:59:59.999_999_999", "LDT#1969-12-31-23:59:59.999999999"],
+] as const)("accepts unpadded and separated calendar fields: %s %s", (type, literal, expected) => {
+  const { values } = execute(`x: ${type} := ${literal};`);
+  expect(formatValue(type, values.x as number | string)).toBe(expected);
+});

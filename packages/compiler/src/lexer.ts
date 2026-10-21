@@ -273,11 +273,12 @@ class Lexer {
         this.advance();
         const dateOnly = calendarPrefixes[key] === "DATE" || calendarPrefixes[key] === "LDATE";
         // Hyphens belong to the calendar fields; a following subtraction is a new token.
-        const pattern = dateOnly
-          ? /^\d{4}-\d{2}-\d{2}/
-          : calendarPrefixes[key] === "TOD" || calendarPrefixes[key] === "LTOD"
-            ? /^\d{2}:\d{2}:\d{2}(?:\.\d+)?/
-            : /^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}(?:\.\d+)?/;
+        const field = "[0-9]+(?:_[0-9]+)*";
+        const datePattern = `${field}-${field}-${field}`;
+        const timePattern = `${field}:${field}:${field}(?:\\.${field})?`;
+        const pattern = new RegExp(
+          `^${dateOnly ? datePattern : calendarPrefixes[key] === "TOD" || calendarPrefixes[key] === "LTOD" ? timePattern : `${datePattern}-${timePattern}`}`,
+        );
         const match = pattern.exec(this.source.slice(this.offset));
         if (match) for (let i = 0; i < match[0].length; i++) this.advance();
         return { ...this.token("calendar", start, span, 0), dataType: calendarPrefixes[key]! };

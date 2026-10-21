@@ -39,7 +39,7 @@ export function readStToken(
   const address = /^%[A-Za-z0-9_.]*/.exec(source);
   if (address) return { length: address[0].length, style: "variableName.special" };
   const calendar =
-    /^(?:DATE_AND_TIME|LDATE_AND_TIME|TIME_OF_DAY|LTIME_OF_DAY|LDATE|DATE|LTOD|TOD|LDT|DT|LD|D)#(?:\d{4}-\d{2}-\d{2}(?:-\d{2}:\d{2}:\d{2}(?:\.\d+)?)?|\d{2}:\d{2}:\d{2}(?:\.\d+)?)/i.exec(
+    /^(?:DATE_AND_TIME|LDATE_AND_TIME|TIME_OF_DAY|LTIME_OF_DAY|LDATE|DATE|LTOD|TOD|LDT|DT|LD|D)#(?:\d+(?:_\d+)*-\d+(?:_\d+)*-\d+(?:_\d+)*(?:-\d+(?:_\d+)*:\d+(?:_\d+)*:\d+(?:_\d+)*(?:\.\d+(?:_\d+)*)?)?|\d+(?:_\d+)*:\d+(?:_\d+)*:\d+(?:_\d+)*(?:\.\d+(?:_\d+)*)?)/i.exec(
       source,
     );
   if (calendar) return { length: calendar[0].length, style: "number" };

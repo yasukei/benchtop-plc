@@ -125,3 +125,18 @@ it.each([
     style: "number",
   });
 });
+
+it.each([
+  "D#2026-1-5",
+  "DATE#2_026-01-0_5",
+  "TOD#8:05:00",
+  "TIME_OF_DAY#8:5:0.1_20",
+  "LTOD#15:36:55.360_227_400",
+  "DT#2_026-1-5-8:5:0",
+  "LDT#1_969-12-31-23:59:59.999_999_999",
+])("highlights unpadded and separated calendar fields: %s", (source) => {
+  expect(readStToken(source + "-T#1s", { commentDepth: 0 })).toEqual({
+    length: source.length,
+    style: "number",
+  });
+});

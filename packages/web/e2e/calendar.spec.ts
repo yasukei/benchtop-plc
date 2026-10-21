@@ -19,7 +19,7 @@ END_PROGRAM`);
       .filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${name}(?: Forced)?$`) }) });
   await expect(row("day").locator("td").nth(2)).toHaveText("D#2024-02-29");
   await expect(row("stamp").locator("td").nth(2)).toHaveText("DT#1970-01-01-00:00:00");
-  await row("stamp").getByLabel("Value to write").fill("DT#2026-10-20-12:30:15");
+  await row("stamp").getByLabel("Value to write").fill("DT#2_026-10-20-12:30:15");
   await row("stamp").getByRole("button", { name: "Write", exact: true }).click();
   await expect(row("stamp").locator("td").nth(2)).toHaveText("DT#2026-10-20-12:30:15");
   await expect(row("mirror").locator("td").nth(2)).toHaveText("DT#2026-10-20-12:30:15");
@@ -27,7 +27,7 @@ END_PROGRAM`);
   await row("stamp").getByRole("button", { name: "Write", exact: true }).click();
   await expect(row("stamp").getByRole("alert")).toContainText("valid value");
   await expect(row("stamp").locator("td").nth(2)).toHaveText("DT#2026-10-20-12:30:15");
-  await row("longStamp").getByLabel("Value to write").fill("LDT#1677-09-21-00:12:43.145224192");
+  await row("longStamp").getByLabel("Value to write").fill("LDT#1_677-9-21-0:12:43.145_224_192");
   await row("longStamp").getByRole("button", { name: "Force", exact: true }).click();
   await expect(row("longStamp")).toHaveAttribute("data-forced", "true");
   await expect(row("longStamp").locator("td").nth(2)).toHaveText(

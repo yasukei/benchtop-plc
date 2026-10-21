@@ -30,7 +30,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 ### Added
 
 - DATE, TOD, DT, LDATE, LTOD and LDT throughout the compiler, runtime, variable
-  monitor and PLCopen XML, with Gregorian literals, calendar conversions, exact
+  monitor and PLCopen XML, with Gregorian literals (including unpadded fields and
+  underscore separators), calendar conversions, exact
   nanosecond long values, chronological comparisons and duration arithmetic.
   Times of day wrap within one day; out-of-range dates fault. Calendar defaults
   use the Unix epoch or midnight.

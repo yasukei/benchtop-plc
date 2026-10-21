@@ -60,7 +60,9 @@ Calendar declarations accept DATE, TOD/TIME_OF_DAY, DT/DATE_AND_TIME, LDATE,
 LTOD/LTIME_OF_DAY and LDT/LDATE_AND_TIME. IR types use DATE, TOD, DT, LDATE, LTOD,
 and LDT. Literals accept D#/DATE#, LD#/LDATE#, TOD#/TIME_OF_DAY#,
 LTOD#/LTIME_OF_DAY#, DT#/DATE_AND_TIME# and LDT#/LDATE_AND_TIME#.
-Invalid Gregorian dates, unsupported fractional precision and out-of-range literals
+Calendar fields may be unpadded and contain underscore digit separators, including
+fractional seconds (for example `D#2_026-1-5` or `LTOD#15:36:55.360_227_400`).
+Formatting uses padded fields and omits separators. Invalid Gregorian dates, unsupported fractional precision and out-of-range literals
 report `type.invalid-constant`.
 
 DATE − DATE, TOD − TOD and DT − DT yield TIME; long or mixed short/long differences

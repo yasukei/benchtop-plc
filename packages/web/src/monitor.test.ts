@@ -138,3 +138,11 @@ it.each([
 ] as const)("rejects invalid calendar monitor input for %s", (type, text) => {
   expect(parseWrittenValue(type, text)).toBeNull();
 });
+
+it("accepts unpadded calendar fields and nanosecond digit separators in monitor input", () => {
+  expect(parseWrittenValue("DATE", "D#2026-1-5")).toEqual({ dataType: "DATE", value: 1767571200 });
+  expect(parseWrittenValue("LTOD", "LTOD#0:0:0.000_000_001")).toEqual({
+    dataType: "LTOD",
+    value: "1",
+  });
+});

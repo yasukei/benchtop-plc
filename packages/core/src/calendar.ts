@@ -33,13 +33,16 @@ export function parseCalendar(type: CalendarType, literal: string): number | str
   const text = literal.slice(literal.indexOf("#") + 1);
   const dateOnly = type === "DATE" || type === "LDATE";
   const timeOnly = type === "TOD" || type === "LTOD";
-  const date = timeOnly ? undefined : /^(\d{4})-(\d{2})-(\d{2})(?:-|$)/.exec(text);
+  const field = "[0-9]+(?:_[0-9]+)*";
+  const date = timeOnly
+    ? undefined
+    : new RegExp(`^(${field})-(${field})-(${field})${dateOnly ? "$" : "-"}`).exec(text);
   let ns = 0n;
   if (!timeOnly) {
     if (!date) throw new RangeError("Invalid date");
-    const year = Number(date[1]),
-      month = Number(date[2]),
-      day = Number(date[3]);
+    const year = Number(date[1]!.replaceAll("_", "")),
+      month = Number(date[2]!.replaceAll("_", "")),
+      day = Number(date[3]!.replaceAll("_", ""));
     const stamp = new Date(0);
     stamp.setUTCFullYear(year, month - 1, day);
     if (
@@ -50,15 +53,20 @@ export function parseCalendar(type: CalendarType, literal: string): number | str
     )
       throw new RangeError("Invalid date");
     ns = BigInt(stamp.getTime()) * 1000000n;
-    if (dateOnly && text.length !== 10) throw new RangeError("Invalid date");
   }
   if (!dateOnly) {
-    const time = /^(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?$/.exec(timeOnly ? text : text.slice(11));
-    if (!time || Number(time[1]) > 23 || Number(time[2]) > 59 || Number(time[3]) > 59)
+    const time = new RegExp(`^(${field}):(${field}):(${field})(?:\\.(${field}))?$`).exec(
+      timeOnly ? text : text.slice(date![0].length),
+    );
+    if (!time) throw new RangeError("Invalid time of day");
+    const hour = Number(time[1]!.replaceAll("_", ""));
+    const minute = Number(time[2]!.replaceAll("_", ""));
+    const second = Number(time[3]!.replaceAll("_", ""));
+    const fraction = (time[4] ?? "").replaceAll("_", "");
+    if (hour > 23 || minute > 59 || second > 59 || fraction.length > 9)
       throw new RangeError("Invalid time of day");
     ns +=
-      BigInt(Number(time[1]) * 3600 + Number(time[2]) * 60 + Number(time[3])) * 1000000000n +
-      BigInt((time[4] ?? "").padEnd(9, "0"));
+      BigInt(hour * 3600 + minute * 60 + second) * 1000000000n + BigInt(fraction.padEnd(9, "0"));
   }
   const unit = calendarUnit(type);
   if (ns % unit !== 0n) throw new RangeError("Calendar literal exceeds type precision");
