@@ -109,6 +109,7 @@ export function binaryType(
         : left;
     return null;
   }
+  if (operator === "**") return isReal(left) && isNumeric(right) ? left : null;
   const common = commonType([left, right]);
   const numeric = isNumeric(left) && isNumeric(right);
   const integers = isInteger(left) && isInteger(right);

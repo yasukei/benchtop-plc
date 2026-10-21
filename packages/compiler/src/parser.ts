@@ -35,6 +35,7 @@ const precedence: Partial<Record<string, number>> = {
   "*": 7,
   "/": 7,
   MOD: 7,
+  "**": 8,
 };
 
 class Parser {
@@ -388,9 +389,10 @@ class Parser {
 
   private primary(): Expression {
     const token = this.current;
+    // NOT(expr) is also the existing unary operator with a grouped operand.
     if (this.at("-") || this.at("+") || this.at("NOT")) {
       this.take();
-      const operand = this.primary();
+      const operand = this.expression(precedence["**"]!);
       return {
         kind: "unary",
         operator: token.key as "+" | "-" | "NOT",
@@ -430,8 +432,12 @@ class Parser {
         span: token.span,
       };
     }
-    if (token.kind !== "identifier") this.expected("expression");
-    const name = this.identifier();
+    const keywordCall =
+      ["AND", "OR", "XOR", "MOD"].includes(token.key) && this.tokens[this.cursor + 1]?.key === "(";
+    if (token.kind !== "identifier" && !keywordCall) this.expected("expression");
+    const name = keywordCall
+      ? (this.take(), { name: token.text, key: token.key, span: token.span })
+      : this.identifier();
     if (this.accept("(")) {
       const args: Expression[] = [];
       if (!this.at(")")) {

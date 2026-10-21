@@ -339,7 +339,7 @@ class Lexer {
       }
       return this.token("address", start, span);
     }
-    if ([":=", "..", "<=", ">=", "<>", "=>"].some((symbol) => this.starts(symbol))) {
+    if ([":=", "..", "<=", ">=", "<>", "=>", "**"].some((symbol) => this.starts(symbol))) {
       this.advance();
       this.advance();
       return this.token("symbol", start, span);

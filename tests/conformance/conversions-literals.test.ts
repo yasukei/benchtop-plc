@@ -176,7 +176,7 @@ describe("ADR 0013 conversions and constants", () => {
   it("rounds directly to binary32/64 at ties, subnormals and signed zero", () => {
     const { values } = execute(`a: REAL := REAL#1.000000178813934326171874999;
       b: REAL := 1.000000178813934326171874999; tie: REAL := 1.000000059604644775390625;
-      up: REAL := 1.000000059604644775390626; sub: REAL := 1.401298464324817e-45;
+      up: REAL := 1.000000059604644775390626; subnormal: REAL := 1.401298464324817e-45;
       tiny: LREAL := 4.9406564584124654e-324; zero: REAL := -0.0;`);
     expect(formatValue("REAL", Number(values.a))).toBe("1.0000001");
     expect(values).toMatchObject({
@@ -184,7 +184,7 @@ describe("ADR 0013 conversions and constants", () => {
       b: 1 + 2 ** -23,
       tie: 1,
       up: 1 + 2 ** -23,
-      sub: 2 ** -149,
+      subnormal: 2 ** -149,
       tiny: Number.MIN_VALUE,
       zero: 0,
     });

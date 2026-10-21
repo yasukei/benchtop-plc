@@ -19,6 +19,13 @@ export function binaryValue(
   left: ScalarValue,
   right: ScalarValue,
 ): ScalarValue {
+  if (operator === "**") {
+    const base = Number(left);
+    // A 64-bit integer exponent can lose its parity when converted to binary64.
+    if (base < 0 && (typeof right === "string" || typeof right === "bigint"))
+      return (BigInt(right) % 2n === 0n ? 1 : -1) * Math.abs(base) ** Number(right);
+    return base ** Number(right);
+  }
   const long =
     typeof left === "string" ||
     typeof right === "string" ||

@@ -313,7 +313,13 @@ class Checker {
       }
       case "binary": {
         const scaling = (node.operator === "*" || node.operator === "/") && !isUntyped(node.left);
-        const values = this.operands([node.left, node.right], scaling);
+        const values =
+          node.operator === "**"
+            ? [
+                this.expression(node.left, isUntyped(node.left) ? "LREAL" : undefined),
+                this.expression(node.right),
+              ]
+            : this.operands([node.left, node.right], scaling);
         const [left, right] = values;
         if (!left || !right) return null;
         const dataType = binaryType(node.operator, left.dataType, right.dataType);
@@ -325,7 +331,7 @@ class Checker {
           );
           return null;
         }
-        const common = commonType([left.dataType, right.dataType]);
+        const common = node.operator === "**" ? null : commonType([left.dataType, right.dataType]);
         const constantOperand = (operand: ExpressionInfo): ScalarValue =>
           common && isLongType(common) && operand.dataType !== common
             ? convertValue(
@@ -398,7 +404,11 @@ class Checker {
   /** Original typed neighbors supply a type only to whole untyped constants.
    * Defaults chosen for other constants never influence this contextual type. TIME scaling
    * has independent operand types, so its numeric factor uses the default. */
-  private operands(nodes: AST.Expression[], independent = false): (ExpressionInfo | null)[] {
+  private operands(
+    nodes: AST.Expression[],
+    independent = false,
+    defaultExpected?: DataType,
+  ): (ExpressionInfo | null)[] {
     const infos = nodes.map((node) => (isUntyped(node) ? null : this.expression(node)));
     const pending = new Set(nodes.flatMap((node, index) => (isUntyped(node) ? [index] : [])));
     independent = independent && (infos[0]?.dataType === "TIME" || infos[0]?.dataType === "LTIME");
@@ -413,7 +423,7 @@ class Checker {
         useDefault = true;
       }
       if (useDefault) {
-        infos[index] = this.expression(node);
+        infos[index] = this.expression(node, defaultExpected);
         pending.delete(index);
       }
     }
@@ -445,17 +455,28 @@ class Checker {
         node.span,
       );
     }
-    const args = signature.result
-      ? node.args.map((arg, index) => {
-          const types = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
-          return this.expression(arg, types.length === 1 ? types[0] : undefined);
-        })
-      : name === "SEL"
-        ? [
-            node.args[0] ? this.expression(node.args[0], "BOOL") : null,
-            ...this.operands(node.args.slice(1)),
-          ]
-        : this.operands(node.args);
+    const parameter = (arg: AST.Expression, index: number): ExpressionInfo | null => {
+      const types = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+      return this.expression(
+        arg,
+        types.length === 1
+          ? types[0]
+          : types.every((type) => type === "REAL" || type === "LREAL")
+            ? "LREAL"
+            : undefined,
+      );
+    };
+    const start = signature.genericStart;
+    const realGroup =
+      start !== undefined &&
+      signature.arguments[start]?.every((type) => type === "REAL" || type === "LREAL");
+    const args =
+      start === undefined
+        ? node.args.map(parameter)
+        : [
+            ...node.args.slice(0, start).map(parameter),
+            ...this.operands(node.args.slice(start), false, realGroup ? "LREAL" : undefined),
+          ];
     let validArguments = true;
     args.forEach((arg, index) => {
       if (!arg) {
@@ -466,7 +487,7 @@ class Checker {
       // A fixed source parameter is a typed slot and accepts implicit widening.
       if (
         !expected.some((to) =>
-          name.startsWith("TO_") ? to === arg.dataType : assignable(to, arg.dataType),
+          expected.length === 1 ? assignable(to, arg.dataType) : to === arg.dataType,
         )
       ) {
         validArguments = false;
@@ -480,7 +501,8 @@ class Checker {
           );
       }
     });
-    if (signature.result) {
+    if (signature.result && start === undefined) {
+      if (!Object.hasOwn(conversionFunctions, name)) return { dataType: signature.result };
       const arg = args[0];
       // Resolve overloaded conversions now, while the operand type is still available.
       const concrete = arg ? `${arg.dataType}_TO_${signature.result}` : name;
@@ -522,7 +544,11 @@ class Checker {
               ),
       );
     }
-    const values = (name === "SEL" ? args.slice(1) : args).filter((arg) => arg !== null);
+    if (signature.resultArgument !== undefined) {
+      const arg = args[signature.resultArgument];
+      return arg ? { dataType: arg.dataType } : null;
+    }
+    const values = args.slice(start ?? 0).filter((arg) => arg !== null);
     const dataType = commonType(values.map((arg) => arg.dataType));
     if (!dataType && values.length) {
       this.report(
@@ -536,7 +562,7 @@ class Checker {
         node.span,
       );
     }
-    return dataType ? { dataType } : null;
+    return dataType ? { dataType: signature.result ?? dataType } : null;
   }
 
   private assignment(to: DataType, info: ExpressionInfo, span: SourceSpan): boolean {

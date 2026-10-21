@@ -128,12 +128,12 @@ export class Interpreter {
       }
       case "functionCall": {
         if (!this.library) throw new Error("A runtime library is required for functions");
+        const args = expr.args.map((arg) => this.expression(arg));
+        if (expr.function === "DIV" && Number(args[1]) === 0)
+          this.fault("runtime.division-by-zero", expr.span);
         return coerceValue(
           expr.dataType,
-          this.library.callFunction(
-            expr.function,
-            expr.args.map((arg) => this.expression(arg)),
-          ),
+          this.library.callFunction(expr.function, args, expr.dataType),
         );
       }
     }

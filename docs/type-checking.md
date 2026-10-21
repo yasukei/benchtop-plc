@@ -38,7 +38,7 @@ conversion requires a conversion function; the diagnostic includes the localizab
 These rules apply to assignments, initializers, FB inputs, fixed function
 parameters, CASE labels and FOR start/end/step values (the control variable's type).
 
-Operators and generic MIN/MAX/LIMIT/SEL value arguments use one set-based common
+Operators and generic function value arguments use one set-based common
 type, independent of argument order: select a candidate all operands can widen to
 that itself widens to all other candidates. If none exists and all operands are
 integers, repeat that selection with only integer candidates. For example INT +
@@ -121,14 +121,50 @@ The compiler consumes the shared core function/block descriptors. Port order fol
 [core-contracts.md](core-contracts.md). Omitted FB inputs retain their values;
 provided inputs must be unique, writable and assignable to their declared types.
 
-| Function     | Arguments                                           | Result                         |
-| ------------ | --------------------------------------------------- | ------------------------------ |
-| ABS          | One numeric value                                   | Argument type                  |
-| MIN, MAX     | Two or more numeric values                          | Set-based common type          |
-| LIMIT        | Three numeric values                                | Set-based common type          |
-| SEL          | BOOL selector, two compatible values                | Common type of value arguments |
-| `<A>_TO_<B>` | One value assignable to A                           | B                              |
-| `TO_<B>`     | One value from a supported conversion source family | B                              |
+| Function                                            | Arguments                                                                          | Result                               |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------ |
+| ABS                                                 | ANY_NUM                                                                            | Argument type                        |
+| SQRT, LN, LOG, EXP, SIN, COS, TAN, ASIN, ACOS, ATAN | ANY_REAL                                                                           | Argument type                        |
+| ATAN2                                               | Two ANY_REAL values (y, x)                                                         | Common type                          |
+| ADD, MUL                                            | Two or more ANY_NUM values                                                         | Common type                          |
+| SUB, DIV                                            | Two ANY_NUM values                                                                 | Common type                          |
+| MOD                                                 | Two ANY_INT values                                                                 | Common type                          |
+| EXPT, `**`                                          | ANY_REAL base, independently typed ANY_NUM exponent                                | Base type                            |
+| MOVE                                                | ANY_ELEMENTARY                                                                     | Argument type                        |
+| SHL, SHR, ROL, ROR                                  | ANY_BIT value, independently typed ANY_INT count                                   | Value type                           |
+| AND, OR, XOR                                        | Two or more ANY_BIT values                                                         | Common type                          |
+| NOT                                                 | ANY_BIT                                                                            | Argument type                        |
+| MIN, MAX                                            | Two or more ANY_ELEMENTARY values                                                  | Common type                          |
+| LIMIT                                               | Three ANY_ELEMENTARY values (lower, input, upper)                                  | Common type                          |
+| SEL                                                 | BOOL selector, two compatible ANY_ELEMENTARY values                                | Common type of values                |
+| MUX                                                 | Independently typed ANY_INT selector, two or more compatible ANY_ELEMENTARY values | Common type of values                |
+| GT, GE, EQ, LE, LT                                  | Two or more compatible ANY_ELEMENTARY values                                       | BOOL (all adjacent comparisons hold) |
+| NE                                                  | Two compatible ANY_ELEMENTARY values                                               | BOOL                                 |
+| `TRUNC_<B>`                                         | ANY_REAL                                                                           | Integer B                            |
+| `<A>_TRUNC_<B>`                                     | One value assignable to real A                                                     | Integer B                            |
+| `<A>_BCD_TO_<B>`                                    | One value assignable to bit string A                                               | Integer B                            |
+| `<A>_TO_BCD_<B>`                                    | One value assignable to integer A                                                  | Bit string B                         |
+| `<A>_TO_<B>`                                        | One value assignable to A                                                          | B                                    |
+| `TO_<B>`                                            | One value from a supported conversion source family                                | B                                    |
+
+ANY_NUM includes signed/unsigned integers and reals; ANY_INT includes all eight
+integer types; ANY_REAL is REAL/LREAL; ANY_BIT includes BOOL and all bit strings.
+ANY_ELEMENTARY includes all supported scalar types, including BOOL, durations and
+calendar types. Generic groups use the set-based common type described above;
+selectors, shift counts and exponents never participate in the value group.
+An untyped integer in a real-only position (including the base of `2 ** 10`)
+becomes LREAL. Typed integer bases require an explicit real conversion.
+`**` binds more tightly than unary operators and multiplication (`-2 ** 2` is -4.0);
+operators at the same precedence evaluate left to right, so `2 ** 3 ** 2` is 64.0.
+Keyword function calls such as `AND(a, b)` and `MOD(a, b)` are accepted.
+`NOT(expr)` retains the existing parse as unary NOT with a parenthesized operand,
+so it remains valid in constant expressions.
+
+Truncation discards the fractional part toward zero, then wraps to B. Unlike the
+existing `_TO_` conversions, the new functions are not constant expressions and
+cannot appear in initializers or CASE labels. `TRUNC(x)` is rejected (removed in
+the 4th edition). BCD forms cover every integer/bit-string pair (excluding BOOL);
+invalid digits fault at runtime. See [runtime.md](runtime.md) for edge behavior.
 
 Numeric conversions cover every distinct ordered pair among the supported integers
 and reals. BOOL_TO_<integer> returns 0 or 1. TIME ↔ integer conversions are extensions

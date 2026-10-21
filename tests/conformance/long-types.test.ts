@@ -304,10 +304,12 @@ it("preserves a large integer TIME factor and LTIME comparisons", () => {
 });
 
 it("accepts overloaded duration identity conversions", () => {
-  expect(execute(`t: TIME := TO_TIME(T#1ms); lt: LTIME := TO_LTIME(LT#1ns);`).values).toEqual({
-    t: 1,
-    lt: "1",
-  });
+  expect(execute(`t: TIME := TO_TIME(T#1ms); longTime: LTIME := TO_LTIME(LT#1ns);`).values).toEqual(
+    {
+      t: 1,
+      longTime: "1",
+    },
+  );
 });
 it("canonicalizes long CASE labels and rejects malformed label payloads", () => {
   const { ir, runtime } = execute(

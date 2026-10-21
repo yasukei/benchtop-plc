@@ -438,9 +438,9 @@ describe("standard functions", () => {
 
   it.each([
     "ABS(«TRUE»)",
-    "MIN(1,«T#1s»)",
-    "MAX(«FALSE»,1)",
-    "LIMIT(0,«FALSE»,1)",
+    "«MIN(1,T#1s)»",
+    "«MAX(FALSE,INT#1)»",
+    "«LIMIT(T#0s,FALSE,T#1s)»",
     "SEL(«T#1s»,1,2)",
     "«SEL(TRUE,FALSE,T#1s)»",
     "REAL_TO_INT(«TRUE»)",
