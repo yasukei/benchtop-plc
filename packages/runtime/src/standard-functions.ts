@@ -12,15 +12,24 @@ export function callStandardFunction(
   if (args.some((value) => !Number.isFinite(Number(value))))
     throw new RangeError("PLC values must be finite");
   const first = Number(args[0]);
+  const long = args.some((value) => typeof value === "string" || typeof value === "bigint");
+  const compare = (a: ScalarValue, b: ScalarValue) =>
+    long ? BigInt(a) < BigInt(b) : Number(a) < Number(b);
   switch (name) {
     case "ABS":
-      return Math.abs(first);
+      return long
+        ? BigInt(args[0]!) < 0n
+          ? -BigInt(args[0]!)
+          : BigInt(args[0]!)
+        : Math.abs(first);
     case "MIN":
-      return args.reduce<number>((value, arg) => Math.min(value, Number(arg)), first);
+      return args.reduce((value, arg) => (compare(arg, value) ? arg : value));
     case "MAX":
-      return args.reduce<number>((value, arg) => Math.max(value, Number(arg)), first);
-    case "LIMIT":
-      return Math.min(Math.max(Number(args[1]), first), Number(args[2]));
+      return args.reduce((value, arg) => (compare(value, arg) ? arg : value));
+    case "LIMIT": {
+      const lower = compare(args[1]!, args[0]!) ? args[0]! : args[1]!;
+      return compare(args[2]!, lower) ? args[2]! : lower;
+    }
     case "SEL":
       return args[args[0] ? 2 : 1]!;
     default:

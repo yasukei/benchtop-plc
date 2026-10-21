@@ -86,3 +86,31 @@ it.each([
 ] as const)("rejects monitor input %s %s", (type, text) => {
   expect(parseWrittenValue(type, text)).toBeNull();
 });
+
+it.each([
+  ["LINT", "9223372036854775807", "9223372036854775807"],
+  ["LINT", "-9223372036854775808", "-9223372036854775808"],
+  ["ULINT", "18446744073709551615", "18446744073709551615"],
+  ["LWORD", "16#FFFF_FFFF_FFFF_FFFF", "18446744073709551615"],
+  [
+    "LWORD",
+    "2#1000000000000000000000000000000000000000000000000000000000000001",
+    "9223372036854775809",
+  ],
+  ["LTIME", "LTIME#1ms500us7ns", "1500007"],
+  ["LTIME", "-9007199254740993", "-9007199254740993"],
+] as const)("parses %s monitor input %s without precision loss", (type, input, expected) => {
+  expect(parseWrittenValue(type, input)).toEqual({ dataType: type, value: expected });
+});
+it.each([
+  ["LINT", "9223372036854775808"],
+  ["LINT", "1.5"],
+  ["LINT", "0x10"],
+  ["ULINT", "-1"],
+  ["LWORD", "16#10000000000000000"],
+  ["LTIME", "LT#9223372036854775808ns"],
+  ["LTIME", "LT#0.1ns"],
+  ["LINT", "1; END_VAR x := 1"],
+] as const)("rejects invalid %s monitor input %s", (type, input) => {
+  expect(parseWrittenValue(type, input)).toBeNull();
+});

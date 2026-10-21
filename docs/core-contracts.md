@@ -8,7 +8,14 @@ untrusted-input validator.
 ## Values
 
 `BOOL` uses `boolean`; SINT, USINT, INT, UINT, DINT, UDINT, BYTE, WORD, DWORD,
-REAL, LREAL and TIME use `number`.
+REAL, LREAL and TIME use `number`. LINT, ULINT, LWORD and LTIME use canonical decimal
+`string`s in typed values, IR and protocol messages. Canonical means an optional
+minus, decimal digits without leading zeros, no plus, whitespace or negative zero,
+and a value in range. LINT/LTIME are signed 64-bit; ULINT/LWORD are unsigned 64-bit.
+`parseLong(type, text)` validates this representation and returns `bigint`;
+`coerceLong(type, value)` wraps computed results to 64 bits and returns a canonical string.
+`isLongType` identifies these types. `ScalarValue` additionally admits `bigint` for
+internal computation; `TypedValue` never contains a bigint.
 TIME ranges from `T#-24d20h31m23s648ms` to `T#24d20h31m23s647ms`.
 `TypedValue` pairs a `dataType` discriminator with a matching `value`.
 `coerceValue(type, value)` dispatches by type:
@@ -25,9 +32,11 @@ TIME ranges from `T#-24d20h31m23s648ms` to `T#24d20h31m23s647ms`.
 | DINT         | Truncate toward zero, wrap to signed 32 bits                 |
 | REAL         | Round with `Math.fround` to IEEE 754 binary32                |
 | LREAL        | Preserve JavaScript binary64 precision                       |
+| LINT, LTIME  | Wrap to signed 64 bits; return canonical decimal string      |
+| ULINT, LWORD | Wrap to unsigned 64 bits; return canonical decimal string    |
 | TIME         | Truncate toward zero to milliseconds, wrap to signed 32 bits |
 
-Helpers accept boolean or numeric values (TRUE converts to 1, FALSE to 0).
+Helpers accept boolean, numeric, decimal-string or bigint values (TRUE converts to 1, FALSE to 0).
 They are representation helpers, not the compiler's implicit-conversion rules.
 NaN, infinity and REAL overflow raise `RangeError`; negative zero is normalized
 to zero so that valid values survive JSON transport. The compiler/runtime must
@@ -52,6 +61,10 @@ a decimal point for REAL/LREAL (also in an exponent's mantissa),
 and TIME as `T#1s500ms`. `formatTime` emits d/h/m/s/ms in descending order, omits
 zero components, uses `T#0ms` for zero, and places a minus sign after `T#` for
 negative durations. Formatting coerces the value to its declared type first.
+LTIME formats as `LTIME#1d2h3m4s5ms6us7ns`, omitting zero components; zero is
+`LTIME#0s`. LWORD uses 16 hexadecimal digits. `ltimeBinary` computes exact nanosecond
+arithmetic, including real scaling with one nearest-even rounding. TIME/LTIME
+conversion truncates toward zero when reducing resolution, then wraps.
 REAL uses the fewest significant decimal digits (at most nine) that round back to
 the same binary32 value, so `0.1` displays as `0.1` rather than
 `0.10000000149011612`. LREAL retains JavaScript's shortest binary64 representation.
@@ -69,8 +82,11 @@ bits 0–7 in areas I and Q.
 
 Bit references (`kind: "bit"`) contain a scalar variable index, a checked bit index
 and `dataType: "BOOL"`. Reads test that bit; writes preserve all other bits, including
-DWORD's unsigned representation. Integer multiplication keeps the low width bits
-with `Math.imul`, avoiding binary64 precision loss for 32-bit products.
+DWORD's unsigned representation. LWORD bit access extends through bit 63 and uses bigint masks. Integer multiplication keeps the low width bits
+with `Math.imul`, avoiding binary64 precision loss for 32-bit products. Long operations use bigint.
+CASE labels carry numbers for short integers and canonical strings for long integers.
+Implicit widening to a long operand is represented with conversion-call nodes,
+including the unit change from TIME milliseconds to LTIME nanoseconds.
 
 Variable references, assignment targets, FOR variables and FB calls use zero-based
 indices into `ProgramIR.variables`. FB member references use an input/output

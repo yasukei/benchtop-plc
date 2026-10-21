@@ -67,15 +67,19 @@ describe("shared standard-library descriptors", () => {
         "BYTE",
         "WORD",
         "DWORD",
+        "LWORD",
         "SINT",
         "USINT",
         "INT",
         "UINT",
         "DINT",
         "UDINT",
+        "LINT",
+        "ULINT",
         "REAL",
         "LREAL",
         "TIME",
+        "LTIME",
       ],
     ]);
   });
@@ -91,22 +95,50 @@ describe("shared standard-library descriptors", () => {
 });
 
 it("registers exactly the current conversion families and no unrelated conversions", () => {
-  const numbers = ["SINT", "USINT", "INT", "UINT", "DINT", "UDINT", "REAL", "LREAL"];
-  const integers = ["SINT", "USINT", "INT", "UINT", "DINT", "UDINT"];
+  const numbers = [
+    "SINT",
+    "USINT",
+    "INT",
+    "UINT",
+    "DINT",
+    "UDINT",
+    "LINT",
+    "ULINT",
+    "REAL",
+    "LREAL",
+  ];
+  const integers = ["SINT", "USINT", "INT", "UINT", "DINT", "UDINT", "LINT", "ULINT"];
   const names = numbers.flatMap((from) =>
     numbers.filter((to) => to !== from).map((to) => `${from}_TO_${to}`),
   );
   names.push(
-    ...integers.flatMap((type) => [`BOOL_TO_${type}`, `TIME_TO_${type}`, `${type}_TO_TIME`]),
-    ...[...numbers, "BOOL", "BYTE", "WORD", "DWORD", "TIME"].map((type) => `TO_${type}`),
-    ...["BOOL", "BYTE", "WORD", "DWORD"].flatMap((from) =>
-      ["BOOL", "BYTE", "WORD", "DWORD"].filter((to) => to !== from).map((to) => `${from}_TO_${to}`),
+    ...integers.flatMap((type) => [
+      `BOOL_TO_${type}`,
+      `TIME_TO_${type}`,
+      `${type}_TO_TIME`,
+      `LTIME_TO_${type}`,
+      `${type}_TO_LTIME`,
+    ]),
+    ...[...numbers, "BOOL", "BYTE", "WORD", "DWORD", "LWORD", "TIME", "LTIME"].map(
+      (type) => `TO_${type}`,
+    ),
+    ...["BOOL", "BYTE", "WORD", "DWORD", "LWORD"].flatMap((from) =>
+      ["BOOL", "BYTE", "WORD", "DWORD", "LWORD"]
+        .filter((to) => to !== from)
+        .map((to) => `${from}_TO_${to}`),
     ),
     ...integers.flatMap((type) =>
-      ["BYTE", "WORD", "DWORD"].flatMap((bits) => [`${type}_TO_${bits}`, `${bits}_TO_${type}`]),
+      ["BYTE", "WORD", "DWORD", "LWORD"].flatMap((bits) => [
+        `${type}_TO_${bits}`,
+        `${bits}_TO_${type}`,
+      ]),
     ),
     "REAL_TO_DWORD",
     "DWORD_TO_REAL",
+    "LREAL_TO_LWORD",
+    "LWORD_TO_LREAL",
+    "TIME_TO_LTIME",
+    "LTIME_TO_TIME",
   );
   expect(
     Object.keys(standardFunctions)

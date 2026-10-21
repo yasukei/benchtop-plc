@@ -97,8 +97,8 @@ and that write is still consumed. Loading or cold reset clears all pending write
 and forces.
 
 Both commands require a loaded scalar ID and the declaration's exact `dataType`.
-Accepted values are copied and coerced with the core helpers (including integer
-wrapping). Unknown/FB targets, mismatched types, malformed values and non-finite
+Accepted external values are checked against their type before being copied.
+Out-of-range integers and noncanonical long strings are rejected without wrapping. Unknown/FB targets, mismatched types, malformed values and non-finite
 numbers throw `RuntimeCommandRejected` before changing memory or the debug sets.
 Its `diagnostic` contains a stable command-rejection code and arguments.
 Input-mapped variables
@@ -120,6 +120,15 @@ coercion; every REAL result is binary32 and LREAL results preserve binary64
 precision, matching compiler semantics. Integer division
 truncates toward zero; MOD with a zero divisor returns zero. Integer arithmetic
 and assignments wrap through core helpers.
+LINT, ULINT, LWORD and LTIME memory cells use bigint. Literal/initial values and
+debug messages carry canonical decimal strings; snapshots and annotations convert
+back to strings without passing through JavaScript numbers. Long IR literals are
+validated on load, including literals in branches that will not execute. Long
+arithmetic wraps to 64 bits; LWORD bit masks cover bits 0–63.
+LTIME counts nanoseconds: real scaling uses the exact binary fraction and rounds
+once, nearest with ties to even, before wrapping. Integer scaling truncates
+division toward zero. TIME widens to LTIME by multiplying by 1,000,000.
+
 FOR evaluates its bounds and step once on entry, assigns its control variable,
 and compares its current value inclusively on each iteration. Its increment is
 coerced like an assignment; an overflowing control variable can reach the watchdog.
@@ -185,8 +194,11 @@ standalone R_TRIG/F_TRIG blocks. Cold reset restores each block's own startup ru
 ABS, MIN, MAX and LIMIT operate on numeric values. LIMIT(MN, IN, MX) evaluates
 `MIN(MAX(IN, MN), MX)`, including when bounds are reversed. SEL(G, IN0, IN1)
 returns IN0 for FALSE and IN1 for TRUE; argument evaluation remains eager.
-Numeric conversions exist for every distinct ordered pair of INT, DINT, UINT,
-REAL and LREAL, with overloaded TO_INT/DINT/UINT/REAL/LREAL forms. Integer → integer
+Numeric conversions exist for every distinct ordered pair of supported integer
+and real types, with overloaded TO_<type> forms. LREAL ↔ LWORD reinterprets the
+binary64 pattern; nonfinite patterns fault. LTIME ↔ integer extensions count
+nanoseconds; TIME ↔ LINT/ULINT extensions count milliseconds.
+LTIME_TO_TIME truncates toward zero before wrapping to signed 32-bit milliseconds. Integer → integer
 wraps. Real → integer rounds nearest, ties to even (2.5 → 2, 3.5 → 4, -2.5 → -2),
 then wraps: REAL_TO_INT(40000.0) and DINT_TO_INT(40000) are -25536. Integer → real
 and LREAL → REAL round nearest, ties to even. REAL source values and every REAL

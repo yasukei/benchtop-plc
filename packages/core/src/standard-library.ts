@@ -3,9 +3,9 @@ import { integerTypes as integers } from "./values.js";
 import type { DataType } from "./values.js";
 
 const numericTypes = [...integers, "REAL", "LREAL"] as const;
-const bits = ["BOOL", "BYTE", "WORD", "DWORD"] as const;
-const bitStrings = ["BYTE", "WORD", "DWORD"] as const;
-const scalarTypes = [...bits, ...numericTypes, "TIME"] as const;
+const bits = ["BOOL", "BYTE", "WORD", "DWORD", "LWORD"] as const;
+const bitStrings = ["BYTE", "WORD", "DWORD", "LWORD"] as const;
+const scalarTypes = [...bits, ...numericTypes, "TIME", "LTIME"] as const;
 
 export type FunctionBlockPort = readonly [name: string, type: DataType];
 export interface FunctionBlockDescriptor {
@@ -67,17 +67,21 @@ export interface StandardFunctionSignature {
 const conversionEntries: [string, StandardFunctionSignature][] = [];
 for (const to of scalarTypes) {
   const sources: Types =
-    to === "TIME"
-      ? integers
+    to === "TIME" || to === "LTIME"
+      ? [...integers, "TIME", "LTIME"]
       : to === "BOOL"
         ? bits
         : bitStrings.some((type) => type === to)
-          ? [...bits, ...integers, ...(to === "DWORD" ? ["REAL" as const] : [])]
+          ? [
+              ...bits,
+              ...integers,
+              ...(to === "DWORD" ? ["REAL" as const] : to === "LWORD" ? ["LREAL" as const] : []),
+            ]
           : to === "REAL"
             ? [...numericTypes, "DWORD"]
             : to === "LREAL"
-              ? numericTypes
-              : [...numericTypes, ...bits, "TIME"];
+              ? [...numericTypes, "LWORD"]
+              : [...numericTypes, ...bits, "TIME", "LTIME"];
   conversionEntries.push([`TO_${to}`, { min: 1, max: 1, arguments: [sources], result: to }]);
   for (const from of sources) {
     if (from !== to)

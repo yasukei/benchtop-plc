@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
-import { conversionFunctions, formatValue } from "@benchtop-plc/core";
+import { conversionFunctions, formatValue, isLongType } from "@benchtop-plc/core";
 import type { DataType, ScalarValue } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
@@ -215,12 +215,19 @@ describe("ADR 0013 conversions and constants", () => {
   it("compiles and executes every conversion opcode with its declared source and destination", () => {
     for (const [name, signature] of Object.entries(conversionFunctions)) {
       for (const from of signature.arguments[0]!) {
-        const input = from === "BOOL" ? "TRUE" : from === "TIME" ? "T#3ms" : `${from}#3`;
+        const input =
+          from === "BOOL"
+            ? "TRUE"
+            : from === "LTIME"
+              ? "LT#3ns"
+              : from === "TIME"
+                ? "T#3ms"
+                : `${from}#3`;
         const { values } = execute(
           `source: ${from} := ${input}; result: ${signature.result};`,
           `result := ${name}(source);`,
         );
-        const expected =
+        let expected: ScalarValue =
           signature.result === "BOOL"
             ? true
             : from === "DWORD" && signature.result === "REAL"
@@ -230,6 +237,11 @@ describe("ADR 0013 conversions and constants", () => {
                 : from === "BOOL"
                   ? 1
                   : 3;
+        if (from === "TIME" && signature.result === "LTIME") expected = 3000000;
+        if (from === "LTIME" && signature.result === "TIME") expected = 0;
+        if (from === "LREAL" && signature.result === "LWORD") expected = "4613937818241073152";
+        if (from === "LWORD" && signature.result === "LREAL") expected = 3 * Number.MIN_VALUE;
+        if (isLongType(signature.result!)) expected = String(expected);
         expect(values.result, `${name}(${from})`).toBe(expected);
       }
     }

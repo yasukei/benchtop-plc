@@ -4,19 +4,23 @@ import type { DataType } from "@benchtop-plc/core";
 
 it("allows precisely identity and the current ADR 0013 widening paths", () => {
   const paths: Record<DataType, string> = {
-    BOOL: "BYTE WORD DWORD",
-    BYTE: "WORD DWORD",
-    WORD: "DWORD",
-    DWORD: "",
-    SINT: "INT DINT REAL LREAL",
-    USINT: "UINT UDINT INT DINT REAL LREAL",
-    INT: "DINT REAL LREAL",
-    UINT: "UDINT DINT REAL LREAL",
-    DINT: "LREAL",
-    UDINT: "LREAL",
+    BOOL: "BYTE WORD DWORD LWORD",
+    BYTE: "WORD DWORD LWORD",
+    WORD: "DWORD LWORD",
+    DWORD: "LWORD",
+    LWORD: "",
+    SINT: "INT DINT LINT REAL LREAL",
+    USINT: "UINT UDINT ULINT INT DINT LINT REAL LREAL",
+    INT: "DINT LINT REAL LREAL",
+    UINT: "UDINT ULINT DINT LINT REAL LREAL",
+    DINT: "LINT LREAL",
+    UDINT: "LINT ULINT LREAL",
+    LINT: "",
+    ULINT: "",
     REAL: "LREAL",
     LREAL: "",
-    TIME: "",
+    TIME: "LTIME",
+    LTIME: "",
   };
   for (const from of scalarTypes)
     for (const to of scalarTypes)
@@ -27,7 +31,10 @@ it("allows precisely identity and the current ADR 0013 widening paths", () => {
 it.each<[DataType[], DataType | null]>([
   [["INT", "UINT"], "DINT"],
   [["SINT", "USINT"], "INT"],
-  [["DINT", "UDINT"], null],
+  [["DINT", "UDINT"], "LINT"],
+  [["LINT", "ULINT"], null],
+  [["LINT", "LREAL"], null],
+  [["TIME", "LTIME"], "LTIME"],
   [["BOOL", "BYTE"], "BYTE"],
   [["UDINT", "REAL"], "LREAL"],
   [["DINT", "REAL"], "LREAL"],

@@ -29,9 +29,10 @@ labels may use constant expressions, including typed literals and conversion cal
 variable references, FB members and other function calls are not constants.
 
 Implicit conversions follow [ADR 0013](adr/0013-conversions-literals-and-operators.md).
-The supported paths are SINT → INT → DINT; USINT → UINT → UDINT;
-USINT → INT and UINT → DINT; integers up to 16 bits → REAL; integers up to
-32 bits and REAL → LREAL; and BOOL → BYTE → WORD → DWORD. Every narrowing
+The supported paths are SINT → INT → DINT → LINT; USINT → UINT → UDINT → ULINT;
+USINT → INT, UINT → DINT and UDINT → LINT; integers up to 16 bits → REAL; integers up to
+32 bits and REAL → LREAL; and BOOL → BYTE → WORD → DWORD → LWORD; and TIME → LTIME.
+64-bit integers never widen implicitly to REAL or LREAL. Every narrowing
 conversion requires a conversion function; the diagnostic includes the localizable
 `explicit-conversion` hint.
 These rules apply to assignments, initializers, FB inputs, fixed function
@@ -43,15 +44,17 @@ that itself widens to all other candidates. If none exists and all operands are
 integers, repeat that selection with only integer candidates. For example INT +
 UINT is DINT, DINT + REAL is LREAL, REAL + LREAL is LREAL, and MAX(INT, UINT, REAL)
 is REAL. Selection considers the full ADR 0012 type set, including types not yet
-implemented. DINT + UDINT selects LINT, then reports an error because LINT is
-unavailable; it never falls back to LREAL. Incompatible types are errors. Unary minus accepts signed integers, reals
-and TIME, and rejects unsigned integers. All comparisons accept BOOL (`FALSE < TRUE`).
+implemented. DINT + UDINT selects LINT; LINT + ULINT and LINT + REAL have no
+common type. Incompatible types are errors. Unary minus accepts signed integers, reals
+and TIME/LTIME, and rejects unsigned integers. All comparisons accept BOOL (`FALSE < TRUE`).
 AND, &, OR, XOR and NOT accept BOOL and bit strings only. Operands widen to their
 common bit type (TRUE AND BYTE#3 is BYTE#1). Comparisons order bit strings by their
 unsigned numeric value. Bit access `x.n` reads or assigns a BOOL on a BYTE, WORD or
-DWORD variable; n is a decimal constant index, zero-based and less than its width.
+DWORD or LWORD variable; n is a decimal constant index, zero-based and less than its width.
 An invalid index reports `type.invalid-bit-access`. Assignment changes only that bit.
-TIME supports TIME ± TIME and scaling with an independently typed numeric factor.
+TIME and LTIME support duration addition/subtraction and scaling with an independently
+typed numeric factor. Mixed TIME/LTIME expressions use LTIME after converting milliseconds
+to nanoseconds. LTIME literals accept us and ns in addition to d/h/m/s/ms.
 
 ### Literals and constants
 
@@ -66,9 +69,8 @@ integer, otherwise exact fractions. They receive a type after evaluation:
 2. From a typed destination when the whole value is untyped: assignment, initializer,
    FB input, fixed parameter, CASE label or FOR bound/step. Integer 0 and 1 also
    work in BOOL positions, including conditions.
-3. Otherwise DINT for an integer in range, then LREAL only if it holds that integer
-   exactly; real constants default to LREAL. The intermediate LINT fallback from
-   ADR 0013 will become available when LINT is implemented.
+3. Otherwise DINT for an integer in range, then LINT, then LREAL only if it holds
+   that integer exactly; real constants default to LREAL.
 
 The destination never supplies a type inside a larger typed expression:
 `l := i + 40000` with `i : INT` rejects 40000 even if `l : LREAL`. Likewise,
@@ -84,7 +86,7 @@ power of ten, keeping compilation responsive while editing or restoring source.
 This is a compiler resource limit, including for values that would round to zero.
 
 Typed literals cover BOOL, SINT, USINT, INT, UINT, DINT, UDINT, BYTE, WORD, DWORD,
-REAL and LREAL, plus T#/TIME#.
+REAL, LREAL, LINT, ULINT and LWORD, plus T#/TIME# and LT#/LTIME#.
 Examples include `BOOL#1`, `INT#-5`, `UINT#16#FF` and `REAL#1.5`.
 Untyped integers accept decimal, binary `2#` and hexadecimal `16#`; octal `8#`
 reports `lex.malformed-number`. Every numeric literal retains its source text for
@@ -114,7 +116,9 @@ provided inputs must be unique, writable and assignable to their declared types.
 
 Numeric conversions cover every distinct ordered pair among the supported integers
 and reals. BOOL_TO_<integer> returns 0 or 1. TIME ↔ integer conversions are extensions
-in milliseconds. Overloaded TO_<type> selects from the argument's actual type;
+in milliseconds. LTIME ↔ integer extensions use nanoseconds. TIME_TO_LTIME scales
+by 1,000,000; LTIME_TO_TIME truncates nanoseconds toward zero to milliseconds, then
+wraps to TIME. Overloaded TO_<type> selects from the argument's actual type;
 identity inputs are accepted. Fixed source parameters accept implicit widening,
 with untyped constants checked directly against that source type.
 
@@ -122,11 +126,13 @@ Integer conversions wrap; real → integer rounds nearest, ties to even, then wr
 Integer → real and LREAL → REAL round nearest, ties to even. REAL overflow faults
 at runtime and is rejected in a constant expression.
 
-Conversions among BOOL/BYTE/WORD/DWORD keep the rightmost bits and zero-fill wider
+Conversions among BOOL/BYTE/WORD/DWORD/LWORD keep the rightmost bits and zero-fill wider
 results; conversion to BOOL tests only bit zero. Integer ↔ bit-string conversions
 transfer the source-width two's-complement pattern without sign extension:
 INT_TO_DWORD(-1) is 16#0000FFFF, while WORD_TO_INT(16#FFFF) is -1.
-REAL_TO_DWORD and DWORD_TO_REAL reinterpret IEEE binary32 bits. NaN and infinity
+REAL_TO_DWORD and DWORD_TO_REAL reinterpret IEEE binary32 bits; LREAL_TO_LWORD
+and LWORD_TO_LREAL reinterpret binary64 bits. Integer-to-real conversion rounds
+directly from the exact integer, including 64-bit sources. NaN and infinity
 patterns fault, and the negative-zero pattern becomes positive zero.
 These reinterpretations and bit strings → BOOL report a `type.portability` warning
 because some vendor runtimes differ. Warnings preserve a successful checked result

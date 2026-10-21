@@ -85,11 +85,15 @@ describe("small integers and bit strings", () => {
     });
   });
   it.each(["d + u", "u + d", "MAX(d, u)", "SEL(TRUE, d, u)"])(
-    "rejects %s because its common type LINT is not implemented",
+    "widens %s to the common type LINT",
     (expression) => {
-      const result = program("d: DINT; u: UDINT; out: LREAL;", `out := ${expression};`);
-      expect(result.ir).toBeUndefined();
-      expect(result.diagnostics.some((item) => item.severity === "error")).toBe(true);
+      const result = execute(
+        "d: DINT := -1; u: UDINT := 4294967295; out: LINT;",
+        `out := ${expression};`,
+      );
+      expect(result.values.out).toBe(
+        expression.includes("MAX") || expression.includes("SEL") ? "4294967295" : "4294967294",
+      );
     },
   );
   it.each(["SINT", "USINT", "UDINT"])(

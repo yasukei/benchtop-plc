@@ -3,7 +3,16 @@ import type { BinaryOperator, DataType, UnaryOperator } from "@benchtop-plc/core
 export { integerTypes } from "@benchtop-plc/core";
 import { integerTypes, isIntegerType, isBitType } from "@benchtop-plc/core";
 export const numericTypes = [...integerTypes, "REAL", "LREAL"] as const;
-export const scalarTypes = ["BOOL", "BYTE", "WORD", "DWORD", ...numericTypes, "TIME"] as const;
+export const scalarTypes = [
+  "BOOL",
+  "BYTE",
+  "WORD",
+  "DWORD",
+  "LWORD",
+  ...numericTypes,
+  "TIME",
+  "LTIME",
+] as const;
 export const isInteger = isIntegerType;
 export const isNumeric = (type: DataType): boolean => numericTypes.some((item) => item === type);
 export const isReal = (type: DataType): boolean => type === "REAL" || type === "LREAL";
@@ -64,16 +73,14 @@ export function commonType(types: readonly DataType[]): DataType | null {
     items.find((from) => items.every((to) => widens(to, from))) ?? null;
   const result =
     least(candidates) ??
-    (types.every(isInteger)
-      ? least(candidates.filter((type) => isInteger(type) || type === "LINT" || type === "ULINT"))
-      : null);
+    (types.every(isInteger) ? least(candidates.filter((type) => isInteger(type))) : null);
   return scalarTypes.find((type) => type === result) ?? null;
 }
 
 export function unaryType(operator: UnaryOperator, operand: DataType): DataType | null {
   if (operator === "NOT") return isBitType(operand) ? operand : null;
-  if (operator === "-" && ["USINT", "UINT", "UDINT"].includes(operand)) return null;
-  return isNumeric(operand) || operand === "TIME" ? operand : null;
+  if (operator === "-" && ["USINT", "UINT", "UDINT", "ULINT"].includes(operand)) return null;
+  return isNumeric(operand) || operand === "TIME" || operand === "LTIME" ? operand : null;
 }
 
 export function binaryType(
@@ -84,14 +91,15 @@ export function binaryType(
   const common = commonType([left, right]);
   const numeric = isNumeric(left) && isNumeric(right);
   const integers = isInteger(left) && isInteger(right);
-  const times = left === "TIME" && right === "TIME";
+  const duration = (type: DataType) => type === "TIME" || type === "LTIME";
+  const times = duration(left) && duration(right);
   switch (operator) {
     case "+":
     case "-":
-      return numeric ? common : times ? "TIME" : null;
+      return numeric ? common : times ? common : null;
     case "*":
     case "/":
-      return numeric ? common : left === "TIME" && isNumeric(right) ? "TIME" : null;
+      return numeric ? common : duration(left) && isNumeric(right) ? left : null;
     case "MOD":
       return integers ? common : null;
     case "AND":

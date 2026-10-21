@@ -6,3 +6,5 @@ export * from "./protocol.js";
 export * from "./standard-library.js";
 export * from "./conversions.js";
 export * from "./time.js";
+export * from "./operators.js";
+export * from "./rounding.js";

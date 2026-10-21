@@ -1,4 +1,4 @@
-import { integerRanges } from "@benchtop-plc/core";
+import { integerRanges, isLongType, roundRational } from "@benchtop-plc/core";
 import type { DataType, ScalarValue } from "@benchtop-plc/core";
 import type { Expression } from "./ast.js";
 
@@ -110,28 +110,12 @@ export function exactConstant(node: Expression, real = hasReal(node)): Exact {
   throw new Error("Not an untyped constant");
 }
 
-/** Round a rational directly to IEEE binary32/64, including subnormals and ties. */
+/** Materialize exact constants through the shared single-rounding helper. */
 export function roundReal(value: Exact, type: "REAL" | "LREAL"): number {
-  const negative = value.n < 0n;
-  const n = negative ? -value.n : value.n,
-    d = value.d;
-  if (!n) return 0;
-  let exponent = n.toString(2).length - d.toString(2).length;
-  if (exponent >= 0 ? n < d << BigInt(exponent) : n << BigInt(-exponent) < d) exponent--;
-  const precision = type === "REAL" ? 24 : 53;
-  const unit = Math.max(exponent - precision + 1, type === "REAL" ? -149 : -1074);
-  const numerator = unit < 0 ? n << BigInt(-unit) : n;
-  const denominator = unit > 0 ? d << BigInt(unit) : d;
-  let q = numerator / denominator;
-  const remainder = numerator % denominator;
-  if (remainder * 2n > denominator || (remainder * 2n === denominator && q % 2n !== 0n)) q++;
-  const result = Number(q) * 2 ** unit * (negative ? -1 : 1);
-  if (!Number.isFinite(result) || (type === "REAL" && !Number.isFinite(Math.fround(result))))
-    throw new RangeError("Real overflow");
-  return result || 0;
+  return roundRational(value, type);
 }
 export function acceptsKind(type: DataType, value: Exact): boolean {
-  return value.real ? type === "REAL" || type === "LREAL" : type !== "TIME";
+  return value.real ? type === "REAL" || type === "LREAL" : type !== "TIME" && type !== "LTIME";
 }
 export function materialize(value: Exact, type: DataType): ScalarValue {
   if (!acceptsKind(type, value)) throw new RangeError("Constant kind mismatch");
@@ -140,28 +124,37 @@ export function materialize(value: Exact, type: DataType): ScalarValue {
     if (value.n !== 0n && value.n !== value.d) throw new RangeError("BOOL constant out of range");
     return value.n !== 0n;
   }
-  if (type === "TIME") throw new RangeError("Numeric constant is not TIME");
+  if (type === "TIME" || type === "LTIME") throw new RangeError("Numeric constant is not TIME");
   const [min, max] = integerRanges[type].map(BigInt) as [bigint, bigint];
   if (value.d !== 1n || value.n < min || value.n > max)
     throw new RangeError("Integer constant out of range");
-  return Number(value.n);
+  return isLongType(type) ? value.n.toString() : Number(value.n);
 }
 export function defaultType(value: Exact): DataType {
   if (value.real) return "LREAL";
   if (value.n >= -2147483648n && value.n <= 2147483647n) return "DINT";
-  // LINT is not implemented yet. LREAL is the remaining ADR 0013 fallback only
-  // when it holds the integer exactly; never lose integer digits silently.
+  if (value.n >= -(1n << 63n) && value.n < 1n << 63n) return "LINT";
+  // LREAL is the remaining fallback only when it holds the integer exactly.
   const result = roundReal(value, "LREAL");
   if (BigInt(result) !== value.n) throw new RangeError("No exact default type");
   return "LREAL";
 }
 
-/** Duration syntax is already validated by the lexer; retain exact decimal milliseconds. */
-export function timeLiteral(text: string): number {
+/** Lexer-validated durations are evaluated exactly before materializing ms or ns. */
+export function timeLiteral(text: string): number | string {
+  const long = /^(LT|LTIME)#/i.test(text);
   const duration = text.slice(text.indexOf("#") + 1);
-  const units: Record<string, bigint> = { d: 86400000n, h: 3600000n, m: 60000n, s: 1000n, ms: 1n };
+  const units: Record<string, bigint> = {
+    d: 86400000000000n,
+    h: 3600000000000n,
+    m: 60000000000n,
+    s: 1000000000n,
+    ms: 1000000n,
+    us: 1000n,
+    ns: 1n,
+  };
   let value = fraction(0n);
-  for (const part of duration.matchAll(/([\d_]+(?:\.[\d_]+)?)(ms|d|h|m|s)/gi)) {
+  for (const part of duration.matchAll(/([\d_]+(?:\.[\d_]+)?)(ms|us|ns|d|h|m|s)/gi)) {
     const amount = exactNumber(part[1]!);
     value = fraction(
       value.n * amount.d + amount.n * units[part[2]!.toLowerCase()]! * value.d,
@@ -169,7 +162,9 @@ export function timeLiteral(text: string): number {
     );
   }
   if (duration.startsWith("-")) value.n = -value.n;
-  if (value.n < -2147483648n * value.d || value.n > 2147483647n * value.d)
+  if (!long) value.d *= 1000000n;
+  const [min, max] = integerRanges[long ? "LTIME" : "TIME"].map(BigInt) as [bigint, bigint];
+  if ((long && value.n % value.d !== 0n) || value.n < min * value.d || value.n > max * value.d)
     throw new RangeError("TIME literal out of range");
-  return Number(value.n / value.d);
+  return long ? (value.n / value.d).toString() : Number(value.n / value.d);
 }
