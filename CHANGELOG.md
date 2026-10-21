@@ -32,6 +32,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Standard SR/RS bistables, CTUD, typed CTU/CTD/CTUD counters for INT, DINT,
+  LINT, UDINT and ULINT, and TON/TOF/TP_TIME and _LTIME timers. Counters saturate
+  at type limits; long timers use nanoseconds from the injected clock, subject
+  to host clock resolution. All new blocks round trip through PLCopen XML and
+  expose typed monitor ports. Their names are reserved against declarations.
+
 - Standard time/date arithmetic and long forms, calendar constructors, component
   splitting and DAY_OF_WEEK. Function calls support statements and SPLIT output
   assignments with `=>`; INT outputs widen implicitly and the result is BOOL.

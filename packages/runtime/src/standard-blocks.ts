@@ -1,5 +1,10 @@
-import { coerceValue, standardFunctionBlocks } from "@benchtop-plc/core";
-import type { FunctionBlockPort, FunctionBlockType, ScalarValue } from "@benchtop-plc/core";
+import { coerceValue, integerRanges, standardFunctionBlocks } from "@benchtop-plc/core";
+import type {
+  FunctionBlockPort,
+  FunctionBlockType,
+  IntegerType,
+  ScalarValue,
+} from "@benchtop-plc/core";
 import type { FunctionBlockInstance } from "./library.js";
 import { typed } from "./memory.js";
 
@@ -33,40 +38,50 @@ class Timer extends Block {
   private previous = false;
   private finished = false;
 
-  constructor(private readonly type: "TON" | "TOF" | "TP") {
+  constructor(
+    type: FunctionBlockType,
+    private readonly kind: "TON" | "TOF" | "TP",
+  ) {
     super(type);
+    this.long = this.inputs[1]!.dataType === "LTIME";
   }
+
+  private readonly long: boolean;
 
   execute(scanStartMs: number): void {
     const input = Boolean(this.input(0));
-    const preset = Math.max(0, Number(this.input(1)));
-    if (this.type === "TON" && !input) this.reset();
-    else if (this.type === "TOF" && input) this.reset();
+    const rawPreset = BigInt(this.input(1));
+    const preset = rawPreset < 0n ? 0n : rawPreset;
+    if (this.kind === "TON" && !input) this.reset();
+    else if (this.kind === "TOF" && input) this.reset();
     else if (
       this.started === null &&
-      (this.type === "TON" ||
-        (this.type === "TOF" ? this.previous && !input : !this.previous && input))
+      (this.kind === "TON" ||
+        (this.kind === "TOF" ? this.previous && !input : !this.previous && input))
     ) {
       this.started = scanStartMs;
     }
 
-    let elapsed = 0;
+    let elapsed = 0n;
     if (this.started !== null) {
-      elapsed = Math.min(preset, Math.max(0, scanStartMs - this.started));
+      const ms = Math.max(0, scanStartMs - this.started);
+      // The injected clock supplies fractional milliseconds; long timers quantize to ns.
+      elapsed = BigInt(this.long ? Math.round(ms * 1_000_000) : Math.floor(ms));
+      if (elapsed > preset) elapsed = preset;
       if (elapsed >= preset) this.finished = true;
       if (this.finished) elapsed = preset;
     }
     const running = this.started !== null && !this.finished;
     const q =
-      this.type === "TON"
+      this.kind === "TON"
         ? input && this.finished
-        : this.type === "TOF"
+        : this.kind === "TOF"
           ? input || running
           : running;
     // A pulse ignores falling edges while active; it rearms only after completion and IN=FALSE.
-    if (this.type === "TP" && this.finished && !input) {
+    if (this.kind === "TP" && this.finished && !input) {
       this.reset();
-      elapsed = 0;
+      elapsed = 0n;
     }
     this.output(0, q);
     this.output(1, elapsed);
@@ -97,42 +112,89 @@ class Trigger extends Block {
   }
 }
 
-class Counter extends Block {
-  private previous = false;
-  private count = 0;
-
-  constructor(private readonly type: "CTU" | "CTD") {
+class Bistable extends Block {
+  constructor(
+    type: "SR" | "RS",
+    private readonly setDominant = type === "SR",
+  ) {
     super(type);
-    if (type === "CTD") this.output(0, true);
   }
 
   execute(): void {
-    const input = Boolean(this.input(0));
-    const control = Boolean(this.input(1));
-    const preset = Number(this.input(2));
-    if (control) this.count = this.type === "CTU" ? 0 : preset;
-    else if (input && !this.previous) {
-      this.count =
-        this.type === "CTU" ? Math.min(32767, this.count + 1) : Math.max(-32768, this.count - 1);
+    const set = Boolean(this.input(0));
+    const reset = Boolean(this.input(1));
+    const q = Boolean(this.outputs[0]!.value);
+    this.output(0, this.setDominant ? set || (!reset && q) : !reset && (set || q));
+  }
+}
+
+class Counter extends Block {
+  private previousUp = false;
+  private previousDown = false;
+  private readonly minimum: bigint;
+  private readonly maximum: bigint;
+
+  constructor(
+    type: FunctionBlockType,
+    private readonly kind: "CTU" | "CTD" | "CTUD",
+  ) {
+    super(type);
+    const countType = this.outputs.at(-1)!.dataType as IntegerType;
+    const [min, max] = integerRanges[countType];
+    this.minimum = BigInt(min);
+    this.maximum = BigInt(max);
+    if (kind === "CTD") this.output(0, true);
+    if (kind === "CTUD") this.output(1, true);
+  }
+
+  execute(): void {
+    let count = BigInt(this.outputs.at(-1)!.value);
+    const combined = this.kind === "CTUD";
+    const up = this.kind !== "CTD" && Boolean(this.input(0));
+    const down = this.kind === "CTD" ? Boolean(this.input(0)) : combined && Boolean(this.input(1));
+    const reset = this.kind !== "CTD" && Boolean(this.input(combined ? 2 : 1));
+    const load = this.kind !== "CTU" && Boolean(this.input(combined ? 3 : 1));
+    const preset = BigInt(this.input(combined ? 4 : 2));
+    const riseUp = up && !this.previousUp;
+    const riseDown = down && !this.previousDown;
+    if (reset) count = 0n;
+    else if (load) count = preset;
+    else if (riseUp && !riseDown && count < this.maximum) count++;
+    else if (riseDown && !riseUp && count > this.minimum) count--;
+    if (combined) {
+      this.output(0, count >= preset);
+      this.output(1, count <= 0n);
+      this.output(2, count);
+    } else {
+      this.output(0, this.kind === "CTU" ? count >= preset : count <= 0n);
+      this.output(1, count);
     }
-    this.output(0, this.type === "CTU" ? this.count >= preset : this.count <= 0);
-    this.output(1, this.count);
-    // Reset/load takes priority but still samples the edge input.
-    this.previous = input;
+    // Reset/load and simultaneous edges still update both edge histories.
+    this.previousUp = up;
+    this.previousDown = down;
   }
 }
 
 export function createStandardFunctionBlock(type: FunctionBlockType): FunctionBlockInstance {
-  switch (type) {
+  const kind = type.split("_")[0];
+  switch (kind) {
     case "TON":
     case "TOF":
     case "TP":
-      return new Timer(type);
+      return new Timer(type, kind);
+    case "CTU":
+    case "CTD":
+    case "CTUD":
+      return new Counter(type, kind);
+  }
+  switch (type) {
     case "R_TRIG":
     case "F_TRIG":
       return new Trigger(type);
-    case "CTU":
-    case "CTD":
-      return new Counter(type);
+    case "SR":
+    case "RS":
+      return new Bistable(type);
+    default:
+      throw new RangeError(`Unknown function block ${type}`);
   }
 }

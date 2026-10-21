@@ -19,7 +19,20 @@ export interface DirectAddress {
   bit: IoBit;
 }
 
-export type FunctionBlockType = "TON" | "TOF" | "TP" | "R_TRIG" | "F_TRIG" | "CTU" | "CTD";
+export type CounterType = "INT" | "DINT" | "LINT" | "UDINT" | "ULINT";
+export type FunctionBlockType =
+  | "R_TRIG"
+  | "F_TRIG"
+  | "SR"
+  | "RS"
+  | "CTU"
+  | "CTD"
+  | "CTUD"
+  | `${"CTU" | "CTD" | "CTUD"}_${CounterType}`
+  | "TON"
+  | "TOF"
+  | "TP"
+  | `${"TON" | "TOF" | "TP"}_${"TIME" | "LTIME"}`;
 export type CalendarConversion =
   | "DT_TO_DATE"
   | "DT_TO_TOD"
