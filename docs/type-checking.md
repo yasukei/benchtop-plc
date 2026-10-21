@@ -16,6 +16,8 @@ The checked result retains the original AST without modifying it, plus:
   Declaration names, assignment targets, reads, FOR variables, FB instances and
   named inputs all use the same symbol IDs.
 - `functions`: AST function-call object to canonical standard-function opcode.
+- `functionArguments`: AST function-call object to inputs in descriptor order, after
+  resolving formal names. The original AST retains source order.
 
 These Maps are compiler-local side tables keyed by AST identity. They are not
 serialized or sent to the runtime. The lowering pass uses them to produce
@@ -36,7 +38,7 @@ USINT → INT, UINT → DINT and UDINT → LINT; integers up to 16 bits → REAL
 conversion requires a conversion function; the diagnostic includes the localizable
 `explicit-conversion` hint.
 These rules apply to assignments, initializers, FB inputs, fixed function
-parameters, CASE labels and FOR start/end/step values (the control variable's type).
+parameters, function outputs, CASE labels and FOR start/end/step values (the control variable's type).
 
 Operators and generic function value arguments use one set-based common
 type, independent of argument order: select a candidate all operands can widen to
@@ -121,31 +123,46 @@ The compiler consumes the shared core function/block descriptors. Port order fol
 [core-contracts.md](core-contracts.md). Omitted FB inputs retain their values;
 provided inputs must be unique, writable and assignable to their declared types.
 
-| Function                                            | Arguments                                                                          | Result                               |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------ |
-| ABS                                                 | ANY_NUM                                                                            | Argument type                        |
-| SQRT, LN, LOG, EXP, SIN, COS, TAN, ASIN, ACOS, ATAN | ANY_REAL                                                                           | Argument type                        |
-| ATAN2                                               | Two ANY_REAL values (y, x)                                                         | Common type                          |
-| ADD, MUL                                            | Two or more ANY_NUM values                                                         | Common type                          |
-| SUB, DIV                                            | Two ANY_NUM values                                                                 | Common type                          |
-| MOD                                                 | Two ANY_INT values                                                                 | Common type                          |
-| EXPT, `**`                                          | ANY_REAL base, independently typed ANY_NUM exponent                                | Base type                            |
-| MOVE                                                | ANY_ELEMENTARY                                                                     | Argument type                        |
-| SHL, SHR, ROL, ROR                                  | ANY_BIT value, independently typed ANY_INT count                                   | Value type                           |
-| AND, OR, XOR                                        | Two or more ANY_BIT values                                                         | Common type                          |
-| NOT                                                 | ANY_BIT                                                                            | Argument type                        |
-| MIN, MAX                                            | Two or more ANY_ELEMENTARY values                                                  | Common type                          |
-| LIMIT                                               | Three ANY_ELEMENTARY values (lower, input, upper)                                  | Common type                          |
-| SEL                                                 | BOOL selector, two compatible ANY_ELEMENTARY values                                | Common type of values                |
-| MUX                                                 | Independently typed ANY_INT selector, two or more compatible ANY_ELEMENTARY values | Common type of values                |
-| GT, GE, EQ, LE, LT                                  | Two or more compatible ANY_ELEMENTARY values                                       | BOOL (all adjacent comparisons hold) |
-| NE                                                  | Two compatible ANY_ELEMENTARY values                                               | BOOL                                 |
-| `TRUNC_<B>`                                         | ANY_REAL                                                                           | Integer B                            |
-| `<A>_TRUNC_<B>`                                     | One value assignable to real A                                                     | Integer B                            |
-| `<A>_BCD_TO_<B>`                                    | One value assignable to bit string A                                               | Integer B                            |
-| `<A>_TO_BCD_<B>`                                    | One value assignable to integer A                                                  | Bit string B                         |
-| `<A>_TO_<B>`                                        | One value assignable to A                                                          | B                                    |
-| `TO_<B>`                                            | One value from a supported conversion source family                                | B                                    |
+| Function                                            | Arguments                                                                            | Result                               |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------ |
+| ABS                                                 | ANY_NUM                                                                              | Argument type                        |
+| SQRT, LN, LOG, EXP, SIN, COS, TAN, ASIN, ACOS, ATAN | ANY_REAL                                                                             | Argument type                        |
+| ATAN2                                               | Two ANY_REAL values (y, x)                                                           | Common type                          |
+| ADD, MUL                                            | Two or more ANY_NUM values                                                           | Common type                          |
+| SUB, DIV                                            | Two ANY_NUM values                                                                   | Common type                          |
+| MOD                                                 | Two ANY_INT values                                                                   | Common type                          |
+| EXPT, `**`                                          | ANY_REAL base, independently typed ANY_NUM exponent                                  | Base type                            |
+| MOVE                                                | ANY_ELEMENTARY                                                                       | Argument type                        |
+| SHL, SHR, ROL, ROR                                  | ANY_BIT value, independently typed ANY_INT count                                     | Value type                           |
+| AND, OR, XOR                                        | Two or more ANY_BIT values                                                           | Common type                          |
+| NOT                                                 | ANY_BIT                                                                              | Argument type                        |
+| MIN, MAX                                            | Two or more ANY_ELEMENTARY values                                                    | Common type                          |
+| LIMIT                                               | Three ANY_ELEMENTARY values (lower, input, upper)                                    | Common type                          |
+| SEL                                                 | BOOL selector, two compatible ANY_ELEMENTARY values                                  | Common type of values                |
+| MUX                                                 | Independently typed ANY_INT selector, two or more compatible ANY_ELEMENTARY values   | Common type of values                |
+| GT, GE, EQ, LE, LT                                  | Two or more compatible ANY_ELEMENTARY values                                         | BOOL (all adjacent comparisons hold) |
+| NE                                                  | Two compatible ANY_ELEMENTARY values                                                 | BOOL                                 |
+| `TRUNC_<B>`                                         | ANY_REAL                                                                             | Integer B                            |
+| `<A>_TRUNC_<B>`                                     | One value assignable to real A                                                       | Integer B                            |
+| `<A>_BCD_TO_<B>`                                    | One value assignable to bit string A                                                 | Integer B                            |
+| `<A>_TO_BCD_<B>`                                    | One value assignable to integer A                                                    | Bit string B                         |
+| `<A>_TO_<B>`                                        | One value assignable to A                                                            | B                                    |
+| `TO_<B>`                                            | One value from a supported conversion source family                                  | B                                    |
+| ADD_TIME, SUB_TIME                                  | TIME, TIME                                                                           | TIME                                 |
+| ADD_TOD_TIME, SUB_TOD_TIME                          | TOD, TIME                                                                            | TOD                                  |
+| ADD_DT_TIME, SUB_DT_TIME                            | DT, TIME                                                                             | DT                                   |
+| SUB_DATE_DATE, SUB_TOD_TOD, SUB_DT_DT               | Two DATE, TOD or DT values respectively                                              | TIME                                 |
+| MUL_TIME, DIV_TIME                                  | TIME, independently typed ANY_NUM factor                                             | TIME                                 |
+| Long arithmetic forms                               | Replace TIME/TOD/DT/DATE with LTIME/LTOD/LDT/LDATE in the names and signatures above | Corresponding long result            |
+| CONCAT_DATE_TOD                                     | DATE, TOD                                                                            | DT                                   |
+| CONCAT_DATE_LTOD                                    | DATE or LDATE, LTOD                                                                  | LDT                                  |
+| CONCAT_DATE                                         | YEAR, MONTH, DAY (independent ANY_INT)                                               | DATE                                 |
+| CONCAT_TOD, CONCAT_LTOD                             | HOUR, MINUTE, SECOND, MILLISECOND (independent ANY_INT)                              | TOD / LTOD                           |
+| CONCAT_DT, CONCAT_LDT                               | All seven date and time components (independent ANY_INT)                             | DT / LDT                             |
+| SPLIT_DATE                                          | IN: DATE or LDATE; YEAR, MONTH, DAY: INT outputs                                     | BOOL                                 |
+| SPLIT_TOD, SPLIT_LTOD                               | IN: TOD / LTOD; HOUR, MINUTE, SECOND, MILLISECOND: INT outputs                       | BOOL                                 |
+| SPLIT_DT, SPLIT_LDT                                 | IN: DT / LDT; all seven INT component outputs                                        | BOOL                                 |
+| DAY_OF_WEEK                                         | DATE or LDATE                                                                        | INT (0 = Sunday)                     |
 
 ANY_NUM includes signed/unsigned integers and reals; ANY_INT includes all eight
 integer types; ANY_REAL is REAL/LREAL; ANY_BIT includes BOOL and all bit strings.
@@ -205,3 +222,23 @@ time extraction is a nonnegative offset within the day, even before 1970.
 Reducing resolution floors toward negative infinity. A calendar result outside the
 destination range faults with `runtime.invalid-value`, or reports
 `type.invalid-constant` in constant evaluation.
+
+### Function output assignment
+
+Standard functions may be called as statements, discarding their return value.
+Time/date functions also accept formal inputs with `:=`: arithmetic and date/time
+pair concatenation use IN1/IN2, component concatenation uses the component names
+above, and split/weekday functions use IN. Formal arguments may be reordered;
+positional and formal arguments cannot be mixed. The compiler orders inputs by
+the descriptor before lowering, while output assignments keep their source order.
+
+`SPLIT_DATE(IN := D#2024-02-29, YEAR => y, MONTH => m, DAY => d);` writes
+2024, 2 and 29 and returns TRUE. All component outputs are INT, including long
+forms; milliseconds discard sub-millisecond precision. Each target must be writable
+and accept INT through an ADR 0013 implicit conversion (for example INT, DINT,
+LINT, REAL or LREAL). Narrowing and signed-to-unsigned output assignments are
+errors. Outputs may be omitted. Unknown, duplicate or incorrectly directed formal
+parameters report `call.invalid-parameter`. FB calls still accept only `:=` inputs;
+`=>` for FBs remains unsupported. FB statements with positional inputs or `=>`
+outputs report `fb.unsupported-call`; FB calls within expressions report
+`fb.call-in-expression`. Named time/date calls are not constant expressions.

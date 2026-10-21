@@ -82,9 +82,13 @@ export const diagnosticEn = {
     `Function block output ${name}.${member} is not writable.`,
   "fb.instance-as-value": ({ name }) =>
     `Function block instance ${name} cannot be used as a scalar value.`,
+  "fb.unsupported-call": ({ name }) =>
+    `Function block ${name} requires named := inputs; positional arguments and => outputs are unsupported.`,
   "fb.call-in-expression": ({ name }) =>
     `Function block call ${name} cannot be used in an expression.`,
   "call.unknown-function": ({ name }) => `Unknown function: ${name}.`,
+  "call.invalid-parameter": ({ name, parameter }) =>
+    `${name}: unknown, duplicate or incorrectly directed parameter ${parameter}.`,
   "call.argument-count": ({ name, min, max, found }) =>
     max === null
       ? `${name} requires at least ${min} arguments; found ${found}.`
@@ -164,9 +168,13 @@ export const diagnosticJa = {
     `ファンクションブロックの出力${name}.${member}には書き込めません。`,
   "fb.instance-as-value": ({ name }) =>
     `ファンクションブロックのインスタンス${name}はスカラー値として使用できません。`,
+  "fb.unsupported-call": ({ name }) =>
+    `ファンクションブロック${name}の入力は名前付きの:=で指定してください。位置引数と=>による出力指定には対応していません。`,
   "fb.call-in-expression": ({ name }) =>
     `ファンクションブロックの呼び出し${name}は式の中で使用できません。`,
   "call.unknown-function": ({ name }) => `不明な関数です: ${name}。`,
+  "call.invalid-parameter": ({ name, parameter }) =>
+    `${name}: パラメーター ${parameter} が不明、重複、または方向が正しくありません。`,
   "call.argument-count": ({ name, min, max, found }) =>
     max === null
       ? `${name}には${min}個以上の引数が必要ですが、${found}個です。`

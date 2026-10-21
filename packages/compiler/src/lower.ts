@@ -156,13 +156,14 @@ class Lowerer {
       }
       case "functionCall": {
         const name = required(this.checked.functions.get(node));
+        const inputs = required(this.checked.functionArguments.get(node));
         const signature = getStandardFunctionSignature(name);
         const start = signature.genericStart;
         const common =
           start === undefined
             ? null
             : commonType(
-                node.args
+                inputs
                   .slice(start)
                   .map((arg) => required(this.checked.expressions.get(arg)).dataType),
               );
@@ -170,7 +171,18 @@ class Lowerer {
           ...base,
           kind: "functionCall",
           function: name,
-          args: node.args.map((arg, index) => {
+          ...(node.outputs?.length
+            ? {
+                outputs: node.outputs.map((output) => ({
+                  output: required(signature.outputs).findIndex(
+                    ([name]) => name === output.name.key,
+                  ),
+                  target: this.target(output.target),
+                  span: span(output),
+                })),
+              }
+            : {}),
+          args: inputs.map((arg, index) => {
             const expression = this.expression(arg);
             const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)];
             if (start !== undefined && index >= start && common)
@@ -204,6 +216,11 @@ class Lowerer {
           target: this.target(node.target),
           value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
+      case "call": {
+        const call = this.expression(node.call);
+        if (call.kind !== "functionCall") throw new Error("Expected a checked function call");
+        return { ...base, kind: "call", call };
+      }
       case "fbCall":
         return {
           ...base,

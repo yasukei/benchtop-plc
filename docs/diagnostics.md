@@ -119,8 +119,10 @@ as syntax errors.
 | `fb.unknown-member`              | FB instance has no such member                       | `{ name: string; member: string }`                                                               |
 | `fb.output-not-writable`         | Assignment attempts to write an FB output            | `{ name: string; member: string }`                                                               |
 | `fb.instance-as-value`           | FB instance used as a scalar value                   | `{ name: string }`                                                                               |
+| `fb.unsupported-call`            | FB statement uses positional inputs or `=>` outputs  | `{ name: string }`                                                                               |
 | `fb.call-in-expression`          | FB call used within an expression                    | `{ name: string }`                                                                               |
 | `call.unknown-function`          | Function name is unknown                             | `{ name: string }`                                                                               |
+| `call.invalid-parameter`         | Unknown, duplicate or misdirected formal parameter   | `{ name: string; parameter: string }`                                                            |
 | `call.argument-count`            | Function call supplies the wrong number of arguments | `{ name: string; min: number; max: number \| null; found: number }`                              |
 | `call.argument-type`             | Function argument has an unsupported type            | `{ name: string; index: number; expected: readonly [DataType, ...DataType[]]; found: DataType }` |
 | `runtime.invalid-value`          | Non-finite result or REAL overflow                   | `{}`                                                                                             |

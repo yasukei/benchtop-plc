@@ -4,6 +4,8 @@ import type {
   ConversionFunction,
   FunctionBlockType,
   StandardFunction,
+  TimeArithmeticFunction,
+  CalendarFunction,
 } from "./ir.js";
 import { integerTypes as integers } from "./values.js";
 import { calendarTypes } from "./calendar.js";
@@ -74,6 +76,10 @@ export interface StandardFunctionSignature {
   genericStart?: number;
   /** Independent parameters: result takes this argument's type. */
   resultArgument?: number;
+  inputNames?: readonly string[];
+  outputs?: readonly FunctionBlockPort[];
+  /** Named time arithmetic shares the corresponding operator's exact implementation. */
+  operator?: "+" | "-" | "*" | "/";
 }
 const conversionEntries: [string, StandardFunctionSignature][] = [];
 for (const to of [...bits, ...numericTypes, "TIME", "LTIME"] as const) {
@@ -169,6 +175,96 @@ const shift: StandardFunctionSignature = {
   resultArgument: 0,
 };
 const comparison: StandardFunctionSignature = { ...generic(scalarTypes, 2, null), result: "BOOL" };
+const timeEntries: [string, StandardFunctionSignature][] = [];
+for (const long of [false, true]) {
+  const duration = long ? "LTIME" : "TIME";
+  const tod = long ? "LTOD" : "TOD";
+  const dt = long ? "LDT" : "DT";
+  const date = long ? "LDATE" : "DATE";
+  const arithmetic = (
+    name: string,
+    left: DataType,
+    right: Types,
+    result: DataType,
+    operator: "+" | "-" | "*" | "/",
+  ) =>
+    timeEntries.push([
+      name,
+      {
+        min: 2,
+        max: 2,
+        arguments: [[left], right],
+        result,
+        operator,
+        inputNames: ["IN1", "IN2"],
+      },
+    ]);
+  arithmetic(`ADD_${duration}`, duration, [duration], duration, "+");
+  arithmetic(`SUB_${duration}`, duration, [duration], duration, "-");
+  for (const type of [tod, dt] as const) {
+    arithmetic(`ADD_${type}_${duration}`, type, [duration], type, "+");
+    arithmetic(`SUB_${type}_${duration}`, type, [duration], type, "-");
+    arithmetic(`SUB_${type}_${type}`, type, [type], duration, "-");
+  }
+  arithmetic(`SUB_${date}_${date}`, date, [date], duration, "-");
+  arithmetic(`MUL_${duration}`, duration, numericTypes, duration, "*");
+  arithmetic(`DIV_${duration}`, duration, numericTypes, duration, "/");
+}
+export const timeArithmeticFunctions = Object.fromEntries(timeEntries) as Record<
+  TimeArithmeticFunction,
+  StandardFunctionSignature
+>;
+const dateFields = ["YEAR", "MONTH", "DAY"] as const;
+const timeFields = ["HOUR", "MINUTE", "SECOND", "MILLISECOND"] as const;
+const components = (result: DataType, names: readonly string[]): StandardFunctionSignature => ({
+  min: names.length,
+  max: names.length,
+  arguments: [integers],
+  result,
+  inputNames: names,
+});
+const split = (type: DataType, names: readonly string[]): StandardFunctionSignature => ({
+  min: 1,
+  max: 1,
+  arguments: [[type]],
+  result: "BOOL",
+  inputNames: ["IN"],
+  outputs: names.map((name) => [name, "INT"] as const),
+});
+export const calendarFunctions = {
+  CONCAT_DATE_TOD: {
+    min: 2,
+    max: 2,
+    arguments: [["DATE"], ["TOD"]],
+    result: "DT",
+    inputNames: ["IN1", "IN2"],
+  },
+  CONCAT_DATE_LTOD: {
+    min: 2,
+    max: 2,
+    arguments: [["DATE", "LDATE"], ["LTOD"]],
+    result: "LDT",
+    inputNames: ["IN1", "IN2"],
+  },
+  CONCAT_DATE: components("DATE", dateFields),
+  CONCAT_TOD: components("TOD", timeFields),
+  CONCAT_LTOD: components("LTOD", timeFields),
+  CONCAT_DT: components("DT", [...dateFields, ...timeFields]),
+  CONCAT_LDT: components("LDT", [...dateFields, ...timeFields]),
+  SPLIT_DATE: { ...split("DATE", dateFields), arguments: [["DATE", "LDATE"]] },
+  SPLIT_TOD: split("TOD", timeFields),
+  SPLIT_LTOD: split("LTOD", timeFields),
+  SPLIT_DT: split("DT", [...dateFields, ...timeFields]),
+  SPLIT_LDT: split("LDT", [...dateFields, ...timeFields]),
+  DAY_OF_WEEK: {
+    min: 1,
+    max: 1,
+    arguments: [["DATE", "LDATE"]],
+    result: "INT",
+    inputNames: ["IN"],
+  },
+} as const satisfies Record<CalendarFunction, StandardFunctionSignature>;
+
 export const standardFunctions = {
   ABS: generic(numericTypes, 1, 1),
   SQRT: realUnary,
@@ -208,6 +304,8 @@ export const standardFunctions = {
   LE: comparison,
   LT: comparison,
   NE: { ...comparison, max: 2 },
+  ...timeArithmeticFunctions,
+  ...calendarFunctions,
   ...truncationFunctions,
   ...bcdFunctions,
   ...conversionFunctions,

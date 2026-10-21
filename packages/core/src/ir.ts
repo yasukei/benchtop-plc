@@ -58,7 +58,46 @@ export type TruncationFunction =
   `TRUNC_${IntegerType}` | `${"REAL" | "LREAL"}_TRUNC_${IntegerType}`;
 export type BcdFunction =
   `${BitStringType}_BCD_TO_${IntegerType}` | `${IntegerType}_TO_BCD_${BitStringType}`;
+export type TimeArithmeticFunction =
+  | "ADD_TIME"
+  | "ADD_TOD_TIME"
+  | "ADD_DT_TIME"
+  | "SUB_TIME"
+  | "SUB_DATE_DATE"
+  | "SUB_TOD_TIME"
+  | "SUB_TOD_TOD"
+  | "SUB_DT_TIME"
+  | "SUB_DT_DT"
+  | "MUL_TIME"
+  | "DIV_TIME"
+  | "ADD_LTIME"
+  | "ADD_LTOD_LTIME"
+  | "ADD_LDT_LTIME"
+  | "SUB_LTIME"
+  | "SUB_LDATE_LDATE"
+  | "SUB_LTOD_LTIME"
+  | "SUB_LTOD_LTOD"
+  | "SUB_LDT_LTIME"
+  | "SUB_LDT_LDT"
+  | "MUL_LTIME"
+  | "DIV_LTIME";
+export type CalendarFunction =
+  | "CONCAT_DATE_TOD"
+  | "CONCAT_DATE_LTOD"
+  | "CONCAT_DATE"
+  | "CONCAT_TOD"
+  | "CONCAT_LTOD"
+  | "CONCAT_DT"
+  | "CONCAT_LDT"
+  | "SPLIT_DATE"
+  | "SPLIT_TOD"
+  | "SPLIT_LTOD"
+  | "SPLIT_DT"
+  | "SPLIT_LDT"
+  | "DAY_OF_WEEK";
 export type StandardFunction =
+  | TimeArithmeticFunction
+  | CalendarFunction
   | "ABS"
   | "SQRT"
   | "LN"
@@ -200,7 +239,19 @@ export interface FunctionCallExpression extends SourceNode {
   /** A resolved standard-function opcode; never a source identifier. */
   function: StandardFunction;
   args: Expression[];
+  /** Resolved output port indices; arguments are evaluated before outputs are assigned. */
+  outputs?: FunctionOutputAssignment[];
   dataType: DataType;
+}
+
+export interface FunctionOutputAssignment extends SourceNode {
+  output: number;
+  target: AssignmentTarget;
+}
+
+export interface FunctionCallStatement extends SourceNode {
+  kind: "call";
+  call: FunctionCallExpression;
 }
 
 export type Expression =
@@ -293,6 +344,7 @@ export interface ReturnStatement extends SourceNode {
 
 export type Statement =
   | AssignmentStatement
+  | FunctionCallStatement
   | FunctionBlockCallStatement
   | IfStatement
   | CaseStatement

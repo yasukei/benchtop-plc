@@ -35,4 +35,5 @@ export interface CheckedProgram {
   expressions: ReadonlyMap<Expression, ExpressionInfo>;
   references: ReadonlyMap<Identifier, ResolvedReference>;
   functions: ReadonlyMap<FunctionCall, StandardFunction>;
+  functionArguments: ReadonlyMap<FunctionCall, readonly Expression[]>;
 }

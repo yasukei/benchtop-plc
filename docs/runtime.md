@@ -254,12 +254,42 @@ milliseconds, ties to even; integer division truncates toward zero. No conversio
 Polymorphic integer results wrap, so ABS(INT_MIN) remains INT_MIN. Negative zero
 normalizes to zero for every numeric type.
 
+### Time and date functions
+
+ADD_TIME, SUB_TIME, MUL_TIME and DIV_TIME use the duration operators' implementation,
+as do their LTIME forms. ADD_TOD_TIME, ADD_DT_TIME and their SUB and long forms
+use calendar arithmetic; SUB_DATE_DATE, SUB_TOD_TOD and SUB_DT_DT return TIME,
+and long forms return LTIME. Durations wrap at their declared width, TOD/LTOD wrap
+within one day, and out-of-range date/timestamp results fault with
+`runtime.invalid-value`. Integer division truncates toward zero; real scaling
+computes the exact result and rounds once, nearest with ties to even. For example
+DIV_TIME(T#3ms, 2) is T#1ms, but DIV_TIME(T#3ms, 2.0) is T#2ms. Zero divisors fault
+with `runtime.division-by-zero` at the call span.
+
+CONCAT_DATE_TOD and CONCAT_DATE_LTOD combine a date with an offset since midnight.
+CONCAT_DATE, CONCAT_TOD, CONCAT_LTOD, CONCAT_DT and CONCAT_LDT construct values
+from integer components. Components must describe a valid Gregorian date and a
+valid time (hours 0–23, minutes/seconds 0–59, milliseconds 0–999). Invalid or
+out-of-range results fault with `runtime.invalid-value` at the call span.
+DT results floor to seconds; long component constructors retain milliseconds,
+while CONCAT_DATE_LTOD preserves all nanoseconds of its LTOD argument.
+
+SPLIT_DATE, SPLIT_TOD, SPLIT_LTOD, SPLIT_DT and SPLIT_LDT return TRUE and emit
+INT components through output parameters. Long forms discard sub-millisecond
+precision in MILLISECOND. All inputs evaluate once before collecting outputs;
+output assignments then run in source order, including aliases. Omitted outputs
+are discarded. The interpreter buffers outputs through the optional
+`RuntimeLibrary.callFunction` context, which also supplies argument types so integer
+and real scaling factors retain their semantics. DAY_OF_WEEK returns 0 for Sunday
+through 6 for Saturday. Calendar functions use fixed-epoch UTC operations and
+never read the wall clock.
+
 ## Snapshots
 
 Snapshots are detached, JSON-serializable copies with images, scalar values, FB
 inputs/outputs, the active forced IDs, count,
 and execution duration measured by the injected clock. Annotations follow the
-[core protocol](core-contracts.md): one entry per executed assignment or FB call,
+[core protocol](core-contracts.md): one entry per executed assignment, function statement or FB call,
 using its last execution's values, grouped by line and sorted by column. Values
 reflect that statement's execution, before any later assignment or force. Each
 scan starts with empty annotations; partially executed scans retain only completed

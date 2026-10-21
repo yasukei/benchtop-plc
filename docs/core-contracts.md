@@ -121,6 +121,10 @@ discriminator and an index into the corresponding descriptor array. Named FB
 arguments retain the canonical name for inspection and the resolved input index
 for execution. Standard-function names are closed opcodes, not unresolved source
 identifiers. Expressions explicitly carry their result type; `&` lowers to AND.
+Function calls may carry `outputs`, each with a resolved descriptor output index,
+a writable assignment target and a source span. A `kind: "call"` statement wraps
+a function-call expression and discards its result. Input expressions precede all
+output assignments; output bindings retain source order, including aliases.
 The compiler checks operand types, index validity, writable inputs, integer CASE
 labels/ranges, integer FOR bounds/step and BOOL conditions. An omitted FOR step
 lowers to a literal 1. ELSIF is represented by subsequent conditional branches.
