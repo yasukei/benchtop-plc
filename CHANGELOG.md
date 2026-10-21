@@ -29,6 +29,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- DATE, TOD, DT, LDATE, LTOD and LDT throughout the compiler, runtime, variable
+  monitor and PLCopen XML, with Gregorian literals (including unpadded fields and
+  underscore separators), calendar conversions, exact
+  nanosecond long values, chronological comparisons and duration arithmetic.
+  Times of day wrap within one day; out-of-range dates fault. Calendar defaults
+  use the Unix epoch or midnight.
+
 - LINT, ULINT, LWORD and LTIME throughout the compiler, runtime, variable monitor
   and PLCopen XML, with exact 64-bit arithmetic and JSON-safe decimal strings.
   LTIME supports nanosecond literals and exact real scaling; LWORD supports all

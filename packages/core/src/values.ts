@@ -1,5 +1,13 @@
+import type { ScalarValue } from "./scalar.js";
+import { isCalendarType, validateCalendar, coerceCalendar, formatCalendar } from "./calendar.js";
 /** JSON representations of elementary values; 64-bit values use canonical decimal strings. */
 export interface ValueByType {
+  DATE: number;
+  TOD: number;
+  DT: number;
+  LDATE: string;
+  LTOD: string;
+  LDT: string;
   BOOL: boolean;
   LINT: string;
   ULINT: string;
@@ -45,6 +53,12 @@ export const integerWidths = {
   ULINT: 64,
 } as const;
 export const integerRanges = {
+  DATE: [0, 4294967295],
+  TOD: [0, 86399999],
+  DT: [0, 4294967295],
+  LDATE: [-(1n << 63n), (1n << 63n) - 1n],
+  LTOD: [0n, 86399999999999n],
+  LDT: [-(1n << 63n), (1n << 63n) - 1n],
   LINT: [-(1n << 63n), (1n << 63n) - 1n],
   ULINT: [0n, (1n << 64n) - 1n],
   LWORD: [0n, (1n << 64n) - 1n],
@@ -64,9 +78,9 @@ export const isIntegerType = (type: string): type is IntegerType =>
   integerTypes.some((item) => item === type);
 export const isBitType = (type: string): type is BitType => Object.hasOwn(bitWidths, type);
 
-export type LongType = "LINT" | "ULINT" | "LWORD" | "LTIME";
+export type LongType = "LINT" | "ULINT" | "LWORD" | "LTIME" | "LDATE" | "LTOD" | "LDT";
 export const isLongType = (type: string): type is LongType =>
-  ["LINT", "ULINT", "LWORD", "LTIME"].includes(type);
+  ["LINT", "ULINT", "LWORD", "LTIME", "LDATE", "LTOD", "LDT"].includes(type);
 
 /** Validate syntax before BigInt, which also accepts whitespace and non-decimal bases. */
 export function parseLong(type: LongType, value: unknown): bigint {
@@ -79,9 +93,11 @@ export function parseLong(type: LongType, value: unknown): bigint {
   const result = BigInt(value);
   const [min, max] = integerRanges[type];
   if (result < min || result > max) throw new RangeError("Value outside type range");
+  if (isCalendarType(type)) validateCalendar(type, result);
   return result;
 }
 export function coerceLong(type: LongType, value: ScalarValue): string {
+  if (isCalendarType(type)) return String(coerceCalendar(type, value));
   const integer = typeof value === "number" ? BigInt(Math.trunc(finite(value))) : BigInt(value);
   return (
     type === "LINT" || type === "LTIME" ? BigInt.asIntN(64, integer) : BigInt.asUintN(64, integer)
@@ -124,13 +140,14 @@ export function validateValue(dataType: DataType, value: unknown): void {
       throw new RangeError("Expected binary32 value");
     return;
   }
+  if (isCalendarType(dataType)) validateCalendar(dataType, BigInt(value));
   const [min, max] = integerRanges[dataType];
   if (!Number.isInteger(value) || value < min || value > max)
     throw new RangeError("Value outside type range");
 }
 export type NumericType = IntegerType | "REAL" | "LREAL";
 /** Includes bigint only for internal computations; TypedValue always remains JSON. */
-export type ScalarValue = boolean | number | string | bigint;
+export type { ScalarValue } from "./scalar.js";
 export type TypedValue<T extends DataType = DataType> = {
   [K in T]: { dataType: K; value: ValueByType[K] };
 }[T];
@@ -190,6 +207,7 @@ const coercers = {
 };
 
 export function coerceValue<T extends DataType>(dataType: T, value: ScalarValue): ValueByType[T] {
+  if (isCalendarType(dataType)) return coerceCalendar(dataType, value) as ValueByType[T];
   if (dataType === "BOOL" && (typeof value === "bigint" || typeof value === "string"))
     return (BigInt(value) !== 0n) as ValueByType[T];
   if (
@@ -212,7 +230,7 @@ export function coerceValue<T extends DataType>(dataType: T, value: ScalarValue)
     );
   }
   // The table preserves the key/result relationship, which indexed access otherwise loses.
-  return coercers[dataType](value) as ValueByType[T];
+  return coercers[dataType as keyof typeof coercers](value) as ValueByType[T];
 }
 
 export function formatTime(value: number): string {
@@ -246,6 +264,7 @@ function shortestReal(value: number): string {
 /** IEC value syntax, independent of the UI's language or locale. */
 export function formatValue<T extends DataType>(dataType: T, value: ValueByType[T]): string {
   const coerced = coerceValue(dataType, value);
+  if (isCalendarType(dataType)) return formatCalendar(dataType, coerced as number | string);
   if (dataType === "BOOL") return coerced ? "TRUE" : "FALSE";
   if (dataType === "TIME") return formatTime(Number(coerced));
   if (dataType === "LTIME") return formatLtime(String(coerced));

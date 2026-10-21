@@ -394,3 +394,36 @@ it.each([
   project.program = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
   expect(writeProject(project).value).toBeNull();
 });
+
+it("round trips calendar types, aliases and precise literals through TC6 XML", () => {
+  const project = sampleProject(`PROGRAM Main
+VAR a: DATE := D#2024-02-29; b: TIME_OF_DAY := TOD#12:30:15.5;
+ c: DATE_AND_TIME := DT#2026-10-20-12:30:15; d: LDATE := LD#1677-09-22;
+ e: LTIME_OF_DAY := LTOD#23:59:59.999999999;
+ f: LDATE_AND_TIME := LDT#1677-09-21-00:12:43.145224192;
+END_VAR
+END_PROGRAM`);
+  const saved = xml(project);
+  for (const type of ["DATE", "TOD", "DT", "LDATE", "LTOD", "LDT"])
+    expect(saved).toContain(`<${type}/>`);
+  expect(readProject(saved).value).toEqual(project);
+  const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(canonical.value?.program).toContain("b : TOD := TOD#12:30:15.5");
+  expect(canonical.value?.program).toContain("e : LTOD := LTOD#23:59:59.999999999");
+});
+it.each([
+  ["DATE", "D#1970-01-01", "D#2026-02-30"],
+  ["DATE", "D#1970-01-01", "D#1969-12-31"],
+  ["TOD", "TOD#00:00:00", "TOD#24:00:00"],
+  ["DT", "DT#1970-01-01-00:00:00", "DT#2106-02-07-06:28:16"],
+  ["LDATE", "LD#1970-01-01", "LD#1677-09-21"],
+  ["LTOD", "LTOD#00:00:00", "LTOD#24:00:00"],
+  ["LDT", "LDT#1970-01-01-00:00:00", "LDT#2262-04-11-23:47:16.854775808"],
+])("rejects invalid calendar %s initializers on import and export", (type, zero, invalid) => {
+  const project = sampleProject(`PROGRAM Main VAR x: ${type} := ${zero}; END_VAR END_PROGRAM`);
+  const saved = xml(project);
+  expect(readProject(saved.replace(`value="${zero}"`, `value="${invalid}"`)).value).toBeNull();
+  project.program = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
+  expect(writeProject(project).value).toBeNull();
+});

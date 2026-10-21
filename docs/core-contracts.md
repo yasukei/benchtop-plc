@@ -8,12 +8,14 @@ untrusted-input validator.
 ## Values
 
 `BOOL` uses `boolean`; SINT, USINT, INT, UINT, DINT, UDINT, BYTE, WORD, DWORD,
-REAL, LREAL and TIME use `number`. LINT, ULINT, LWORD and LTIME use canonical decimal
+REAL, LREAL, TIME, DATE, TOD and DT use `number`. LINT, ULINT, LWORD, LTIME,
+LDATE, LTOD and LDT use canonical decimal
 `string`s in typed values, IR and protocol messages. Canonical means an optional
 minus, decimal digits without leading zeros, no plus, whitespace or negative zero,
-and a value in range. LINT/LTIME are signed 64-bit; ULINT/LWORD are unsigned 64-bit.
+and a value in range. LINT/LTIME/LDATE/LTOD/LDT use signed 64-bit storage; ULINT/LWORD are unsigned 64-bit.
 `parseLong(type, text)` validates this representation and returns `bigint`;
-`coerceLong(type, value)` wraps computed results to 64 bits and returns a canonical string.
+`coerceLong(type, value)` wraps integer/duration results to 64 bits and returns a canonical string.
+For calendar types it checks dates or wraps times of day within one day.
 `isLongType` identifies these types. `ScalarValue` additionally admits `bigint` for
 internal computation; `TypedValue` never contains a bigint.
 TIME ranges from `T#-24d20h31m23s648ms` to `T#24d20h31m23s647ms`.
@@ -68,6 +70,31 @@ conversion truncates toward zero when reducing resolution, then wraps.
 REAL uses the fewest significant decimal digits (at most nine) that round back to
 the same binary32 value, so `0.1` displays as `0.1` rather than
 `0.10000000149011612`. LREAL retains JavaScript's shortest binary64 representation.
+
+## Calendar values
+
+DATE and DT store unsigned 32-bit seconds since the Unix epoch; DATE must be a
+whole multiple of 86,400 seconds. TOD stores milliseconds since midnight in
+0–86,399,999. LDATE, LTOD and LDT store canonical signed 64-bit nanoseconds;
+LDATE must be a whole multiple of 86,400 × 10^9, and LTOD is nonnegative and less
+than one day. All six default to storage zero (1970-01-01 or midnight).
+Ranges are listed in [compliance.md](compliance.md).
+
+`validateValue` and `parseLong` enforce these invariants on external values, including
+IR literals and initial values, writes and forces. The project codec validates
+calendar initializers with the compiler. `coerceValue` rejects dates outside their
+range and wraps TOD/LTOD computations modulo one day. `formatValue` uses `D#`,
+`TOD#`, `DT#`, `LDATE#`, `LTOD#` and `LDT#`, omitting trailing fractional zeros.
+TOD has millisecond precision, DT whole seconds, and long forms up to nine
+fractional digits. Values have no time zone; fixed-epoch UTC calendar operations
+never read the wall clock.
+
+`parseCalendar`, `calendarBinary` and `convertCalendar` share exact nanosecond
+calculations between compiler and runtime. Differences produce TIME/LTIME and wrap
+to the duration's width. DT ± TIME floors the exact result to seconds; calendar
+conversions floor to the coarser destination unit before checking its range.
+Calendar arithmetic nodes retain operand types to identify units, including mixed
+short/long operands. Implicit assignment and selection widening uses conversion nodes.
 
 ## Tree IR
 

@@ -3,6 +3,7 @@ import {
   coerceValue,
   isBitType,
   isLongType,
+  isCalendarType,
   validateValue,
   formatValue,
   standardFunctionBlocks,
@@ -38,7 +39,7 @@ export function parseWrittenValue(dataType: DataType, source: string): TypedValu
   const text = source.trim();
   if (dataType === "BOOL")
     return /^(TRUE|FALSE)$/i.test(text) ? { dataType, value: text.toUpperCase() === "TRUE" } : null;
-  if (isLongType(dataType)) {
+  if (isLongType(dataType) || isCalendarType(dataType)) {
     let literal = text;
     if (dataType === "LTIME" && /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(text))
       literal = `LTIME#${text}ns`;
@@ -50,7 +51,8 @@ export function parseWrittenValue(dataType: DataType, source: string): TypedValu
       return null;
     if (
       !tokens.every(
-        (token) => ["integer", "time"].includes(token.kind) || /^[+-]$/.test(token.text),
+        (token) =>
+          ["integer", "time", "calendar"].includes(token.kind) || /^[+-]$/.test(token.text),
       )
     )
       return null;

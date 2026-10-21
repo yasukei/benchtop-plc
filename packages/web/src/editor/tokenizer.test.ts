@@ -106,3 +106,37 @@ it.each(["UINT#16#FF", "INT#-5", "REAL#1.5", "LREAL#1.5e-20", "BOOL#TRUE", "BOOL
     });
   },
 );
+it.each([
+  "D#2024-02-29",
+  "DATE#2024-02-29",
+  "LD#1677-09-22",
+  "LDATE#2262-04-11",
+  "TOD#12:30:15.5",
+  "TIME_OF_DAY#00:00:00",
+  "LTOD#23:59:59.999999999",
+  "LTIME_OF_DAY#00:00:00",
+  "DT#2106-02-07-06:28:15",
+  "DATE_AND_TIME#1970-01-01-00:00:00",
+  "LDT#1677-09-21-00:12:43.145224192",
+  "LDATE_AND_TIME#2262-04-11-23:47:16.854775807",
+])("highlights calendar literal %s as one token", (source) => {
+  expect(readStToken(source + "+T#1s", { commentDepth: 0 })).toEqual({
+    length: source.length,
+    style: "number",
+  });
+});
+
+it.each([
+  "D#2026-1-5",
+  "DATE#2_026-01-0_5",
+  "TOD#8:05:00",
+  "TIME_OF_DAY#8:5:0.1_20",
+  "LTOD#15:36:55.360_227_400",
+  "DT#2_026-1-5-8:5:0",
+  "LDT#1_969-12-31-23:59:59.999_999_999",
+])("highlights unpadded and separated calendar fields: %s", (source) => {
+  expect(readStToken(source + "-T#1s", { commentDepth: 0 })).toEqual({
+    length: source.length,
+    style: "number",
+  });
+});

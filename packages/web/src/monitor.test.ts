@@ -114,3 +114,35 @@ it.each([
 ] as const)("rejects invalid %s monitor input %s", (type, input) => {
   expect(parseWrittenValue(type, input)).toBeNull();
 });
+
+it.each([
+  ["DATE", "D#2024-02-29", 1709164800],
+  ["TOD", "TOD#12:30:15.5", 45015500],
+  ["DT", "DT#1970-01-01-00:00:01", 1],
+  ["LDATE", "LDATE#1969-12-31", "-86400000000000"],
+  ["LTOD", "LTOD#00:00:00.000000001", "1"],
+  ["LDT", "LDT#1969-12-31-23:59:59.999999999", "-1"],
+] as const)("parses calendar monitor input for %s", (dataType, text, value) => {
+  expect(parseWrittenValue(dataType, text)).toEqual({ dataType, value });
+});
+it.each([
+  ["DATE", "D#2023-02-29"],
+  ["DATE", "1"],
+  ["DATE", "D#2024-02-29; END_VAR"],
+  ["TOD", "TOD#24:00:00"],
+  ["TOD", "86400000"],
+  ["DT", "DT#2106-02-07-06:28:16"],
+  ["LDATE", "1"],
+  ["LTOD", "LTOD#24:00:00"],
+  ["LDT", "LDT#2262-04-11-23:47:16.854775808"],
+] as const)("rejects invalid calendar monitor input for %s", (type, text) => {
+  expect(parseWrittenValue(type, text)).toBeNull();
+});
+
+it("accepts unpadded calendar fields and nanosecond digit separators in monitor input", () => {
+  expect(parseWrittenValue("DATE", "D#2026-1-5")).toEqual({ dataType: "DATE", value: 1767571200 });
+  expect(parseWrittenValue("LTOD", "LTOD#0:0:0.000_000_001")).toEqual({
+    dataType: "LTOD",
+    value: "1",
+  });
+});

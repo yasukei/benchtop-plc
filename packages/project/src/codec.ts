@@ -22,7 +22,7 @@ import {
 import type { XmlNode } from "./xml.js";
 
 const elementaryTypes = new Set(
-  "BOOL SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME LTIME DATE DT TOD BYTE WORD DWORD LWORD".split(
+  "BOOL SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME LTIME DATE DT TOD LDATE LTOD LDT BYTE WORD DWORD LWORD".split(
     " ",
   ),
 );
@@ -31,6 +31,8 @@ const xmlTypes: Record<string, string> = {
   WSTRING: "wstring",
   TIME_OF_DAY: "TOD",
   DATE_AND_TIME: "DT",
+  LTIME_OF_DAY: "LTOD",
+  LDATE_AND_TIME: "LDT",
 };
 const fileRequired = ["companyName", "productName", "productVersion", "creationDateTime"];
 const fileOptional = ["companyURL", "productRelease", "contentDescription"];

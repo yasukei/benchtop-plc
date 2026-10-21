@@ -31,7 +31,7 @@ variable references, FB members and other function calls are not constants.
 Implicit conversions follow [ADR 0013](adr/0013-conversions-literals-and-operators.md).
 The supported paths are SINT → INT → DINT → LINT; USINT → UINT → UDINT → ULINT;
 USINT → INT, UINT → DINT and UDINT → LINT; integers up to 16 bits → REAL; integers up to
-32 bits and REAL → LREAL; and BOOL → BYTE → WORD → DWORD → LWORD; and TIME → LTIME.
+32 bits and REAL → LREAL; and BOOL → BYTE → WORD → DWORD → LWORD; TIME → LTIME; DATE → LDATE, TOD → LTOD and DT → LDT.
 64-bit integers never widen implicitly to REAL or LREAL. Every narrowing
 conversion requires a conversion function; the diagnostic includes the localizable
 `explicit-conversion` hint.
@@ -55,6 +55,22 @@ An invalid index reports `type.invalid-bit-access`. Assignment changes only that
 TIME and LTIME support duration addition/subtraction and scaling with an independently
 typed numeric factor. Mixed TIME/LTIME expressions use LTIME after converting milliseconds
 to nanoseconds. LTIME literals accept us and ns in addition to d/h/m/s/ms.
+
+Calendar declarations accept DATE, TOD/TIME_OF_DAY, DT/DATE_AND_TIME, LDATE,
+LTOD/LTIME_OF_DAY and LDT/LDATE_AND_TIME. IR types use DATE, TOD, DT, LDATE, LTOD,
+and LDT. Literals accept D#/DATE#, LD#/LDATE#, TOD#/TIME_OF_DAY#,
+LTOD#/LTIME_OF_DAY#, DT#/DATE_AND_TIME# and LDT#/LDATE_AND_TIME#.
+Calendar fields may be unpadded and contain underscore digit separators, including
+fractional seconds (for example `D#2_026-1-5` or `LTOD#15:36:55.360_227_400`).
+Formatting uses padded fields and omits separators. Invalid Gregorian dates, unsupported fractional precision and out-of-range literals
+report `type.invalid-constant`.
+
+DATE − DATE, TOD − TOD and DT − DT yield TIME; long or mixed short/long differences
+yield LTIME. TOD ± TIME and DT ± TIME retain the left type; a long operand selects
+the long signature (including TOD + LTIME → LTOD). DATE ± duration, addition of two
+calendar values and unary calendar signs are rejected. Comparisons use chronological
+order within each compatible calendar family. Typed constant operations have exactly
+the runtime's wrap, floor and fault semantics.
 
 ### Literals and constants
 
@@ -144,3 +160,12 @@ EXIT statements. The codes and argument shapes are in
 [diagnostics.md](diagnostics.md). `type.case-label-not-constant`,
 `type.invalid-constant` and `fb.duplicate-input` extend that catalog because the
 existing codes could not represent those failures accurately.
+
+Calendar conversions are DT_TO_DATE, DT_TO_TOD, DT_TO_LTOD, DT_TO_LDT,
+LDT_TO_DT, LDT_TO_DATE, LDT_TO_TOD, LDT_TO_LTOD, TOD_TO_LTOD and LTOD_TO_TOD,
+with overloaded TO_<destination> forms. DATE_TO_LDATE, LDATE_TO_DATE and
+LDT_TO_LDATE are extensions. Date extraction floors to the start of the day;
+time extraction is a nonnegative offset within the day, even before 1970.
+Reducing resolution floors toward negative infinity. A calendar result outside the
+destination range faults with `runtime.invalid-value`, or reports
+`type.invalid-constant` in constant evaluation.

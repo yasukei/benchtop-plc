@@ -1,3 +1,4 @@
+import { isCalendarType } from "@benchtop-plc/core";
 import { describe, expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
 import { conversionFunctions, formatValue, isLongType } from "@benchtop-plc/core";
@@ -215,8 +216,9 @@ describe("ADR 0013 conversions and constants", () => {
   it("compiles and executes every conversion opcode with its declared source and destination", () => {
     for (const [name, signature] of Object.entries(conversionFunctions)) {
       for (const from of signature.arguments[0]!) {
-        const input =
-          from === "BOOL"
+        const input = isCalendarType(from)
+          ? formatValue(from, from.startsWith("L") ? "0" : 0)
+          : from === "BOOL"
             ? "TRUE"
             : from === "LTIME"
               ? "LT#3ns"
@@ -241,6 +243,7 @@ describe("ADR 0013 conversions and constants", () => {
         if (from === "LTIME" && signature.result === "TIME") expected = 0;
         if (from === "LREAL" && signature.result === "LWORD") expected = "4613937818241073152";
         if (from === "LWORD" && signature.result === "LREAL") expected = 3 * Number.MIN_VALUE;
+        if (isCalendarType(from)) expected = 0;
         if (isLongType(signature.result!)) expected = String(expected);
         expect(values.result, `${name}(${from})`).toBe(expected);
       }

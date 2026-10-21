@@ -20,7 +20,22 @@ export interface DirectAddress {
 }
 
 export type FunctionBlockType = "TON" | "TOF" | "TP" | "R_TRIG" | "F_TRIG" | "CTU" | "CTD";
+export type CalendarConversion =
+  | "DT_TO_DATE"
+  | "DT_TO_TOD"
+  | "DT_TO_LTOD"
+  | "DT_TO_LDT"
+  | "LDT_TO_DT"
+  | "LDT_TO_DATE"
+  | "LDT_TO_TOD"
+  | "LDT_TO_LTOD"
+  | "TOD_TO_LTOD"
+  | "LTOD_TO_TOD"
+  | "DATE_TO_LDATE"
+  | "LDATE_TO_DATE"
+  | "LDT_TO_LDATE";
 export type ConversionFunction =
+  | CalendarConversion
   | {
       [A in NumericType]: `${A}_TO_${Exclude<NumericType, A>}`;
     }[NumericType]
@@ -38,7 +53,7 @@ export type ConversionFunction =
   | `BOOL_TO_${IntegerType}`
   | `TIME_TO_${IntegerType}`
   | `${IntegerType}_TO_TIME`
-  | `TO_${NumericType | BitType | "TIME" | "LTIME"}`;
+  | `TO_${DataType}`;
 export type StandardFunction = "ABS" | "MIN" | "MAX" | "LIMIT" | "SEL" | ConversionFunction;
 
 interface VariableBase extends SourceNode {

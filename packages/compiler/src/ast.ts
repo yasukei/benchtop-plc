@@ -30,7 +30,7 @@ export interface Declaration extends SourceNode {
 }
 
 export type Literal = SourceNode & { kind: "literal"; text: string; dataType?: DataType } & (
-    | { literalKind: "integer" | "real" | "time"; value: number }
+    | { literalKind: "integer" | "real" | "time" | "calendar"; value: number }
     | { literalKind: "boolean"; value: boolean }
   );
 
