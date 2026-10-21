@@ -116,14 +116,19 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Standard function blocks
 
-| Feature                                           | Status | Notes                          |
-| ------------------------------------------------- | ------ | ------------------------------ |
-| `TON`, `TOF`, `TP`                                | Yes    | Negative PT is treated as T#0s |
-| `R_TRIG`, `F_TRIG`                                | Yes    |                                |
-| `CTU`, `CTD`                                      | Yes    | INT counters                   |
-| `CTUD`, typed counters (`CTU_INT`, `CTU_DINT`, …) | No     |                                |
-| `SR`, `RS`                                        | No     |                                |
-| Typed timers (`TON_TIME`, `TON_LTIME`, …)         | No     |                                |
+Names in this section follow the IEC 61131-3 3rd-edition function block families,
+consistent with PLCnext's typed timer names. CODESYS aliases LTON/LTOF/LTP are
+not provided. Overloaded PT/PV type adaptation is not implemented.
+
+| Feature                              | Status | Notes                                                                                                                                    |
+| ------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `TON`, `TOF`, `TP`                   | Yes    | TIME PT/ET; negative PT is zero                                                                                                          |
+| `R_TRIG`, `F_TRIG`                   | Yes    | First call suppresses edges                                                                                                              |
+| `CTU`, `CTD`, `CTUD`                 | Yes    | INT counters; saturation at type limits                                                                                                  |
+| Typed counters                       | Yes    | CTU/CTD/CTUD with _INT, _DINT, _LINT, _UDINT, _ULINT; exact 64-bit counts                                                                |
+| `SR`, `RS`                           | Yes    | Set dominant / reset dominant; Q1 initially FALSE                                                                                        |
+| `TON_TIME`, `TOF_TIME`, `TP_TIME`    | Yes    | Same behavior as unsuffixed TIME timers                                                                                                  |
+| `TON_LTIME`, `TOF_LTIME`, `TP_LTIME` | Yes    | LTIME PT/ET; nanoseconds from injected fractional-ms clock, limited by host resolution and floating-point precision; negative PT is zero |
 
 ## Configuration elements
 
@@ -194,3 +199,20 @@ long splits discard sub-millisecond precision. Constructors reject impossible
 components and out-of-range results, and DT floors to seconds. SPLIT functions
 return TRUE on success. These signatures, including the long forms, follow the
 issue #73 scope; the 4th edition text has not been independently checked.
+
+## Differences from vendor runtimes
+
+The compiler reports `type.portability` at the following calls, including their
+resolved overloaded `TO_<B>` forms. These warnings allow loading and execution.
+
+| Functions                                                        | benchtop-plc                                                                              | CODESYS / TwinCAT                  |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------- |
+| `REAL_TO_DWORD`, `DWORD_TO_REAL`                                 | Reinterpret the IEEE binary32 bit pattern; `REAL_TO_DWORD(1.0)` is `16#3F800000`          | Convert the numeric value          |
+| `LREAL_TO_LWORD`, `LWORD_TO_LREAL`                               | Reinterpret the IEEE binary64 bit pattern; `LREAL_TO_LWORD(1.0)` is `16#3FF0000000000000` | Convert the numeric value          |
+| `BYTE_TO_BOOL`, `WORD_TO_BOOL`, `DWORD_TO_BOOL`, `LWORD_TO_BOOL` | Return the rightmost bit; converting 2 returns FALSE                                      | Return TRUE for any non-zero value |
+
+Real → integer conversion rounds to nearest, ties to even in benchtop-plc (for
+example, `REAL_TO_INT(2.5)` is 2 and `REAL_TO_INT(3.5)` is 4). Vendor tie-breaking
+can depend on the runtime or target hardware. This difference has no compiler
+warning; check rounding expectations when porting a program. See
+[ADR 0013](adr/0013-conversions-literals-and-operators.md).

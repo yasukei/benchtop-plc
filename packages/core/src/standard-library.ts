@@ -3,6 +3,7 @@ import type {
   TruncationFunction,
   ConversionFunction,
   FunctionBlockType,
+  CounterType,
   StandardFunction,
   TimeArithmeticFunction,
   CalendarFunction,
@@ -31,36 +32,86 @@ const timer = {
     ["ET", "TIME"],
   ],
 } as const;
+const longTimer = {
+  inputs: [
+    ["IN", "BOOL"],
+    ["PT", "LTIME"],
+  ],
+  outputs: [
+    ["Q", "BOOL"],
+    ["ET", "LTIME"],
+  ],
+} as const;
 const trigger = { inputs: [["CLK", "BOOL"]], outputs: [["Q", "BOOL"]] } as const;
+function counter(type: CounterType, kind: "CTU" | "CTD" | "CTUD"): FunctionBlockDescriptor {
+  return {
+    inputs:
+      kind === "CTUD"
+        ? [
+            ["CU", "BOOL"],
+            ["CD", "BOOL"],
+            ["R", "BOOL"],
+            ["LD", "BOOL"],
+            ["PV", type],
+          ]
+        : [
+            [kind === "CTU" ? "CU" : "CD", "BOOL"],
+            [kind === "CTU" ? "R" : "LD", "BOOL"],
+            ["PV", type],
+          ],
+    outputs:
+      kind === "CTUD"
+        ? [
+            ["QU", "BOOL"],
+            ["QD", "BOOL"],
+            ["CV", type],
+          ]
+        : [
+            ["Q", "BOOL"],
+            ["CV", type],
+          ],
+  };
+}
+const typedCounterEntries = (["CTU", "CTD", "CTUD"] as const).flatMap((kind) =>
+  (["INT", "DINT", "LINT", "UDINT", "ULINT"] as const).map(
+    (type) => [`${kind}_${type}`, counter(type, kind)] as const,
+  ),
+);
+const typedCounters = Object.fromEntries(typedCounterEntries) as Record<
+  `${"CTU" | "CTD" | "CTUD"}_${CounterType}`,
+  FunctionBlockDescriptor
+>;
 /** Port order is part of the IR contract; compiler and runtime share this registry. */
 export const standardFunctionBlocks = {
   TON: timer,
   TOF: timer,
   TP: timer,
+  TON_TIME: timer,
+  TOF_TIME: timer,
+  TP_TIME: timer,
+  TON_LTIME: longTimer,
+  TOF_LTIME: longTimer,
+  TP_LTIME: longTimer,
   R_TRIG: trigger,
   F_TRIG: trigger,
-  CTU: {
+  SR: {
     inputs: [
-      ["CU", "BOOL"],
+      ["S1", "BOOL"],
       ["R", "BOOL"],
-      ["PV", "INT"],
     ],
-    outputs: [
-      ["Q", "BOOL"],
-      ["CV", "INT"],
-    ],
+    outputs: [["Q1", "BOOL"]],
   },
-  CTD: {
+  RS: {
     inputs: [
-      ["CD", "BOOL"],
-      ["LD", "BOOL"],
-      ["PV", "INT"],
+      ["S", "BOOL"],
+      ["R1", "BOOL"],
     ],
-    outputs: [
-      ["Q", "BOOL"],
-      ["CV", "INT"],
-    ],
+    outputs: [["Q1", "BOOL"]],
   },
+  CTU: counter("INT", "CTU"),
+  CTD: counter("INT", "CTD"),
+  CTUD: counter("INT", "CTUD"),
+  ...typedCounters,
 } as const satisfies Record<FunctionBlockType, FunctionBlockDescriptor>;
 
 type Types = readonly [DataType, ...DataType[]];

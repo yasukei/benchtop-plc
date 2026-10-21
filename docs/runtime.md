@@ -172,8 +172,19 @@ IN=FALSE does not start a TOF delay. TP starts on a rising edge (including initi
 IN=TRUE), keeps Q TRUE until PT even if IN falls, and ignores edges during the
 pulse. After completion it needs IN=FALSE before accepting another rising edge.
 
-ET is integer milliseconds, clamped to PT. TON/TOF retain ET=PT after completion
-until reset; TP retains it while IN stays TRUE and resets it to zero once the
+TON_TIME, TOF_TIME and TP_TIME are aliases with the same TIME ports and behavior.
+TON_LTIME, TOF_LTIME and TP_LTIME use LTIME PT/ET: exact signed 64-bit nanoseconds
+represented as decimal strings. Unsuffixed timers still accept only TIME PT.
+ET is clamped to PT. TIME ET is truncated to integer milliseconds; LTIME ET is
+rounded to the nearest nanosecond from the elapsed fractional milliseconds of
+`Clock.now()`. The virtual clock accepts fractional milliseconds, including 1.5 ms
+for LT#1500us. The browser host uses `performance.now()`: actual resolution is
+browser-dependent and may be coarser due to privacy settings. Floating-point clock
+precision also becomes coarser at large timestamps; LTIME storage does not create
+precision missing from the clock. Timers use scan-start samples, so Q changes on
+the first call at or after the threshold, rather than between scans.
+
+TON/TOF retain ET=PT after completion until reset; TP retains it while IN stays TRUE and resets it to zero once the
 pulse is complete and IN=FALSE. Nonpositive PT acts as zero: TON completes
 immediately, TOF has no off delay and TP emits no pulse. PT is sampled on every
 call while timing; completion stays latched until the corresponding reset, so
@@ -183,13 +194,29 @@ Timers read no clock themselves; all elapsed times use the supplied scan start.
 R_TRIG/F_TRIG compare CLK with its previous call and emit Q for one call on the
 corresponding edge. Both suppress a pulse on their first call, regardless of CLK.
 
-### Counters and functions
+### Bistables, counters and functions
+
+SR is set dominant: `Q1 := S1 OR (NOT R AND Q1)`. RS is reset dominant:
+`Q1 := NOT R1 AND (S OR Q1)`. Both start with Q1=FALSE, retain their state
+between calls and return to FALSE on cold reset.
 
 CTU increments CV on CU rising edges and sets Q when CV >= PV. R resets CV to
 zero. CTD loads PV while LD=TRUE, otherwise decrements on CD rising edges, with
 Q when CV <= 0 (including its initial zero state). Counts continue beyond PV/zero
 and saturate at the INT limits, 32767/-32768. Reset/load takes priority over an
 edge but still samples CU/CD, so releasing it at a held-high level does not count.
+
+CTUD combines CU/CD rising edges, with inputs CU, CD, R, LD, PV and outputs
+QU (`CV >= PV`), QD (`CV <= 0`), CV. R resets to zero before LD can load PV;
+simultaneous up/down edges cancel. A held-high input does not block a new edge
+on the other input. Both histories are sampled even during reset/load.
+
+CTU/CTD/CTUD count in INT. Each also has _INT, _DINT, _LINT, _UDINT and _ULINT
+variants with PV/CV in that type. All saturate at the type's lower/upper bounds;
+unsigned counters stop at zero when counting down. The 64-bit variants count
+exactly with bigint internally and expose canonical decimal strings. They do not
+adapt to the type of PV. Cold reset restores CV=0 and clears both edge histories.
+
 Counters initially remember FALSE, so an initial TRUE counts unless reset/loading.
 This difference from R_TRIG is intentional: counters retain FALSE-initialized edge
 memory, while issue #9 explicitly requires first-call pulse suppression for the

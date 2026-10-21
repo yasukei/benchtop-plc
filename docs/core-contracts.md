@@ -55,7 +55,7 @@ write/force values must satisfy their declared type's range and representation.
 `validateValue` rejects out-of-range or fractional integers, non-finite reals, REAL
 values not representable as binary32, negative zero and incorrectly represented BOOLs
 without coercion. `validateTime` remains available for TIME-only validation.
-The project codec checks scalar initializer ranges on import and export. TON, TOF and TP treat negative PT as zero.
+The project codec checks scalar initializer ranges on import and export. All TIME and LTIME timers treat negative PT as zero.
 
 `formatValue(type, value)` uses IEC syntax independent of UI locale: TRUE/FALSE,
 decimal integers, full-width uppercase hexadecimal bit strings (`16#00FF` for WORD),
@@ -132,12 +132,20 @@ lowers to a literal 1. ELSIF is represented by subsequent conditional branches.
 Port indices follow core's shared `standardFunctionBlocks` registry. The compiler
 and runtime consume these descriptors, with implementations in runtime:
 
-| FB             | Inputs, in index order      | Outputs, in index order |
-| -------------- | --------------------------- | ----------------------- |
-| TON, TOF, TP   | IN: BOOL, PT: TIME          | Q: BOOL, ET: TIME       |
-| R_TRIG, F_TRIG | CLK: BOOL                   | Q: BOOL                 |
-| CTU            | CU: BOOL, R: BOOL, PV: INT  | Q: BOOL, CV: INT        |
-| CTD            | CD: BOOL, LD: BOOL, PV: INT | Q: BOOL, CV: INT        |
+| FB                                        | Inputs, in index order                           | Outputs, in index order                          |
+| ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| TON, TOF, TP; TON_TIME, TOF_TIME, TP_TIME | IN: BOOL, PT: TIME                               | Q: BOOL, ET: TIME                                |
+| TON_LTIME, TOF_LTIME, TP_LTIME            | IN: BOOL, PT: LTIME                              | Q: BOOL, ET: LTIME                               |
+| R_TRIG, F_TRIG                            | CLK: BOOL                                        | Q: BOOL                                          |
+| SR                                        | S1: BOOL, R: BOOL                                | Q1: BOOL                                         |
+| RS                                        | S: BOOL, R1: BOOL                                | Q1: BOOL                                         |
+| CTU, CTU_INT                              | CU: BOOL, R: BOOL, PV: INT                       | Q: BOOL, CV: INT                                 |
+| CTD, CTD_INT                              | CD: BOOL, LD: BOOL, PV: INT                      | Q: BOOL, CV: INT                                 |
+| CTUD, CTUD_INT                            | CU: BOOL, CD: BOOL, R: BOOL, LD: BOOL, PV: INT   | QU: BOOL, QD: BOOL, CV: INT                      |
+| CTU_T, CTD_T, CTUD_T                      | Same order as the corresponding INT block, PV: T | Same order as the corresponding INT block, CV: T |
+
+In the last row, T is DINT, LINT, UDINT or ULINT. The registry contains each
+concrete name (for example CTUD_ULINT); it has no type-adapting overloads.
 
 IR contains only finite primitive values, arrays and plain objects. Optional
 fields are omitted, never explicitly set to undefined; no Maps, Sets, functions

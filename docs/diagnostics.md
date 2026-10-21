@@ -104,6 +104,7 @@ as syntax errors.
 | `decl.nonconstant-initializer`   | Initial value is not a constant expression           | `{ name: string }`                                                                               |
 | `decl.fb-initializer`            | Initial value supplied for an FB instance            | `{ name: string }`                                                                               |
 | `name.undeclared`                | Identifier has no declaration                        | `{ name: string }`                                                                               |
+| `type.portability`               | Warning: conversion differs from vendor runtimes     | `{ function: string }`                                                                           |
 | `type.invalid-constant`          | Invalid constant, literal range or REAL overflow     | `{}`                                                                                             |
 | `type.case-label-not-constant`   | Integer CASE label depends on a variable or call     | `{}`                                                                                             |
 | `fb.duplicate-input`             | Named FB input is supplied more than once            | `{ name: string; member: string }`                                                               |
@@ -168,5 +169,8 @@ compiler's lexer/parser diagnostics with source spans. See
 
 `type.invalid-bit-access` carries `{ type, bit }` for an unsupported scalar type or
 an index outside a bit string's width. `type.portability` is a warning carrying
-`{ name }` for REAL ↔ DWORD and bit strings → BOOL conversions whose vendor semantics
-may differ; it does not prevent compilation.
+`{ function: string }` for REAL ↔ DWORD, LREAL ↔ LWORD and bit strings → BOOL
+conversions whose vendor semantics may differ. It spans the entire call and names
+the resolved typed function, including for overloaded `TO_` calls. The English and
+Japanese messages explain bit-pattern reinterpretation or rightmost-bit selection.
+It does not prevent compilation, loading or execution.

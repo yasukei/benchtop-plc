@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Conversion portability warnings now name the resolved function and explain the
+  rightmost-bit or bit-pattern behavior in English and Japanese, including overloaded
+  `TO_` calls. Warnings allow programs to load and run.
+
 - New standard function names (including SUB, EQ and LT) are reserved against
   variable declarations; existing programs using those names must rename them.
 
@@ -34,6 +38,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - Running light example project with START/STOP, a direction selector, eight LEDs,
   BYTE rotations and bit access, a UDINT rotation counter and virtual-time traces.
+
+- Standard SR/RS bistables, CTUD, typed CTU/CTD/CTUD counters for INT, DINT,
+  LINT, UDINT and ULINT, and TON/TOF/TP_TIME and _LTIME timers. Counters saturate
+  at type limits; long timers use nanoseconds from the injected clock, subject
+  to host clock resolution. All new blocks round trip through PLCopen XML and
+  expose typed monitor ports. Their names are reserved against declarations.
 
 - Standard time/date arithmetic and long forms, calendar constructors, component
   splitting and DAY_OF_WEEK. Function calls support statements and SPLIT output
