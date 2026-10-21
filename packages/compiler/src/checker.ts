@@ -569,7 +569,7 @@ class Checker {
         this.diagnostics.push({
           code: "type.portability",
           severity: "warning",
-          args: { name },
+          args: { function: resolved },
           span: node.span,
         });
       }

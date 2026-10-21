@@ -56,8 +56,10 @@ export const diagnosticEn = {
   "name.undeclared": ({ name }) => `Undeclared identifier: ${name}.`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `Bit ${bit} is outside the width of ${type}, or the type does not support bit access.`,
-  "type.portability": ({ name }) =>
-    `${name} follows IEC bit-pattern conversion rules; some vendor runtimes give different results.`,
+  "type.portability": ({ function: name }) =>
+    name.endsWith("_TO_BOOL")
+      ? `${name} returns the rightmost bit; some vendor runtimes return TRUE for any non-zero value.`
+      : `${name} reinterprets the bit pattern; some vendor runtimes convert the numeric value instead.`,
   "type.invalid-constant": () => "Invalid constant or numeric value outside the supported range.",
   "type.case-label-not-constant": () => "CASE label must be an integer constant expression.",
   "fb.duplicate-input": ({ name, member }) => `Input ${name}.${member} is supplied more than once.`,
@@ -141,8 +143,10 @@ export const diagnosticJa = {
   "name.undeclared": ({ name }) => `宣言されていない識別子です: ${name}。`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `${type}のビット${bit}は範囲外、またはビットアクセス非対応の型です。`,
-  "type.portability": ({ name }) =>
-    `${name}はIECのビットパターン変換規則に従います。一部のベンダーの実行環境では結果が異なります。`,
+  "type.portability": ({ function: name }) =>
+    name.endsWith("_TO_BOOL")
+      ? `${name}は最下位ビットを返します。一部のベンダーの実行環境では、ゼロ以外のすべての値に対してTRUEを返します。`
+      : `${name}はビットパターンを再解釈します。一部のベンダーの実行環境では、代わりに数値を変換します。`,
   "type.invalid-constant": () => "定数が不正、または数値が対応範囲外です。",
   "type.case-label-not-constant": () => "CASEラベルには整数の定数式が必要です。",
   "fb.duplicate-input": ({ name, member }) => `入力${name}.${member}が複数回指定されています。`,
