@@ -1,6 +1,14 @@
-import { coerceValue, isIntegerType, timeBinary } from "@benchtop-plc/core";
+import {
+  coerceValue,
+  isIntegerType,
+  isLongType,
+  timeBinary,
+  ltimeBinary,
+  binaryValue,
+  unaryValue,
+  validateValue,
+} from "@benchtop-plc/core";
 import type {
-  BinaryOperator,
   Diagnostic,
   Expression,
   ScalarValue,
@@ -16,45 +24,6 @@ export const WATCHDOG_LIMIT = 200_000;
 export class RuntimeFault extends Error {
   constructor(readonly diagnostic: Diagnostic) {
     super(diagnostic.code);
-  }
-}
-
-function binary(operator: BinaryOperator, left: ScalarValue, right: ScalarValue): ScalarValue {
-  const a = Number(left),
-    b = Number(right);
-  switch (operator) {
-    case "+":
-      return a + b;
-    case "-":
-      return a - b;
-    case "*":
-      return a * b;
-    case "/":
-      return a / b;
-    case "MOD":
-      return b === 0 ? 0 : a % b;
-    case "AND":
-      return typeof left === "boolean" && typeof right === "boolean"
-        ? left && Boolean(right)
-        : a & b;
-    case "OR":
-      return typeof left === "boolean" && typeof right === "boolean"
-        ? left || Boolean(right)
-        : a | b;
-    case "XOR":
-      return typeof left === "boolean" && typeof right === "boolean" ? left !== right : a ^ b;
-    case "=":
-      return a === b;
-    case "<>":
-      return a !== b;
-    case "<":
-      return a < b;
-    case ">":
-      return a > b;
-    case "<=":
-      return a <= b;
-    case ">=":
-      return a >= b;
   }
 }
 
@@ -104,6 +73,7 @@ export class Interpreter {
   private evaluate(expr: Expression): ScalarValue {
     switch (expr.kind) {
       case "literal":
+        if (isLongType(expr.dataType)) validateValue(expr.dataType, expr.value);
         return expr.value;
       case "variable":
       case "bit":
@@ -111,14 +81,7 @@ export class Interpreter {
         return this.memory.value(expr).value;
       case "unary": {
         const value = this.expression(expr.operand);
-        const result =
-          expr.operator === "+"
-            ? Number(value)
-            : expr.operator === "-"
-              ? -Number(value)
-              : typeof value === "boolean"
-                ? !value
-                : ~value;
+        const result = unaryValue(expr.operator, value);
         return coerceValue(expr.dataType, result);
       }
       case "binary": {
@@ -127,19 +90,30 @@ export class Interpreter {
         if (expr.operator === "/" && Number(right) === 0) {
           this.fault("runtime.division-by-zero", expr.span);
         }
-        return expr.dataType === "TIME"
-          ? timeBinary(
+        return expr.dataType === "LTIME"
+          ? ltimeBinary(
               expr.operator as "+" | "-" | "*" | "/",
-              Number(left),
-              Number(right),
+              BigInt(left),
+              expr.right.dataType === "REAL" || expr.right.dataType === "LREAL"
+                ? Number(right)
+                : BigInt(right),
               expr.right.dataType,
             )
-          : coerceValue(
-              expr.dataType,
-              expr.operator === "*" && isIntegerType(expr.dataType)
-                ? Math.imul(Number(left), Number(right))
-                : binary(expr.operator, left, right),
-            );
+          : expr.dataType === "TIME"
+            ? timeBinary(
+                expr.operator as "+" | "-" | "*" | "/",
+                Number(left),
+                typeof right === "string" || typeof right === "bigint"
+                  ? BigInt(right)
+                  : Number(right),
+                expr.right.dataType,
+              )
+            : coerceValue(
+                expr.dataType,
+                expr.operator === "*" && isIntegerType(expr.dataType) && !isLongType(expr.dataType)
+                  ? Math.imul(Number(left), Number(right))
+                  : binaryValue(expr.operator, left, right),
+              );
       }
       case "functionCall": {
         if (!this.library) throw new Error("A runtime library is required for functions");
@@ -206,26 +180,26 @@ export class Interpreter {
         return this.execute(branch?.body ?? statement.elseBody);
       }
       case "case": {
-        const selector = Number(this.expression(statement.selector));
+        const selector = BigInt(this.expression(statement.selector));
         const branch = statement.branches.find((branch) =>
           branch.labels.some((label) =>
             label.kind === "value"
-              ? selector === label.value
-              : selector >= label.lower && selector <= label.upper,
+              ? selector === BigInt(label.value)
+              : selector >= BigInt(label.lower) && selector <= BigInt(label.upper),
           ),
         );
         return this.execute(branch?.body ?? statement.elseBody);
       }
       case "for": {
         const from = this.expression(statement.from);
-        const to = Number(this.expression(statement.to));
-        const step = Number(this.expression(statement.step));
-        if (step === 0) this.fault("runtime.for-by-zero", statement.step.span);
+        const to = BigInt(this.expression(statement.to));
+        const step = BigInt(this.expression(statement.step));
+        if (step === 0n) this.fault("runtime.for-by-zero", statement.step.span);
         this.memory.assign(statement.variable, from);
         while (
-          step > 0
-            ? Number(this.memory.read(statement.variable.variable)) <= to
-            : Number(this.memory.read(statement.variable.variable)) >= to
+          step > 0n
+            ? BigInt(this.memory.read(statement.variable.variable)) <= to
+            : BigInt(this.memory.read(statement.variable.variable)) >= to
         ) {
           if (!this.active()) return "abort";
           this.iteration(statement.span);
@@ -234,7 +208,7 @@ export class Interpreter {
           if (flow) return flow;
           this.memory.assign(
             statement.variable,
-            Number(this.memory.read(statement.variable.variable)) + step,
+            BigInt(this.memory.read(statement.variable.variable)) + step,
           );
         }
         break;

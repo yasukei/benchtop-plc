@@ -367,3 +367,30 @@ it.each([
   project.program = `PROGRAM Main VAR x: ${type} := ${initial}; END_VAR END_PROGRAM`;
   expect(writeProject(project).value).toBeNull();
 });
+
+it("round trips all long elementary types and exact initializers through TC6 XML", () => {
+  const project = sampleProject(`PROGRAM Main
+VAR x: LINT := 9223372036854775807; u: ULINT := 18446744073709551615;
+ w: LWORD := LWORD#16#FFFFFFFFFFFFFFFF; t: LTIME := LT#1ms500us7ns;
+END_VAR
+w.63 := TRUE;
+END_PROGRAM`);
+  const saved = xml(project);
+  for (const type of ["LINT", "ULINT", "LWORD", "LTIME"]) expect(saved).toContain(`<${type}/>`);
+  expect(readProject(saved).value).toEqual(project);
+  const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(splitProgram(canonical.value!.program).value).toEqual(splitProgram(project.program).value);
+});
+it.each([
+  ["LINT", "9223372036854775808", "0"],
+  ["ULINT", "18446744073709551616", "0"],
+  ["LWORD", "16#10000000000000000", "0"],
+  ["LTIME", "LT#9223372036854775808ns", "LT#0ns"],
+])("rejects out-of-range long %s initializers on XML import and export", (type, invalid, zero) => {
+  const project = sampleProject(`PROGRAM Main VAR x: ${type} := ${zero}; END_VAR END_PROGRAM`);
+  const saved = xml(project);
+  expect(readProject(saved.replace(`value="${zero}"`, `value="${invalid}"`)).value).toBeNull();
+  project.program = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
+  expect(writeProject(project).value).toBeNull();
+});

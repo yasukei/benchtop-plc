@@ -38,27 +38,27 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | BOOL                                            | Yes    |                                                                     |
 | INT, DINT, UINT                                 | Yes    |                                                                     |
 | SINT, USINT, UDINT                              | Yes    |                                                                     |
-| LINT, ULINT                                     | No     |                                                                     |
+| LINT, ULINT                                     | Yes    | Canonical decimal strings, bigint arithmetic                        |
 | BYTE, WORD, DWORD                               | Yes    | Unsigned bit patterns, formatted with full-width hexadecimal digits |
-| LWORD                                           | No     |                                                                     |
+| LWORD                                           | Yes    | 64-bit patterns, hexadecimal display and bit access through bit 63  |
 | REAL, LREAL                                     | Yes    | REAL uses binary32 at every result; LREAL uses binary64             |
 | TIME                                            | Yes    | Signed 32-bit milliseconds (ADR 0012)                               |
-| LTIME                                           | No     |                                                                     |
+| LTIME                                           | Yes    | Signed 64-bit nanoseconds; LT#/LTIME#, including us/ns              |
 | DATE, TIME_OF_DAY, DATE_AND_TIME and long forms | No     |                                                                     |
 | CHAR, WCHAR, STRING, WSTRING                    | No     |                                                                     |
 
 ## Literals
 
-| Feature                                   | Status  | Notes                                                                                                               |
-| ----------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
-| Integer literals, decimal, `2#` and `16#` | Partial | Exact constants, typed by position (ADR 0013); checked against the resulting type                                   |
-| Octal literals `8#`                       | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number`                                 |
-| Real literals with exponent               | Yes     |                                                                                                                     |
-| Boolean literals `TRUE`, `FALSE`          | Yes     |                                                                                                                     |
-| Boolean literals `0`, `1`                 | Yes     | Integer constants in BOOL positions                                                                                 |
-| Duration literals `T#`, `TIME#`           | Yes     | Units d, h, m, s and ms; exact literal values are range-checked before fractional milliseconds truncate toward zero |
-| Typed literals `<type>#<value>`           | Partial | All supported elementary types; based integer and bit-string forms included                                         |
-| Date and time-of-day literals             | No      |                                                                                                                     |
+| Feature                                          | Status  | Notes                                                                               |
+| ------------------------------------------------ | ------- | ----------------------------------------------------------------------------------- |
+| Integer literals, decimal, `2#` and `16#`        | Partial | Exact constants, typed by position (ADR 0013); checked against the resulting type   |
+| Octal literals `8#`                              | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number` |
+| Real literals with exponent                      | Yes     |                                                                                     |
+| Boolean literals `TRUE`, `FALSE`                 | Yes     |                                                                                     |
+| Boolean literals `0`, `1`                        | Yes     | Integer constants in BOOL positions                                                 |
+| Duration literals `T#`, `TIME#`, `LT#`, `LTIME#` | Yes     | Units d/h/m/s/ms, plus us/ns for LTIME; exact range checks precede TIME truncation  |
+| Typed literals `<type>#<value>`                  | Partial | All supported elementary types; based integer and bit-string forms included         |
+| Date and time-of-day literals                    | No      |                                                                                     |
 
 ## Derived types and variables
 
@@ -83,31 +83,31 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Operators and statements (ST)
 
-| Feature                                | Status | Notes                                                                                                                                                          |
-| -------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `+ - * / MOD`, unary `+` and `-`       | Yes    | MOD accepts integers only; TIME supports addition/subtraction with TIME, scaling by a numeric right operand, and unary signs (minus rejects unsigned integers) |
-| `**`                                   | No     |                                                                                                                                                                |
-| `AND`, `&`, `OR`, `XOR`, `NOT`         | Yes    | BOOL and BYTE/WORD/DWORD only; operands use their common bit type; `&` is an alias for AND                                                                     |
-| Comparisons                            | Yes    | Common type per ADR 0013; BOOL ordering is `FALSE < TRUE`                                                                                                      |
-| Bit access `x.n`                       | Yes    | BYTE/WORD/DWORD variables; a constant index within the width, readable and writable                                                                            |
-| Assignment `:=`                        | Yes    | Only ADR 0013 widening is implicit; narrowing needs an explicit conversion                                                                                     |
-| FB call with named inputs              | Yes    |                                                                                                                                                                |
-| `IF`, `CASE`, `FOR`, `WHILE`, `REPEAT` | Yes    | CASE selectors and labels, and FOR variables and bounds, must be integers; CASE labels must be constant                                                        |
-| `EXIT`, `RETURN`                       | Yes    |                                                                                                                                                                |
-| `CONTINUE`                             | No     |                                                                                                                                                                |
+| Feature                                | Status | Notes                                                                                                                                                              |
+| -------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `+ - * / MOD`, unary `+` and `-`       | Yes    | MOD accepts integers only; TIME/LTIME support duration addition/subtraction, scaling by a numeric right operand, and unary signs (minus rejects unsigned integers) |
+| `**`                                   | No     |                                                                                                                                                                    |
+| `AND`, `&`, `OR`, `XOR`, `NOT`         | Yes    | BOOL and BYTE/WORD/DWORD/LWORD only; operands use their common bit type; `&` is an alias for AND                                                                   |
+| Comparisons                            | Yes    | Common type per ADR 0013; BOOL ordering is `FALSE < TRUE`                                                                                                          |
+| Bit access `x.n`                       | Yes    | BYTE/WORD/DWORD/LWORD variables; a constant index within the width, readable and writable                                                                          |
+| Assignment `:=`                        | Yes    | Only ADR 0013 widening is implicit; narrowing needs an explicit conversion                                                                                         |
+| FB call with named inputs              | Yes    |                                                                                                                                                                    |
+| `IF`, `CASE`, `FOR`, `WHILE`, `REPEAT` | Yes    | CASE selectors and labels, and FOR variables and bounds, must be integers; CASE labels must be constant                                                            |
+| `EXIT`, `RETURN`                       | Yes    |                                                                                                                                                                    |
+| `CONTINUE`                             | No     |                                                                                                                                                                    |
 
 ## Standard functions
 
-| Feature                                            | Status  | Notes                                                                                                                                                                                                        |
-| -------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ABS`, `MIN`, `MAX`, `LIMIT`, `SEL`                | Partial | ABS, MIN, MAX and LIMIT accept numeric types only; SEL also accepts BOOL, bit strings and TIME. Numeric MIN/MAX/LIMIT/SEL results use the set-based common type (ADR 0013); ABS preserves its argument type  |
-| Type conversion                                    | Partial | All supported numeric pairs; BOOL → integer; BOOL/bit-string pairs; integer ↔ bit string; REAL ↔ DWORD bit reinterpretation; overloaded TO_ forms. TIME ↔ integer conversions in milliseconds are extensions |
-| Numeric (`SQRT`, `LN`, `SIN`, …)                   | No      |                                                                                                                                                                                                              |
-| Arithmetic functions (`ADD`, `MUL`, …)             | No      |                                                                                                                                                                                                              |
-| Bit shift (`SHL`, `SHR`, `ROL`, `ROR`)             | No      |                                                                                                                                                                                                              |
-| Selection (`MUX`, `MOVE`) and comparison functions | No      |                                                                                                                                                                                                              |
-| Time and date functions                            | No      |                                                                                                                                                                                                              |
-| String functions                                   | No      |                                                                                                                                                                                                              |
+| Feature                                            | Status  | Notes                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ABS`, `MIN`, `MAX`, `LIMIT`, `SEL`                | Partial | ABS, MIN, MAX and LIMIT accept numeric types only; SEL also accepts BOOL, bit strings and TIME/LTIME. Numeric MIN/MAX/LIMIT/SEL results use the set-based common type (ADR 0013); ABS preserves its argument type                                                                    |
+| Type conversion                                    | Partial | All supported numeric pairs; BOOL → integer; BOOL/bit-string pairs; integer ↔ bit string; REAL ↔ DWORD and LREAL ↔ LWORD bit reinterpretation; overloaded TO_ forms. TIME ↔ integer (milliseconds) and LTIME ↔ integer (nanoseconds) are extensions; TIME ↔ LTIME changes resolution |
+| Numeric (`SQRT`, `LN`, `SIN`, …)                   | No      |                                                                                                                                                                                                                                                                                      |
+| Arithmetic functions (`ADD`, `MUL`, …)             | No      |                                                                                                                                                                                                                                                                                      |
+| Bit shift (`SHL`, `SHR`, `ROL`, `ROR`)             | No      |                                                                                                                                                                                                                                                                                      |
+| Selection (`MUX`, `MOVE`) and comparison functions | No      |                                                                                                                                                                                                                                                                                      |
+| Time and date functions                            | No      |                                                                                                                                                                                                                                                                                      |
+| String functions                                   | No      |                                                                                                                                                                                                                                                                                      |
 
 ## Standard function blocks
 
@@ -131,14 +131,14 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Parameter                                 | Value                                                                                                                                                                                                                                                  |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Range and resolution of TIME              | Signed 32-bit milliseconds, −2147483648 to 2147483647; arithmetic wraps modulo 2^32; real scaling is exact then rounds once, nearest with ties to even; integer division truncates toward zero; out-of-range literals and external values are rejected |
-| Integer and bit-string ranges             | Signed SINT/INT/DINT: 8/16/32 bits; unsigned USINT/UINT/UDINT and BYTE/WORD/DWORD: 8/16/32 bits, respectively                                                                                                                                          |
+| Integer and bit-string ranges             | Signed SINT/INT/DINT/LINT: 8/16/32/64 bits; unsigned USINT/UINT/UDINT/ULINT and BYTE/WORD/DWORD/LWORD: 8/16/32/64 bits, respectively                                                                                                                   |
 | Default scalar values                     | FALSE for BOOL, zero for the other supported types                                                                                                                                                                                                     |
 | Negative zero                             | Normalized to zero for every numeric type; a deviation from IEC 60559                                                                                                                                                                                  |
-| Type of untyped literals                  | Exact constants typed by typed neighbors, otherwise destination, otherwise DINT or exactly representable LREAL (LINT not yet implemented); real defaults to LREAL (ADR 0013)                                                                           |
-| Conversion of operands of different types | Set-based common type (ADR 0013): INT + UINT → DINT, DINT + REAL → LREAL, REAL + LREAL → LREAL, MAX(INT, UINT, REAL) → REAL; DINT + UDINT selects unimplemented LINT and is rejected                                                                   |
+| Type of untyped literals                  | Exact constants typed by typed neighbors, otherwise destination, otherwise DINT, LINT or exactly representable LREAL; real defaults to LREAL (ADR 0013)                                                                                                |
+| Conversion of operands of different types | Set-based common type (ADR 0013): INT + UINT → DINT, DINT + REAL → LREAL, REAL + LREAL → LREAL, MAX(INT, UINT, REAL) → REAL; DINT + UDINT → LINT; LINT + ULINT and LINT + REAL have no common type                                                     |
 | Reaction to integer overflow              | Computed typed results and out-of-range integer conversions wrap (ADR 0010); out-of-range literals/untyped constants are compile errors                                                                                                                |
 | Real → integer conversion                 | Nearest, ties to even, then wraps into the destination; vendor tie-breaking rules can differ                                                                                                                                                           |
-| TIME ↔ integer extensions                 | SINT/USINT/INT/UINT/DINT/UDINT ↔ TIME use milliseconds, integer and TIME results wrap to their destination width                                                                                                                                       |
+| TIME ↔ integer extensions                 | SINT/USINT/INT/UINT/DINT/UDINT/LINT/ULINT ↔ TIME use milliseconds; integer ↔ LTIME use nanoseconds, integer and TIME results wrap to their destination width                                                                                           |
 | Reaction to division by zero              | FAULT; `x MOD 0` is 0 (ADR 0010)                                                                                                                                                                                                                       |
 | Reaction to non-finite REAL results       | FAULT (ADR 0010)                                                                                                                                                                                                                                       |
 | Constant evaluation budget                | Decimal scales within ±10,000; larger powers are rejected as `type.invalid-constant` before allocation, including underflows                                                                                                                           |
@@ -151,7 +151,15 @@ edition text). INT_TO_DWORD(-1) is 16#0000FFFF without sign extension;
 WORD_TO_INT(16#FFFF) is -1. `<bits>_TO_BOOL` tests the rightmost bit, so
 BYTE_TO_BOOL(2) is FALSE. REAL_TO_DWORD(1.0) is 16#3F800000;
 DWORD_TO_REAL rejects NaN/infinity patterns and normalizes negative zero.
-The compiler emits `type.portability` for REAL ↔ DWORD and bit strings → BOOL:
+The compiler emits `type.portability` for REAL ↔ DWORD, LREAL ↔ LWORD and bit strings → BOOL:
 some vendor runtimes convert the numeric value or test any nonzero bit instead.
 External IR initial values, writes, forces and project initializer ranges are
 validated; wrapping applies only to computed program results and conversions.
+
+64-bit values remain exact across JSON IR, Worker messages, snapshots, monitor writes/forces
+and PLCopen XML (`<LINT/>`, `<ULINT/>`, `<LWORD/>`, `<LTIME/>`). LTIME scales by real
+operands using exact bigint fractions with one nearest-even rounding. LTIME_TO_TIME
+truncates toward zero, then wraps. Integer-to-real and real-to-integer conversions
+round nearest, ties to even; 64-bit integers require an explicit conversion to reals.
+LREAL ↔ LWORD follows IEEE binary64 bit reinterpretation and reports the same
+portability warning as REAL ↔ DWORD. LTIME timers remain unsupported (#74).

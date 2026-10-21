@@ -1,5 +1,5 @@
 import type { DataType } from "./values.js";
-import { coerceTime } from "./values.js";
+import { coerceValue, coerceLong } from "./values.js";
 
 /** External TIME values are checked before coercion, so they cannot silently wrap. */
 export function validateTime(value: number): void {
@@ -8,7 +8,7 @@ export function validateTime(value: number): void {
 }
 
 /** The exact rational represented by a finite IEEE binary64 operand. */
-function realFraction(value: number): [bigint, bigint] {
+export function realFraction(value: number): [bigint, bigint] {
   if (!Number.isFinite(value)) throw new RangeError("Non-finite TIME operand");
   const bytes = new DataView(new ArrayBuffer(8));
   bytes.setFloat64(0, value);
@@ -24,14 +24,23 @@ function realFraction(value: number): [bigint, bigint] {
 export function timeBinary(
   operator: "+" | "-" | "*" | "/",
   left: number,
-  right: number,
+  right: number | bigint,
   rightType: DataType,
 ): number {
-  if (operator === "+") return coerceTime(left + right);
-  if (operator === "-") return coerceTime(left - right);
+  return coerceValue("TIME", ltimeBinary(operator, BigInt(left), right, rightType));
+}
+
+export function ltimeBinary(
+  operator: "+" | "-" | "*" | "/",
+  left: bigint,
+  right: number | bigint,
+  rightType: DataType,
+): string {
+  if (operator === "+") return coerceLong("LTIME", left + BigInt(right));
+  if (operator === "-") return coerceLong("LTIME", left - BigInt(right));
   const real = rightType === "REAL" || rightType === "LREAL";
-  const [factor, divisor] = real ? realFraction(right) : [BigInt(right), 1n];
-  let n = BigInt(left) * (operator === "*" ? factor : divisor);
+  const [factor, divisor] = real ? realFraction(Number(right)) : [BigInt(right), 1n];
+  let n = left * (operator === "*" ? factor : divisor);
   let d = operator === "*" ? divisor : factor;
   if (!d) throw new RangeError("Division by zero");
   if (d < 0n) {
@@ -42,5 +51,5 @@ export function timeBinary(
   const remainder = n < 0n ? -(n % d) : n % d;
   if (real && (remainder * 2n > d || (remainder * 2n === d && result % 2n !== 0n)))
     result += n < 0n ? -1n : 1n;
-  return Number(BigInt.asIntN(32, result));
+  return coerceLong("LTIME", result);
 }

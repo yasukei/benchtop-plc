@@ -22,7 +22,7 @@ export type LexResult =
 /** Reserved elementary type names are legal in type position, even before type checking. */
 const elementaryTypeKeywords = new Set(
   `BOOL INT DINT UINT REAL LREAL TIME SINT USINT UDINT LINT ULINT BYTE WORD DWORD
-   LWORD DATE TIME_OF_DAY TOD DATE_AND_TIME DT STRING WSTRING`.split(/\s+/),
+   LWORD LTIME DATE TIME_OF_DAY TOD DATE_AND_TIME DT STRING WSTRING`.split(/\s+/),
 );
 
 // Include unsupported declaration/POU forms so they cannot masquerade as identifiers.
@@ -50,8 +50,16 @@ const decimalInteger = new RegExp(`^${digits}$`);
 const realNumber = new RegExp(
   `^${digits}(?:\\.${digits}(?:[eE][+-]?${digits})?|[eE][+-]?${digits})$`,
 );
-const timePart = new RegExp(`(${digits}(?:\\.${digits})?)(ms|d|h|m|s)`, "gi");
-const milliseconds: Record<string, number> = { d: 86400000, h: 3600000, m: 60000, s: 1000, ms: 1 };
+const timePart = new RegExp(`(${digits}(?:\\.${digits})?)(ms|us|ns|d|h|m|s)`, "gi");
+const milliseconds: Record<string, number> = {
+  d: 86400000,
+  h: 3600000,
+  m: 60000,
+  s: 1000,
+  ms: 1,
+  us: 0.001,
+  ns: 0.000001,
+};
 
 class Lexer {
   private offset = 0;
@@ -175,6 +183,10 @@ class Lexer {
       // matchAll creates a fresh regex iterator, so calls share no mutable lastIndex.
       for (const match of parts.matchAll(timePart)) {
         const unit = milliseconds[match[2]!.toLowerCase()]!;
+        if (dataType !== "LTIME" && unit < 1) {
+          value = NaN;
+          break;
+        }
         const separated = end > 0 && parts[end] === "_" && match.index === end + 1;
         if ((match.index !== end && !separated) || unit >= previousUnit || fractional) {
           value = NaN;
@@ -232,9 +244,14 @@ class Lexer {
     if (/[A-Za-z_]/.test(this.char)) {
       while (/[A-Za-z0-9_]/.test(this.char) && this.char) this.advance();
       const key = this.source.slice(start, this.offset).toUpperCase();
-      if ((key === "T" || key === "TIME") && this.char === "#") {
+      if (["T", "TIME", "LT", "LTIME"].includes(key) && this.char === "#") {
         this.advance();
-        return this.number(start, span, true);
+        return this.number(
+          start,
+          span,
+          true,
+          key === "LT" || key === "LTIME" ? "LTIME" : undefined,
+        );
       }
       if (
         [
@@ -248,6 +265,9 @@ class Lexer {
           "BYTE",
           "WORD",
           "DWORD",
+          "LINT",
+          "ULINT",
+          "LWORD",
           "REAL",
           "LREAL",
         ].includes(key) &&

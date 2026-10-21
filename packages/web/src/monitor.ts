@@ -2,6 +2,7 @@ import { compile, lex } from "@benchtop-plc/compiler";
 import {
   coerceValue,
   isBitType,
+  isLongType,
   validateValue,
   formatValue,
   standardFunctionBlocks,
@@ -37,6 +38,28 @@ export function parseWrittenValue(dataType: DataType, source: string): TypedValu
   const text = source.trim();
   if (dataType === "BOOL")
     return /^(TRUE|FALSE)$/i.test(text) ? { dataType, value: text.toUpperCase() === "TRUE" } : null;
+  if (isLongType(dataType)) {
+    let literal = text;
+    if (dataType === "LTIME" && /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(text))
+      literal = `LTIME#${text}ns`;
+    const result = lex(literal);
+    if (!result.tokens) return null;
+    // A signed plain number is two tokens; reject statements before compiling the slot.
+    const tokens = result.tokens.filter((token) => token.kind !== "eof");
+    if (tokens.length !== 1 && !(tokens.length === 2 && /^[+-]$/.test(tokens[0]!.text)))
+      return null;
+    if (
+      !tokens.every(
+        (token) => ["integer", "time"].includes(token.kind) || /^[+-]$/.test(token.text),
+      )
+    )
+      return null;
+    const declaration = compile(
+      `PROGRAM Written VAR value : ${dataType} := ${literal}; END_VAR END_PROGRAM`,
+    ).ir?.variables[0];
+    if (declaration?.kind !== "scalar" || declaration.dataType !== dataType) return null;
+    return { dataType, value: declaration.initialValue } as TypedValue;
+  }
   let number: number;
   if (dataType === "TIME" && /^(T|TIME)#/i.test(text)) {
     const result = lex(text);

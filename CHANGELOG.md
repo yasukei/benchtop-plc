@@ -29,6 +29,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- LINT, ULINT, LWORD and LTIME throughout the compiler, runtime, variable monitor
+  and PLCopen XML, with exact 64-bit arithmetic and JSON-safe decimal strings.
+  LTIME supports nanosecond literals and exact real scaling; LWORD supports all
+  64 bits. Numeric, bit-pattern and duration conversions include overloaded TO_
+  forms and LREAL ↔ LWORD reinterpretation. DINT + UDINT now has common type LINT.
+
 - SINT, USINT, UDINT, BYTE, WORD and DWORD throughout the compiler, runtime,
   PLCopen XML and variable monitor, with typed literals, width-based wrapping,
   unsigned 32-bit values and full-width hexadecimal display for bit strings.

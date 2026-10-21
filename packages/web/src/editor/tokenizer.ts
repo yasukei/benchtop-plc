@@ -38,10 +38,10 @@ export function readStToken(
   if (whitespace) return { length: whitespace[0].length, style: null };
   const address = /^%[A-Za-z0-9_.]*/.exec(source);
   if (address) return { length: address[0].length, style: "variableName.special" };
-  const time = /^(?:TIME|T)#[+-]?[A-Za-z0-9_.]*/i.exec(source);
+  const time = /^(?:LTIME|LT|TIME|T)#[+-]?[A-Za-z0-9_.]*/i.exec(source);
   if (time) return { length: time[0].length, style: "number" };
   const typed =
-    /^(?:BOOL|SINT|USINT|INT|UINT|DINT|UDINT|BYTE|WORD|DWORD|REAL|LREAL)#[+-]?(?:TRUE|FALSE|\d+#[A-Za-z0-9_]*|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?[\d_]*)?)?/i.exec(
+    /^(?:BOOL|SINT|USINT|INT|UINT|DINT|UDINT|LINT|ULINT|BYTE|WORD|DWORD|LWORD|REAL|LREAL)#[+-]?(?:TRUE|FALSE|\d+#[A-Za-z0-9_]*|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?[\d_]*)?)?/i.exec(
       source,
     );
   if (typed) return { length: typed[0].length, style: "number" };

@@ -1,4 +1,10 @@
-import { isIntegerType, isFunctionBlockType as isBlock } from "@benchtop-plc/core";
+import {
+  coerceValue,
+  isLongType,
+  isIntegerType,
+  isFunctionBlockType as isBlock,
+} from "@benchtop-plc/core";
+import { commonType } from "./type-rules.js";
 import type * as IR from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
 import type { CheckedProgram } from "./checked.js";
@@ -50,8 +56,8 @@ class Lowerer {
       ...base,
       kind: "scalar",
       dataType: symbol.type,
-      initialValue: Number(symbol.initialValue),
-    };
+      initialValue: coerceValue(symbol.type, required(symbol.initialValue ?? undefined)),
+    } as IR.ScalarVariable;
   }
 
   private reference(
@@ -91,34 +97,30 @@ class Lowerer {
     return { ...reference, port: "input" };
   }
 
+  private widen(expression: IR.Expression, to: IR.DataType): IR.Expression {
+    if (!isLongType(to) || expression.dataType === to) return expression;
+    return {
+      kind: "functionCall",
+      function: `${expression.dataType}_TO_${to}` as IR.ConversionFunction,
+      args: [expression],
+      dataType: to,
+      span: { ...expression.span },
+    };
+  }
+
   private expression(node: AST.Expression): IR.Expression {
     const info = required(this.checked.expressions.get(node));
     const base = { dataType: info.dataType, span: span(node) };
-    if (info.untyped)
-      return info.dataType === "BOOL"
-        ? { ...base, kind: "literal", dataType: "BOOL", value: Boolean(required(info.constant)) }
-        : {
-            ...base,
-            kind: "literal",
-            dataType: info.dataType,
-            value: Number(required(info.constant)),
-          };
+    const literal = (): IR.LiteralExpression =>
+      ({
+        ...base,
+        kind: "literal",
+        value: coerceValue(info.dataType, required(info.constant)),
+      }) as IR.LiteralExpression;
+    if (info.untyped) return literal();
     switch (node.kind) {
       case "literal":
-        // Only literal representation is normalized here. Executable operators stay in the tree.
-        return info.dataType === "BOOL"
-          ? {
-              kind: "literal",
-              dataType: "BOOL",
-              value: Boolean(required(info.constant)),
-              span: span(node),
-            }
-          : {
-              ...base,
-              kind: "literal",
-              dataType: info.dataType,
-              value: Number(required(info.constant)),
-            };
+        return literal();
       case "name":
       case "member":
         return this.reference(node);
@@ -132,26 +134,45 @@ class Lowerer {
           operator: node.operator,
           operand: this.expression(node.operand),
         };
-      case "binary":
+      case "binary": {
+        const left = this.expression(node.left),
+          right = this.expression(node.right);
+        const scaling =
+          (node.operator === "*" || node.operator === "/") &&
+          (left.dataType === "TIME" || left.dataType === "LTIME");
+        const common = scaling ? null : commonType([left.dataType, right.dataType]);
         return {
           ...base,
           kind: "binary",
           operator: node.operator,
-          left: this.expression(node.left),
-          right: this.expression(node.right),
+          left: common ? this.widen(left, common) : left,
+          right: common ? this.widen(right, common) : right,
         };
+      }
       case "functionCall":
         return {
           ...base,
           kind: "functionCall",
           function: required(this.checked.functions.get(node)),
-          args: node.args.map((arg) => this.expression(arg)),
+          args: node.args.map((arg, index) => {
+            const expression = this.expression(arg);
+            const name = required(this.checked.functions.get(node));
+            if (name.startsWith("LTIME_TO_") && expression.dataType === "TIME")
+              return this.widen(expression, "LTIME");
+            return ["ABS", "MIN", "MAX", "LIMIT", "SEL"].includes(name) &&
+              !(name === "SEL" && index === 0)
+              ? this.widen(expression, info.dataType)
+              : expression;
+          }),
         };
     }
   }
 
-  private integerConstant(node: AST.Expression): number {
-    return Number(required(required(this.checked.expressions.get(node)).constant));
+  private integerConstant(node: AST.Expression, to: IR.DataType): number | string {
+    const info = required(this.checked.expressions.get(node));
+    return isLongType(to)
+      ? coerceValue(to, required(info.constant))
+      : Number(required(info.constant));
   }
 
   private statements(nodes: AST.Statement[]): IR.Statement[] {
@@ -166,7 +187,7 @@ class Lowerer {
           ...base,
           kind: "assignment",
           target: this.target(node.target),
-          value: this.expression(node.value),
+          value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
       case "fbCall":
         return {
@@ -194,19 +215,24 @@ class Lowerer {
         };
       }
       case "case": {
+        const selector = this.expression(node.selector);
         const label = (item: AST.CaseLabel): IR.CaseLabel =>
           item.kind === "value"
-            ? { kind: "value", value: this.integerConstant(item.value), span: span(item) }
+            ? {
+                kind: "value",
+                value: this.integerConstant(item.value, selector.dataType),
+                span: span(item),
+              }
             : {
                 kind: "range",
-                lower: this.integerConstant(item.lower),
-                upper: this.integerConstant(item.upper),
+                lower: this.integerConstant(item.lower, selector.dataType),
+                upper: this.integerConstant(item.upper, selector.dataType),
                 span: span(item),
               };
         return {
           ...base,
           kind: "case",
-          selector: this.expression(node.selector),
+          selector,
           branches: node.branches.map((arm) => ({
             labels: [label(arm.labels[0]), ...arm.labels.slice(1).map(label)],
             body: this.statements(arm.body),
@@ -227,7 +253,12 @@ class Lowerer {
           to: this.expression(node.to),
           step: node.step
             ? this.expression(node.step)
-            : { kind: "literal", dataType, value: 1, span: span(node.variable) },
+            : ({
+                kind: "literal",
+                dataType,
+                value: coerceValue(dataType, 1),
+                span: span(node.variable),
+              } as IR.LiteralExpression),
           body: this.statements(node.body),
         };
       }

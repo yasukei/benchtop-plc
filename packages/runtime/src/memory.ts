@@ -1,6 +1,8 @@
-import { coerceValue, validateValue } from "@benchtop-plc/core";
+import { coerceValue, validateValue, isLongType } from "@benchtop-plc/core";
 import type {
   AssignmentTarget,
+  CaseStatement,
+  LongType,
   BitReference,
   FunctionBlockMemberReference,
   IoImage,
@@ -29,6 +31,7 @@ export interface ScanMemory {
 
 type Cell =
   | { kind: "scalar"; value: TypedValue }
+  | { kind: "long"; dataType: LongType; value: bigint }
   | { kind: "functionBlock"; instance: FunctionBlockInstance };
 
 export class Memory implements ScanMemory {
@@ -38,9 +41,47 @@ export class Memory implements ScanMemory {
     readonly ir: ProgramIR,
     library?: RuntimeLibrary,
   ) {
+    // Check literals even in branches that are not executed. No untrusted long value
+    // may be normalized merely because BigInt accepts its syntax.
+    const validateLiterals = (node: unknown): void => {
+      if (node === null || typeof node !== "object") return;
+      if (
+        "kind" in node &&
+        node.kind === "literal" &&
+        "dataType" in node &&
+        "value" in node &&
+        typeof node.dataType === "string" &&
+        isLongType(node.dataType)
+      )
+        validateValue(node.dataType, node.value);
+      if ("kind" in node && node.kind === "case") {
+        // The IR shape is compiler-checked; value validation also covers label payloads.
+        const statement = node as CaseStatement;
+        const type = statement.selector.dataType;
+        if (isLongType(type)) {
+          for (const branch of statement.branches) {
+            for (const label of branch.labels) {
+              if (label.kind === "value") validateValue(type, label.value);
+              else {
+                validateValue(type, label.lower);
+                validateValue(type, label.upper);
+              }
+            }
+          }
+        }
+      }
+      for (const child of Object.values(node)) validateLiterals(child);
+    };
+    validateLiterals(ir.body);
     this.cells = ir.variables.map((variable) => {
       if (variable.kind === "scalar") {
         validateValue(variable.dataType, variable.initialValue);
+        if (isLongType(variable.dataType))
+          return {
+            kind: "long",
+            dataType: variable.dataType,
+            value: BigInt(variable.initialValue),
+          };
         return { kind: "scalar", value: typed(variable.dataType, variable.initialValue) };
       }
       if (!library) throw new Error("A runtime library is required for function blocks");
@@ -50,6 +91,7 @@ export class Memory implements ScanMemory {
 
   private scalar(variable: number): TypedValue {
     const cell = this.cells[variable];
+    if (cell?.kind === "long") return typed(cell.dataType, cell.value);
     if (!cell || cell.kind !== "scalar") throw new Error("Expected scalar variable");
     return cell.value;
   }
@@ -61,17 +103,26 @@ export class Memory implements ScanMemory {
   }
 
   read(variable: number): ScalarValue {
-    return this.scalar(variable).value;
+    const cell = this.cells[variable];
+    return cell?.kind === "long" ? cell.value : this.scalar(variable).value;
   }
 
   write(variable: number, value: ScalarValue): void {
+    const cell = this.cells[variable];
+    if (cell?.kind === "long") {
+      cell.value = BigInt(coerceValue(cell.dataType, value));
+      return;
+    }
     const scalar = this.scalar(variable);
     scalar.value = coerceValue(scalar.dataType, value);
   }
 
   value(ref: VariableReference | BitReference | FunctionBlockMemberReference): TypedValue {
     if (ref.kind === "bit")
-      return { dataType: "BOOL", value: (Number(this.read(ref.variable)) & (1 << ref.bit)) !== 0 };
+      return {
+        dataType: "BOOL",
+        value: (BigInt(this.read(ref.variable)) & (1n << BigInt(ref.bit))) !== 0n,
+      };
     if (ref.kind === "variable") return { ...this.scalar(ref.variable) };
     const instance = this.block(ref.variable);
     const value = (ref.port === "input" ? instance.inputs : instance.outputs)[ref.member];
@@ -81,8 +132,8 @@ export class Memory implements ScanMemory {
 
   assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
     if (target.kind === "bit") {
-      const pattern = Number(this.read(target.variable)),
-        mask = 1 << target.bit;
+      const pattern = BigInt(this.read(target.variable)),
+        mask = 1n << BigInt(target.bit);
       this.write(target.variable, value ? pattern | mask : pattern & ~mask);
     } else if (target.kind === "variable") this.write(target.variable, value);
     else this.input(target.variable, target.member, value);
@@ -122,13 +173,15 @@ export class Memory implements ScanMemory {
 
   snapshot(): VariableSnapshot[] {
     return this.cells.map((cell) =>
-      cell.kind === "scalar"
-        ? { kind: "scalar", ...cell.value }
-        : {
-            kind: "functionBlock",
-            inputs: cell.instance.inputs.map((value) => ({ ...value })),
-            outputs: cell.instance.outputs.map((value) => ({ ...value })),
-          },
+      cell.kind === "long"
+        ? { kind: "scalar", ...typed(cell.dataType, cell.value) }
+        : cell.kind === "scalar"
+          ? { kind: "scalar", ...cell.value }
+          : {
+              kind: "functionBlock",
+              inputs: cell.instance.inputs.map((value) => ({ ...value })),
+              outputs: cell.instance.outputs.map((value) => ({ ...value })),
+            },
     );
   }
 }

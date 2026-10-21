@@ -29,10 +29,16 @@ export type ConversionFunction =
   | `${BitStringType}_TO_${IntegerType}`
   | "REAL_TO_DWORD"
   | "DWORD_TO_REAL"
+  | "LREAL_TO_LWORD"
+  | "LWORD_TO_LREAL"
+  | "LTIME_TO_TIME"
+  | "TIME_TO_LTIME"
+  | `LTIME_TO_${IntegerType}`
+  | `${IntegerType}_TO_LTIME`
   | `BOOL_TO_${IntegerType}`
   | `TIME_TO_${IntegerType}`
   | `${IntegerType}_TO_TIME`
-  | `TO_${NumericType | BitType | "TIME"}`;
+  | `TO_${NumericType | BitType | "TIME" | "LTIME"}`;
 export type StandardFunction = "ABS" | "MIN" | "MAX" | "LIMIT" | "SEL" | ConversionFunction;
 
 interface VariableBase extends SourceNode {
@@ -165,7 +171,10 @@ export interface IfStatement extends SourceNode {
 }
 
 export type CaseLabel = SourceNode &
-  ({ kind: "value"; value: number } | { kind: "range"; lower: number; upper: number });
+  (
+    | { kind: "value"; value: number | string }
+    | { kind: "range"; lower: number | string; upper: number | string }
+  );
 
 export interface CaseBranch extends SourceNode {
   labels: [CaseLabel, ...CaseLabel[]];

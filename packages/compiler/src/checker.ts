@@ -1,5 +1,7 @@
 import {
   coerceValue,
+  isLongType,
+  ltimeBinary,
   bitWidths,
   isBitType,
   isIntegerType,
@@ -18,6 +20,7 @@ import type {
   DiagnosticArgs,
   DiagnosticCode,
   SourceSpan,
+  ScalarValue,
   StandardFunction,
 } from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
@@ -124,7 +127,7 @@ class Checker {
           id: this.symbols.length,
           name,
           type,
-          initialValue: isBlock(type) ? null : type === "BOOL" ? false : 0,
+          initialValue: isBlock(type) ? null : isLongType(type) ? "0" : type === "BOOL" ? false : 0,
         };
         this.symbols.push(symbol);
         this.names.set(name.key, symbol);
@@ -154,7 +157,10 @@ class Checker {
         );
       return;
     }
-    const initialValue = coerceValue(type, info.constant);
+    const initialValue =
+      type === "LTIME" && info.dataType === "TIME"
+        ? convertValue("TIME_TO_LTIME", info.constant)
+        : coerceValue(type, info.constant);
     for (const name of declaration.names) {
       const symbol = this.names.get(name.key);
       if (symbol?.name === name) symbol.initialValue = initialValue;
@@ -304,22 +310,45 @@ class Checker {
           );
           return null;
         }
+        const common = commonType([left.dataType, right.dataType]);
+        const constantOperand = (operand: ExpressionInfo): ScalarValue =>
+          common && isLongType(common) && operand.dataType !== common
+            ? convertValue(
+                `${operand.dataType}_TO_${common}` as ConversionFunction,
+                operand.constant!,
+              )
+            : operand.constant!;
         info = this.constant(
           { dataType },
           node,
           left.constant === undefined || right.constant === undefined
             ? undefined
             : () =>
-                dataType === "TIME"
-                  ? timeBinary(
+                dataType === "LTIME"
+                  ? ltimeBinary(
                       node.operator as "+" | "-" | "*" | "/",
-                      Number(left.constant!),
-                      Number(right.constant!),
+                      BigInt(constantOperand(left)),
+                      right.dataType === "REAL" || right.dataType === "LREAL"
+                        ? Number(right.constant!)
+                        : BigInt(constantOperand(right)),
                       right.dataType,
                     )
-                  : node.operator === "*" && isIntegerType(dataType)
-                    ? Math.imul(Number(left.constant!), Number(right.constant!))
-                    : binaryConstant(node.operator, left.constant!, right.constant!),
+                  : dataType === "TIME"
+                    ? timeBinary(
+                        node.operator as "+" | "-" | "*" | "/",
+                        Number(left.constant!),
+                        typeof right.constant === "string" || typeof right.constant === "bigint"
+                          ? BigInt(right.constant!)
+                          : Number(right.constant!),
+                        right.dataType,
+                      )
+                    : node.operator === "*" && isIntegerType(dataType) && !isLongType(dataType)
+                      ? Math.imul(Number(left.constant!), Number(right.constant!))
+                      : binaryConstant(
+                          node.operator,
+                          constantOperand(left),
+                          constantOperand(right),
+                        ),
         );
         break;
       }
@@ -331,7 +360,7 @@ class Checker {
   private constant(
     info: ExpressionInfo,
     node: AST.Expression,
-    compute?: () => number | boolean,
+    compute?: () => ScalarValue,
   ): ExpressionInfo {
     if (!compute) return info;
     try {
@@ -349,7 +378,7 @@ class Checker {
   private operands(nodes: AST.Expression[], independent = false): (ExpressionInfo | null)[] {
     const infos = nodes.map((node) => (isUntyped(node) ? null : this.expression(node)));
     const pending = new Set(nodes.flatMap((node, index) => (isUntyped(node) ? [index] : [])));
-    independent = independent && infos[0]?.dataType === "TIME";
+    independent = independent && (infos[0]?.dataType === "TIME" || infos[0]?.dataType === "LTIME");
     const common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
     for (const index of pending) {
       const node = nodes[index]!;
@@ -435,7 +464,9 @@ class Checker {
       if (
         resolved === "REAL_TO_DWORD" ||
         resolved === "DWORD_TO_REAL" ||
-        ["BYTE_TO_BOOL", "WORD_TO_BOOL", "DWORD_TO_BOOL"].includes(resolved)
+        resolved === "LREAL_TO_LWORD" ||
+        resolved === "LWORD_TO_LREAL" ||
+        ["BYTE_TO_BOOL", "WORD_TO_BOOL", "DWORD_TO_BOOL", "LWORD_TO_BOOL"].includes(resolved)
       ) {
         this.diagnostics.push({
           code: "type.portability",
@@ -449,7 +480,13 @@ class Checker {
         node,
         arg?.constant === undefined || node.args.length !== 1
           ? undefined
-          : () => convertValue(resolved, arg.constant!),
+          : () =>
+              convertValue(
+                resolved,
+                resolved.startsWith("LTIME_TO_") && arg.dataType === "TIME"
+                  ? convertValue("TIME_TO_LTIME", arg.constant!)
+                  : arg.constant!,
+              ),
       );
     }
     const values = (name === "SEL" ? args.slice(1) : args).filter((arg) => arg !== null);

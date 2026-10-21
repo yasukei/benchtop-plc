@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { standardFunctionBlocks } from "@benchtop-plc/core";
-import type { FunctionBlockType, ScalarValue } from "@benchtop-plc/core";
+import type { FunctionBlockType, TypedValue } from "@benchtop-plc/core";
 import { VirtualClock } from "./clock.js";
 import { createStandardFunctionBlock } from "./standard-blocks.js";
 
 function setup(type: FunctionBlockType) {
   const block = createStandardFunctionBlock(type);
   const clock = new VirtualClock();
-  function scan(inputs: Record<string, ScalarValue> = {}, advance = 0) {
+  function scan(inputs: Record<string, TypedValue["value"]> = {}, advance = 0) {
     clock.advance(advance);
     for (const [name, value] of Object.entries(inputs)) {
       const index = standardFunctionBlocks[type].inputs.findIndex(([port]) => port === name);

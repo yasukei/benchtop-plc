@@ -8,7 +8,7 @@ import type {
   TypedValue,
   VariableId,
 } from "@benchtop-plc/core";
-import { validateValue } from "@benchtop-plc/core";
+import { validateValue, isLongType } from "@benchtop-plc/core";
 import { checkInterval } from "./clock.js";
 import type { Clock, Ticker } from "./clock.js";
 import { Interpreter, RuntimeFault } from "./interpreter.js";
@@ -184,7 +184,10 @@ class PlcRuntime implements Runtime {
         severity: "error",
         args: { from: value.dataType, to: declaration.dataType },
       });
-    if (typeof value.value !== (value.dataType === "BOOL" ? "boolean" : "number"))
+    if (
+      typeof value.value !==
+      (value.dataType === "BOOL" ? "boolean" : isLongType(value.dataType) ? "string" : "number")
+    )
       throw new RuntimeCommandRejected({
         code: "runtime.debug-value",
         severity: "error",

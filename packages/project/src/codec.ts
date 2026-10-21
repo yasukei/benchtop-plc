@@ -22,7 +22,7 @@ import {
 import type { XmlNode } from "./xml.js";
 
 const elementaryTypes = new Set(
-  "BOOL SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME DATE DT TOD BYTE WORD DWORD LWORD".split(
+  "BOOL SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME LTIME DATE DT TOD BYTE WORD DWORD LWORD".split(
     " ",
   ),
 );
