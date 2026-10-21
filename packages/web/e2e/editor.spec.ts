@@ -173,3 +173,25 @@ test("highlights complete typed literals and displays their rounded runtime valu
   await expect(page.locator('.inline-values[data-line="4"]')).toHaveText("-5");
   await expect(page.locator('.inline-values[data-line="5"]')).toHaveText("1.0000001");
 });
+
+test("reports missing formal inputs once and explains unsupported FB statements", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await replaceSource(page, "PROGRAM P\nVAR x: INT; END_VAR\nSPLIT_DATE(YEAR => x);\nEND_PROGRAM");
+  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+  await expect(diagnostics.getByRole("button")).toHaveCount(1);
+  await expect(diagnostics).toContainText("SPLIT_DATE requires 1 arguments; found 0.");
+  await replaceSource(
+    page,
+    "PROGRAM P\nVAR timer: TON; yes: BOOL; END_VAR\ntimer(IN := TRUE, Q => yes);\nEND_PROGRAM",
+  );
+  await expect(diagnostics.getByRole("button")).toHaveCount(1);
+  await expect(diagnostics).toContainText(
+    "Function block timer requires named := inputs; positional arguments and => outputs are unsupported.",
+  );
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(
+    "ファンクションブロックtimerの入力は名前付きの:=で指定してください。位置引数と=>による出力指定には対応していません。",
+  );
+});

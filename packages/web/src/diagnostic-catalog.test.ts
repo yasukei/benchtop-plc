@@ -52,6 +52,7 @@ const examples = {
   "fb.unknown-member": { name: "Timer", member: "MISSING" },
   "fb.output-not-writable": { name: "Timer", member: "Q" },
   "fb.instance-as-value": { name: "Timer" },
+  "fb.unsupported-call": { name: "Timer" },
   "fb.call-in-expression": { name: "Timer" },
   "call.unknown-function": { name: "MISSING" },
   "call.invalid-parameter": { name: "SPLIT_DATE", parameter: "YEAR" },

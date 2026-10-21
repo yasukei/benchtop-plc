@@ -247,3 +247,19 @@ it.each([
     ]);
   },
 );
+
+it.each(["timer(TRUE);", "timer(IN := TRUE, Q => yes);"])(
+  "explains unsupported FB statement syntax: %s",
+  (body) => {
+    const result = program("timer: TON; yes: BOOL;", body);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toEqual([
+      {
+        code: "fb.unsupported-call",
+        severity: "error",
+        args: { name: "timer" },
+        span: { line: 3, column: 1, endLine: 3, endColumn: body.length },
+      },
+    ]);
+  },
+);

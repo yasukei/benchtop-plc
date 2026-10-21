@@ -239,4 +239,6 @@ and accept INT through an ADR 0013 implicit conversion (for example INT, DINT,
 LINT, REAL or LREAL). Narrowing and signed-to-unsigned output assignments are
 errors. Outputs may be omitted. Unknown, duplicate or incorrectly directed formal
 parameters report `call.invalid-parameter`. FB calls still accept only `:=` inputs;
-`=>` for FBs remains unsupported. Named time/date calls are not constant expressions.
+`=>` for FBs remains unsupported. FB statements with positional inputs or `=>`
+outputs report `fb.unsupported-call`; FB calls within expressions report
+`fb.call-in-expression`. Named time/date calls are not constant expressions.

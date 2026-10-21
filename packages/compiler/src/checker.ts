@@ -674,9 +674,13 @@ class Checker {
           if (target && value) this.assignment(target.dataType, value, node.value.span);
           break;
         }
-        case "call":
-          this.expression(node.call);
+        case "call": {
+          const symbol = this.names.get(node.call.name.key);
+          if (symbol && isBlock(symbol.type))
+            this.report("fb.unsupported-call", { name: node.call.name.name }, node.call.span);
+          else this.expression(node.call);
           break;
+        }
         case "fbCall": {
           const symbol = this.resolve(node.instance);
           if (symbol && !isBlock(symbol.type))
