@@ -1,0 +1,611 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Initially stopped with a one-hot BYTE and all outputs off",
+      "expect": {
+        "Running": false,
+        "Pattern": 1,
+        "Rotations": 0,
+        "Steps": 0,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Stopped scans do not rotate or count",
+      "scans": 100,
+      "expect": {
+        "Running": false,
+        "Pattern": 1,
+        "Rotations": 0,
+        "Steps": 0,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "START latches running and lights LED 0 immediately",
+      "set": {
+        "StartPB": true
+      },
+      "scans": 1,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 0,
+        "Steps": 0,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false,
+        "tStep.ET": 0
+      }
+    },
+    {
+      "label": "Release START; one scan before Speed no move has occurred",
+      "set": {
+        "StartPB": false
+      },
+      "scans": 19,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 0,
+        "Steps": 0,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false,
+        "tStep.ET": 190
+      }
+    },
+    {
+      "label": "ROL moves to LED 1 exactly at Speed",
+      "scans": 1,
+      "expect": {
+        "Running": true,
+        "Pattern": 2,
+        "Rotations": 0,
+        "Steps": 1,
+        "Out0": false,
+        "Out1": true,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false,
+        "tStep.ET": 0,
+        "tStep.Q": false
+      }
+    },
+    {
+      "label": "ROL move 2",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 4,
+        "Rotations": 0,
+        "Steps": 2,
+        "Out0": false,
+        "Out1": false,
+        "Out2": true,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROL move 3",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 8,
+        "Rotations": 0,
+        "Steps": 3,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": true,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROL move 4",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 16,
+        "Rotations": 0,
+        "Steps": 4,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": true,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROL move 5",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 32,
+        "Rotations": 0,
+        "Steps": 5,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": true,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROL move 6",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 64,
+        "Rotations": 0,
+        "Steps": 6,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": true,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROL move 7",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 128,
+        "Rotations": 0,
+        "Steps": 7,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": true
+      }
+    },
+    {
+      "label": "ROL move 8 wraps BYTE bit 7 to bit 0 and completes rotation 1",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 1,
+        "Steps": 0,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Stop partway through the next interval",
+      "set": {
+        "StopPB": true
+      },
+      "scans": 7,
+      "expect": {
+        "Running": false,
+        "Pattern": 1,
+        "Rotations": 1,
+        "Steps": 0,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false,
+        "tStep.ET": 0
+      }
+    },
+    {
+      "label": "Stopped time does not move the pattern",
+      "set": {
+        "StopPB": false
+      },
+      "scans": 100,
+      "expect": {
+        "Running": false,
+        "Pattern": 1,
+        "Rotations": 1,
+        "Steps": 0,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "STOP wins when both START and STOP are pressed",
+      "set": {
+        "StartPB": true,
+        "StopPB": true
+      },
+      "scans": 1,
+      "expect": {
+        "Running": false,
+        "Pattern": 1,
+        "Rotations": 1,
+        "Steps": 0,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Releasing STOP restarts at the saved LED with ROR selected",
+      "set": {
+        "StopPB": false,
+        "Direction": true
+      },
+      "scans": 1,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 1,
+        "Steps": 0,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false,
+        "tStep.ET": 0
+      }
+    },
+    {
+      "label": "Restart waits a full fresh Speed interval",
+      "set": {
+        "StartPB": false
+      },
+      "scans": 19,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 1,
+        "Steps": 0,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false,
+        "tStep.ET": 190
+      }
+    },
+    {
+      "label": "ROR wraps BYTE bit 0 to bit 7 at Speed",
+      "scans": 1,
+      "expect": {
+        "Running": true,
+        "Pattern": 128,
+        "Rotations": 1,
+        "Steps": 1,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": true
+      }
+    },
+    {
+      "label": "ROR move 2",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 64,
+        "Rotations": 1,
+        "Steps": 2,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": true,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROR move 3",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 32,
+        "Rotations": 1,
+        "Steps": 3,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": true,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROR move 4",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 16,
+        "Rotations": 1,
+        "Steps": 4,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": true,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROR move 5",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 8,
+        "Rotations": 1,
+        "Steps": 5,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": true,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROR move 6",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 4,
+        "Rotations": 1,
+        "Steps": 6,
+        "Out0": false,
+        "Out1": false,
+        "Out2": true,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROR move 7",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 2,
+        "Rotations": 1,
+        "Steps": 7,
+        "Out0": false,
+        "Out1": true,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "ROR move 8 completes rotation 2",
+      "scans": 20,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 2,
+        "Steps": 0,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Change direction and Speed online; no move before 50 ms",
+      "set": {
+        "Direction": false,
+        "Speed": 50
+      },
+      "scans": 4,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 2,
+        "Steps": 0,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false,
+        "tStep.ET": 40
+      }
+    },
+    {
+      "label": "New Speed moves left on its deadline",
+      "scans": 1,
+      "expect": {
+        "Running": true,
+        "Pattern": 2,
+        "Rotations": 2,
+        "Steps": 1,
+        "Out0": false,
+        "Out1": true,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Reverse while running and return to the preceding LED",
+      "set": {
+        "Direction": true
+      },
+      "scans": 5,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 2,
+        "Steps": 2,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Stop after a direction change keeps partial progress and turns outputs off",
+      "set": {
+        "StopPB": true
+      },
+      "scans": 1,
+      "expect": {
+        "Running": false,
+        "Pattern": 1,
+        "Rotations": 2,
+        "Steps": 2,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Resume retains partial progress and the selected speed",
+      "set": {
+        "StopPB": false,
+        "StartPB": true
+      },
+      "scans": 1,
+      "expect": {
+        "Running": true,
+        "Pattern": 1,
+        "Rotations": 2,
+        "Steps": 2,
+        "Out0": true,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": false
+      }
+    },
+    {
+      "label": "Release START and move right at 50 ms",
+      "set": {
+        "StartPB": false
+      },
+      "scans": 5,
+      "expect": {
+        "Running": true,
+        "Pattern": 128,
+        "Rotations": 2,
+        "Steps": 3,
+        "Out0": false,
+        "Out1": false,
+        "Out2": false,
+        "Out3": false,
+        "Out4": false,
+        "Out5": false,
+        "Out6": false,
+        "Out7": true
+      }
+    }
+  ]
+}

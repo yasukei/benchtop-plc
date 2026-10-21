@@ -36,7 +36,10 @@ Dependencies point inward, `web → compiler | runtime | project → core` (and
 `project → compiler`); `pnpm lint` rejects imports in the other direction.
 
 The web app opens the bundled blink example (or the work autosaved in this
-browser), compiles it and runs it in a Web Worker. See
+browser), compiles it and runs it in a Web Worker. The
+[blink](examples/blink/) and [running light](examples/running-light/) reference
+projects include documented panel controls and virtual-time conformance traces.
+Load the running light XML with **Open project**. See
 [the web app guide](docs/web-app.md) for the host boundary and browser tests.
 
 Contributor and agent conventions are in [`AGENTS.md`](AGENTS.md).
