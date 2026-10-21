@@ -494,8 +494,8 @@ class Checker {
       }
     }
     if (
-      inputs.length < signature.min ||
-      (signature.max !== null && inputs.length > signature.max)
+      !node.inputNames &&
+      (inputs.length < signature.min || (signature.max !== null && inputs.length > signature.max))
     ) {
       this.report(
         "call.argument-count",

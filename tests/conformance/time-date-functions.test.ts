@@ -226,3 +226,24 @@ it("widens fixed long inputs without changing the independent scaling factor", (
 it("retains positional comparison expressions as function arguments", () => {
   expect(execute("x: INT := 1; y: DINT;", "y := SEL(x = 1, 10, 20);").values.y).toBe(20);
 });
+
+it.each([
+  ["x: INT;", "SPLIT_DATE(YEAR => x);", "SPLIT_DATE", 1, 0],
+  ["x: DATE;", "x := CONCAT_DATE(YEAR := 2024, MONTH := 2);", "CONCAT_DATE", 3, 2],
+  ["x: DATE;", "x := CONCAT_DATE(2024, 2);", "CONCAT_DATE", 3, 2],
+] as const)(
+  "reports one arity error for an incomplete call: %s %s",
+  (declarations, body, name, min, found) => {
+    const result = program(declarations, body);
+    const column = body.indexOf(name) + 1;
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toEqual([
+      {
+        code: "call.argument-count",
+        severity: "error",
+        args: { name, min, max: min, found },
+        span: { line: 3, column, endLine: 3, endColumn: body.length },
+      },
+    ]);
+  },
+);
