@@ -80,6 +80,12 @@ describe("shared standard-library descriptors", () => {
         "LREAL",
         "TIME",
         "LTIME",
+        "DATE",
+        "TOD",
+        "DT",
+        "LDATE",
+        "LTOD",
+        "LDT",
       ],
     ]);
   });
@@ -112,6 +118,20 @@ it("registers exactly the current conversion families and no unrelated conversio
     numbers.filter((to) => to !== from).map((to) => `${from}_TO_${to}`),
   );
   names.push(
+    "DATE_TO_LDATE",
+    "LDATE_TO_DATE",
+    "LDT_TO_LDATE",
+    "DT_TO_DATE",
+    "DT_TO_TOD",
+    "DT_TO_LTOD",
+    "DT_TO_LDT",
+    "LDT_TO_DT",
+    "LDT_TO_DATE",
+    "LDT_TO_TOD",
+    "LDT_TO_LTOD",
+    "TOD_TO_LTOD",
+    "LTOD_TO_TOD",
+    ...["DATE", "TOD", "DT", "LDATE", "LTOD", "LDT"].map((type) => `TO_${type}`),
     ...integers.flatMap((type) => [
       `BOOL_TO_${type}`,
       `TIME_TO_${type}`,

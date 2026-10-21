@@ -106,3 +106,22 @@ it.each(["UINT#16#FF", "INT#-5", "REAL#1.5", "LREAL#1.5e-20", "BOOL#TRUE", "BOOL
     });
   },
 );
+it.each([
+  "D#2024-02-29",
+  "DATE#2024-02-29",
+  "LD#1677-09-22",
+  "LDATE#2262-04-11",
+  "TOD#12:30:15.5",
+  "TIME_OF_DAY#00:00:00",
+  "LTOD#23:59:59.999999999",
+  "LTIME_OF_DAY#00:00:00",
+  "DT#2106-02-07-06:28:15",
+  "DATE_AND_TIME#1970-01-01-00:00:00",
+  "LDT#1677-09-21-00:12:43.145224192",
+  "LDATE_AND_TIME#2262-04-11-23:47:16.854775807",
+])("highlights calendar literal %s as one token", (source) => {
+  expect(readStToken(source + "+T#1s", { commentDepth: 0 })).toEqual({
+    length: source.length,
+    style: "number",
+  });
+});

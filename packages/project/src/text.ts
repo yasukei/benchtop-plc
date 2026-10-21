@@ -34,9 +34,14 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
       variables.push({
         name: name.name,
         type:
-          ({ TIME_OF_DAY: "TOD", DATE_AND_TIME: "DT" } as Record<string, string>)[
-            declaration.typeName.key
-          ] ?? declaration.typeName.key,
+          (
+            {
+              TIME_OF_DAY: "TOD",
+              DATE_AND_TIME: "DT",
+              LTIME_OF_DAY: "LTOD",
+              LDATE_AND_TIME: "LDT",
+            } as Record<string, string>
+          )[declaration.typeName.key] ?? declaration.typeName.key,
         ...(declaration.address ? { address: declaration.address.text } : {}),
         ...(declaration.initializer
           ? {

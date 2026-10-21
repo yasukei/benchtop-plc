@@ -1,7 +1,13 @@
 import type { BinaryOperator, DataType, UnaryOperator } from "@benchtop-plc/core";
 
 export { integerTypes } from "@benchtop-plc/core";
-import { integerTypes, isIntegerType, isBitType } from "@benchtop-plc/core";
+import {
+  calendarTypes,
+  isCalendarType,
+  integerTypes,
+  isIntegerType,
+  isBitType,
+} from "@benchtop-plc/core";
 export const numericTypes = [...integerTypes, "REAL", "LREAL"] as const;
 export const scalarTypes = [
   "BOOL",
@@ -12,6 +18,7 @@ export const scalarTypes = [
   ...numericTypes,
   "TIME",
   "LTIME",
+  ...calendarTypes,
 ] as const;
 export const isInteger = isIntegerType;
 export const isNumeric = (type: DataType): boolean => numericTypes.some((item) => item === type);
@@ -88,6 +95,20 @@ export function binaryType(
   left: DataType,
   right: DataType,
 ): DataType | null {
+  if ((operator === "+" || operator === "-") && isCalendarType(left)) {
+    if (operator === "-" && isCalendarType(right)) {
+      const common = commonType([left, right]);
+      return common ? (common.startsWith("L") ? "LTIME" : "TIME") : null;
+    }
+    if (
+      (left === "TOD" || left === "DT" || left === "LTOD" || left === "LDT") &&
+      (right === "TIME" || right === "LTIME")
+    )
+      return left.startsWith("L") || right === "LTIME"
+        ? (`L${left.replace(/^L/, "")}` as DataType)
+        : left;
+    return null;
+  }
   const common = commonType([left, right]);
   const numeric = isNumeric(left) && isNumeric(right);
   const integers = isInteger(left) && isInteger(right);

@@ -1,5 +1,7 @@
 import {
   coerceValue,
+  isCalendarType,
+  calendarBinary,
   isIntegerType,
   isLongType,
   timeBinary,
@@ -73,7 +75,8 @@ export class Interpreter {
   private evaluate(expr: Expression): ScalarValue {
     switch (expr.kind) {
       case "literal":
-        if (isLongType(expr.dataType)) validateValue(expr.dataType, expr.value);
+        if (isLongType(expr.dataType) || isCalendarType(expr.dataType))
+          validateValue(expr.dataType, expr.value);
         return expr.value;
       case "variable":
       case "bit":
@@ -90,6 +93,14 @@ export class Interpreter {
         if (expr.operator === "/" && Number(right) === 0) {
           this.fault("runtime.division-by-zero", expr.span);
         }
+        if (isCalendarType(expr.left.dataType))
+          return calendarBinary(
+            expr.operator,
+            expr.left.dataType,
+            left,
+            expr.right.dataType,
+            right,
+          );
         return expr.dataType === "LTIME"
           ? ltimeBinary(
               expr.operator as "+" | "-" | "*" | "/",

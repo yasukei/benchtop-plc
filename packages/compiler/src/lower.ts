@@ -1,5 +1,7 @@
 import {
   coerceValue,
+  isCalendarType,
+  getStandardFunctionSignature,
   isLongType,
   isIntegerType,
   isFunctionBlockType as isBlock,
@@ -140,7 +142,10 @@ class Lowerer {
         const scaling =
           (node.operator === "*" || node.operator === "/") &&
           (left.dataType === "TIME" || left.dataType === "LTIME");
-        const common = scaling ? null : commonType([left.dataType, right.dataType]);
+        const common =
+          scaling || isCalendarType(left.dataType)
+            ? null
+            : commonType([left.dataType, right.dataType]);
         return {
           ...base,
           kind: "binary",
@@ -157,8 +162,8 @@ class Lowerer {
           args: node.args.map((arg, index) => {
             const expression = this.expression(arg);
             const name = required(this.checked.functions.get(node));
-            if (name.startsWith("LTIME_TO_") && expression.dataType === "TIME")
-              return this.widen(expression, "LTIME");
+            const accepted = getStandardFunctionSignature(name).arguments[index];
+            if (accepted?.length === 1) return this.widen(expression, accepted[0]!);
             return ["ABS", "MIN", "MAX", "LIMIT", "SEL"].includes(name) &&
               !(name === "SEL" && index === 0)
               ? this.widen(expression, info.dataType)

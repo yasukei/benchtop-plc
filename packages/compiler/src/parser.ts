@@ -403,7 +403,12 @@ class Parser {
       this.expect(")");
       return { kind: "group", expression, span: this.spanFrom(token.span) };
     }
-    if (token.kind === "integer" || token.kind === "real" || token.kind === "time") {
+    if (
+      token.kind === "integer" ||
+      token.kind === "real" ||
+      token.kind === "time" ||
+      token.kind === "calendar"
+    ) {
       this.take();
       return {
         kind: "literal",

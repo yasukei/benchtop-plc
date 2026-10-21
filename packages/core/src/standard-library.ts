@@ -1,11 +1,12 @@
 import type { ConversionFunction, FunctionBlockType, StandardFunction } from "./ir.js";
 import { integerTypes as integers } from "./values.js";
+import { calendarTypes } from "./calendar.js";
 import type { DataType } from "./values.js";
 
 const numericTypes = [...integers, "REAL", "LREAL"] as const;
 const bits = ["BOOL", "BYTE", "WORD", "DWORD", "LWORD"] as const;
 const bitStrings = ["BYTE", "WORD", "DWORD", "LWORD"] as const;
-const scalarTypes = [...bits, ...numericTypes, "TIME", "LTIME"] as const;
+const scalarTypes = [...bits, ...numericTypes, "TIME", "LTIME", ...calendarTypes] as const;
 
 export type FunctionBlockPort = readonly [name: string, type: DataType];
 export interface FunctionBlockDescriptor {
@@ -65,7 +66,7 @@ export interface StandardFunctionSignature {
   result?: DataType;
 }
 const conversionEntries: [string, StandardFunctionSignature][] = [];
-for (const to of scalarTypes) {
+for (const to of [...bits, ...numericTypes, "TIME", "LTIME"] as const) {
   const sources: Types =
     to === "TIME" || to === "LTIME"
       ? [...integers, "TIME", "LTIME"]
@@ -95,6 +96,26 @@ for (const to of scalarTypes) {
         },
       ]);
   }
+}
+const calendarSources = {
+  DATE: ["DT", "LDT", "LDATE"],
+  LDATE: ["DATE", "LDT"],
+  TOD: ["DT", "LDT", "LTOD"],
+  LTOD: ["DT", "LDT", "TOD"],
+  DT: ["LDT"],
+  LDT: ["DT"],
+} as const;
+for (const to of calendarTypes) {
+  const sources = calendarSources[to];
+  conversionEntries.push([
+    `TO_${to}`,
+    { min: 1, max: 1, arguments: [[to, ...sources]], result: to },
+  ]);
+  for (const from of sources)
+    conversionEntries.push([
+      `${from}_TO_${to}`,
+      { min: 1, max: 1, arguments: [[from]], result: to },
+    ]);
 }
 // Every conversion opcode is generated from the families in ConversionFunction.
 export const conversionFunctions = Object.fromEntries(conversionEntries) as Record<

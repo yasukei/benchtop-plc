@@ -1,3 +1,4 @@
+import { isCalendarType, convertCalendar } from "./calendar.js";
 import type { ConversionFunction } from "./ir.js";
 import type { DataType, ScalarValue } from "./values.js";
 import { coerceValue, isBitType, isIntegerType, integerWidths } from "./values.js";
@@ -10,6 +11,8 @@ export function convertValue(name: ConversionFunction, value: ScalarValue): Scal
   const source = name.startsWith("TO_") ? null : (name.split("_TO_")[0] as DataType);
   const input = source ? coerceValue(source, value) : value;
   const to = conversionFunctions[name].result!;
+  if (source && isCalendarType(source) && isCalendarType(to))
+    return convertCalendar(source, to, input);
   if ((source === "LREAL" && to === "LWORD") || (source === "LWORD" && to === "LREAL")) {
     const buffer = new DataView(new ArrayBuffer(8));
     if (source === "LREAL") {

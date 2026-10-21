@@ -1,5 +1,8 @@
 import {
   coerceValue,
+  isCalendarType,
+  parseCalendar,
+  calendarBinary,
   isLongType,
   ltimeBinary,
   bitWidths,
@@ -14,6 +17,7 @@ import {
   isStandardFunction as isFunction,
 } from "@benchtop-plc/core";
 import type {
+  CalendarType,
   ConversionFunction,
   DataType,
   Diagnostic,
@@ -53,6 +57,15 @@ import {
 export type CheckResult =
   | { checked: CheckedProgram; diagnostics: Diagnostic[] }
   | { checked: null; diagnostics: Diagnostic[] };
+const declarationType = (name: string): string =>
+  (
+    ({
+      TIME_OF_DAY: "TOD",
+      DATE_AND_TIME: "DT",
+      LTIME_OF_DAY: "LTOD",
+      LDATE_AND_TIME: "LDT",
+    }) as Record<string, string>
+  )[name] ?? name;
 const isScalar = (name: string): name is DataType => scalarTypes.some((type) => type === name);
 
 class Checker {
@@ -93,7 +106,7 @@ class Checker {
   }
 
   private declare(declaration: AST.Declaration): void {
-    const type = declaration.typeName.key;
+    const type = declarationType(declaration.typeName.key);
     const known = isScalar(type) || isBlock(type);
     if (!known)
       this.report(
@@ -139,7 +152,7 @@ class Checker {
   private initializer(declaration: AST.Declaration): void {
     const value = declaration.initializer;
     if (!value) return;
-    const type = declaration.typeName.key;
+    const type = declarationType(declaration.typeName.key);
     if (isBlock(type)) {
       this.report("decl.fb-initializer", { name: declaration.names[0].name }, value.span);
       return;
@@ -158,8 +171,8 @@ class Checker {
       return;
     }
     const initialValue =
-      type === "LTIME" && info.dataType === "TIME"
-        ? convertValue("TIME_TO_LTIME", info.constant)
+      isLongType(type) && info.dataType !== type
+        ? convertValue(`${info.dataType}_TO_${type}` as ConversionFunction, info.constant)
         : coerceValue(type, info.constant);
     for (const name of declaration.names) {
       const symbol = this.names.get(name.key);
@@ -252,11 +265,13 @@ class Checker {
         const dataType = node.dataType ?? (node.literalKind === "boolean" ? "BOOL" : "TIME");
         try {
           const constant =
-            node.literalKind === "time"
-              ? timeLiteral(node.text)
-              : node.literalKind === "boolean"
-                ? coerceValue(dataType, node.value)
-                : materialize(exactNumber(node.text.slice(node.text.indexOf("#") + 1)), dataType);
+            node.literalKind === "calendar"
+              ? parseCalendar(dataType as CalendarType, node.text)
+              : node.literalKind === "time"
+                ? timeLiteral(node.text)
+                : node.literalKind === "boolean"
+                  ? coerceValue(dataType, node.value)
+                  : materialize(exactNumber(node.text.slice(node.text.indexOf("#") + 1)), dataType);
           info = { dataType, constant };
         } catch (error) {
           if (!(error instanceof RangeError)) throw error;
@@ -324,31 +339,39 @@ class Checker {
           left.constant === undefined || right.constant === undefined
             ? undefined
             : () =>
-                dataType === "LTIME"
-                  ? ltimeBinary(
-                      node.operator as "+" | "-" | "*" | "/",
-                      BigInt(constantOperand(left)),
-                      right.dataType === "REAL" || right.dataType === "LREAL"
-                        ? Number(right.constant!)
-                        : BigInt(constantOperand(right)),
+                isCalendarType(left.dataType)
+                  ? calendarBinary(
+                      node.operator,
+                      left.dataType,
+                      left.constant!,
                       right.dataType,
+                      right.constant!,
                     )
-                  : dataType === "TIME"
-                    ? timeBinary(
+                  : dataType === "LTIME"
+                    ? ltimeBinary(
                         node.operator as "+" | "-" | "*" | "/",
-                        Number(left.constant!),
-                        typeof right.constant === "string" || typeof right.constant === "bigint"
-                          ? BigInt(right.constant!)
-                          : Number(right.constant!),
+                        BigInt(constantOperand(left)),
+                        right.dataType === "REAL" || right.dataType === "LREAL"
+                          ? Number(right.constant!)
+                          : BigInt(constantOperand(right)),
                         right.dataType,
                       )
-                    : node.operator === "*" && isIntegerType(dataType) && !isLongType(dataType)
-                      ? Math.imul(Number(left.constant!), Number(right.constant!))
-                      : binaryConstant(
-                          node.operator,
-                          constantOperand(left),
-                          constantOperand(right),
-                        ),
+                    : dataType === "TIME"
+                      ? timeBinary(
+                          node.operator as "+" | "-" | "*" | "/",
+                          Number(left.constant!),
+                          typeof right.constant === "string" || typeof right.constant === "bigint"
+                            ? BigInt(right.constant!)
+                            : Number(right.constant!),
+                          right.dataType,
+                        )
+                      : node.operator === "*" && isIntegerType(dataType) && !isLongType(dataType)
+                        ? Math.imul(Number(left.constant!), Number(right.constant!))
+                        : binaryConstant(
+                            node.operator,
+                            constantOperand(left),
+                            constantOperand(right),
+                          ),
         );
         break;
       }
@@ -433,8 +456,12 @@ class Checker {
             ...this.operands(node.args.slice(1)),
           ]
         : this.operands(node.args);
+    let validArguments = true;
     args.forEach((arg, index) => {
-      if (!arg) return;
+      if (!arg) {
+        validArguments = false;
+        return;
+      }
       const expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
       // A fixed source parameter is a typed slot and accepts implicit widening.
       if (
@@ -442,6 +469,7 @@ class Checker {
           name.startsWith("TO_") ? to === arg.dataType : assignable(to, arg.dataType),
         )
       ) {
+        validArguments = false;
         if (expected.length === 1 && isNumeric(expected[0]!) && isNumeric(arg.dataType))
           this.assignment(expected[0]!, arg, node.args[index]!.span);
         else
@@ -478,13 +506,18 @@ class Checker {
       return this.constant(
         { dataType: signature.result },
         node,
-        arg?.constant === undefined || node.args.length !== 1
+        !validArguments || arg?.constant === undefined || node.args.length !== 1
           ? undefined
           : () =>
               convertValue(
                 resolved,
-                resolved.startsWith("LTIME_TO_") && arg.dataType === "TIME"
-                  ? convertValue("TIME_TO_LTIME", arg.constant!)
+                signature.arguments[0]?.length === 1 &&
+                  signature.arguments[0][0] !== arg.dataType &&
+                  isLongType(signature.arguments[0][0]!)
+                  ? convertValue(
+                      `${arg.dataType}_TO_${signature.arguments[0][0]}` as ConversionFunction,
+                      arg.constant!,
+                    )
                   : arg.constant!,
               ),
       );
@@ -524,7 +557,9 @@ class Checker {
     }
     if (info.constant !== undefined) {
       try {
-        coerceValue(to, info.constant);
+        if (isLongType(to) && to !== from)
+          convertValue(`${from}_TO_${to}` as ConversionFunction, info.constant);
+        else coerceValue(to, info.constant);
       } catch (error) {
         if (!(error instanceof RangeError)) throw error;
         this.report("type.invalid-constant", {}, span);

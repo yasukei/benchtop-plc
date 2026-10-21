@@ -38,6 +38,11 @@ export function readStToken(
   if (whitespace) return { length: whitespace[0].length, style: null };
   const address = /^%[A-Za-z0-9_.]*/.exec(source);
   if (address) return { length: address[0].length, style: "variableName.special" };
+  const calendar =
+    /^(?:DATE_AND_TIME|LDATE_AND_TIME|TIME_OF_DAY|LTIME_OF_DAY|LDATE|DATE|LTOD|TOD|LDT|DT|LD|D)#(?:\d{4}-\d{2}-\d{2}(?:-\d{2}:\d{2}:\d{2}(?:\.\d+)?)?|\d{2}:\d{2}:\d{2}(?:\.\d+)?)/i.exec(
+      source,
+    );
+  if (calendar) return { length: calendar[0].length, style: "number" };
   const time = /^(?:LTIME|LT|TIME|T)#[+-]?[A-Za-z0-9_.]*/i.exec(source);
   if (time) return { length: time[0].length, style: "number" };
   const typed =

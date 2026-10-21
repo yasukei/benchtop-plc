@@ -1,4 +1,4 @@
-import { coerceValue, validateValue, isLongType } from "@benchtop-plc/core";
+import { coerceValue, validateValue, isLongType, isCalendarType } from "@benchtop-plc/core";
 import type {
   AssignmentTarget,
   CaseStatement,
@@ -51,7 +51,7 @@ export class Memory implements ScanMemory {
         "dataType" in node &&
         "value" in node &&
         typeof node.dataType === "string" &&
-        isLongType(node.dataType)
+        (isLongType(node.dataType) || isCalendarType(node.dataType))
       )
         validateValue(node.dataType, node.value);
       if ("kind" in node && node.kind === "case") {

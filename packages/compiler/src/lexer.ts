@@ -2,7 +2,16 @@ import type { DataType, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import { FrontendError } from "./diagnostic.js";
 
 export type TokenKind =
-  "identifier" | "keyword" | "integer" | "real" | "time" | "boolean" | "address" | "symbol" | "eof";
+  | "identifier"
+  | "keyword"
+  | "integer"
+  | "real"
+  | "time"
+  | "calendar"
+  | "boolean"
+  | "address"
+  | "symbol"
+  | "eof";
 
 export interface Token {
   kind: TokenKind;
@@ -22,7 +31,9 @@ export type LexResult =
 /** Reserved elementary type names are legal in type position, even before type checking. */
 const elementaryTypeKeywords = new Set(
   `BOOL INT DINT UINT REAL LREAL TIME SINT USINT UDINT LINT ULINT BYTE WORD DWORD
-   LWORD LTIME DATE TIME_OF_DAY TOD DATE_AND_TIME DT STRING WSTRING`.split(/\s+/),
+   LWORD LTIME DATE TIME_OF_DAY TOD DATE_AND_TIME DT LDATE LTIME_OF_DAY LTOD LDATE_AND_TIME LDT STRING WSTRING`.split(
+    /\s+/,
+  ),
 );
 
 // Include unsupported declaration/POU forms so they cannot masquerade as identifiers.
@@ -169,7 +180,7 @@ class Lexer {
     }
     const fullText = this.source.slice(start, this.offset);
     const text = dataType ? fullText.slice(fullText.indexOf("#") + 1) : fullText;
-    let kind: "integer" | "real" | "time" | "boolean" = "integer";
+    let kind: "integer" | "real" | "time" | "calendar" | "boolean" = "integer";
     let value = NaN;
     if (time) {
       kind = "time";
@@ -244,6 +255,33 @@ class Lexer {
     if (/[A-Za-z_]/.test(this.char)) {
       while (/[A-Za-z0-9_]/.test(this.char) && this.char) this.advance();
       const key = this.source.slice(start, this.offset).toUpperCase();
+      const calendarPrefixes: Record<string, DataType> = {
+        D: "DATE",
+        DATE: "DATE",
+        LD: "LDATE",
+        LDATE: "LDATE",
+        TOD: "TOD",
+        TIME_OF_DAY: "TOD",
+        LTOD: "LTOD",
+        LTIME_OF_DAY: "LTOD",
+        DT: "DT",
+        DATE_AND_TIME: "DT",
+        LDT: "LDT",
+        LDATE_AND_TIME: "LDT",
+      };
+      if (Object.hasOwn(calendarPrefixes, key) && this.char === "#") {
+        this.advance();
+        const dateOnly = calendarPrefixes[key] === "DATE" || calendarPrefixes[key] === "LDATE";
+        // Hyphens belong to the calendar fields; a following subtraction is a new token.
+        const pattern = dateOnly
+          ? /^\d{4}-\d{2}-\d{2}/
+          : calendarPrefixes[key] === "TOD" || calendarPrefixes[key] === "LTOD"
+            ? /^\d{2}:\d{2}:\d{2}(?:\.\d+)?/
+            : /^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}(?:\.\d+)?/;
+        const match = pattern.exec(this.source.slice(this.offset));
+        if (match) for (let i = 0; i < match[0].length; i++) this.advance();
+        return { ...this.token("calendar", start, span, 0), dataType: calendarPrefixes[key]! };
+      }
       if (["T", "TIME", "LT", "LTIME"].includes(key) && this.char === "#") {
         this.advance();
         return this.number(
