@@ -36,7 +36,7 @@ const examples = {
   "decl.fb-initializer": { name: "Timer" },
   "name.undeclared": { name: "Missing" },
   "type.invalid-bit-access": { type: "WORD", bit: 16 },
-  "type.portability": { name: "DWORD_TO_REAL" },
+  "type.portability": { function: "DWORD_TO_REAL" },
   "type.invalid-constant": {},
   "type.case-label-not-constant": {},
   "fb.duplicate-input": { name: "Timer", member: "IN" },
@@ -114,6 +114,37 @@ describe("translation catalogs", () => {
     expect(diagnostic).toBeDefined();
     expect(formatDiagnostic("en", diagnostic!)).toBe("Undeclared identifier: Missing.");
     expect(formatDiagnostic("ja", diagnostic!)).toBe("宣言されていない識別子です: Missing。");
+  });
+
+  it.each([
+    ["BYTE", "BOOL", "2"],
+    ["WORD", "BOOL", "2"],
+    ["DWORD", "BOOL", "2"],
+    ["LWORD", "BOOL", "2"],
+    ["REAL", "DWORD", "1.0"],
+    ["DWORD", "REAL", "16#3F800000"],
+    ["LREAL", "LWORD", "1.0"],
+    ["LWORD", "LREAL", "16#3FF0000000000000"],
+  ])("explains the vendor difference for TO_%s_%s in both languages", (from, to, literal) => {
+    const compiled = compile(
+      `PROGRAM P VAR result: ${to}; END_VAR result := TO_${to}(${from}#${literal}); END_PROGRAM`,
+    );
+    const diagnostic = compiled.diagnostics.find((item) => item.code === "type.portability");
+    expect(diagnostic).toBeDefined();
+    const english = formatDiagnostic("en", diagnostic!);
+    const japanese = formatDiagnostic("ja", diagnostic!);
+    for (const message of [english, japanese]) expect(message).toContain(`${from}_TO_${to}`);
+    if (to === "BOOL") {
+      expect(english).toContain("returns the rightmost bit");
+      expect(english).toContain("return TRUE for any non-zero value");
+      expect(japanese).toContain("最下位ビットを返します");
+      expect(japanese).toContain("ゼロ以外のすべての値に対してTRUE");
+    } else {
+      expect(english).toContain("reinterprets the bit pattern");
+      expect(english).toContain("convert the numeric value instead");
+      expect(japanese).toContain("ビットパターンを再解釈します");
+      expect(japanese).toContain("代わりに数値を変換します");
+    }
   });
 
   it("interpolates runtime limits, hints, types, token identifiers and count variants", () => {

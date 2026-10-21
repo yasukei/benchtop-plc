@@ -39,7 +39,7 @@ export interface DiagnosticArgs {
 
   "name.undeclared": { name: string };
   "type.invalid-bit-access": { type: DataType; bit: number };
-  "type.portability": { name: string };
+  "type.portability": { function: string };
   "type.invalid-constant": NoArguments;
   "type.case-label-not-constant": NoArguments;
   "fb.duplicate-input": { name: string; member: string };
