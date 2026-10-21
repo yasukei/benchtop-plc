@@ -71,13 +71,18 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     const example = XmlDocument.fromString(
       readFileSync(new URL("../../examples/blink/project.xml", import.meta.url), "utf8"),
     );
+    const runningLight = XmlDocument.fromString(
+      readFileSync(new URL("../../examples/running-light/project.xml", import.meta.url), "utf8"),
+    );
     const invalid = XmlDocument.fromString(xml.replace('priority="1"', 'priority="65536"'));
     try {
       expect(() => validator.validate(document)).not.toThrow();
       expect(() => validator.validate(example)).not.toThrow();
+      expect(() => validator.validate(runningLight)).not.toThrow();
       expect(() => validator.validate(invalid)).toThrow();
     } finally {
       invalid.dispose();
+      runningLight.dispose();
       example.dispose();
       document.dispose();
       validator.dispose();

@@ -36,6 +36,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Running light example project with START/STOP, a direction selector, eight LEDs,
+  BYTE rotations and bit access, a UDINT rotation counter and virtual-time traces.
+
 - Standard SR/RS bistables, CTUD, typed CTU/CTD/CTUD counters for INT, DINT,
   LINT, UDINT and ULINT, and TON/TOF/TP_TIME and _LTIME timers. Counters saturate
   at type limits; long timers use nanoseconds from the injected clock, subject

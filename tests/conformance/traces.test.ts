@@ -28,4 +28,12 @@ describe("data-driven ST conformance", () => {
     expect(result.value.task.interval).toBe("PT0.01S");
     runTrace("examples/blink", result.value.program, loadTrace("reference"));
   });
+  it("loads and compiles the running light XML example and passes its bidirectional trace", () => {
+    const result = readProject(read("../../examples/running-light/project.xml"));
+    expect(result.diagnostics).toEqual([]);
+    if (!result.value) throw new Error("Expected the running light project");
+    expect(result.value.program).toBe(read("running-light/program.st"));
+    expect(result.value.task.interval).toBe("PT0.01S");
+    runTrace("examples/running-light", result.value.program, loadTrace("running-light"));
+  });
 });
