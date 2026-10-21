@@ -1,5 +1,6 @@
 import { coerceValue, integerRanges, standardFunctionBlocks } from "@benchtop-plc/core";
 import type {
+  CounterType,
   FunctionBlockPort,
   FunctionBlockType,
   IntegerType,
@@ -33,6 +34,20 @@ abstract class Block implements FunctionBlockInstance {
   abstract execute(scanStartMs: number): void;
 }
 
+type TimerKind = "TON" | "TOF" | "TP";
+type CounterKind = "CTU" | "CTD" | "CTUD";
+
+function isTimerType(
+  type: FunctionBlockType,
+): type is TimerKind | `${TimerKind}_${"TIME" | "LTIME"}` {
+  return ["TON", "TOF", "TP"].includes(type.split("_")[0]!);
+}
+function isCounterType(
+  type: FunctionBlockType,
+): type is CounterKind | `${CounterKind}_${CounterType}` {
+  return ["CTU", "CTD", "CTUD"].includes(type.split("_")[0]!);
+}
+
 class Timer extends Block {
   private started: number | null = null;
   private previous = false;
@@ -40,7 +55,7 @@ class Timer extends Block {
 
   constructor(
     type: FunctionBlockType,
-    private readonly kind: "TON" | "TOF" | "TP",
+    private readonly kind: TimerKind,
   ) {
     super(type);
     this.long = this.inputs[1]!.dataType === "LTIME";
@@ -136,7 +151,7 @@ class Counter extends Block {
 
   constructor(
     type: FunctionBlockType,
-    private readonly kind: "CTU" | "CTD" | "CTUD",
+    private readonly kind: CounterKind,
   ) {
     super(type);
     const countType = this.outputs.at(-1)!.dataType as IntegerType;
@@ -176,17 +191,8 @@ class Counter extends Block {
 }
 
 export function createStandardFunctionBlock(type: FunctionBlockType): FunctionBlockInstance {
-  const kind = type.split("_")[0];
-  switch (kind) {
-    case "TON":
-    case "TOF":
-    case "TP":
-      return new Timer(type, kind);
-    case "CTU":
-    case "CTD":
-    case "CTUD":
-      return new Counter(type, kind);
-  }
+  if (isTimerType(type)) return new Timer(type, type.split("_")[0] as TimerKind);
+  if (isCounterType(type)) return new Counter(type, type.split("_")[0] as CounterKind);
   switch (type) {
     case "R_TRIG":
     case "F_TRIG":
@@ -194,7 +200,9 @@ export function createStandardFunctionBlock(type: FunctionBlockType): FunctionBl
     case "SR":
     case "RS":
       return new Bistable(type);
-    default:
-      throw new RangeError(`Unknown function block ${type}`);
+    default: {
+      const unreachable: never = type;
+      throw new RangeError(`Unknown function block ${unreachable}`);
+    }
   }
 }
