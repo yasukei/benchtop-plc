@@ -548,19 +548,31 @@ class Checker {
       const arg = args[signature.resultArgument];
       return arg ? { dataType: arg.dataType } : null;
     }
-    const values = args.slice(start ?? 0).filter((arg) => arg !== null);
-    const dataType = commonType(values.map((arg) => arg.dataType));
-    if (!dataType && values.length) {
-      this.report(
-        "call.argument-type",
-        {
-          name: node.name.name,
-          index: name === "SEL" ? 2 : 1,
-          expected: [values[0]!.dataType],
-          found: values.at(-1)!.dataType,
-        },
-        node.span,
-      );
+    const values = args.flatMap((arg, index) =>
+      arg && index >= (start ?? 0) ? [{ ...arg, index }] : [],
+    );
+    const types = values.map((arg) => arg.dataType);
+    const dataType = commonType(types);
+    if (!dataType) {
+      for (let offset = 1; offset < values.length; offset++) {
+        // Recompute from each complete prefix, not a pairwise fold: common-type
+        // selection is set-based and can change when a third type is added.
+        const expected = commonType(types.slice(0, offset));
+        const found = values[offset]!;
+        if (expected && !commonType(types.slice(0, offset + 1))) {
+          this.report(
+            "call.argument-type",
+            {
+              name: node.name.name,
+              index: found.index,
+              expected: [expected],
+              found: found.dataType,
+            },
+            node.args[found.index]!.span,
+          );
+          break;
+        }
+      }
     }
     return dataType ? { dataType: signature.result ?? dataType } : null;
   }

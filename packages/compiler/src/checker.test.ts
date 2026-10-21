@@ -438,11 +438,11 @@ describe("standard functions", () => {
 
   it.each([
     "ABS(«TRUE»)",
-    "«MIN(1,T#1s)»",
-    "«MAX(FALSE,INT#1)»",
-    "«LIMIT(T#0s,FALSE,T#1s)»",
+    "MIN(1,«T#1s»)",
+    "MAX(FALSE,«INT#1»)",
+    "LIMIT(T#0s,«FALSE»,T#1s)",
     "SEL(«T#1s»,1,2)",
-    "«SEL(TRUE,FALSE,T#1s)»",
+    "SEL(TRUE,FALSE,«T#1s»)",
     "REAL_TO_INT(«TRUE»)",
     "INT_TO_REAL(«TRUE»)",
     "TIME_TO_INT(«1»)",
@@ -451,6 +451,21 @@ describe("standard functions", () => {
   ])("checks argument types for %s", (expression) => {
     failure("x : INT;", `x := ${expression};`, "call.argument-type");
   });
+
+  it.each([
+    ["MUX(0, 1, 2, «T#1s»)", "MUX", 3, "DINT", "TIME"],
+    ["GT(1, 2, «T#1s»)", "GT", 2, "DINT", "TIME"],
+    ["LIMIT(T#0s, «FALSE», T#1s)", "LIMIT", 1, "TIME", "BOOL"],
+    ["SEL(TRUE, FALSE, «T#1s»)", "SEL", 2, "BOOL", "TIME"],
+    ["MAX(INT#1, UINT#2, REAL#3, «T#1s»)", "MAX", 3, "REAL", "TIME"],
+    ["MUX(0, missing, 1, «T#1s»)", "MUX", 3, "DINT", "TIME"],
+  ])(
+    "identifies the incompatible generic argument in %s",
+    (expression, name, index, expected, found) => {
+      const diagnostic = failure("x: DINT;", `x := ${expression};`, "call.argument-type");
+      expect(diagnostic.args).toEqual({ name, index, expected: [expected], found });
+    },
+  );
 
   it("reports unknown functions at the name", () => {
     failure("x : INT;", "x := «unknown»(1);", "call.unknown-function");
