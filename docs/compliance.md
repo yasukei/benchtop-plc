@@ -116,14 +116,19 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Standard function blocks
 
-| Feature                                           | Status | Notes                          |
-| ------------------------------------------------- | ------ | ------------------------------ |
-| `TON`, `TOF`, `TP`                                | Yes    | Negative PT is treated as T#0s |
-| `R_TRIG`, `F_TRIG`                                | Yes    |                                |
-| `CTU`, `CTD`                                      | Yes    | INT counters                   |
-| `CTUD`, typed counters (`CTU_INT`, `CTU_DINT`, …) | No     |                                |
-| `SR`, `RS`                                        | No     |                                |
-| Typed timers (`TON_TIME`, `TON_LTIME`, …)         | No     |                                |
+Names in this section follow the IEC 61131-3 3rd-edition function block families,
+consistent with PLCnext's typed timer names. CODESYS aliases LTON/LTOF/LTP are
+not provided. Overloaded PT/PV type adaptation is not implemented.
+
+| Feature                              | Status | Notes                                                                                                                                    |
+| ------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `TON`, `TOF`, `TP`                   | Yes    | TIME PT/ET; negative PT is zero                                                                                                          |
+| `R_TRIG`, `F_TRIG`                   | Yes    | First call suppresses edges                                                                                                              |
+| `CTU`, `CTD`, `CTUD`                 | Yes    | INT counters; saturation at type limits                                                                                                  |
+| Typed counters                       | Yes    | CTU/CTD/CTUD with _INT, _DINT, _LINT, _UDINT, _ULINT; exact 64-bit counts                                                                |
+| `SR`, `RS`                           | Yes    | Set dominant / reset dominant; Q1 initially FALSE                                                                                        |
+| `TON_TIME`, `TOF_TIME`, `TP_TIME`    | Yes    | Same behavior as unsuffixed TIME timers                                                                                                  |
+| `TON_LTIME`, `TOF_LTIME`, `TP_LTIME` | Yes    | LTIME PT/ET; nanoseconds from injected fractional-ms clock, limited by host resolution and floating-point precision; negative PT is zero |
 
 ## Configuration elements
 

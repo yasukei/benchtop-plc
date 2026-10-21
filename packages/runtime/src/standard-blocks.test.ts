@@ -207,3 +207,31 @@ describe("INT counters", () => {
     expect(scan({ LD: true, PV: -32768 })).toEqual([true, -32768]);
   });
 });
+
+describe("typed counter saturation", () => {
+  const limits = [
+    ["INT", -32768n, 32767n],
+    ["DINT", -2147483648n, 2147483647n],
+    ["LINT", -(1n << 63n), (1n << 63n) - 1n],
+    ["UDINT", 0n, 4294967295n],
+    ["ULINT", 0n, (1n << 64n) - 1n],
+  ] as const;
+  it.each(limits)("CTU_%s stops at its maximum and resets", (type, _min, max) => {
+    const { block, scan } = setup(`CTU_${type}`);
+    const value = (n: bigint) => (type === "LINT" || type === "ULINT" ? String(n) : Number(n));
+    // Initialize the public CV state near the boundary instead of executing billions of edges.
+    block.outputs[1]!.value = value(max - 1n);
+    expect(scan({ CU: true, PV: value(1n) })).toEqual([true, value(max)]);
+    scan({ CU: false });
+    expect(scan({ CU: true })).toEqual([true, value(max)]);
+    expect(scan({ R: true })).toEqual([false, value(0n)]);
+  });
+  it.each(limits)("CTD_%s stops at its minimum after loading PV", (type, min) => {
+    const { scan } = setup(`CTD_${type}`);
+    const value = (n: bigint) => (type === "LINT" || type === "ULINT" ? String(n) : Number(n));
+    scan({ LD: true, PV: value(min + 1n) });
+    expect(scan({ LD: false, CD: true })).toEqual([true, value(min)]);
+    scan({ CD: false });
+    expect(scan({ CD: true })).toEqual([true, value(min)]);
+  });
+});

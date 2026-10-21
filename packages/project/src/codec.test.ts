@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { standardFunctionBlocks } from "@benchtop-plc/core";
 import {
   PANEL_NAMESPACE,
   readProject,
@@ -46,6 +47,19 @@ describe("PLCopen XML", () => {
     const project = sampleProject();
     expect(readProject(xml(project))).toEqual({ value: project, diagnostics: [] });
   });
+  it.each(Object.keys(standardFunctionBlocks))(
+    "round trips the standard derived block %s without source extensions",
+    (type) => {
+      const project = sampleProject(`PROGRAM Main\nVAR block: ${type}; END_VAR\nEND_PROGRAM`);
+      const exported = xml(project);
+      expect(exported).toContain(`<derived name="${type}"/>`);
+      const imported = readProject(stripExtension(exported, SOURCE_NAMESPACE));
+      expect(imported.diagnostics).toEqual([]);
+      expect(splitProgram(imported.value!.program).value!.variables).toEqual(
+        splitProgram(project.program).value!.variables,
+      );
+    },
+  );
   it("preserves CRLF, declaration comments, multiple blocks, grouped names and spelling", () => {
     const project = sampleProject(
       "// prefix\r\nprogram Main\r\nVAR (* END_VAR *)\r\n a, b : int := -2;\r\nEND_VAR\r\nVAR\r\n x at %ix0.0 : bool;\r\nEND_VAR\r\n// END_PROGRAM\r\nx := a < b;\r\nend_program; // suffix\r\n",

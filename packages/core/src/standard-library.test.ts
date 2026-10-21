@@ -23,7 +23,7 @@ describe("shared standard-library descriptors", () => {
       ],
     };
     const trigger = { inputs: [["CLK", "BOOL"]], outputs: [["Q", "BOOL"]] };
-    expect(standardFunctionBlocks).toEqual({
+    const expected = {
       TON: timer,
       TOF: timer,
       TP: timer,
@@ -51,6 +51,69 @@ describe("shared standard-library descriptors", () => {
           ["CV", "INT"],
         ],
       },
+    };
+    const combined = {
+      inputs: [
+        ["CU", "BOOL"],
+        ["CD", "BOOL"],
+        ["R", "BOOL"],
+        ["LD", "BOOL"],
+        ["PV", "INT"],
+      ],
+      outputs: [
+        ["QU", "BOOL"],
+        ["QD", "BOOL"],
+        ["CV", "INT"],
+      ],
+    };
+    const typed = Object.fromEntries(
+      ["CTU", "CTD", "CTUD"].flatMap((kind) =>
+        ["INT", "DINT", "LINT", "UDINT", "ULINT"].map((type) => {
+          const descriptor =
+            kind === "CTU" ? expected.CTU : kind === "CTD" ? expected.CTD : combined;
+          const replaceInt = (ports: string[][]) =>
+            ports.map(([name, portType]) => [name, portType === "INT" ? type : portType]);
+          return [
+            `${kind}_${type}`,
+            { inputs: replaceInt(descriptor.inputs), outputs: replaceInt(descriptor.outputs) },
+          ];
+        }),
+      ),
+    );
+    const longTimer = {
+      inputs: [
+        ["IN", "BOOL"],
+        ["PT", "LTIME"],
+      ],
+      outputs: [
+        ["Q", "BOOL"],
+        ["ET", "LTIME"],
+      ],
+    };
+    expect(standardFunctionBlocks).toEqual({
+      ...expected,
+      CTUD: combined,
+      ...typed,
+      SR: {
+        inputs: [
+          ["S1", "BOOL"],
+          ["R", "BOOL"],
+        ],
+        outputs: [["Q1", "BOOL"]],
+      },
+      RS: {
+        inputs: [
+          ["S", "BOOL"],
+          ["R1", "BOOL"],
+        ],
+        outputs: [["Q1", "BOOL"]],
+      },
+      TON_TIME: timer,
+      TOF_TIME: timer,
+      TP_TIME: timer,
+      TON_LTIME: longTimer,
+      TOF_LTIME: longTimer,
+      TP_LTIME: longTimer,
     });
   });
 
