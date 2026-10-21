@@ -32,6 +32,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Standard time/date arithmetic and long forms, calendar constructors, component
+  splitting and DAY_OF_WEEK. Function calls support statements and SPLIT output
+  assignments with `=>`; INT outputs widen implicitly and the result is BOOL.
+
 - Standard numeric and arithmetic functions, `**` exponentiation, width-aware
   shifts/rotates, bitwise calls, MOVE/MUX and comparison functions, including
   exact 64-bit arithmetic. Selection functions now cover all compatible elementary

@@ -34,6 +34,11 @@ it("represents every milestone IR variant as transportable data", () => {
     },
   };
   const statements: Record<Statement["kind"], Statement> = {
+    call: {
+      kind: "call",
+      call: expressions.functionCall as import("@benchtop-plc/core").FunctionCallExpression,
+      span,
+    },
     assignment: { kind: "assignment", target: variable, value: expressions.functionCall, span },
     fbCall: {
       kind: "fbCall",

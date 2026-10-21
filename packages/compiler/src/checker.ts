@@ -75,6 +75,7 @@ class Checker {
   private readonly declaredNames = new Set<string>();
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
   private readonly references = new Map<AST.Identifier, ResolvedReference>();
+  private readonly functionArguments = new Map<AST.FunctionCall, readonly AST.Expression[]>();
   private readonly functions = new Map<AST.FunctionCall, StandardFunction>();
 
   private report<C extends DiagnosticCode>(
@@ -100,6 +101,7 @@ class Checker {
         expressions: this.expressions,
         references: this.references,
         functions: this.functions,
+        functionArguments: this.functionArguments,
       },
       diagnostics: this.diagnostics,
     };
@@ -445,13 +447,59 @@ class Checker {
     const name = node.name.key;
     this.functions.set(node, name);
     const signature = getSignature(name);
+    const inputs = [...node.args];
+    const invalidParameter = (parameter: AST.Identifier) =>
+      this.report(
+        "call.invalid-parameter",
+        { name: node.name.name, parameter: parameter.name },
+        parameter.span,
+      );
+    if (node.inputNames) {
+      const ordered = new Map<number, AST.Expression>();
+      node.inputNames.forEach((parameter, index) => {
+        const port = signature.inputNames?.indexOf(parameter.key) ?? -1;
+        if (port < 0 || ordered.has(port)) invalidParameter(parameter);
+        else ordered.set(port, node.args[index]!);
+      });
+      if (ordered.size !== signature.min) {
+        this.report(
+          "call.argument-count",
+          { name: node.name.name, min: signature.min, max: signature.max, found: ordered.size },
+          node.span,
+        );
+      }
+      // Failed calls still check their supplied expressions, but never reach lowering.
+      if (Array.from({ length: signature.min }, (_, index) => ordered.has(index)).every(Boolean))
+        inputs.splice(
+          0,
+          inputs.length,
+          ...Array.from({ length: signature.min }, (_, index) => ordered.get(index)!),
+        );
+    }
+    this.functionArguments.set(node, inputs);
+    const seenOutputs = new Set<number>();
+    for (const output of node.outputs ?? []) {
+      const port = signature.outputs?.findIndex(([name]) => name === output.name.key) ?? -1;
+      if (port < 0 || seenOutputs.has(port)) invalidParameter(output.name);
+      seenOutputs.add(port);
+      const target = this.reference(output.target, true);
+      if (target) {
+        this.expressions.set(output.target, target);
+        if (port >= 0)
+          this.assignment(
+            target.dataType,
+            { dataType: signature.outputs![port]![1] },
+            output.target.span,
+          );
+      }
+    }
     if (
-      node.args.length < signature.min ||
-      (signature.max !== null && node.args.length > signature.max)
+      inputs.length < signature.min ||
+      (signature.max !== null && inputs.length > signature.max)
     ) {
       this.report(
         "call.argument-count",
-        { name: node.name.name, min: signature.min, max: signature.max, found: node.args.length },
+        { name: node.name.name, min: signature.min, max: signature.max, found: inputs.length },
         node.span,
       );
     }
@@ -472,10 +520,10 @@ class Checker {
       signature.arguments[start]?.every((type) => type === "REAL" || type === "LREAL");
     const args =
       start === undefined
-        ? node.args.map(parameter)
+        ? inputs.map(parameter)
         : [
-            ...node.args.slice(0, start).map(parameter),
-            ...this.operands(node.args.slice(start), false, realGroup ? "LREAL" : undefined),
+            ...inputs.slice(0, start).map(parameter),
+            ...this.operands(inputs.slice(start), false, realGroup ? "LREAL" : undefined),
           ];
     let validArguments = true;
     args.forEach((arg, index) => {
@@ -492,12 +540,12 @@ class Checker {
       ) {
         validArguments = false;
         if (expected.length === 1 && isNumeric(expected[0]!) && isNumeric(arg.dataType))
-          this.assignment(expected[0]!, arg, node.args[index]!.span);
+          this.assignment(expected[0]!, arg, inputs[index]!.span);
         else
           this.report(
             "call.argument-type",
             { name: node.name.name, index, expected, found: arg.dataType },
-            node.args[index]!.span,
+            inputs[index]!.span,
           );
       }
     });
@@ -528,7 +576,7 @@ class Checker {
       return this.constant(
         { dataType: signature.result },
         node,
-        !validArguments || arg?.constant === undefined || node.args.length !== 1
+        !validArguments || arg?.constant === undefined || inputs.length !== 1
           ? undefined
           : () =>
               convertValue(
@@ -568,7 +616,7 @@ class Checker {
               expected: [expected],
               found: found.dataType,
             },
-            node.args[found.index]!.span,
+            inputs[found.index]!.span,
           );
           break;
         }
@@ -626,6 +674,9 @@ class Checker {
           if (target && value) this.assignment(target.dataType, value, node.value.span);
           break;
         }
+        case "call":
+          this.expression(node.call);
+          break;
         case "fbCall": {
           const symbol = this.resolve(node.instance);
           if (symbol && !isBlock(symbol.type))

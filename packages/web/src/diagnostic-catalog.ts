@@ -85,6 +85,8 @@ export const diagnosticEn = {
   "fb.call-in-expression": ({ name }) =>
     `Function block call ${name} cannot be used in an expression.`,
   "call.unknown-function": ({ name }) => `Unknown function: ${name}.`,
+  "call.invalid-parameter": ({ name, parameter }) =>
+    `${name}: unknown, duplicate or incorrectly directed parameter ${parameter}.`,
   "call.argument-count": ({ name, min, max, found }) =>
     max === null
       ? `${name} requires at least ${min} arguments; found ${found}.`
@@ -167,6 +169,8 @@ export const diagnosticJa = {
   "fb.call-in-expression": ({ name }) =>
     `ファンクションブロックの呼び出し${name}は式の中で使用できません。`,
   "call.unknown-function": ({ name }) => `不明な関数です: ${name}。`,
+  "call.invalid-parameter": ({ name, parameter }) =>
+    `${name}: パラメーター ${parameter} が不明、重複、または方向が正しくありません。`,
   "call.argument-count": ({ name, min, max, found }) =>
     max === null
       ? `${name}には${min}個以上の引数が必要ですが、${found}個です。`

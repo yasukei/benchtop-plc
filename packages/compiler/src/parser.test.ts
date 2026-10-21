@@ -417,11 +417,43 @@ describe("syntax diagnostics", () => {
     "FUNCTION_BLOCK F END_FUNCTION_BLOCK",
     "PROGRAM P VAR_INPUT x : INT; END_VAR END_PROGRAM",
     "PROGRAM P VAR x : ARRAY[1..3] OF INT; END_VAR END_PROGRAM",
-    "PROGRAM P f(Q => x); END_PROGRAM",
-    "PROGRAM P x := f(IN := TRUE); END_PROGRAM",
     "PROGRAM P x := a.b.c; END_PROGRAM",
   ])("does not accept unsupported syntax %s", (source) => {
     expect(parse(source).ast).toBeNull();
     expect(parse(source).diagnostics).toHaveLength(1);
   });
+});
+
+it("parses formal function inputs, output bindings and function statements with exact spans", () => {
+  const source = "PROGRAM P\nSPLIT_DATE(IN := d, YEAR => y, MONTH => m, DAY => dd);\nEND_PROGRAM";
+  const statement = program(source).body[0]!;
+  expect(statement).toMatchObject({
+    kind: "call",
+    span: { line: 2, column: 1, endLine: 2, endColumn: 55 },
+    call: {
+      kind: "functionCall",
+      name: { key: "SPLIT_DATE" },
+      inputNames: [{ key: "IN" }],
+      args: [{ kind: "name", name: { key: "D" } }],
+      outputs: [
+        { name: { key: "YEAR" }, target: { kind: "name", name: { key: "Y" } } },
+        { name: { key: "MONTH" }, target: { kind: "name", name: { key: "M" } } },
+        { name: { key: "DAY" }, target: { kind: "name", name: { key: "DD" } } },
+      ],
+    },
+  });
+  expect(shape(expression("CONCAT_DATE(DAY := 29, MONTH := 2, YEAR := 2024)"))).toEqual([
+    "CONCAT_DATE",
+    29,
+    2,
+    2024,
+  ]);
+});
+it.each([
+  "SPLIT_DATE(d, YEAR => y);",
+  "SPLIT_DATE(IN := d, YEAR => 1);",
+  "SPLIT_DATE(IN := d, YEAR => (y));",
+  "SPLIT_DATE(IN := d, YEAR => y + 1);",
+])("rejects mixed call syntax and non-reference output targets: %s", (body) => {
+  expect(parse(`PROGRAM P ${body} END_PROGRAM`).ast).toBeNull();
 });

@@ -129,12 +129,22 @@ export class Interpreter {
       case "functionCall": {
         if (!this.library) throw new Error("A runtime library is required for functions");
         const args = expr.args.map((arg) => this.expression(arg));
-        if (expr.function === "DIV" && Number(args[1]) === 0)
+        if (["DIV", "DIV_TIME", "DIV_LTIME"].includes(expr.function) && Number(args[1]) === 0)
           this.fault("runtime.division-by-zero", expr.span);
-        return coerceValue(
+        const outputs = new Map<number, ScalarValue>();
+        const result = coerceValue(
           expr.dataType,
-          this.library.callFunction(expr.function, args, expr.dataType),
+          this.library.callFunction(expr.function, args, expr.dataType, {
+            argumentTypes: expr.args.map((arg) => arg.dataType),
+            output: (index, value) => outputs.set(index, value),
+          }),
         );
+        for (const binding of expr.outputs ?? []) {
+          const value = outputs.get(binding.output);
+          if (value === undefined) throw new Error("Missing function output");
+          this.memory.assign(binding.target, value);
+        }
+        return result;
       }
     }
   }
@@ -172,6 +182,14 @@ export class Interpreter {
       case "assignment":
         this.annotate(statement, [
           this.memory.assign(statement.target, this.expression(statement.value)),
+        ]);
+        break;
+      case "call":
+        this.annotate(statement, [
+          {
+            dataType: statement.call.dataType,
+            value: this.expression(statement.call),
+          } as TypedValue,
         ]);
         break;
       case "fbCall": {

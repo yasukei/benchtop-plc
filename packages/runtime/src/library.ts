@@ -13,6 +13,12 @@ export interface FunctionBlockInstance {
   execute(scanStartMs: number): void;
 }
 
+/** Call-site types preserve independent factors; outputs are buffered by the interpreter. */
+export interface FunctionCallContext {
+  argumentTypes: readonly DataType[];
+  output(index: number, value: ScalarValue): void;
+}
+
 /** Replaceable dispatch; defaults to the standard library in createRuntime. */
 export interface RuntimeLibrary {
   createFunctionBlock(type: FunctionBlockType): FunctionBlockInstance;
@@ -20,5 +26,6 @@ export interface RuntimeLibrary {
     name: StandardFunction,
     args: readonly ScalarValue[],
     dataType?: DataType,
+    context?: FunctionCallContext,
   ): ScalarValue;
 }

@@ -1,4 +1,6 @@
 import {
+  timeArithmeticFunctions,
+  calendarFunctions,
   binaryValue,
   bitWidths,
   coerceValue,
@@ -16,17 +18,29 @@ import type {
   StandardFunction,
 } from "@benchtop-plc/core";
 
+import type { FunctionCallContext } from "./library.js";
+import { callCalendarFunction, callTimeArithmetic } from "./time-date-functions.js";
+
 /** Arguments are compiler-checked. Width-dependent operations require the IR result type. */
 export function callStandardFunction(
   name: StandardFunction,
   args: readonly ScalarValue[],
   dataType?: DataType,
+  context?: FunctionCallContext,
 ): ScalarValue {
   const signature = getStandardFunctionSignature(name);
   if (args.length < signature.min || (signature.max !== null && args.length > signature.max))
     throw new Error(`Invalid argument count for ${name}`);
   if (args.some((value) => !Number.isFinite(Number(value))))
     throw new RangeError("PLC values must be finite");
+  if (Object.hasOwn(timeArithmeticFunctions, name))
+    return callTimeArithmetic(
+      name as keyof typeof timeArithmeticFunctions,
+      args,
+      context?.argumentTypes,
+    );
+  if (Object.hasOwn(calendarFunctions, name))
+    return callCalendarFunction(name as keyof typeof calendarFunctions, args, context);
   const first = Number(args[0]);
   const long = args.some((value) => typeof value === "string" || typeof value === "bigint");
   const compare = (a: ScalarValue, b: ScalarValue) =>

@@ -61,6 +61,7 @@ export interface DiagnosticArgs {
   "fb.instance-as-value": { name: string };
   "fb.call-in-expression": { name: string };
   "call.unknown-function": { name: string };
+  "call.invalid-parameter": { name: string; parameter: string };
   "call.argument-count": { name: string; min: number; max: number | null; found: number };
   "call.argument-type": {
     name: string;

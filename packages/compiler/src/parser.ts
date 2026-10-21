@@ -1,3 +1,4 @@
+import { isStandardFunction } from "@benchtop-plc/core";
 import type { BinaryOperator, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import type {
   Address,
@@ -8,7 +9,8 @@ import type {
   Declaration,
   Expression,
   Identifier,
-  NamedInput,
+  FunctionCall,
+  NamedOutput,
   Program,
   Statement,
 } from "./ast.js";
@@ -298,20 +300,34 @@ class Parser {
       this.expect(";");
       return { kind, span: this.spanFrom(start) };
     }
-    const name = this.identifier();
+    const token = this.current;
+    const keywordCall =
+      ["AND", "OR", "XOR", "MOD", "NOT"].includes(token.key) &&
+      this.tokens[this.cursor + 1]?.key === "(";
+    const name = keywordCall
+      ? (this.take(), { name: token.text, key: token.key, span: token.span })
+      : this.identifier();
     if (this.accept("(")) {
-      const inputs: NamedInput[] = [];
-      if (!this.at(")")) {
-        do {
-          const name = this.identifier();
-          this.assignmentOperator();
-          const value = this.expression();
-          inputs.push({ name, value, span: joinedSpan(name.span, value.span) });
-        } while (this.accept(","));
-      }
-      this.expect(")");
+      const call = this.functionArguments(name, !isStandardFunction(name.key));
       this.expect(";");
-      return { kind: "fbCall", instance: name, inputs, span: this.spanFrom(start) };
+      // Preserve the FB AST contract for its existing named-input syntax.
+      if (
+        !isStandardFunction(name.key) &&
+        !call.outputs?.length &&
+        (call.inputNames || call.args.length === 0)
+      ) {
+        return {
+          kind: "fbCall",
+          instance: name,
+          inputs: call.args.map((value, index) => ({
+            name: call.inputNames![index]!,
+            value,
+            span: joinedSpan(call.inputNames![index]!.span, value.span),
+          })),
+          span: this.spanFrom(start),
+        };
+      }
+      return { kind: "call", call, span: this.spanFrom(start) };
     }
     const target = this.reference(name);
     this.assignmentOperator();
@@ -439,16 +455,45 @@ class Parser {
       ? (this.take(), { name: token.text, key: token.key, span: token.span })
       : this.identifier();
     if (this.accept("(")) {
-      const args: Expression[] = [];
-      if (!this.at(")")) {
-        do {
-          args.push(this.expression());
-        } while (this.accept(","));
-      }
-      this.expect(")");
-      return { kind: "functionCall", name, args, span: this.spanFrom(token.span) };
+      return this.functionArguments(name);
     }
     return this.reference(name);
+  }
+  private functionArguments(name: Identifier, blockSyntax = false): FunctionCall {
+    const args: Expression[] = [];
+    const names: Identifier[] = [];
+    const outputs: NamedOutput[] = [];
+    let formal: boolean | undefined;
+    if (!this.at(")")) {
+      do {
+        const named =
+          this.current.kind === "identifier" &&
+          ([":=", "=>"].includes(this.tokens[this.cursor + 1]?.key ?? "") ||
+            (blockSyntax && this.tokens[this.cursor + 1]?.key === "="));
+        if (formal !== undefined && formal !== named) this.expected("consistent call arguments");
+        formal = named;
+        if (named) {
+          const port = this.identifier();
+          if (this.accept("=>")) {
+            const target = this.reference(this.identifier());
+            outputs.push({ name: port, target, span: joinedSpan(port.span, target.span) });
+          } else {
+            this.assignmentOperator();
+            names.push(port);
+            args.push(this.expression());
+          }
+        } else args.push(this.expression());
+      } while (this.accept(","));
+    }
+    this.expect(")");
+    return {
+      kind: "functionCall",
+      name,
+      args,
+      ...(formal ? { inputNames: names } : {}),
+      ...(outputs.length ? { outputs } : {}),
+      span: this.spanFrom(name.span),
+    };
   }
 }
 

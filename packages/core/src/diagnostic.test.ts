@@ -46,6 +46,7 @@ const examples = {
   "fb.instance-as-value": { name: "Timer" },
   "fb.call-in-expression": { name: "Timer" },
   "call.unknown-function": { name: "MISSING" },
+  "call.invalid-parameter": { name: "SPLIT_DATE", parameter: "YEAR" },
   "call.argument-count": { name: "LIMIT", min: 3, max: 3, found: 2 },
   "call.argument-type": { name: "ABS", index: 0, expected: ["INT", "REAL"], found: "BOOL" },
   "runtime.invalid-value": {},

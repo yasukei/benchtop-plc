@@ -70,6 +70,9 @@ export interface FunctionCall extends SourceNode {
   kind: "functionCall";
   name: Identifier;
   args: Expression[];
+  /** Present for formal calls; positional and formal inputs cannot be mixed. */
+  inputNames?: Identifier[];
+  outputs?: NamedOutput[];
 }
 
 export type Expression =
@@ -84,6 +87,16 @@ export interface Assignment extends SourceNode {
 export interface NamedInput extends SourceNode {
   name: Identifier;
   value: Expression;
+}
+
+export interface NamedOutput extends SourceNode {
+  name: Identifier;
+  target: AssignmentTarget;
+}
+
+export interface FunctionCallStatement extends SourceNode {
+  kind: "call";
+  call: FunctionCall;
 }
 
 export interface FunctionBlockCall extends SourceNode {
@@ -144,6 +157,7 @@ export interface RepeatStatement extends SourceNode {
 export type Statement =
   | Assignment
   | FunctionBlockCall
+  | FunctionCallStatement
   | IfStatement
   | CaseStatement
   | ForStatement
