@@ -5,6 +5,8 @@ import type {
   LongType,
   BitReference,
   FunctionBlockMemberReference,
+  UserFunctionBlockMemberReference,
+  InstanceStorage,
   IoImage,
   ProgramIR,
   ScalarValue,
@@ -32,7 +34,14 @@ export interface ScanMemory {
 
 type ScalarCell =
   { kind: "scalar"; value: TypedValue } | { kind: "long"; dataType: LongType; value: bigint };
-type Cell = ScalarCell | { kind: "functionBlock"; instance: FunctionBlockInstance };
+interface UserBlockCell {
+  kind: "userFunctionBlock";
+  frame: MemoryFrame;
+  block: number;
+  path: string;
+  resetTemporaries(): void;
+}
+type Cell = ScalarCell | { kind: "functionBlock"; instance: FunctionBlockInstance } | UserBlockCell;
 
 function initialCell(variable: ScalarVariable): ScalarCell {
   validateValue(variable.dataType, variable.initialValue);
@@ -58,6 +67,18 @@ export class MemoryFrame implements ScanMemory {
     return cell.instance;
   }
 
+  userBlock(variable: number): UserBlockCell {
+    const cell = this.cells[variable];
+    if (!cell || cell.kind !== "userFunctionBlock") throw new Error("Expected user function block");
+    return cell;
+  }
+
+  resetTemporaries(storage: readonly InstanceStorage[]): void {
+    storage.forEach((slot, index) => {
+      if (slot.kind === "temporary") this.cells[index] = initialCell(slot.variable);
+    });
+  }
+
   read(variable: number): ScalarValue {
     const cell = this.cells[variable];
     return cell?.kind === "long" ? cell.value : this.scalar(variable).value;
@@ -73,13 +94,21 @@ export class MemoryFrame implements ScanMemory {
     scalar.value = coerceValue(scalar.dataType, value);
   }
 
-  value(ref: VariableReference | BitReference | FunctionBlockMemberReference): TypedValue {
+  value(
+    ref:
+      | VariableReference
+      | BitReference
+      | FunctionBlockMemberReference
+      | UserFunctionBlockMemberReference,
+  ): TypedValue {
     if (ref.kind === "bit")
       return {
         dataType: "BOOL",
         value: (BigInt(this.read(ref.variable)) & (1n << BigInt(ref.bit))) !== 0n,
       };
     if (ref.kind === "variable") return { ...this.scalar(ref.variable) };
+    if (ref.kind === "userFbMember")
+      return typed(ref.dataType, this.userBlock(ref.variable).frame.read(ref.member));
     const instance = this.block(ref.variable);
     const value = (ref.port === "input" ? instance.inputs : instance.outputs)[ref.member];
     if (!value) throw new Error("Expected function block port");
@@ -92,6 +121,8 @@ export class MemoryFrame implements ScanMemory {
         mask = 1n << BigInt(target.bit);
       this.write(target.variable, value ? pattern | mask : pattern & ~mask);
     } else if (target.kind === "variable") this.write(target.variable, value);
+    else if (target.kind === "userFbMember")
+      this.userBlock(target.variable).frame.write(target.member, value);
     else this.input(target.variable, target.member, value);
     return this.value(target);
   }
@@ -106,6 +137,7 @@ export class MemoryFrame implements ScanMemory {
 
 export class Memory extends MemoryFrame {
   private readonly functionInitialCells: readonly ScalarCell[][];
+  private readonly instanceCells = new Map<number, UserBlockCell>();
 
   constructor(
     readonly ir: ProgramIR,
@@ -154,7 +186,36 @@ export class Memory extends MemoryFrame {
         return { kind: "functionBlock", instance: library.createFunctionBlock(variable.fbType) };
       }),
     );
+    for (const block of ir.functionBlocks ?? []) validateLiterals(block.body);
     this.functionInitialCells = functionInitialCells;
+  }
+
+  private frame(storage: readonly InstanceStorage[]): MemoryFrame {
+    return new MemoryFrame(
+      storage.map((slot) => {
+        if (slot.kind === "variable") return this.cells[slot.variable]!;
+        if (slot.kind === "temporary") return initialCell(slot.variable);
+        let cell = this.instanceCells.get(slot.instance);
+        if (!cell) {
+          const instance = this.ir.instances![slot.instance]!;
+          const frame = this.frame(instance.storage);
+          cell = {
+            kind: "userFunctionBlock",
+            frame,
+            block: instance.block,
+            path: instance.path,
+            resetTemporaries: () => frame.resetTemporaries(instance.storage),
+          };
+          this.instanceCells.set(slot.instance, cell);
+        }
+        return cell;
+      }),
+    );
+  }
+
+  /** Fresh PROGRAM temporaries; persistent instance frames alias monitored cells. */
+  programFrame(): MemoryFrame {
+    return this.ir.storage ? this.frame(this.ir.storage) : this;
   }
 
   /** Clone validated initial cells, keeping each invocation independent. */
@@ -193,16 +254,15 @@ export class Memory extends MemoryFrame {
   }
 
   snapshot(): VariableSnapshot[] {
-    return this.cells.map((cell) =>
-      cell.kind === "long"
-        ? { kind: "scalar", ...typed(cell.dataType, cell.value) }
-        : cell.kind === "scalar"
-          ? { kind: "scalar", ...cell.value }
-          : {
-              kind: "functionBlock",
-              inputs: cell.instance.inputs.map((value) => ({ ...value })),
-              outputs: cell.instance.outputs.map((value) => ({ ...value })),
-            },
-    );
+    return this.cells.map((cell): VariableSnapshot => {
+      if (cell.kind === "long") return { kind: "scalar", ...typed(cell.dataType, cell.value) };
+      if (cell.kind === "scalar") return { kind: "scalar", ...cell.value };
+      if (cell.kind !== "functionBlock") throw new Error("User instance in monitored storage");
+      return {
+        kind: "functionBlock",
+        inputs: cell.instance.inputs.map((value) => ({ ...value })),
+        outputs: cell.instance.outputs.map((value) => ({ ...value })),
+      };
+    });
   }
 }

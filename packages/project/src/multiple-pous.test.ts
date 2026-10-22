@@ -135,14 +135,14 @@ describe("several POUs in PLCopen XML", () => {
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "project.invalid" }));
   });
 
-  it.each(["tempVars", "inOutVars", "globalVars", "unknownVars"])(
+  it.each(["inOutVars", "globalVars", "unknownVars"])(
     "rejects unsupported XML section %s",
     (section) => {
       expect(readProject(save([procedure]).replaceAll("inputVars", section)).value).toBeNull();
     },
   );
 
-  it.each(["functionBlock", "unknown"])("rejects unsupported POU type %s", (kind) => {
+  it.each(["unknown"])("rejects unsupported POU type %s", (kind) => {
     expect(
       readProject(save([procedure]).replace('pouType="function"', `pouType="${kind}"`)).value,
     ).toBeNull();
@@ -153,14 +153,9 @@ describe("several POUs in PLCopen XML", () => {
     expect(readProject(xml).value).toBeNull();
   });
 
-  it.each(["VAR_TEMP", "VAR_IN_OUT"])(
-    "rejects unsupported source section %s, even when empty",
-    (section) => {
-      expect(
-        writeProject(project([`FUNCTION F ${section} END_VAR END_FUNCTION`])).value,
-      ).toBeNull();
-    },
-  );
+  it.each(["VAR_IN_OUT"])("rejects unsupported source section %s, even when empty", (section) => {
+    expect(writeProject(project([`FUNCTION F ${section} END_VAR END_FUNCTION`])).value).toBeNull();
+  });
 
   it("checks every POU initializer and does not let a semantic error hide an invalid value", () => {
     const valid = "FUNCTION F : INT VAR_INPUT x : INT := 1; END_VAR F := x; END_FUNCTION";
@@ -191,4 +186,37 @@ describe("several POUs in PLCopen XML", () => {
     expect(result.value!.pous[0]).toContain("FUNCTION Increment : DINT");
     expect(result.value!.pous.slice(1)).toEqual([main, twice]);
   });
+});
+
+it("round trips blocks, nested user/standard instances and temporary sections without changing POU texts", () => {
+  const pous = [
+    `PROGRAM Main\nVAR m1,m2 : Wrapper; result : BOOL; END_VAR\nVAR_TEMP temp : INT := 3; END_VAR\nm1(Q => result); m2();\nEND_PROGRAM`,
+    `FUNCTION_BLOCK Wrapper\nVAR_OUTPUT Q : BOOL; END_VAR\nVAR nested : Delayed; END_VAR\nnested(enable := TRUE, Q => Q);\nEND_FUNCTION_BLOCK`,
+    `FUNCTION_BLOCK Delayed\nVAR_INPUT enable : BOOL; END_VAR\nVAR_OUTPUT Q : BOOL; END_VAR\nVAR delay : TON; END_VAR\nVAR_TEMP scratch : INT := 5; END_VAR\ndelay(IN := enable, PT := T#1s, Q => Q);\nEND_FUNCTION_BLOCK`,
+  ];
+  const xml = save(pous);
+  expect(xml).toContain('pouType="functionBlock"');
+  expect(xml).toContain('<derived name="WRAPPER"/>');
+  expect(xml).toContain("<tempVars>");
+  expect(readProject(xml)).toEqual({ value: project(pous), diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  const original = compileProject(pous),
+    imported = compileProject(canonical.value!.pous);
+  expect(original.diagnostics).toEqual([]);
+  expect(imported.diagnostics).toEqual([]);
+  expect(executable(imported.ir)).toEqual(executable(original.ir));
+});
+
+it("preserves parseable but semantically disallowed temporary function locals and block addresses", () => {
+  const pous = [
+    "PROGRAM Main END_PROGRAM",
+    "FUNCTION F VAR_TEMP x : INT := 3; END_VAR END_FUNCTION",
+    "FUNCTION_BLOCK B VAR pin AT %IX0.0 : BOOL; END_VAR END_FUNCTION_BLOCK",
+  ];
+  expect(readProject(save(pous)).value!.pous).toEqual(pous);
+  expect(compileProject(pous).diagnostics.map((item) => item.code)).toEqual([
+    "pou.invalid-section",
+    "pou.direct-address",
+  ]);
 });

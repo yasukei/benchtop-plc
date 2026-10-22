@@ -10,6 +10,15 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- User-defined function blocks with independent persistent instances, nested user
+  and standard blocks, per-call VAR_TEMP, and PROGRAM VAR_TEMP per scan.
+- Named `=>` output bindings on user and standard function block calls, with
+  implicit assignment widening.
+- Dotted monitor members with writes and forces, instance paths in runtime faults,
+  and PROGRAM inline output values for user function block calls.
+- Add function blocks from the POU list and preserve block POUs, nested instances
+  and temporary sections in PLCopen XML.
+
 - Manage project POUs beside the ST editor: add and delete functions, switch texts,
   navigate project-wide diagnostics, and preserve all drafts in browser autosave
   with migration from 0.3.0 single-program work.

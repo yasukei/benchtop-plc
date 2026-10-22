@@ -136,7 +136,7 @@ EXIT leaves the innermost loop; RETURN leaves the current POU. In a function it
 returns to the caller; in the PROGRAM it ends execution for that scan.
 
 The shared scan watchdog allows 200,000 total loop-body iterations, including
-nested loops and all function calls, and faults on iteration 200,001. It reports
+nested loops and all function and block calls, and faults on iteration 200,001. It reports
 the offending loop span and POU name.
 Division by zero reports the expression span; zero FOR step reports the step
 expression span. Non-finite values and REAL overflow use `runtime.invalid-value`
@@ -165,6 +165,26 @@ runs as a statement and produces no inline annotation. Function-statement result
 are annotated only in the PROGRAM, as with standard functions; outputs are not
 annotated, and function-body statements do not create inline values. Faults inside
 a function carry its source POU name and local span, preserved through nested calls.
+
+## User function blocks and temporary storage
+
+Each user FB instance has a persistent frame, aliased to its monitored scalar and
+standard FB cells through the compiler's storage mappings. The body is shared by
+all instances. Supplied inputs evaluate in caller order before entering the block;
+omitted inputs retain their previous values. VAR_INPUT, VAR_OUTPUT and VAR persist
+across calls. VAR_TEMP is reinitialized on every block call; PROGRAM VAR_TEMP is
+fresh for each scan. Temporaries are absent from snapshots, writes and forces.
+
+After execution or RETURN, `=>` bindings copy outputs in binding order using
+assignment widening, including TIME-to-LTIME units. Standard FB calls support the
+same output copying. PROGRAM user FB calls annotate all outputs in declaration
+order; statements in block bodies produce no inline annotations.
+
+Load and cold reset recreate the entire instance tree and the private state of
+nested standard FBs. STOP → RUN, single scan and FAULT preserve persistent state.
+Writes and forces use the existing pre/post execution stages on the monitored
+VariableIds, including private scalar members. Fault diagnostics carry the
+executing `pou` and canonical dotted `instance` path, with the span in that POU.
 
 ## Standard library integration
 

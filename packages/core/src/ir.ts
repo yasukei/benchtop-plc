@@ -187,6 +187,36 @@ export interface ProgramIR extends SourceNode {
   body: Statement[];
   /** Shared bodies; call indices address this array. Absent in a single-program IR. */
   functions?: UserFunctionIR[];
+  functionBlocks?: UserFunctionBlockIR[];
+  /** Declaration slots mapped to monitored storage, temporaries or user instances. */
+  storage?: InstanceStorage[];
+  instances?: UserFunctionBlockStorage[];
+}
+
+/** Local declaration slots are distinct from the flat monitored VariableIds. */
+export type LocalVariable =
+  | Variable
+  | (VariableBase & {
+      kind: "userFunctionBlock";
+      block: number;
+      initialValue: null;
+    });
+export type InstanceStorage =
+  | { kind: "variable"; variable: VariableId }
+  | { kind: "temporary"; variable: ScalarVariable }
+  | { kind: "instance"; instance: number };
+export interface UserFunctionBlockStorage {
+  block: number;
+  path: string;
+  storage: InstanceStorage[];
+}
+export interface UserFunctionBlockIR extends SourceNode {
+  name: string;
+  variables: LocalVariable[];
+  inputs: number[];
+  outputs: number[];
+  temporaries: number[];
+  body: Statement[];
 }
 
 export interface UserFunctionIR extends SourceNode {
@@ -227,6 +257,15 @@ export interface FunctionBlockMemberReference extends SourceNode {
   dataType: DataType;
 }
 
+/** A public scalar member; member is a slot in the shared block definition. */
+export interface UserFunctionBlockMemberReference extends SourceNode {
+  kind: "userFbMember";
+  variable: number;
+  port: "input" | "output";
+  member: number;
+  dataType: DataType;
+}
+
 /** A bit of a scalar bit-string variable; assignment preserves all other bits. */
 export interface BitReference extends SourceNode {
   kind: "bit";
@@ -235,7 +274,9 @@ export interface BitReference extends SourceNode {
   dataType: "BOOL";
 }
 export type AssignmentTarget =
-  VariableReference | BitReference | (FunctionBlockMemberReference & { port: "input" });
+  | VariableReference
+  | BitReference
+  | ((FunctionBlockMemberReference | UserFunctionBlockMemberReference) & { port: "input" });
 
 export type UnaryOperator = "+" | "-" | "NOT";
 export type BinaryOperator =
@@ -297,6 +338,7 @@ export type Expression =
   | VariableReference
   | BitReference
   | FunctionBlockMemberReference
+  | UserFunctionBlockMemberReference
   | UnaryExpression
   | BinaryExpression
   | UserFunctionCallExpression
@@ -320,6 +362,14 @@ export interface FunctionBlockCallStatement extends SourceNode {
   kind: "fbCall";
   variable: VariableId;
   inputs: FunctionBlockInput[];
+  outputs?: FunctionOutputAssignment[];
+}
+
+export interface UserFunctionBlockCallStatement extends SourceNode {
+  kind: "userFbCall";
+  variable: number;
+  inputs: FunctionBlockInput[];
+  outputs?: FunctionOutputAssignment[];
 }
 
 export interface ConditionalBranch extends SourceNode {
@@ -385,6 +435,7 @@ export type Statement =
   | AssignmentStatement
   | FunctionCallStatement
   | FunctionBlockCallStatement
+  | UserFunctionBlockCallStatement
   | IfStatement
   | CaseStatement
   | ForStatement

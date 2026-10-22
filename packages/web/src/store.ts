@@ -1,6 +1,7 @@
 import { openPanelProject, serializePanelProject } from "./panel/project.js";
 import {
   addFunction,
+  addFunctionBlock,
   compilePous,
   createPous,
   deletePou,
@@ -197,6 +198,18 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     addFunction() {
       clearTimeout(compileTimer);
       const pous = addFunction(state.pous);
+      update({
+        pous,
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+        selectedPou: pous.length - 1,
+        source: pous.at(-1)!.source,
+        diagnostics: compilePous(pous).diagnostics,
+      });
+    },
+    addFunctionBlock() {
+      clearTimeout(compileTimer);
+      const pous = addFunctionBlock(state.pous);
       update({
         pous,
         editorSession: state.editorSession + 1,

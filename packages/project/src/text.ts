@@ -14,10 +14,9 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
   const result = parsePou(source);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
-  const unsupported =
-    ast.kind === "functionBlock"
-      ? "pou/@pouType"
-      : ast.sections?.find((section) => !["VAR_INPUT", "VAR_OUTPUT"].includes(section.name))?.name;
+  const unsupported = ast.sections?.find(
+    (section) => !["VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP"].includes(section.name),
+  )?.name;
   if (unsupported)
     return {
       value: null,
@@ -30,7 +29,11 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
   const start = endVars.at(-1)?.span ?? ast.resultType?.span ?? ast.name.span;
   const end = tokens!.find(
-    (token) => token.key === (ast.kind === "program" ? "END_PROGRAM" : "END_FUNCTION"),
+    (token) =>
+      token.key ===
+      { program: "END_PROGRAM", function: "END_FUNCTION", functionBlock: "END_FUNCTION_BLOCK" }[
+        ast.kind
+      ],
   )!.span;
   const variables: VariableDeclaration[] = [];
   for (const declaration of ast.declarations) {
@@ -50,7 +53,9 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
             ? "inputVars"
             : declaration.section === "VAR_OUTPUT"
               ? "outputVars"
-              : "localVars",
+              : declaration.section === "VAR_TEMP"
+                ? "tempVars"
+                : "localVars",
         name: name.name,
         type: normalizeType(declaration.typeName.key),
         ...(declaration.address ? { address: declaration.address.text } : {}),
@@ -67,7 +72,7 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
   }
   return {
     value: {
-      kind: ast.kind as "program" | "function",
+      kind: ast.kind,
       name: ast.name.name,
       ...(ast.resultType ? { returnType: normalizeType(ast.resultType.key) } : {}),
       variables,
@@ -91,12 +96,14 @@ export function joinProgram(program: SplitProgram): string {
     if (section !== variable.section) {
       if (section) declarations += "END_VAR\n";
       section = variable.section;
-      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT" }[section]}\n`;
+      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP" }[section]}\n`;
     }
     declarations += `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};\n`;
   }
   if (section) declarations += "END_VAR";
-  const keyword = program.kind === "program" ? "PROGRAM" : "FUNCTION";
+  const keyword = { program: "PROGRAM", function: "FUNCTION", functionBlock: "FUNCTION_BLOCK" }[
+    program.kind
+  ];
   return `${keyword} ${program.name}${program.returnType === undefined ? "" : ` : ${program.returnType}`}${declarations ? `\n${declarations}` : ""}${canonicalBody(program.body)}END_${keyword}\n`;
 }
 

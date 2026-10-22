@@ -119,7 +119,7 @@ describe("PLCopen XML", () => {
       "project.invalid-xml",
     ],
     [
-      (text: string) => text.replace('pouType="program"', 'pouType="functionBlock"'),
+      (text: string) => text.replace('pouType="program"', 'pouType="unknown"'),
       "project.unsupported",
     ],
     [
@@ -128,7 +128,7 @@ describe("PLCopen XML", () => {
     ],
     [
       (text: string) =>
-        text.replace("<localVars>", "<tempVars>").replace("</localVars>", "</tempVars>"),
+        text.replace("<localVars>", "<unknownVars>").replace("</localVars>", "</unknownVars>"),
       "project.unsupported",
     ],
     [

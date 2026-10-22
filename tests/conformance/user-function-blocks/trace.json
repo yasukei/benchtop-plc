@@ -1,0 +1,29 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "instances begin with independent state",
+      "scans": 1,
+      "expect": {
+        "M1.RUNNING": true,
+        "M2.RUNNING": false,
+        "M1.CALLS": 2,
+        "M2.CALLS": 1,
+        "M1.DELAY.Q": false
+      }
+    },
+    {
+      "label": "state and omitted inputs persist while each nested timer is independent",
+      "scans": 3,
+      "expect": {
+        "M1.RUNNING": true,
+        "M2.RUNNING": false,
+        "M1.CALLS": 5,
+        "M2.CALLS": 4,
+        "M1.DELAY.Q": true,
+        "M2.DELAY.Q": false
+      }
+    }
+  ]
+}

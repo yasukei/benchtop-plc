@@ -196,10 +196,10 @@ function readType(type: XmlNode): string {
 
 function readVariables(pou: XmlNode): VariableDeclaration[] {
   const intf = required(pou, "interface");
-  shape(intf, [], ["returnType", "localVars", "inputVars", "outputVars"]);
+  shape(intf, [], ["returnType", "localVars", "inputVars", "outputVars", "tempVars"]);
   const variables: VariableDeclaration[] = [];
   for (const group of intf.children.filter((child) =>
-    ["localVars", "inputVars", "outputVars"].includes(child.name),
+    ["localVars", "inputVars", "outputVars", "tempVars"].includes(child.name),
   )) {
     shape(group, [], ["variable"]);
     for (const variable of group.children.filter((child) => child.name === "variable")) {
@@ -338,7 +338,8 @@ export function readProject(xml: string): ProjectResult<Project> {
     const programs = pouNodes.map((pou) => {
       shape(pou, ["name", "pouType"], ["interface", "body"]);
       const kind = attribute(pou, "pouType");
-      if (kind !== "program" && kind !== "function") fail("project.unsupported", "pou/@pouType");
+      if (kind !== "program" && kind !== "function" && kind !== "functionBlock")
+        fail("project.unsupported", "pou/@pouType");
       const name = attribute(pou, "name");
       validateIdentifier(name, "pou/@name");
       const variables = readVariables(pou);

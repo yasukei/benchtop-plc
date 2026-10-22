@@ -22,9 +22,11 @@ import type {
   UserFunctionCall,
   UserFunctionIR,
   ConversionFunction,
+  FunctionBlockCallStatement,
+  UserFunctionBlockCallStatement,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
-import type { Memory, MemoryFrame } from "./memory.js";
+import { typed, type Memory, type MemoryFrame } from "./memory.js";
 
 export const WATCHDOG_LIMIT = 200_000;
 export class RuntimeFault extends Error {
@@ -42,6 +44,7 @@ export class Interpreter {
   private readonly functions: readonly UserFunctionIR[];
   private pou: string;
   private callDepth = 0;
+  private instancePath?: string;
 
   constructor(
     private readonly programMemory: Memory,
@@ -49,13 +52,20 @@ export class Interpreter {
     private readonly active: () => boolean,
     private readonly library?: RuntimeLibrary,
   ) {
-    this.memory = programMemory;
+    this.memory = programMemory.programFrame();
     this.functions = programMemory.ir.functions ?? [];
     this.pou = programMemory.ir.name;
   }
 
   private fault(code: "runtime.division-by-zero" | "runtime.for-by-zero", span: SourceSpan): never {
-    throw new RuntimeFault({ code, severity: "error", span, pou: this.pou, args: {} });
+    throw new RuntimeFault({
+      code,
+      severity: "error",
+      span,
+      pou: this.pou,
+      ...(this.instancePath ? { instance: this.instancePath } : {}),
+      args: {},
+    });
   }
 
   private iteration(span: SourceSpan): void {
@@ -65,6 +75,7 @@ export class Interpreter {
         severity: "error",
         span,
         pou: this.pou,
+        ...(this.instancePath ? { instance: this.instancePath } : {}),
         args: { limit: WATCHDOG_LIMIT },
       });
     }
@@ -80,6 +91,7 @@ export class Interpreter {
           severity: "error",
           span: expr.span,
           pou: this.pou,
+          ...(this.instancePath ? { instance: this.instancePath } : {}),
           args: {},
         });
       throw error;
@@ -95,6 +107,7 @@ export class Interpreter {
       case "variable":
       case "bit":
       case "fbMember":
+      case "userFbMember":
         return this.memory.value(expr).value;
       case "unary": {
         const value = this.expression(expr.operand);
@@ -191,6 +204,7 @@ export class Interpreter {
             severity: "error",
             span: statement.span,
             pou: this.pou,
+            ...(this.instancePath ? { instance: this.instancePath } : {}),
             args: {},
           });
         throw error;
@@ -224,18 +238,10 @@ export class Interpreter {
         ]);
         break;
       }
-      case "fbCall": {
-        for (const input of statement.inputs) {
-          this.memory.input(statement.variable, input.input, this.expression(input.value));
-        }
-        const instance = this.memory.block(statement.variable);
-        instance.execute(this.scanStart);
-        for (const output of instance.outputs) {
-          output.value = coerceValue(output.dataType, output.value);
-        }
-        this.annotate(statement, instance.outputs);
+      case "fbCall":
+      case "userFbCall":
+        this.blockCall(statement);
         break;
-      }
       case "if": {
         const branch = statement.branches.find((branch) => this.expression(branch.condition));
         return this.execute(branch?.body ?? statement.elseBody);
@@ -298,6 +304,62 @@ export class Interpreter {
         return "return";
     }
     return undefined;
+  }
+
+  private blockCall(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
+    const inputs = call.inputs.map((input) => ({
+      input: input.input,
+      value: this.expression(input.value),
+    }));
+    let outputs: TypedValue[];
+    let outputSlots: number[];
+    if (call.kind === "fbCall") {
+      for (const input of inputs) this.memory.input(call.variable, input.input, input.value);
+      const instance = this.memory.block(call.variable);
+      instance.execute(this.scanStart);
+      outputs = instance.outputs.map((output) => {
+        output.value = coerceValue(output.dataType, output.value);
+        return { ...output };
+      });
+      outputSlots = outputs.map((_, index) => index);
+    } else {
+      const instance = this.memory.userBlock(call.variable);
+      const definition = this.programMemory.ir.functionBlocks![instance.block]!;
+      instance.resetTemporaries();
+      for (const input of inputs) instance.frame.write(input.input, input.value);
+      const caller = this.memory,
+        callerPou = this.pou,
+        callerPath = this.instancePath;
+      this.memory = instance.frame;
+      this.pou = definition.name;
+      this.instancePath = instance.path;
+      this.callDepth++;
+      try {
+        this.execute(definition.body);
+        outputs = definition.outputs.map((slot) => {
+          const variable = definition.variables[slot]!;
+          if (variable.kind !== "scalar") throw new Error("Non-scalar output");
+          return typed(variable.dataType, instance.frame.read(slot));
+        });
+      } finally {
+        this.callDepth--;
+        this.memory = caller;
+        this.pou = callerPou;
+        this.instancePath = callerPath;
+      }
+      outputSlots = definition.outputs;
+    }
+    for (const binding of call.outputs ?? []) {
+      const value = outputs[outputSlots.indexOf(binding.output)]!;
+      const to = binding.target.dataType;
+      this.memory.assign(
+        binding.target,
+        isLongType(to) && value.dataType !== to
+          ? convertValue(`${value.dataType}_TO_${to}` as ConversionFunction, value.value)
+          : value.value,
+      );
+    }
+    this.annotate(call, outputs);
   }
 
   private userCall(call: UserFunctionCall): ScalarValue | null {

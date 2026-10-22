@@ -22,7 +22,7 @@ const span = (node: IR.SourceNode): IR.SourceSpan => ({ ...node.span });
 class Lowerer {
   constructor(private readonly checked: CheckedProgram) {}
 
-  run(): IR.ProgramIR {
+  run(): Omit<IR.ProgramIR, "variables"> & { variables: IR.LocalVariable[] } {
     const ast = this.checked.ast;
     return {
       kind: "program",
@@ -65,10 +65,12 @@ class Lowerer {
     };
   }
 
-  private variable(declaration: AST.Declaration, name: AST.Identifier): IR.Variable {
+  private variable(declaration: AST.Declaration, name: AST.Identifier): IR.LocalVariable {
     const id = required(this.checked.references.get(name)).variable;
     const symbol = required(this.checked.symbols[id]);
     const base = { name: name.name, key: name.key, span: span(declaration) };
+    if (symbol.userBlock !== undefined)
+      return { ...base, kind: "userFunctionBlock", block: symbol.userBlock, initialValue: null };
     if (isBlock(symbol.type))
       return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
     if (symbol.type === "BOOL") {
@@ -87,14 +89,21 @@ class Lowerer {
     return {
       ...base,
       kind: "scalar",
-      dataType: symbol.type,
-      initialValue: coerceValue(symbol.type, required(symbol.initialValue ?? undefined)),
+      dataType: symbol.type as IR.DataType,
+      initialValue: coerceValue(
+        symbol.type as IR.DataType,
+        required(symbol.initialValue ?? undefined),
+      ),
     } as IR.ScalarVariable;
   }
 
   private reference(
     node: AST.AssignmentTarget,
-  ): IR.VariableReference | IR.BitReference | IR.FunctionBlockMemberReference {
+  ):
+    | IR.VariableReference
+    | IR.BitReference
+    | IR.FunctionBlockMemberReference
+    | IR.UserFunctionBlockMemberReference {
     const dataType = required(this.checked.expressions.get(node)).dataType;
     if (node.kind === "name")
       return {
@@ -112,14 +121,16 @@ class Lowerer {
         dataType: "BOOL",
         span: span(node),
       };
-    return {
-      kind: "fbMember",
+    const member = {
       variable: reference.variable,
       port: required(reference.port),
       member: required(reference.member),
       dataType,
       span: span(node),
     };
+    return reference.userBlock
+      ? { kind: "userFbMember", ...member }
+      : { kind: "fbMember", ...member };
   }
 
   private target(node: AST.AssignmentTarget): IR.AssignmentTarget {
@@ -234,6 +245,50 @@ class Lowerer {
     }
   }
 
+  private blockCall(
+    node: AST.FunctionCall | AST.FunctionBlockCall,
+  ): IR.FunctionBlockCallStatement | IR.UserFunctionBlockCallStatement {
+    const name = node.kind === "fbCall" ? node.instance : node.name;
+    const variable = required(this.checked.references.get(name)).variable;
+    const symbol = required(this.checked.symbols[variable]);
+    const inputs =
+      node.kind === "fbCall"
+        ? node.inputs
+        : node.args.map((value, index) => ({
+            name: node.inputNames![index]!,
+            value,
+            span: {
+              ...node.inputNames![index]!.span,
+              endLine: value.span.endLine,
+              endColumn: value.span.endColumn,
+            },
+          }));
+    return {
+      span: span(node),
+      kind: symbol.userBlock === undefined ? "fbCall" : "userFbCall",
+      variable,
+      inputs: inputs.map((input) => {
+        const reference = required(this.checked.references.get(input.name));
+        const expected = required(this.checked.blockInputTypes.get(input.name));
+        return {
+          name: input.name.key,
+          input: required(reference.member),
+          value: this.widen(this.expression(input.value), expected),
+          span: span(input),
+        };
+      }),
+      ...(node.kind === "functionCall" && node.outputs?.length
+        ? {
+            outputs: node.outputs.map((output) => ({
+              output: required(required(this.checked.references.get(output.name)).member),
+              target: this.target(output.target),
+              span: span(output),
+            })),
+          }
+        : {}),
+    };
+  }
+
   private integerConstant(node: AST.Expression, to: IR.DataType): number | string {
     const info = required(this.checked.expressions.get(node));
     return isLongType(to)
@@ -256,6 +311,10 @@ class Lowerer {
           value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
       case "call": {
+        const resolved = this.checked.references.get(node.call.name);
+        const symbol = resolved && this.checked.symbols[resolved.variable];
+        if (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
+          return { ...this.blockCall(node.call), span: span(node) };
         const user = this.checked.userCalls.get(node.call);
         if (user) return { ...base, kind: "call", call: this.userCall(node.call, user) };
         const call = this.expression(node.call);
@@ -265,17 +324,7 @@ class Lowerer {
       case "fbCall": {
         const user = this.checked.userCalls.get(node);
         if (user) return { ...base, kind: "call", call: this.userCall(node, user) };
-        return {
-          ...base,
-          kind: "fbCall",
-          variable: required(this.checked.references.get(node.instance)).variable,
-          inputs: node.inputs.map((input) => ({
-            name: input.name.key,
-            input: required(required(this.checked.references.get(input.name)).member),
-            value: this.expression(input.value),
-            span: span(input),
-          })),
-        };
+        return this.blockCall(node);
       }
       case "if": {
         const branch = (arm: AST.ConditionalBranch): IR.ConditionalBranch => ({
@@ -359,16 +408,75 @@ class Lowerer {
   }
 }
 
-/** Lower only a successful check result; semantic Maps never escape into the plain-data IR. */
-export function lower(checked: CheckedProgram): IR.ProgramIR {
-  return new Lowerer(checked).run();
+function sections(checked: CheckedProgram): AST.Declaration["section"][] {
+  return checked.ast.declarations.flatMap((declaration) =>
+    declaration.names.map(() => declaration.section),
+  );
+}
+
+export function lowerFunctionBlock(checked: CheckedProgram): IR.UserFunctionBlockIR {
+  const ir = new Lowerer(checked).run();
+  const parameters = sections(checked);
+  return {
+    name: ir.name,
+    span: ir.span,
+    body: ir.body,
+    variables: ir.variables,
+    inputs: parameters.flatMap((section, index) => (section === "VAR_INPUT" ? [index] : [])),
+    outputs: parameters.flatMap((section, index) => (section === "VAR_OUTPUT" ? [index] : [])),
+    temporaries: parameters.flatMap((section, index) => (section === "VAR_TEMP" ? [index] : [])),
+  };
+}
+
+/** Expand storage only: every body remains shared in its POU definition. */
+export function lower(
+  checked: CheckedProgram,
+  blocks: IR.UserFunctionBlockIR[] = [],
+): IR.ProgramIR {
+  const layout = new Lowerer(checked).run();
+  const variables: IR.Variable[] = [];
+  const instances: IR.UserFunctionBlockStorage[] = [];
+  const allocate = (
+    locals: IR.LocalVariable[],
+    temporaries: readonly number[],
+    prefix: string,
+  ): IR.InstanceStorage[] =>
+    locals.map((variable, slot) => {
+      if (temporaries.includes(slot)) {
+        if (variable.kind !== "scalar") throw new Error("Checked temporary is an instance");
+        return { kind: "temporary", variable };
+      }
+      const path = prefix + variable.key;
+      if (variable.kind === "userFunctionBlock") {
+        const definition = required(blocks[variable.block]);
+        const instance = instances.length;
+        const storage: IR.UserFunctionBlockStorage = { block: variable.block, path, storage: [] };
+        instances.push(storage);
+        storage.storage = allocate(definition.variables, definition.temporaries, `${path}.`);
+        return { kind: "instance", instance };
+      }
+      const id = variables.length;
+      variables.push(prefix ? { ...variable, name: path, key: path } : variable);
+      return { kind: "variable", variable: id };
+    });
+  const temporarySlots = sections(checked).flatMap((section, index) =>
+    section === "VAR_TEMP" ? [index] : [],
+  );
+  const storage = allocate(layout.variables, temporarySlots, "");
+  return {
+    kind: "program",
+    name: layout.name,
+    span: layout.span,
+    variables,
+    body: layout.body,
+    ...(blocks.length ? { functionBlocks: blocks } : {}),
+    ...(instances.length || temporarySlots.length ? { storage, instances } : {}),
+  };
 }
 
 export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
-  const ir = lower(checked);
-  const parameters = checked.ast.declarations.flatMap((declaration) =>
-    declaration.names.map(() => declaration.section),
-  );
+  const ir = new Lowerer(checked).run();
+  const parameters = sections(checked);
   return {
     name: ir.name,
     span: ir.span,

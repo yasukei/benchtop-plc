@@ -34,7 +34,7 @@ export interface Project {
 }
 
 export interface VariableDeclaration {
-  section: "localVars" | "inputVars" | "outputVars";
+  section: "localVars" | "inputVars" | "outputVars" | "tempVars";
   name: string;
   type: string;
   address?: string;
@@ -42,7 +42,7 @@ export interface VariableDeclaration {
 }
 
 export interface SplitProgram {
-  kind: "program" | "function";
+  kind: "program" | "function" | "functionBlock";
   name: string;
   returnType?: string;
   variables: VariableDeclaration[];
