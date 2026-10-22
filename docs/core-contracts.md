@@ -116,7 +116,7 @@ Implicit widening to a long operand is represented with conversion-call nodes,
 including the unit change from TIME milliseconds to LTIME nanoseconds.
 
 Variable references, assignment targets, FOR variables and FB calls use zero-based
-indices into the executing frame (the monitored table for legacy single-program IR). FB member references use an input/output
+`FrameSlot` indices into the executing frame (the monitored table for legacy single-program IR). FB member references use an input/output
 discriminator and an index into the corresponding descriptor array. Named FB
 arguments retain the canonical name for inspection and the resolved input index
 for execution. Standard-function names are closed opcodes, not unresolved source
@@ -146,7 +146,7 @@ member/input/output indices are slots in the callee definition. Standard `fbCall
 now also accepts `outputs` with descriptor output indices and writable targets.
 
 When present, PROGRAM `storage` maps each declaration slot to a monitored
-`VariableId`, a temporary scalar initializer, or an `instances` index. Each
+`VariableId` (an index into monitored storage/snapshots), a temporary scalar initializer, or an `instances` index. Each
 `UserFunctionBlockStorage` contains the block index, canonical `path`, and its own
 storage mapping. All persistent scalar leaves and standard FBs live in
 `ProgramIR.variables`; user instance objects and temporaries do not appear in
