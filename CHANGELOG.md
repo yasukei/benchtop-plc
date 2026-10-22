@@ -8,6 +8,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-23
+
+User-defined functions and function blocks in projects with several POUs, with `VAR_IN_OUT`, `VAR_TEMP`, `CONSTANT` and timers and counters that adapt to their preset type. Contains breaking changes to accepted Structured Text; see Changed.
+
 ### Added
 
 - Motor starters example with two independent instances of a user-defined
@@ -61,8 +65,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   that name alongside the location.
 
 - ADR 0014 documents the accepted design for user-defined POUs, calls, instance
-  memory, project exchange and monitoring for Milestone 4; implementation follows
-  in its sub-issues.
+  memory, project exchange and monitoring for Milestone 4.
 
 ### Changed
 
@@ -75,7 +78,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 - Saving imported PLCopen projects stamps the company, product name and version
   together as benchtop-plc's writer identity and removes imported company URLs and
   product release strings. Creation time, content description and the content
-  header are preserved. Foreign writer fields no longer receive the app's identity.
+  header are preserved. A foreign product name or company URL is no longer paired
+  with benchtop-plc's version.
 
 ## [0.3.0] - 2026-10-22
 
@@ -206,7 +210,8 @@ First release: the single-file HTML prototype rebuilt as a tested monorepo.
   setting unless you choose Light or Dark.
 - The app opens with the blink example and its panel.
 
-[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/yasukei/benchtop-plc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/yasukei/benchtop-plc/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yasukei/benchtop-plc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yasukei/benchtop-plc/releases/tag/v0.1.0

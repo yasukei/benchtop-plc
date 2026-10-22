@@ -24,9 +24,10 @@ A function's optional result type is stored in `interface/returnType`. Local,
 input, output, in-out and temporary sections map to `localVars`, `inputVars`,
 `outputVars`, `inOutVars` and `tempVars`, preserving declaration order, including repeated sections. Grouped
 names, scalar and derived types, direct addresses and initializer text keep their
-existing mapping. User and standard FB instances use `<derived name="Latch"/>`
-types, including nested instances. ST bodies use an XHTML `p` element as required by TC6's
-`formattedText`.
+existing mapping. User and standard FB instances use `<derived name="LATCH"/>`
+types, including nested instances. Derived type names are written in upper case
+and matched case-insensitively on read. ST bodies use an XHTML `p` element as
+required by TC6's `formattedText`.
 
 Saving requires each POU to parse and each initializer to pass the compiler's
 initializer checks in its POU context. The same checks apply to imports. An
