@@ -26,13 +26,6 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   blocks and elementary types. Variables cannot reuse a POU name, including the
   PROGRAM name. PROGRAM parameters and function recursion are compile errors.
 
-### Fixed
-
-- Function calls clone validated local cells without repeating load-time checks
-  over the function body on every invocation.
-- A no-result function used in an expression reports its own error without an
-  extra type mismatch or an irrelevant conversion hint.
-
 ## [0.3.0] - 2026-10-22
 
 All elementary data types except strings, with the standard's conversion and literal rules and the standard functions and function blocks for them. Contains breaking changes to accepted Structured Text; see Changed.
