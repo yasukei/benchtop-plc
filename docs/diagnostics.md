@@ -198,9 +198,22 @@ It does not prevent compilation, loading or execution.
 | `pou.recursion`                  | Direct or indirect recursive call or FB containment                | `{ name: string }`                  |
 | `call.program`                   | Attempt to call a PROGRAM                                          | `{ name: string }`                  |
 | `call.no-result`                 | No-result function used in an expression                           | `{ name: string }`                  |
-| `call.formal-required`           | Positional call to a function with output parameters               | `{ name: string }`                  |
+| `call.formal-required`           | Positional call to a function with outputs or in-outs              | `{ name: string }`                  |
 
 `pou.invalid-section.kind` is the AST kind (`program`, `function`, or
 `functionBlock`); `section` is the canonical ST section keyword. Localizers
 translate these identifiers. The existing `decl.name-collision` kinds also cover
 POUs: `function` for a user function; `type` for a PROGRAM or user FB.
+
+In-out call errors apply to both functions and user function blocks:
+
+| Code                   | Meaning                                                                                                                | Arguments                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `call.in-out-variable` | Actual is not a writable scalar variable of the caller (expressions, literals, bits and instance members are rejected) | `{}`                                  |
+| `call.in-out-type`     | Actual type differs from the declared type; implicit widening is forbidden                                             | `{ from: DataType; to: DataType }`    |
+| `call.missing-in-out`  | Required in-out omitted from a call                                                                                    | `{ name: string; parameter: string }` |
+
+`call.in-out-variable` and `call.in-out-type` span the actual argument;
+`call.missing-in-out` spans the call. External reads/writes of `inst.io` report
+`fb.unknown-member`. Positional functions with in-outs report
+`call.formal-required`; positional blocks retain `fb.unsupported-call`.

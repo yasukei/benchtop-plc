@@ -135,12 +135,9 @@ describe("several POUs in PLCopen XML", () => {
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "project.invalid" }));
   });
 
-  it.each(["inOutVars", "globalVars", "unknownVars"])(
-    "rejects unsupported XML section %s",
-    (section) => {
-      expect(readProject(save([procedure]).replaceAll("inputVars", section)).value).toBeNull();
-    },
-  );
+  it.each(["globalVars", "unknownVars"])("rejects unsupported XML section %s", (section) => {
+    expect(readProject(save([procedure]).replaceAll("inputVars", section)).value).toBeNull();
+  });
 
   it.each(["unknown"])("rejects unsupported POU type %s", (kind) => {
     expect(
@@ -153,8 +150,9 @@ describe("several POUs in PLCopen XML", () => {
     expect(readProject(xml).value).toBeNull();
   });
 
-  it.each(["VAR_IN_OUT"])("rejects unsupported source section %s, even when empty", (section) => {
-    expect(writeProject(project([`FUNCTION F ${section} END_VAR END_FUNCTION`])).value).toBeNull();
+  it("preserves empty in-out sections in the exact source extension", () => {
+    const pous = ["FUNCTION F VAR_IN_OUT END_VAR END_FUNCTION"];
+    expect(readProject(save(pous)).value!.pous).toEqual(pous);
   });
 
   it("checks every POU initializer and does not let a semantic error hide an invalid value", () => {
@@ -219,4 +217,23 @@ it("preserves parseable but semantically disallowed temporary function locals an
     "pou.invalid-section",
     "pou.direct-address",
   ]);
+});
+
+it("round trips function and block in-outs through inOutVars and canonical imports", () => {
+  const pous = [
+    "PROGRAM Main VAR x : INT; inst : B; END_VAR F(n := x); inst(n := x); END_PROGRAM",
+    "FUNCTION F VAR_IN_OUT n : INT; END_VAR n := n + 1; END_FUNCTION",
+    "FUNCTION_BLOCK B VAR_IN_OUT n : INT; END_VAR F(n := n); END_FUNCTION_BLOCK",
+  ];
+  const xml = save(pous);
+  expect(xml.match(/<inOutVars>/g)).toHaveLength(2);
+  expect(readProject(xml)).toEqual({ value: project(pous), diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(canonical.value!.pous[1]).toContain("VAR_IN_OUT");
+  const original = compileProject(pous),
+    imported = compileProject(canonical.value!.pous);
+  expect(original.diagnostics).toEqual([]);
+  expect(imported.diagnostics).toEqual([]);
+  expect(executable(imported.ir)).toEqual(executable(original.ir));
 });

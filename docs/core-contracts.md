@@ -131,7 +131,7 @@ labels/ranges, integer FOR bounds/step and BOOL conditions. An omitted FOR step
 lowers to a literal 1. ELSIF is represented by subsequent conditional branches.
 
 `ProgramIR.functions`, when present, stores shared user function bodies with local
-scalar variables, input/output indices and an optional result-variable index.
+scalar variables, input/output indices, optional in-out slots and an optional result-variable index.
 `userFunctionCall.function` indexes this table; its input/output `variable` fields
 index the callee's local table, while argument expressions and output targets use
 the caller's table. `dataType: null` denotes a no-result statement call; expressions
@@ -141,19 +141,25 @@ in snapshots. Standard formal calls may carry an `evaluationOrder` permutation o
 
 `ProgramIR.functionBlocks` holds shared `UserFunctionBlockIR` bodies with local
 `variables` (scalar, standard FB or user FB declaration), input/output slot arrays
-and temporary slots. `userFbCall` and `userFbMember` reference a caller frame slot;
+and temporary slots, plus optional in-out slots. `userFbCall` and `userFbMember` reference a caller frame slot;
 member/input/output indices are slots in the callee definition. Standard `fbCall`
 now also accepts `outputs` with descriptor output indices and writable targets.
 
 When present, PROGRAM `storage` maps each declaration slot to a monitored
 `VariableId` (an index into monitored storage/snapshots), a temporary scalar initializer, or an `instances` index. Each
 `UserFunctionBlockStorage` contains the block index, canonical `path`, and its own
-storage mapping. All persistent scalar leaves and standard FBs live in
+storage mapping. An in-out slot uses `{ kind: "inOut" }` without a VariableId.
+All persistent scalar leaves and standard FBs live in
 `ProgramIR.variables`; user instance objects and temporaries do not appear in
 snapshots. Frames alias those monitored cells, so writes and forces address the
 same state the shared body executes against. Without `storage`, PROGRAM references
 continue to index `ProgramIR.variables` directly. Load/cold reset rebuilds all
 persistent cells, including nested standard FB private state.
+
+User function and block calls may carry `inOuts: InOutBinding[]`. Each binding's
+`variable` indexes the callee's slot; `actual` is a scalar `VariableReference` in
+the caller's frame. Calls bind those slots to the actual cells after evaluating
+ordinary inputs, and aliases introduce neither copied values nor monitor IDs.
 
 Port indices follow core's shared `standardFunctionBlocks` registry. The compiler
 and runtime consume these descriptors, with implementations in runtime:

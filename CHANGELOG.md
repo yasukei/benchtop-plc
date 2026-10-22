@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- `VAR_IN_OUT` parameters on functions and function blocks, passed as exact-type
+  caller variable aliases on every formal call. Writes are visible immediately,
+  aliases can be passed on, and monitoring and forces use the actual variable's ID.
+- Save and open in-out sections as PLCopen XML `inOutVars`, including canonical
+  imports without preserved source.
+
 - User-defined function blocks with independent persistent instances, nested user
   and standard blocks, per-call VAR_TEMP, and PROGRAM VAR_TEMP per scan.
 - Named `=>` output bindings on user and standard function block calls, with

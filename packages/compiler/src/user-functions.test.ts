@@ -99,7 +99,7 @@ describe("project-wide POU compilation", () => {
       rejects([`PROGRAM Main ${section} END_VAR END_PROGRAM`], "pou.invalid-section", "Main");
     },
   );
-  it.each(["VAR_TEMP", "VAR_IN_OUT"])("rejects %s in functions", (section) => {
+  it.each(["VAR_TEMP"])("rejects %s in functions", (section) => {
     rejects([main(), fn("", `${section} END_VAR`, "")], "pou.invalid-section", "F");
   });
   it.each(["TON", "TON_LTIME", "CTU_DINT"])("rejects %s instances in functions", (type) => {

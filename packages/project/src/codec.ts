@@ -196,10 +196,10 @@ function readType(type: XmlNode): string {
 
 function readVariables(pou: XmlNode): VariableDeclaration[] {
   const intf = required(pou, "interface");
-  shape(intf, [], ["returnType", "localVars", "inputVars", "outputVars", "tempVars"]);
+  shape(intf, [], ["returnType", "localVars", "inputVars", "outputVars", "tempVars", "inOutVars"]);
   const variables: VariableDeclaration[] = [];
   for (const group of intf.children.filter((child) =>
-    ["localVars", "inputVars", "outputVars", "tempVars"].includes(child.name),
+    ["localVars", "inputVars", "outputVars", "tempVars", "inOutVars"].includes(child.name),
   )) {
     shape(group, [], ["variable"]);
     for (const variable of group.children.filter((child) => child.name === "variable")) {

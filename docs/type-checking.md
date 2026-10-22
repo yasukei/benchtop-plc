@@ -256,17 +256,17 @@ is reported on the later declaration. Variables cannot reuse any POU name;
 or function block. The function's implicit result variable is the sole exception:
 inside its body the function name can be assigned and read.
 
-A FUNCTION supports elementary `VAR_INPUT`, `VAR_OUTPUT` and `VAR` declarations,
+A FUNCTION supports elementary `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` declarations,
 with optional initializers. `FUNCTION F : REAL` returns its result variable;
 `FUNCTION F` has no result and is callable only as a statement. Functions cannot
-declare `VAR_TEMP`, FB instances, or direct addresses. `VAR_IN_OUT` is deferred.
+declare `VAR_TEMP`, FB instances, or direct addresses.
 A PROGRAM cannot be called and cannot declare `VAR_INPUT`, `VAR_OUTPUT` or
 `VAR_IN_OUT`. Direct addresses remain restricted to the PROGRAM.
 
 Formal calls use `:=` inputs and `=>` outputs without mixing positional arguments.
 Omitted inputs start from their declared initial values; an empty `F()` uses these
-defaults too. An input-only function also accepts exactly one positional argument
-per input in declaration order. A function with outputs requires formal arguments.
+defaults too when there are no required in-outs. An input-only function also accepts exactly one positional argument
+per input in declaration order. A function with outputs or in-outs requires formal arguments.
 Input constants receive their parameter type and typed inputs allow only implicit
 widening (ADR 0013). Outputs follow assignment rules, including writable variable,
 bit and standard FB input targets. Unknown, duplicate and misdirected parameters
@@ -279,15 +279,15 @@ its standard-dependent choices await verification against the 4th edition.
 
 ## User function blocks
 
-A FUNCTION_BLOCK supports elementary VAR_INPUT, VAR_OUTPUT, VAR and VAR_TEMP.
+A FUNCTION_BLOCK supports elementary VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR and VAR_TEMP.
 Persistent standard or user FB instances may appear only in VAR of PROGRAM or
 FUNCTION_BLOCK; other sections report `fb.invalid-instance-section`, and functions
 cannot declare instances. Blocks cannot contain themselves directly or through
 other blocks (`pou.recursion`), including unused definitions. AT declarations in
-blocks report `pou.direct-address`; VAR_IN_OUT remains deferred.
+blocks report `pou.direct-address`.
 
 Outside an instance, inputs are readable/writable and outputs are readable.
-VAR and VAR_TEMP members report `fb.unknown-member`; a nested instance is private
+VAR, VAR_TEMP and VAR_IN_OUT members report `fb.unknown-member`; a nested instance is private
 to its declaring block. Calls permit only formal arguments. Omitted inputs keep
 their previous values. `=>` sources must be outputs, may be omitted, and cannot be
 duplicated; targets follow assignment rules, including public user FB inputs.
@@ -295,3 +295,22 @@ Inputs get contextual constant typing and implicit widening. RETURN exits only t
 current block. PROGRAM VAR_TEMP starts from its declared/default initializer each
 scan; block VAR_TEMP restarts each call. Neither has a monitored VariableId. A temporary cannot have an AT address
 (`decl.temp-address`); directly represented storage belongs to PROGRAM VAR.
+
+### In-out parameters
+
+`VAR_IN_OUT` parameters use `:=` in formal calls and must be supplied on every
+call (`call.missing-in-out`), including repeated calls to a block instance.
+The actual must be a writable scalar variable of the caller, with exactly the
+parameter's elementary type; there is no contextual literal typing or widening.
+Expressions, literals, parenthesized expressions, bit access and `inst.X` members
+report `call.in-out-variable`; a different scalar type reports `call.in-out-type`.
+CONSTANT declarations remain unsupported and cannot supply actuals; `VAR_IN_OUT
+CONSTANT` is unsupported too. FB instances, arrays and structures are not in-out
+parameters in this milestone.
+
+Caller VAR_INPUT, VAR_OUTPUT and VAR_IN_OUT variables can be passed on, as can
+locals, temporaries and a function's result variable. Two in-outs may alias the
+same actual, and an input may read that actual in the same call. Inputs are
+copied in source order before the body runs; aliases then expose writes
+immediately. The runtime does not copy in-outs back at return. They cannot be
+accessed as public block members and have no separate monitoring VariableId.

@@ -21,8 +21,8 @@ text to the standard's interface and ST body; `joinProgram` constructs canonical
 POU text for imported files. Both functions support all three POU kinds despite
 their historical names. Each `<pou>` has `pouType="program"`, `"function"` or `"functionBlock"`.
 A function's optional result type is stored in `interface/returnType`. Local,
-input, output and temporary sections map to `localVars`, `inputVars`,
-`outputVars` and `tempVars`, preserving declaration order, including repeated sections. Grouped
+input, output, in-out and temporary sections map to `localVars`, `inputVars`,
+`outputVars`, `inOutVars` and `tempVars`, preserving declaration order, including repeated sections. Grouped
 names, scalar and derived types, direct addresses and initializer text keep their
 existing mapping. User and standard FB instances use `<derived name="Latch"/>`
 types, including nested instances. ST bodies use an XHTML `p` element as required by TC6's
@@ -35,9 +35,8 @@ value outside its declared type does. Other semantic errors, including unknown
 calls, duplicate names, name clashes, zero or several programs, and supported
 sections disallowed for a POU kind, are preserved for the compiler to report after
 opening. Run still requires error-free compilation. VAR_TEMP in a FUNCTION and
-AT in a FUNCTION_BLOCK remain exchangeable semantic errors. `VAR_IN_OUT`, constant
-sections, and variable sections without a mapping are
-unsupported in this version; later issues extend the mapping (ADR 0014).
+AT in a FUNCTION_BLOCK remain exchangeable semantic errors. Constant
+sections and variable sections without a mapping are unsupported in this version; later issues extend the mapping (ADR 0014).
 
 The web app retains every imported POU and compiles them together. The POU list
 selects the text to edit; saving preserves every text.
@@ -97,3 +96,9 @@ XSD validation without a system libxml2 installation. The test both validates th
 reference program's generated XML and asserts rejection of an invalid priority.
 Run it with `pnpm test tests/conformance/project-xml.test.ts` (also part of the
 normal `pnpm test` and CI). No network access is used by the project package.
+
+Function and function block `VAR_IN_OUT` sections map to `interface/inOutVars`,
+preserving declaration order and exact source text. Canonical imports without
+source extensions reconstruct `VAR_IN_OUT` sections. As with other representable
+sections, an in-out section on a PROGRAM can be exchanged but compilation reports
+`pou.invalid-section`. Constant attributes on sections remain unsupported.

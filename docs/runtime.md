@@ -367,3 +367,21 @@ a function without a result shows nothing. Values
 reflect that statement's execution, before any later assignment or force. Each
 scan starts with empty annotations; partially executed scans retain only completed
 statements. `snapshot()` does not execute the program.
+
+## In-out aliases
+
+Function and function block `VAR_IN_OUT` slots bind directly to the caller's
+scalar cells on every invocation. Passing an in-out to a nested call shares the
+same cell again, including exact 64-bit values. Two parameters may share one
+actual: a write through either is immediately visible through the other and to
+the caller. Ordinary inputs are evaluated left to right and copied before the
+body runs, including an input sharing its actual with an in-out. Expression
+operands also evaluate left to right, so `Inc(n := x) + x` reads the incremented
+`x` in its right operand. Blocks rebind aliases each call, including when the
+actual is a fresh temporary; an alias owns no persistent value or VariableId.
+Snapshots, writes and forces use only the actual variable's existing ID.
+
+An in-out is an ordinary alias under the existing force stages (ADR 0014).
+Forces apply before and after execution, without read-level forcing. With `x`
+forced to 10, incrementing it through an in-out and then executing `seen := x`
+produces `seen = 11` while the end-of-scan snapshot has `x = 10`.

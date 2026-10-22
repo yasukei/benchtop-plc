@@ -58,11 +58,20 @@ class Lowerer {
         variable: input.variable,
         value: this.widen(this.expression(input.value), input.dataType),
       })),
+      ...(call.inOuts.length ? { inOuts: this.inOutBindings(call.inOuts) } : {}),
       outputs: call.outputs.map((output) => ({
         variable: output.variable,
         target: this.target(output.target),
       })),
     };
+  }
+
+  private inOutBindings(bindings: UserCallInfo["inOuts"]): IR.InOutBinding[] {
+    return bindings.map(({ variable, actual }) => {
+      const reference = this.reference(actual);
+      if (reference.kind !== "variable") throw new Error("Checked in-out is not a variable");
+      return { variable, actual: reference };
+    });
   }
 
   private variable(declaration: AST.Declaration, name: AST.Identifier): IR.LocalVariable {
@@ -263,20 +272,24 @@ class Lowerer {
               endColumn: value.span.endColumn,
             },
           }));
+    const inOuts = this.checked.blockInOuts.get(node) ?? [];
     return {
+      ...(inOuts.length ? { inOuts: this.inOutBindings(inOuts) } : {}),
       span: span(node),
       kind: symbol.userBlock === undefined ? "fbCall" : "userFbCall",
       variable,
-      inputs: inputs.map((input) => {
-        const reference = required(this.checked.references.get(input.name));
-        const expected = required(this.checked.blockInputTypes.get(input.name));
-        return {
-          name: input.name.key,
-          input: required(reference.member),
-          value: this.widen(this.expression(input.value), expected),
-          span: span(input),
-        };
-      }),
+      inputs: inputs
+        .filter((input) => !inOuts.some((binding) => binding.actual === input.value))
+        .map((input) => {
+          const reference = required(this.checked.references.get(input.name));
+          const expected = required(this.checked.blockInputTypes.get(input.name));
+          return {
+            name: input.name.key,
+            input: required(reference.member),
+            value: this.widen(this.expression(input.value), expected),
+            span: span(input),
+          };
+        }),
       ...(node.kind === "functionCall" && node.outputs?.length
         ? {
             outputs: node.outputs.map((output) => ({
@@ -424,6 +437,11 @@ export function lowerFunctionBlock(checked: CheckedProgram): IR.UserFunctionBloc
     variables: ir.variables,
     inputs: parameters.flatMap((section, index) => (section === "VAR_INPUT" ? [index] : [])),
     outputs: parameters.flatMap((section, index) => (section === "VAR_OUTPUT" ? [index] : [])),
+    ...(parameters.includes("VAR_IN_OUT")
+      ? {
+          inOuts: parameters.flatMap((section, index) => (section === "VAR_IN_OUT" ? [index] : [])),
+        }
+      : {}),
     temporaries: parameters.flatMap((section, index) => (section === "VAR_TEMP" ? [index] : [])),
   };
 }
@@ -439,9 +457,11 @@ export function lower(
   const allocate = (
     locals: IR.LocalVariable[],
     temporaries: readonly number[],
+    inOuts: readonly number[],
     prefix: string,
   ): IR.InstanceStorage[] =>
     locals.map((variable, slot) => {
+      if (inOuts.includes(slot)) return { kind: "inOut" };
       if (temporaries.includes(slot)) {
         if (variable.kind !== "scalar") throw new Error("Checked temporary is an instance");
         return { kind: "temporary", variable };
@@ -452,7 +472,12 @@ export function lower(
         const instance = instances.length;
         const storage: IR.UserFunctionBlockStorage = { block: variable.block, path, storage: [] };
         instances.push(storage);
-        storage.storage = allocate(definition.variables, definition.temporaries, `${path}.`);
+        storage.storage = allocate(
+          definition.variables,
+          definition.temporaries,
+          definition.inOuts ?? [],
+          `${path}.`,
+        );
         return { kind: "instance", instance };
       }
       const id = variables.length;
@@ -462,7 +487,7 @@ export function lower(
   const temporarySlots = sections(checked).flatMap((section, index) =>
     section === "VAR_TEMP" ? [index] : [],
   );
-  const storage = allocate(layout.variables, temporarySlots, "");
+  const storage = allocate(layout.variables, temporarySlots, [], "");
   return {
     kind: "program",
     name: layout.name,
@@ -487,6 +512,11 @@ export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
     }),
     inputs: parameters.flatMap((section, index) => (section === "VAR_INPUT" ? [index] : [])),
     outputs: parameters.flatMap((section, index) => (section === "VAR_OUTPUT" ? [index] : [])),
+    ...(parameters.includes("VAR_IN_OUT")
+      ? {
+          inOuts: parameters.flatMap((section, index) => (section === "VAR_IN_OUT" ? [index] : [])),
+        }
+      : {}),
     ...(checked.result ? { result: checked.result.id } : {}),
   };
 }

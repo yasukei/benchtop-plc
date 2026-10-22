@@ -71,8 +71,14 @@ export const diagnosticEn = {
   "call.program": ({ name }) => `PROGRAM ${name} cannot be called.`,
   "call.no-result": ({ name }) =>
     `Function ${name} has no result and cannot be used in an expression.`,
+  "call.in-out-variable": () =>
+    "An in-out argument must be a writable scalar variable of the caller.",
+  "call.in-out-type": ({ from, to }) =>
+    `An in-out argument must have exactly type ${to}, received ${from}.`,
+  "call.missing-in-out": ({ name, parameter }) =>
+    `${name} requires in-out parameter ${parameter} on every call.`,
   "call.formal-required": ({ name }) =>
-    `Function ${name} requires named parameters because it has outputs.`,
+    `Function ${name} requires named parameters because it has outputs or in-outs.`,
   "name.undeclared": ({ name }) => `Undeclared identifier: ${name}.`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `Bit ${bit} is outside the width of ${type}, or the type does not support bit access.`,
@@ -175,8 +181,13 @@ export const diagnosticJa = {
   "pou.recursion": ({ name }) => `${name}への再帰呼び出しです。`,
   "call.program": ({ name }) => `PROGRAM ${name}は呼び出せません。`,
   "call.no-result": ({ name }) => `関数${name}には戻り値がないため、式の中で使用できません。`,
+  "call.in-out-variable": () => "入出力引数には呼び出し元の書き込み可能なスカラー変数が必要です。",
+  "call.in-out-type": ({ from, to }) =>
+    `入出力引数の型は厳密に ${to} でなければなりません（実際の型: ${from}）。`,
+  "call.missing-in-out": ({ name, parameter }) =>
+    `${name} の呼び出しには毎回入出力パラメーター ${parameter} が必要です。`,
   "call.formal-required": ({ name }) =>
-    `関数${name}には出力があるため、名前付きパラメーターが必要です。`,
+    `関数${name}には出力または入出力があるため、名前付きパラメーターが必要です。`,
   "name.undeclared": ({ name }) => `宣言されていない識別子です: ${name}。`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `${type}のビット${bit}は範囲外、またはビットアクセス非対応の型です。`,
