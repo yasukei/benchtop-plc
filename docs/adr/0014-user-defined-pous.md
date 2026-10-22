@@ -72,6 +72,13 @@ clauses. The checks and project restrictions below are tracked in
 - Opening rejects only what the file cannot represent: XML structure, an unsupported
   `pouType` or variable section, and initializers that fail the same check as saving.
   Every file the app saves opens again with the same POU texts.
+- For both save and open, an unsupported variable section means one the app cannot
+  represent in POU text and XML at all, such as `VAR_GLOBAL`, `VAR_EXTERNAL`,
+  `VAR_ACCESS` or `VAR_CONFIG`. A representable section or declaration disallowed for
+  its POU kind is a semantic error: `VAR_TEMP` or an FB instance in a `FUNCTION`,
+  `VAR_INPUT` in the `PROGRAM`, `AT` in a function block, or `CONSTANT` on
+  `VAR_INPUT` does not block saving or opening. The same parsing and initializer
+  checks still apply on both paths.
 - The task's `pouInstance` names the first `PROGRAM` in project order. With no `PROGRAM`
   the task has no `pouInstance`. On open, a `pouInstance` must name a `PROGRAM` of the
   file.
@@ -182,9 +189,10 @@ CONSTANT` is a compile error. An initializer is optional; without one the type's
   a common type, or with no matching variant (BYTE, REAL, BOOL), are compile errors.
 - A binding selects only if its type is known without inference. Untyped constants do
   not select, and neither does an expression that reads any member (`PT`, `PV`, `ET`,
-  `CV`) of another instance whose variant is itself being selected (`a(PV := b.CV)`,
-  `a(PV := b.PV)`, `b.ET + T#1s`). Selection therefore needs no iteration and does not
-  depend on statement or declaration order.
+  `CV`) of an instance whose variant is itself being selected, including the same
+  instance (`a(PV := b.CV)`, `a(PV := b.PV)`, `b.ET + T#1s`, `c(PV := c.PV)`,
+  `c.PV := c.PV + 10`). Selection therefore needs no iteration and does not depend
+  on statement or declaration order.
 - An instance without a selecting binding keeps today's TIME or INT behaviour. After
   selection every binding is checked against the selected variant like an ordinary
   argument, and untyped constants are typed by it (ADR 0013 rule 2). So `c(PV :=
@@ -226,7 +234,7 @@ other behavior:
 - Functions cannot declare `VAR_TEMP` or FB instances.
 - The `PROGRAM` cannot declare `VAR_INPUT`, `VAR_OUTPUT` or `VAR_IN_OUT` in this milestone.
 - Direct addresses are allowed only in the `PROGRAM`.
-- `CONSTANT` is allowed only on `VAR` sections.
+- `CONSTANT` is allowed only on `VAR` sections and cannot be combined with `AT`.
 - Overloaded timers and counters select their variant from `PT`/`PV` bindings
   within the declaring POU, with the inference exclusions and defaults above.
 
