@@ -168,6 +168,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                           if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
                         }}
                       >
+                        {diagnostic.pou && (
+                          <span className="diagnostic-location">
+                            {text.pouLocation.replace("{pou}", diagnostic.pou)}
+                          </span>
+                        )}
                         {diagnostic.span && (
                           <span className="diagnostic-location">
                             {text.location

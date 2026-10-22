@@ -15,8 +15,10 @@ export interface Address extends SourceNode {
 }
 
 export interface Program extends SourceNode {
-  kind: "program";
+  kind: "program" | "function" | "functionBlock";
   name: Identifier;
+  resultType?: Identifier;
+  sections?: { name: string; span: import("@benchtop-plc/core").SourceSpan }[];
   declarations: Declaration[];
   body: Statement[];
 }
@@ -27,6 +29,8 @@ export interface Declaration extends SourceNode {
   address?: Address;
   typeName: Identifier;
   initializer?: Expression;
+  /** Absent means VAR, preserving the original single-program AST. */
+  section?: "VAR_INPUT" | "VAR_OUTPUT" | "VAR_IN_OUT" | "VAR_TEMP";
 }
 
 export type Literal = SourceNode & { kind: "literal"; text: string; dataType?: DataType } & (

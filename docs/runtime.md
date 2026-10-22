@@ -132,10 +132,12 @@ division toward zero. TIME widens to LTIME by multiplying by 1,000,000.
 FOR evaluates its bounds and step once on entry, assigns its control variable,
 and compares its current value inclusively on each iteration. Its increment is
 coerced like an assignment; an overflowing control variable can reach the watchdog.
-EXIT leaves the innermost loop; RETURN leaves the program for that scan.
+EXIT leaves the innermost loop; RETURN leaves the current POU. In a function it
+returns to the caller; in the PROGRAM it ends execution for that scan.
 
 The shared scan watchdog allows 200,000 total loop-body iterations, including
-nested loops, and faults on iteration 200,001. It reports the offending loop span.
+nested loops and all function calls, and faults on iteration 200,001. It reports
+the offending loop span and POU name.
 Division by zero reports the expression span; zero FOR step reports the step
 expression span. Non-finite values and REAL overflow use `runtime.invalid-value`
 at the innermost expression or assignment/FB call that detected the invalid value.
@@ -144,6 +146,23 @@ These faults cancel the ticker, clear outputs, latch FAULT and expose a copied
 
 Unexpected host/library programming errors also clear outputs and latch FAULT,
 then propagate to the host; they are not PLC-language diagnostics.
+
+## User functions
+
+Each user call references a shared definition in `ProgramIR.functions`. Supplied
+input expressions are evaluated left to right in caller storage, then copied into
+fresh local storage initialized from the definition. Omitted inputs, `VAR`,
+`VAR_OUTPUT` and the result start at their declared initial values (or defaults)
+on every call. Function locals are absent from monitor snapshots, writes and forces.
+The same interpreter keeps the scan's loop counter across all calls.
+
+The function's name reads and writes its result variable. RETURN ends only that
+invocation. After execution, `=>` outputs copy back in binding order, using implicit
+assignment widening; an expression call then yields the result. A no-result function
+runs as a statement and produces no inline annotation. Function-statement results
+are annotated only in the PROGRAM, as with standard functions; outputs are not
+annotated, and function-body statements do not create inline values. Faults inside
+a function carry its source POU name and local span, preserved through nested calls.
 
 ## Standard library integration
 
@@ -317,7 +336,9 @@ Snapshots are detached, JSON-serializable copies with images, scalar values, FB
 inputs/outputs, the active forced IDs, count,
 and execution duration measured by the injected clock. Annotations follow the
 [core protocol](core-contracts.md): one entry per executed assignment, function statement or FB call,
-using its last execution's values, grouped by line and sorted by column. Values
+using its last execution's values, grouped by line and sorted by column. Only
+PROGRAM statements have annotations. A function statement shows its result;
+a function without a result shows nothing. Values
 reflect that statement's execution, before any later assignment or force. Each
 scan starts with empty annotations; partially executed scans retain only completed
 statements. `snapshot()` does not execute the program.

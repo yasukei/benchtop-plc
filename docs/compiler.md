@@ -1,10 +1,22 @@
 # Compiling Structured Text
 
-`@benchtop-plc/compiler` exports `compile(source): CompileResult`. It runs the
+`@benchtop-plc/compiler` exports `compile(source): CompileResult` for existing
+single-program callers and `compileProject(sources: readonly string[]): CompileResult`
+for an ordered list of POU texts, each containing exactly one declaration. It runs the
 [parser](compiler-parser.md), [semantic checker](type-checking.md) and IR lowering
 in order. Success returns `{ ir: ProgramIR, diagnostics }`, with any portability warnings. Failure returns
 `{ diagnostics: Diagnostic[] }` with the `ir` property omitted; no partially valid
-IR is exposed. Diagnostics retain the earlier stage's codes, arguments and spans.
+IR is exposed. Diagnostics retain the earlier stage's codes, arguments and spans,
+and carry the source POU name in `pou` when its header is known. Project-level
+program-count errors omit `pou` and `span`.
+
+A project requires exactly one `PROGRAM`. `parsePou(source)` parses a `PROGRAM` or
+`FUNCTION`; `parse(source)` remains the single-program parser used by the project
+codec. User function blocks are recognized but rejected until their implementation.
+Project-wide compilation collects signatures before checking any bodies, so forward
+calls work, and checks the complete call graph for direct or indirect recursion.
+See [ADR 0014](adr/0014-user-defined-pous.md). The web editor and PLCopen XML codec
+still handle a single program; multi-POU editing and exchange are separate issues.
 
 `lower(checked): ProgramIR` is also available for callers that already have a
 successful `check(ast)` result. It expects the AST and its semantic side tables
@@ -38,6 +50,18 @@ is the annotation line; `span.column` distinguishes multiple statements on a lin
 Multiline FB calls use the line containing the instance name. This follows the
 runtime protocol without a separate annotation table or redundant line property.
 
+## User functions
+
+`ProgramIR.functions` contains each function body once, in project function order.
+A `userFunctionCall` references that table by index; its inputs retain source
+evaluation order and use resolved local variable indices. Outputs likewise bind a
+callee local index to a writable caller target. Each definition has its own local
+variable table, input/output indices and optional result variable index. A result
+variable is appended after declared locals and starts at the result type's default.
+An expression call has an elementary `dataType`; a no-result statement call has
+`dataType: null`. Standard functions retain their opcode representation; formal
+calls include `evaluationOrder` when signature order differs from source order.
+
 ## Verification
 
 `tests/conformance/fixtures/reference-ir.json` is the checked-in compiler golden
@@ -45,4 +69,6 @@ for `reference.st`. Conformance tests compare the entire IR, walk every node's
 span and check JSON/structured-clone transport and annotation locations. The
 existing hand-written `reference-ir.ts` remains an independent core contract
 fixture; grouped expression spans now include their parentheses in compiled IR.
-The interpreter acceptance test is TODO until runtime issue #8 is merged.
+Multi-source traces and `user-functions.test.ts` cover user-function execution
+and checking, including fresh locals, formal defaults, outputs, nested calls,
+fault attribution and the shared scan watchdog.

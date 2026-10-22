@@ -144,24 +144,55 @@ class Parser {
     return joinedSpan(start, this.previous.span);
   }
 
-  run(): Program {
-    const start = this.expect("PROGRAM").span;
-    const name = this.identifier();
+  run(pou = false): Program {
+    if (!pou || !["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(this.current.key))
+      this.expect("PROGRAM");
+    else this.take();
+    const header = this.previous;
+    const start = header.span;
+    // Type names are accepted here so namespace clashes receive semantic diagnostics.
+    const name = this.identifier(pou);
+    const resultType =
+      header.key === "FUNCTION" && this.accept(":") ? this.identifier(true) : undefined;
     const declarations: Declaration[] = [];
-    while (this.accept("VAR")) {
+    const sections: NonNullable<Program["sections"]> = [];
+    while (
+      (pou ? ["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR_TEMP"] : ["VAR"]).includes(
+        this.current.key,
+      )
+    ) {
+      const section = this.take();
+      if (section.key !== "VAR") sections.push({ name: section.key, span: section.span });
       while (!this.at("END_VAR")) {
         if (this.current.kind === "eof" || this.current.key.startsWith("END_"))
           this.missingEnd("END_VAR");
-        declarations.push(this.declaration());
+        const declaration = this.declaration();
+        if (section.key !== "VAR")
+          declaration.section = section.key as NonNullable<Declaration["section"]>;
+        declarations.push(declaration);
       }
       this.expect("END_VAR");
     }
-    const body = this.body(["END_PROGRAM"], "END_PROGRAM");
-    this.expect("END_PROGRAM");
+    const end = `END_${header.key}` as `END_${string}`;
+    const body = this.body([end], end);
+    this.expect(end);
     const span = this.spanFrom(start);
     this.accept(";");
     if (this.current.kind !== "eof") this.expected("eof");
-    return { kind: "program", name, declarations, body, span };
+    return {
+      kind:
+        header.key === "FUNCTION"
+          ? "function"
+          : header.key === "FUNCTION_BLOCK"
+            ? "functionBlock"
+            : "program",
+      name,
+      declarations,
+      body,
+      span,
+      ...(resultType ? { resultType } : {}),
+      ...(sections.length ? { sections } : {}),
+    };
   }
 
   private declaration(): Declaration {
@@ -499,12 +530,31 @@ class Parser {
 
 /** Parse one textual PROGRAM without resolving names or checking types. */
 export function parse(source: string): ParseResult {
+  return parseSource(source, false);
+}
+
+/** Parse exactly one POU; project-wide name resolution belongs to compilation. */
+export function parsePou(source: string): ParseResult {
+  return parseSource(source, true);
+}
+
+function parseSource(source: string, pou: boolean): ParseResult {
   const result = lex(source);
   if (result.tokens === null) return { ast: null, diagnostics: result.diagnostics };
   try {
-    return { ast: new Parser(result.tokens).run(), diagnostics: [] };
+    return { ast: new Parser(result.tokens).run(pou), diagnostics: [] };
   } catch (error) {
-    if (error instanceof FrontendError) return { ast: null, diagnostics: [error.diagnostic] };
+    if (error instanceof FrontendError) {
+      const name = result.tokens[1];
+      const diagnostic = {
+        ...error.diagnostic,
+        ...(["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(result.tokens[0]?.key ?? "") &&
+        name?.kind === "identifier"
+          ? { pou: name.text }
+          : {}),
+      };
+      return { ast: null, diagnostics: [diagnostic] };
+    }
     throw error;
   }
 }

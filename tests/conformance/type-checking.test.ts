@@ -68,6 +68,7 @@ it.each(["DINT"])("rejects integer literal overflow at %s initialization", (type
     {
       code: "type.invalid-constant",
       severity: "error",
+      pou: "P",
       args: {},
       span: { line: 2, column: type.length + 13, endLine: 2, endColumn: type.length + 23 },
     },

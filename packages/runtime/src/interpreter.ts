@@ -1,5 +1,6 @@
 import {
   coerceValue,
+  convertValue,
   isCalendarType,
   calendarBinary,
   isIntegerType,
@@ -18,6 +19,9 @@ import type {
   Statement,
   StatementAnnotation,
   TypedValue,
+  UserFunctionCall,
+  UserFunctionIR,
+  ConversionFunction,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
 import { Memory } from "./memory.js";
@@ -34,16 +38,22 @@ type Flow = "exit" | "return" | "abort" | undefined;
 export class Interpreter {
   private iterations = 0;
   private readonly annotations = new Map<Statement, StatementAnnotation>();
+  private readonly functions: readonly UserFunctionIR[];
+  private pou: string;
+  private callDepth = 0;
 
   constructor(
-    private readonly memory: Memory,
+    private memory: Memory,
     private readonly scanStart: number,
     private readonly active: () => boolean,
     private readonly library?: RuntimeLibrary,
-  ) {}
+  ) {
+    this.functions = memory.ir.functions ?? [];
+    this.pou = memory.ir.name;
+  }
 
   private fault(code: "runtime.division-by-zero" | "runtime.for-by-zero", span: SourceSpan): never {
-    throw new RuntimeFault({ code, severity: "error", span, args: {} });
+    throw new RuntimeFault({ code, severity: "error", span, pou: this.pou, args: {} });
   }
 
   private iteration(span: SourceSpan): void {
@@ -52,6 +62,7 @@ export class Interpreter {
         code: "runtime.watchdog",
         severity: "error",
         span,
+        pou: this.pou,
         args: { limit: WATCHDOG_LIMIT },
       });
     }
@@ -66,6 +77,7 @@ export class Interpreter {
           code: "runtime.invalid-value",
           severity: "error",
           span: expr.span,
+          pou: this.pou,
           args: {},
         });
       throw error;
@@ -128,7 +140,9 @@ export class Interpreter {
       }
       case "functionCall": {
         if (!this.library) throw new Error("A runtime library is required for functions");
-        const args = expr.args.map((arg) => this.expression(arg));
+        const args: ScalarValue[] = [];
+        for (const index of expr.evaluationOrder ?? expr.args.map((_, index) => index))
+          args[index] = this.expression(expr.args[index]!);
         if (["DIV", "DIV_TIME", "DIV_LTIME"].includes(expr.function) && Number(args[1]) === 0)
           this.fault("runtime.division-by-zero", expr.span);
         const outputs = new Map<number, ScalarValue>();
@@ -146,10 +160,16 @@ export class Interpreter {
         }
         return result;
       }
+      case "userFunctionCall": {
+        const result = this.userCall(expr);
+        if (result === null) throw new Error("Expression function has no result");
+        return result;
+      }
     }
   }
 
   private annotate(statement: Statement, values: TypedValue[]): void {
+    if (this.callDepth) return;
     this.annotations.set(statement, {
       span: { ...statement.span },
       values: values.map((value) => ({ ...value })),
@@ -168,6 +188,7 @@ export class Interpreter {
             code: "runtime.invalid-value",
             severity: "error",
             span: statement.span,
+            pou: this.pou,
             args: {},
           });
         throw error;
@@ -184,7 +205,15 @@ export class Interpreter {
           this.memory.assign(statement.target, this.expression(statement.value)),
         ]);
         break;
-      case "call":
+      case "call": {
+        if (statement.call.kind === "userFunctionCall") {
+          const result = this.userCall(statement.call);
+          if (statement.call.dataType !== null && result !== null)
+            this.annotate(statement, [
+              { dataType: statement.call.dataType, value: result } as TypedValue,
+            ]);
+          break;
+        }
         this.annotate(statement, [
           {
             dataType: statement.call.dataType,
@@ -192,6 +221,7 @@ export class Interpreter {
           } as TypedValue,
         ]);
         break;
+      }
       case "fbCall": {
         for (const input of statement.inputs) {
           this.memory.input(statement.variable, input.input, this.expression(input.value));
@@ -266,6 +296,50 @@ export class Interpreter {
         return "return";
     }
     return undefined;
+  }
+
+  private userCall(call: UserFunctionCall): ScalarValue | null {
+    const definition = this.functions[call.function];
+    if (!definition) throw new Error("Missing function body");
+    // Evaluate all actual inputs in caller storage and in source order before entering.
+    const inputs = call.inputs.map((input) => ({
+      variable: input.variable,
+      value: this.expression(input.value),
+    }));
+    const caller = this.memory,
+      callerPou = this.pou;
+    const locals = new Memory({
+      kind: "program",
+      name: definition.name,
+      span: definition.span,
+      variables: definition.variables,
+      body: definition.body,
+    });
+    for (const input of inputs) locals.write(input.variable, input.value);
+    let result: ScalarValue | null;
+    this.memory = locals;
+    this.pou = definition.name;
+    this.callDepth++;
+    try {
+      this.execute(definition.body);
+      result = definition.result === undefined ? null : locals.read(definition.result);
+    } finally {
+      this.callDepth--;
+      this.memory = caller;
+      this.pou = callerPou;
+    }
+    for (const output of call.outputs) {
+      const variable = definition.variables[output.variable]!;
+      const to = output.target.dataType;
+      const value = locals.read(output.variable);
+      caller.assign(
+        output.target,
+        isLongType(to) && variable.dataType !== to
+          ? convertValue(`${variable.dataType}_TO_${to}` as ConversionFunction, value)
+          : value,
+      );
+    }
+    return result;
   }
 
   annotationSnapshot(): Record<number, StatementAnnotation[]> {

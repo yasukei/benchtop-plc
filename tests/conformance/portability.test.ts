@@ -26,6 +26,7 @@ for (const [from, to, literal, expected] of conversions) {
           {
             code: "type.portability",
             severity: "warning",
+            pou: "P",
             args: { function: `${from}_TO_${to}` },
             span: { line: 3, column: 11, endLine: 3, endColumn: 11 + call.length },
           },

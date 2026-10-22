@@ -73,6 +73,10 @@ export class Memory implements ScanMemory {
       for (const child of Object.values(node)) validateLiterals(child);
     };
     validateLiterals(ir.body);
+    for (const fn of ir.functions ?? []) {
+      validateLiterals(fn.body);
+      for (const variable of fn.variables) validateValue(variable.dataType, variable.initialValue);
+    }
     this.cells = ir.variables.map((variable) => {
       if (variable.kind === "scalar") {
         validateValue(variable.dataType, variable.initialValue);

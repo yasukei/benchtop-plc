@@ -123,11 +123,21 @@ for execution. Standard-function names are closed opcodes, not unresolved source
 identifiers. Expressions explicitly carry their result type; `&` lowers to AND.
 Function calls may carry `outputs`, each with a resolved descriptor output index,
 a writable assignment target and a source span. A `kind: "call"` statement wraps
-a function-call expression and discards its result. Input expressions precede all
+a standard or user function call and records its result for inline display when
+called in the PROGRAM. A no-result user call produces no annotation. Input expressions precede all
 output assignments; output bindings retain source order, including aliases.
 The compiler checks operand types, index validity, writable inputs, integer CASE
 labels/ranges, integer FOR bounds/step and BOOL conditions. An omitted FOR step
 lowers to a literal 1. ELSIF is represented by subsequent conditional branches.
+
+`ProgramIR.functions`, when present, stores shared user function bodies with local
+scalar variables, input/output indices and an optional result-variable index.
+`userFunctionCall.function` indexes this table; its input/output `variable` fields
+index the callee's local table, while argument expressions and output targets use
+the caller's table. `dataType: null` denotes a no-result statement call; expressions
+always have an elementary type. Function locals are fresh per call and never appear
+in snapshots. Standard formal calls may carry an `evaluationOrder` permutation of
+`args` indices so source order is preserved independently of descriptor order.
 
 Port indices follow core's shared `standardFunctionBlocks` registry. The compiler
 and runtime consume these descriptors, with implementations in runtime:
@@ -175,7 +185,9 @@ line. Only statements executed in the current scan are included; unexecuted
 statements have no placeholder, empty lines are omitted, and prior-scan values
 are not retained.
 
-A snapshot is delivered after the scan, with one annotation per executed
+Only PROGRAM statements are annotated. A function without a result has no
+annotation, and function outputs are not included. A snapshot is delivered after
+the scan, with one annotation per executed
 assignment, function statement or FB call. Its `values` are captured at that
 statement's last execution in the scan: a single assignment or function-statement
 result, or the FB's outputs in descriptor order (for TON, `[Q, ET]`). Repeated
@@ -184,7 +196,7 @@ previous values; it does not append executions or flatten FB output arrays.
 Arrays preserve JSON transport instead of using Set or Map.
 
 Fault events carry a `Diagnostic` discriminated by its stable `code`, with a
-code-specific `args` object, severity and optional source span. The codes and
+code-specific `args` object, severity, optional source POU name (`pou`) and span. The codes and
 argument conventions are documented in [diagnostics.md](diagnostics.md). Localized
 message text belongs to the UI catalog.
 

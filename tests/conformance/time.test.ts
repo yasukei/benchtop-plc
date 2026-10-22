@@ -24,6 +24,7 @@ it.each([
     {
       code: "type.invalid-constant",
       severity: "error",
+      pou: "TimeTest",
       args: {},
       span: { line: 2, column: 17, endLine: 2, endColumn: 17 + literal.length },
     },

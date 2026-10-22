@@ -62,24 +62,25 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Derived types and variables
 
-| Feature                                                                           | Status  | Notes                                                                                                |
-| --------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `VAR` with initial values                                                         | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected |
-| Directly represented variables `%IX`, `%QX`                                       | Partial | BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                                                |
-| `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT`, `VAR_TEMP`, `VAR_GLOBAL`, `VAR_EXTERNAL` | No      |                                                                                                      |
-| `CONSTANT`, `RETAIN`, `NON_RETAIN`                                                | No      |                                                                                                      |
-| `TYPE` declarations, enumerations, subranges                                      | No      |                                                                                                      |
-| Arrays, structures, references                                                    | No      |                                                                                                      |
+| Feature                                                | Status  | Notes                                                                                                |
+| ------------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------- |
+| `VAR` with initial values                              | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected |
+| Directly represented variables `%IX`, `%QX`            | Partial | PROGRAM only (restriction); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                    |
+| `VAR_INPUT`, `VAR_OUTPUT`                              | Partial | Elementary function parameters only; no PROGRAM parameters (restriction)                             |
+| `VAR_IN_OUT`, `VAR_TEMP`, `VAR_GLOBAL`, `VAR_EXTERNAL` | No      | VAR_IN_OUT is deferred; VAR_TEMP is forbidden in functions (restriction)                             |
+| `CONSTANT`, `RETAIN`, `NON_RETAIN`                     | No      |                                                                                                      |
+| `TYPE` declarations, enumerations, subranges           | No      |                                                                                                      |
+| Arrays, structures, references                         | No      |                                                                                                      |
 
 ## Program organization units
 
-| Feature                      | Status  | Notes                   |
-| ---------------------------- | ------- | ----------------------- |
-| `PROGRAM`                    | Partial | Exactly one per project |
-| `FUNCTION`                   | No      |                         |
-| `FUNCTION_BLOCK`             | No      |                         |
-| Classes, methods, interfaces | No      |                         |
-| Namespaces                   | No      |                         |
+| Feature                      | Status  | Notes                                                                                                                                                                 |
+| ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PROGRAM`                    | Partial | Exactly one per project                                                                                                                                               |
+| `FUNCTION`                   | Partial | Multi-source compilation; elementary inputs, outputs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
+| `FUNCTION_BLOCK`             | No      |                                                                                                                                                                       |
+| Classes, methods, interfaces | No      |                                                                                                                                                                       |
+| Namespaces                   | No      |                                                                                                                                                                       |
 
 ## Operators and statements (ST)
 
@@ -91,10 +92,10 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Comparisons                                   | Yes    | Common type per ADR 0013; BOOL ordering is `FALSE < TRUE`; calendar values compare chronologically                                                                                                                                                                   |
 | Bit access `x.n`                              | Yes    | BYTE/WORD/DWORD/LWORD variables; a constant index within the width, readable and writable                                                                                                                                                                            |
 | Assignment `:=`                               | Yes    | Only ADR 0013 widening is implicit; narrowing needs an explicit conversion                                                                                                                                                                                           |
-| Function calls as statements and `=>` outputs | Yes    | SPLIT outputs accept only writable targets with implicit widening from INT; FB `=>` remains unsupported                                                                                                                                                              |
+| Function calls as statements and `=>` outputs | Yes    | User and standard functions: writable outputs follow assignment widening; FB `=>` remains unsupported                                                                                                                                                                |
 | FB call with named inputs                     | Yes    |                                                                                                                                                                                                                                                                      |
 | `IF`, `CASE`, `FOR`, `WHILE`, `REPEAT`        | Yes    | CASE selectors and labels, and FOR variables and bounds, must be integers; CASE labels must be constant                                                                                                                                                              |
-| `EXIT`, `RETURN`                              | Yes    |                                                                                                                                                                                                                                                                      |
+| `EXIT`, `RETURN`                              | Yes    | RETURN leaves the current POU                                                                                                                                                                                                                                        |
 | `CONTINUE`                                    | No     |                                                                                                                                                                                                                                                                      |
 
 ## Standard functions
@@ -216,3 +217,22 @@ example, `REAL_TO_INT(2.5)` is 2 and `REAL_TO_INT(3.5)` is 4). Vendor tie-breaki
 can depend on the runtime or target hardware. This difference has no compiler
 warning; check rounding expectations when porting a program. See
 [ADR 0013](adr/0013-conversions-literals-and-operators.md).
+
+## User function restrictions and standard checks
+
+Multi-POU compilation accepts exactly one PROGRAM plus functions, each in its own
+text, with one case-insensitive namespace shared with all standard names.
+The web editor and PLCopen XML still handle a single program (#96, #97).
+
+The following ADR 0014 choices follow the 3rd edition and secondary sources and
+still need verification against the 4th edition: functions without a result type,
+omitted-input defaults in formal user calls, and the direct/indirect recursion ban.
+An empty user call uses all declared input defaults. Non-formal calls support only
+input-only functions, with every input supplied in declaration order; this is
+Partial support of the standard's non-formal parameter list.
+
+Project restrictions: functions cannot declare VAR_TEMP or FB instances; PROGRAM
+cannot declare VAR_INPUT, VAR_OUTPUT or VAR_IN_OUT; direct addresses are allowed
+only in PROGRAM. VAR_IN_OUT, user FBs, CONSTANT and EN/ENO remain deferred.
+Function locals, outputs and results are fresh per call. Operands and arguments
+evaluate left to right; the 200,000-iteration limit is shared by all calls in a scan.

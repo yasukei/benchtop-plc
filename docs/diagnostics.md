@@ -5,12 +5,16 @@
 by `code`: each code has exactly the argument shape listed below. The optional
 type parameter, such as `Diagnostic<"runtime.watchdog">`, selects a subset while
 retaining that correlation. Every diagnostic has `severity: "error" | "warning"`
-and may carry a `SourceSpan` (one-based positions, exclusive end).
+and may carry a `SourceSpan` (one-based positions, exclusive end). `pou?: string`
+retains the source POU name and identifies the text to which the span belongs.
+Compiler diagnostics carry it once a header is known, including lexical/syntax
+failures after that header; project-level errors omit it. Runtime execution faults
+name the executing POU, preserving the innermost function through nested calls.
 
 ## Naming and compatibility
 
 Codes use `<category>.<lower-kebab-case-reason>`. Categories are `lex` (lexing),
-`syntax` (parsing), `decl` (declarations), `name` (name resolution), `type` (type
+`syntax` (parsing), `pou` (project-wide POU rules), `decl` (declarations), `name` (name resolution), `type` (type
 checking), `flow` (control flow), `fb` (function blocks), `call` (function calls)
 and `runtime` (execution faults and command rejections). Codes and argument keys are stable identifiers:
 do not rename or repurpose an existing code. Add a new code for a new meaning and
@@ -174,3 +178,24 @@ conversions whose vendor semantics may differ. It spans the entire call and name
 the resolved typed function, including for overloaded `TO_` calls. The English and
 Japanese messages explain bit-pattern reinterpretation or rightmost-bit selection.
 It does not prevent compilation, loading or execution.
+
+## User-defined POU codes
+
+| Code                             | Meaning                                                            | Arguments                           |
+| -------------------------------- | ------------------------------------------------------------------ | ----------------------------------- |
+| `pou.duplicate`                  | Duplicate POU name, on the later POU                               | `{ name: string }`                  |
+| `pou.name-collision`             | POU name conflicts with a standard function, FB or elementary type | `{ name: string }`                  |
+| `pou.program-count`              | Project does not have exactly one PROGRAM; no POU or span          | `{ found: number }`                 |
+| `pou.unsupported-kind`           | User FUNCTION_BLOCK implementation is deferred                     | `{ name: string }`                  |
+| `pou.invalid-section`            | Variable section unsupported in this POU kind                      | `{ section: string; kind: string }` |
+| `pou.direct-address`             | Direct address outside the PROGRAM                                 | `{}`                                |
+| `pou.function-block-in-function` | FB instance declared in a function                                 | `{}`                                |
+| `pou.recursion`                  | Direct or indirect recursive call                                  | `{ name: string }`                  |
+| `call.program`                   | Attempt to call a PROGRAM                                          | `{ name: string }`                  |
+| `call.no-result`                 | No-result function used in an expression                           | `{ name: string }`                  |
+| `call.formal-required`           | Positional call to a function with output parameters               | `{ name: string }`                  |
+
+`pou.invalid-section.kind` is the AST kind (`program`, `function`, or
+`functionBlock`); `section` is the canonical ST section keyword. Localizers
+translate these identifiers. The existing `decl.name-collision` kinds also cover
+POUs: `function` for a user function; `type` for a PROGRAM or user FB.

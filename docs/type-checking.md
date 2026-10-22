@@ -16,6 +16,9 @@ The checked result retains the original AST without modifying it, plus:
   Declaration names, assignment targets, reads, FOR variables, FB instances and
   named inputs all use the same symbol IDs.
 - `functions`: AST function-call object to canonical standard-function opcode.
+- `userCalls`: resolved user function indices, supplied inputs in source order,
+  output bindings and the optional result type.
+- `result`: the function's synthetic local result symbol, when it has a result.
 - `functionArguments`: AST function-call object to inputs in descriptor order, after
   resolving formal names. The original AST retains source order.
 
@@ -242,3 +245,34 @@ parameters report `call.invalid-parameter`. FB calls still accept only `:=` inpu
 `=>` for FBs remains unsupported. FB statements with positional inputs or `=>`
 outputs report `fb.unsupported-call`; FB calls within expressions report
 `fb.call-in-expression`. Named time/date calls are not constant expressions.
+
+## User-defined POUs and function calls
+
+`compileProject` first collects a case-insensitive namespace shared by all POU
+names and every standard function (including conversions, truncations and BCD
+forms), standard FB and typed FB name, and elementary type name. A duplicate POU
+is reported on the later declaration. Variables cannot reuse any POU name;
+`decl.name-collision.kind` is `function` for a function and `type` for a PROGRAM
+or function block. The function's implicit result variable is the sole exception:
+inside its body the function name can be assigned and read.
+
+A FUNCTION supports elementary `VAR_INPUT`, `VAR_OUTPUT` and `VAR` declarations,
+with optional initializers. `FUNCTION F : REAL` returns its result variable;
+`FUNCTION F` has no result and is callable only as a statement. Functions cannot
+declare `VAR_TEMP`, FB instances, or direct addresses. `VAR_IN_OUT` is deferred.
+A PROGRAM cannot be called and cannot declare `VAR_INPUT`, `VAR_OUTPUT` or
+`VAR_IN_OUT`. Direct addresses remain restricted to the PROGRAM.
+
+Formal calls use `:=` inputs and `=>` outputs without mixing positional arguments.
+Omitted inputs start from their declared initial values; an empty `F()` uses these
+defaults too. An input-only function also accepts exactly one positional argument
+per input in declaration order. A function with outputs requires formal arguments.
+Input constants receive their parameter type and typed inputs allow only implicit
+widening (ADR 0013). Outputs follow assignment rules, including writable variable,
+bit and standard FB input targets. Unknown, duplicate and misdirected parameters
+are errors. Standard functions continue to require every input.
+
+User function calls are never constant expressions. All function bodies are checked,
+even when unreachable from the PROGRAM; direct and indirect recursion are errors.
+These semantics follow ADR 0014, based on the 3rd edition and secondary sources;
+its standard-dependent choices await verification against the 4th edition.

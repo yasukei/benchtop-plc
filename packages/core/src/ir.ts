@@ -185,7 +185,30 @@ export interface ProgramIR extends SourceNode {
   name: string;
   variables: Variable[];
   body: Statement[];
+  /** Shared bodies; call indices address this array. Absent in a single-program IR. */
+  functions?: UserFunctionIR[];
 }
+
+export interface UserFunctionIR extends SourceNode {
+  name: string;
+  variables: ScalarVariable[];
+  inputs: number[];
+  outputs: number[];
+  /** Local variable holding the result; absent for a function without a result. */
+  result?: number;
+  body: Statement[];
+}
+
+export interface UserFunctionCall extends SourceNode {
+  kind: "userFunctionCall";
+  function: number;
+  /** In source order, including for formal calls. Omitted inputs keep their initial values. */
+  inputs: { variable: number; value: Expression }[];
+  outputs: { variable: number; target: AssignmentTarget }[];
+  dataType: DataType | null;
+}
+
+export type UserFunctionCallExpression = UserFunctionCall & { dataType: DataType };
 
 export type LiteralExpression = SourceNode & TypedValue & { kind: "literal" };
 
@@ -252,6 +275,8 @@ export interface FunctionCallExpression extends SourceNode {
   /** A resolved standard-function opcode; never a source identifier. */
   function: StandardFunction;
   args: Expression[];
+  /** Formal arguments retain source evaluation order despite signature ordering. */
+  evaluationOrder?: number[];
   /** Resolved output port indices; arguments are evaluated before outputs are assigned. */
   outputs?: FunctionOutputAssignment[];
   dataType: DataType;
@@ -264,7 +289,7 @@ export interface FunctionOutputAssignment extends SourceNode {
 
 export interface FunctionCallStatement extends SourceNode {
   kind: "call";
-  call: FunctionCallExpression;
+  call: FunctionCallExpression | UserFunctionCall;
 }
 
 export type Expression =
@@ -274,6 +299,7 @@ export type Expression =
   | FunctionBlockMemberReference
   | UnaryExpression
   | BinaryExpression
+  | UserFunctionCallExpression
   | FunctionCallExpression;
 
 export interface AssignmentStatement extends SourceNode {
