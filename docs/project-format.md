@@ -35,8 +35,8 @@ value outside its declared type does. Other semantic errors, including unknown
 calls, duplicate names, name clashes, zero or several programs, and supported
 sections disallowed for a POU kind, are preserved for the compiler to report after
 opening. Run still requires error-free compilation. VAR_TEMP in a FUNCTION and
-AT in a FUNCTION_BLOCK remain exchangeable semantic errors. Constant
-sections and variable sections without a mapping are unsupported in this version; later issues extend the mapping (ADR 0014).
+AT in a FUNCTION_BLOCK remain exchangeable semantic errors. Variable sections
+without a mapping remain unsupported (ADR 0014).
 
 The web app retains every imported POU and compiles them together. The POU list
 selects the text to edit; saving preserves every text.
@@ -103,4 +103,15 @@ source extensions reconstruct `VAR_IN_OUT` sections. As with other representable
 sections, an in-out section on a PROGRAM can be exchanged but compilation reports
 `pou.invalid-section`. In-out declaration initializers are also exchangeable
 semantic errors (`decl.in-out-initializer`); their usual type and range checks
-still apply on save and import. Constant attributes on sections remain unsupported.
+still apply on save and import.
+
+`VAR CONSTANT` maps to `localVars constant="true"`. Constant and mutable groups
+remain separate in declaration order, including repeated groups. Imports accept
+the XML boolean forms `true`/`1` and `false`/`0`; an absent or false attribute
+means ordinary variables. Canonical imports reconstruct `VAR CONSTANT` even
+without preserved source. Initializer checks see earlier constants in the same
+POU, so `VAR CONSTANT N : INT := 10; END_VAR VAR A : INT := N; END_VAR`
+saves and reopens with its initializer expression intact. Invalid initializer
+values still block exchange on both paths. Representable constant modifiers on
+input, output, in-out or temporary sections are preserved as semantic errors;
+compilation rejects them with `decl.constant-section`.

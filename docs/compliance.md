@@ -70,7 +70,8 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `VAR_TEMP`                                   | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                            |
 | `VAR_IN_OUT`                                 | Partial | Elementary FUNCTION/FUNCTION_BLOCK aliases; exact-type caller variable required every call; formal only, no initializers or instance/bit actuals (restrictions) |
 | `VAR_GLOBAL`, `VAR_EXTERNAL`                 | No      | Deferred                                                                                                                                                        |
-| `CONSTANT`, `RETAIN`, `NON_RETAIN`           | No      |                                                                                                                                                                 |
+| `CONSTANT`                                   | Partial | Elementary typed constants, only on `VAR`; no `AT` or FB instances. POU-local, earlier constants only; folded without runtime storage (ADR 0014)                |
+| `RETAIN`, `NON_RETAIN`                       | No      |                                                                                                                                                                 |
 | `TYPE` declarations, enumerations, subranges | No      |                                                                                                                                                                 |
 | Arrays, structures, references               | No      |                                                                                                                                                                 |
 
@@ -238,7 +239,7 @@ Partial support of the standard's non-formal parameter list.
 Project restrictions: functions cannot declare VAR_TEMP or FB instances; PROGRAM
 cannot declare VAR_INPUT, VAR_OUTPUT or VAR_IN_OUT; direct addresses are allowed
 only in PROGRAM, and are forbidden in both functions and function blocks.
-CONSTANT and EN/ENO remain deferred. VAR_IN_OUT supports exact-type scalar caller variables in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
+EN/ENO remains deferred. CONSTANT is supported only on VAR, with elementary types and no AT. VAR_IN_OUT supports exact-type scalar caller variables in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
 Function locals, outputs and results are fresh per call. Operands and arguments
 evaluate left to right; the 200,000-iteration limit is shared by all calls in a scan.
 

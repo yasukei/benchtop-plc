@@ -59,6 +59,12 @@ export const diagnosticEn = {
     `Initializer for ${name} must be a constant expression.`,
   "decl.fb-initializer": ({ name }) =>
     `Function block instance ${name} cannot have an initializer.`,
+  "decl.constant-section": ({ section }) => `CONSTANT is allowed only on VAR; found ${section}.`,
+  "decl.constant-type": () => `CONSTANT requires an elementary type.`,
+  "decl.constant-address": () => `CONSTANT cannot be combined with AT.`,
+  "decl.constant-not-writable": ({ name }) => `Constant ${name} cannot be written.`,
+  "decl.constant-order": ({ name }) =>
+    `Constant ${name} must be declared and initialized earlier in this POU.`,
   "decl.in-out-initializer": ({ name }) =>
     `In-out parameter ${name} cannot have an initializer; its value comes from the caller's variable.`,
   "pou.duplicate": ({ name }) => `Duplicate POU: ${name}.`,
@@ -171,6 +177,12 @@ export const diagnosticJa = {
   "decl.nonconstant-initializer": ({ name }) => `${name}の初期値には定数式が必要です。`,
   "decl.fb-initializer": ({ name }) =>
     `ファンクションブロックのインスタンス${name}には初期値を指定できません。`,
+  "decl.constant-section": ({ section }) => `CONSTANT は VAR でのみ使用できます: ${section}。`,
+  "decl.constant-type": () => `CONSTANT には基本データ型が必要です。`,
+  "decl.constant-address": () => `CONSTANT と AT は併用できません。`,
+  "decl.constant-not-writable": ({ name }) => `定数 ${name} には書き込めません。`,
+  "decl.constant-order": ({ name }) =>
+    `定数 ${name} は同じ POU 内で先に宣言・初期化する必要があります。`,
   "decl.in-out-initializer": ({ name }) =>
     `入出力パラメーター${name}には初期値を指定できません。値は呼び出し元の変数から取得します。`,
   "pou.duplicate": ({ name }) => `POUが重複しています: ${name}。`,

@@ -73,6 +73,10 @@ class Checker {
   private readonly diagnostics: Diagnostic[] = [];
   private readonly symbols: VariableSymbol[] = [];
   private readonly names = new Map<string, VariableSymbol>();
+  private readonly constants = new Map<
+    string,
+    { name: AST.Identifier; type: DataType; value?: ScalarValue }
+  >();
   private readonly declaredNames = new Set<string>();
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
   private readonly references = new Map<AST.Identifier, ResolvedReference>();
@@ -110,8 +114,10 @@ class Checker {
 
   run(ast: AST.Program): CheckResult {
     for (const section of ast.sections ?? []) {
+      if (section.constant && section.name !== "VAR")
+        this.report("decl.constant-section", { section: section.name }, section.span);
       if (
-        (ast.kind === "program" && section.name !== "VAR_TEMP") ||
+        (ast.kind === "program" && section.name !== "VAR" && section.name !== "VAR_TEMP") ||
         (ast.kind === "function" && section.name === "VAR_TEMP")
       )
         this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
@@ -159,6 +165,10 @@ class Checker {
     const userBlock = this.blockIds.get(type);
     const block = isBlock(type) || userBlock !== undefined;
     const known = isScalar(type) || block;
+    if (declaration.constant && block)
+      this.report("decl.constant-type", {}, declaration.typeName.span);
+    if (declaration.constant && declaration.address)
+      this.report("decl.constant-address", {}, declaration.address.span);
     if (declaration.section === "VAR_IN_OUT" && declaration.initializer)
       this.report(
         "decl.in-out-initializer",
@@ -209,6 +219,8 @@ class Checker {
         this.report("decl.name-collision", { name: name.name, kind: "function" }, name.span);
       } else if (duplicate) {
         this.report("decl.duplicate", { name: name.name }, name.span);
+      } else if (declaration.constant && isScalar(type)) {
+        this.constants.set(name.key, { name, type });
       } else if (known) {
         const symbol: VariableSymbol = {
           id: this.symbols.length,
@@ -226,7 +238,14 @@ class Checker {
 
   private initializer(declaration: AST.Declaration): void {
     const value = declaration.initializer;
-    if (!value) return;
+    if (!value) {
+      for (const name of declaration.names) {
+        const constant = this.constants.get(name.key);
+        if (constant?.name === name)
+          constant.value = isLongType(constant.type) ? "0" : constant.type === "BOOL" ? false : 0;
+      }
+      return;
+    }
     const type = declarationType(declaration.typeName.key);
     if (isBlock(type) || this.blockIds.has(type)) {
       this.report("decl.fb-initializer", { name: declaration.names[0].name }, value.span);
@@ -252,6 +271,8 @@ class Checker {
     for (const name of declaration.names) {
       const symbol = this.names.get(name.key);
       if (symbol?.name === name) symbol.initialValue = initialValue;
+      const constant = this.constants.get(name.key);
+      if (constant?.name === name) constant.value = initialValue;
     }
   }
 
@@ -265,8 +286,46 @@ class Checker {
     return symbol;
   }
 
+  private bitIndex(type: DataType, member: AST.Identifier): number | null {
+    const index = this.constants.get(member.key);
+    if (index && index.value === undefined) {
+      this.report("decl.constant-order", { name: member.name }, member.span);
+      return null;
+    }
+    if (index && !isInteger(index.type)) {
+      this.report("type.invalid-constant", {}, member.span);
+      return null;
+    }
+    const bit = Number(index ? index.value : member.key);
+    if (!Number.isSafeInteger(bit)) {
+      this.report("type.invalid-constant", {}, member.span);
+      return null;
+    }
+    if (!isBitType(type) || type === "BOOL" || bit < 0 || bit >= bitWidths[type]) {
+      this.report("type.invalid-bit-access", { type, bit }, member.span);
+      return null;
+    }
+    return bit;
+  }
+
   private reference(node: AST.AssignmentTarget, write = false): ExpressionInfo | null {
     const name = node.kind === "name" ? node.name : node.instance;
+    const constant = this.constants.get(name.key);
+    if (constant) {
+      if (write) {
+        this.report("decl.constant-not-writable", { name: name.name }, name.span);
+        return null;
+      }
+      if (constant.value === undefined) {
+        this.report("decl.constant-order", { name: name.name }, name.span);
+        return null;
+      }
+      if (node.kind === "name") return { dataType: constant.type, constant: constant.value };
+      const bit = this.bitIndex(constant.type, node.member);
+      return bit === null
+        ? null
+        : { dataType: "BOOL", constant: !!((BigInt(constant.value) >> BigInt(bit)) & 1n) };
+    }
     const symbol = this.resolve(name);
     if (!symbol) return null;
     if (node.kind === "name") {
@@ -276,28 +335,26 @@ class Checker {
       }
       return { dataType: symbol.type };
     }
-    if (isScalar(symbol.type) && /^\d+$/.test(node.member.key)) {
-      const bit = Number(node.member.key);
-      if (!Number.isSafeInteger(bit)) {
-        this.report("type.invalid-constant", {}, node.member.span);
-        return null;
-      }
-      if (!isBitType(symbol.type) || symbol.type === "BOOL" || bit >= bitWidths[symbol.type]) {
-        this.report("type.invalid-bit-access", { type: symbol.type, bit }, node.member.span);
-        return null;
-      }
+    if (
+      isScalar(symbol.type) &&
+      (/^\d+$/.test(node.member.key) || this.constants.has(node.member.key))
+    ) {
+      const bit = this.bitIndex(symbol.type, node.member);
+      if (bit === null) return null;
       this.references.set(node.member, { variable: symbol.id, bit });
       return { dataType: "BOOL" };
     }
     if (symbol.userBlock !== undefined) {
       const pou = this.pous.get(symbol.type)!;
-      const parameters = pou.declarations.flatMap((declaration) =>
-        declaration.names.map((member) => ({
-          name: member,
-          type: declarationType(declaration.typeName.key),
-          section: declaration.section,
-        })),
-      );
+      const parameters = pou.declarations
+        .filter((declaration) => !declaration.constant)
+        .flatMap((declaration) =>
+          declaration.names.map((member) => ({
+            name: member,
+            type: declarationType(declaration.typeName.key),
+            section: declaration.section,
+          })),
+        );
       const index = parameters.findIndex(
         (parameter) =>
           parameter.name.key === node.member.key &&
@@ -748,6 +805,7 @@ class Checker {
     statement: boolean,
   ): ExpressionInfo | null {
     const parameters = pou.declarations
+      .filter((declaration) => !declaration.constant)
       .flatMap((declaration) =>
         declaration.names.map((name) => ({
           name,
@@ -871,9 +929,8 @@ class Checker {
         ? []
         : this.pous
             .get(symbol.type)!
-            .declarations.flatMap((declaration) =>
-              declaration.names.map((name) => ({ name, declaration })),
-            )
+            .declarations.filter((declaration) => !declaration.constant)
+            .flatMap((declaration) => declaration.names.map((name) => ({ name, declaration })))
             .map((parameter, variable) => ({ ...parameter, variable }))
             .filter(({ declaration }) => declaration.section === "VAR_IN_OUT");
     const bindings: UserCallInfo["inOuts"] = [];
@@ -1045,7 +1102,14 @@ class Checker {
           break;
         }
         case "for": {
-          const symbol = this.resolve(node.variable);
+          const constant = this.constants.has(node.variable.key);
+          if (constant)
+            this.report(
+              "decl.constant-not-writable",
+              { name: node.variable.name },
+              node.variable.span,
+            );
+          const symbol = constant ? null : this.resolve(node.variable);
           if (symbol) {
             if (!isScalar(symbol.type))
               this.report("fb.instance-as-value", { name: node.variable.name }, node.variable.span);

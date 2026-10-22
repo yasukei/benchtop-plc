@@ -39,6 +39,7 @@ export interface VariableDeclaration {
   type: string;
   address?: string;
   initialValue?: string;
+  constant?: boolean;
 }
 
 export interface SplitProgram {
