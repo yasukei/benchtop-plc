@@ -86,9 +86,28 @@ describe("named constants", () => {
   });
 
   it.each([
+    ["40000", "type.invalid-constant"],
+    ["TRUE", "type.assign-mismatch"],
+  ])("reports only the root error for a failed initializer %s", (initializer, code) => {
+    const result = compile(
+      program(
+        `VAR CONSTANT N : INT := ${initializer}; Derived : INT := N; END_VAR
+         VAR x : INT := Derived; bits : BYTE; flag : BOOL; END_VAR`,
+        "x := N; bits.N := TRUE; flag := N.0;",
+      ),
+    );
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([code]);
+  });
+
+  it.each([
     ["VAR CONSTANT A : INT := A; END_VAR", "decl.constant-order"],
     ["VAR CONSTANT A : INT := B; B : INT := 2; END_VAR", "decl.constant-order"],
     ["VAR CONSTANT A : INT := B; B : INT := A; END_VAR", "decl.constant-order"],
+    [
+      "VAR CONSTANT Mask : BYTE := 1; Flag : BOOL := Mask.Index; Index : INT := 0; END_VAR",
+      "decl.constant-order",
+    ],
     ["VAR a : INT := N; END_VAR VAR CONSTANT N : INT := 2; END_VAR", "decl.constant-order"],
     ["VAR x : INT; END_VAR VAR CONSTANT N : INT := x; END_VAR", "decl.nonconstant-initializer"],
     ["VAR CONSTANT N : INT := 40000; END_VAR", "type.invalid-constant"],

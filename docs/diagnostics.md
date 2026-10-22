@@ -239,5 +239,7 @@ Section errors span the section keyword, type errors the declared type, and
 address errors the AT address. Write and order errors span the referenced name.
 Existing `decl.nonconstant-initializer` rejects mutable references and other
 nonconstant expressions; `type.invalid-constant` handles out-of-range initializers
-and arithmetic faults. Named constants use the existing name collision and
+and arithmetic faults. Uses of a constant whose initializer has already failed
+do not add declaration-order errors; the initializer diagnostic identifies the cause.
+Named constants use the existing name collision and
 bit-index diagnostics. All codes have English and Japanese UI templates.

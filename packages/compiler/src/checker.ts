@@ -75,7 +75,7 @@ class Checker {
   private readonly names = new Map<string, VariableSymbol>();
   private readonly constants = new Map<
     string,
-    { name: AST.Identifier; type: DataType; value?: ScalarValue }
+    { name: AST.Identifier; type: DataType; initializerProcessed: boolean; value?: ScalarValue }
   >();
   private readonly declaredNames = new Set<string>();
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
@@ -139,7 +139,13 @@ class Checker {
         this.names.set(ast.name.key, this.result);
       }
     }
-    for (const declaration of ast.declarations) this.initializer(declaration);
+    for (const declaration of ast.declarations) {
+      this.initializer(declaration);
+      for (const name of declaration.names) {
+        const constant = this.constants.get(name.key);
+        if (constant?.name === name) constant.initializerProcessed = true;
+      }
+    }
     this.statements(ast.body, 0);
     if (this.diagnostics.some((item) => item.severity === "error"))
       return { checked: null, diagnostics: this.diagnostics };
@@ -220,7 +226,7 @@ class Checker {
       } else if (duplicate) {
         this.report("decl.duplicate", { name: name.name }, name.span);
       } else if (declaration.constant && isScalar(type)) {
-        this.constants.set(name.key, { name, type });
+        this.constants.set(name.key, { name, type, initializerProcessed: false });
       } else if (known) {
         const symbol: VariableSymbol = {
           id: this.symbols.length,
@@ -289,7 +295,8 @@ class Checker {
   private bitIndex(type: DataType, member: AST.Identifier): number | null {
     const index = this.constants.get(member.key);
     if (index && index.value === undefined) {
-      this.report("decl.constant-order", { name: member.name }, member.span);
+      if (!index.initializerProcessed)
+        this.report("decl.constant-order", { name: member.name }, member.span);
       return null;
     }
     if (index && !isInteger(index.type)) {
@@ -317,7 +324,8 @@ class Checker {
         return null;
       }
       if (constant.value === undefined) {
-        this.report("decl.constant-order", { name: name.name }, name.span);
+        if (!constant.initializerProcessed)
+          this.report("decl.constant-order", { name: name.name }, name.span);
         return null;
       }
       if (node.kind === "name") return { dataType: constant.type, constant: constant.value };
