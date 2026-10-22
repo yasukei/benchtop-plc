@@ -26,6 +26,11 @@ The complete source-to-IR API is documented in [compiler.md](compiler.md).
 Current language support and implementation-dependent choices are documented in
 [compliance.md](compliance.md).
 
+Milestone 4's accepted model for user-defined POUs, parameter passing, instance
+memory, project exchange and monitoring is recorded in
+[ADR 0014](adr/0014-user-defined-pous.md). Its implementation is tracked by the
+sub-issues of [#93](https://github.com/yasukei/benchtop-plc/issues/93).
+
 ## Data flow
 
 ```

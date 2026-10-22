@@ -8,6 +8,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- ADR 0014 documents the accepted design for user-defined POUs, calls, instance
+  memory, project exchange and monitoring for Milestone 4; implementation follows
+  in its sub-issues.
+
 ## [0.3.0] - 2026-10-22
 
 All elementary data types except strings, with the standard's conversion and literal rules and the standard functions and function blocks for them. Contains breaking changes to accepted Structured Text; see Changed.

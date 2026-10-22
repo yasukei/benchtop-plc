@@ -168,17 +168,18 @@ issues, not in the transport types.
 Snapshots contain scan count, last execution time in milliseconds, eight-bit input
 and output tuples, values aligned with the variable table (including FB input and
 output arrays in descriptor order), forced variable IDs, and annotations keyed by
-one-based source line. Each annotation contains the full `span` of its assignment
-or FB call, so consumers identify statements by source location rather than array
-position. Entries are grouped by `span.line` and sorted by `span.column` on each
+one-based source line. Each annotation contains the full `span` of its assignment,
+function statement or FB call, so consumers identify statements by source location
+rather than array position. Entries are grouped by `span.line` and sorted by `span.column` on each
 line. Only statements executed in the current scan are included; unexecuted
 statements have no placeholder, empty lines are omitted, and prior-scan values
 are not retained.
 
 A snapshot is delivered after the scan, with one annotation per executed
-assignment or FB call. Its `values` are captured at that statement's last execution
-in the scan: a single assignment result, or the FB's outputs in descriptor order
-(for TON, `[Q, ET]`). Repeated execution in a loop replaces that statement's
+assignment, function statement or FB call. Its `values` are captured at that
+statement's last execution in the scan: a single assignment or function-statement
+result, or the FB's outputs in descriptor order (for TON, `[Q, ET]`). Repeated
+execution in a loop replaces that statement's
 previous values; it does not append executions or flatten FB output arrays.
 Arrays preserve JSON transport instead of using Set or Map.
 
