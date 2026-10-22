@@ -7,22 +7,38 @@ import { lower, lowerFunction } from "./lower.js";
 import { isElementaryTypeName } from "./lexer.js";
 import { parsePou } from "./parser.js";
 
+/** Source order identifies a POU even when its header is missing or its name is duplicated. */
+export type CompileDiagnostic = Diagnostic & { sourceIndex?: number };
 export type CompileResult =
-  { ir: ProgramIR; diagnostics: Diagnostic[] } | { ir?: never; diagnostics: Diagnostic[] };
+  | { ir: ProgramIR; diagnostics: CompileDiagnostic[] }
+  | { ir?: never; diagnostics: CompileDiagnostic[] };
 
 /** Compatibility entry point for the single-program editor and project codec. */
 export function compile(source: string): CompileResult {
-  return compileProject([source]);
+  const result = compileProject([source]);
+  // Preserve the legacy single-source diagnostic shape for existing callers.
+  return {
+    ...result,
+    diagnostics: result.diagnostics.map((diagnostic) => {
+      const legacy = { ...diagnostic };
+      delete legacy.sourceIndex;
+      return legacy;
+    }),
+  };
 }
 
 /** Compile an ordered list of sources, each containing exactly one POU. */
 export function compileProject(sources: readonly string[]): CompileResult {
-  const diagnostics: Diagnostic[] = [];
+  const diagnostics: CompileDiagnostic[] = [];
+  const sourceIndexes = new Map<Program, number>();
   const asts: Program[] = [];
-  for (const source of sources) {
+  for (const [sourceIndex, source] of sources.entries()) {
     const parsed = parsePou(source);
-    diagnostics.push(...parsed.diagnostics);
-    if (parsed.ast) asts.push(parsed.ast);
+    diagnostics.push(...parsed.diagnostics.map((diagnostic) => ({ ...diagnostic, sourceIndex })));
+    if (parsed.ast) {
+      asts.push(parsed.ast);
+      sourceIndexes.set(parsed.ast, sourceIndex);
+    }
   }
   // A damaged header cannot reliably participate in project-wide name/count checks.
   if (asts.length !== sources.length) return { diagnostics };
@@ -34,6 +50,7 @@ export function compileProject(sources: readonly string[]): CompileResult {
         code: "pou.duplicate",
         severity: "error",
         pou: name.name,
+        sourceIndex: sourceIndexes.get(ast),
         span: name.span,
         args: { name: name.name },
       });
@@ -47,6 +64,7 @@ export function compileProject(sources: readonly string[]): CompileResult {
         code: "pou.name-collision",
         severity: "error",
         pou: name.name,
+        sourceIndex: sourceIndexes.get(ast),
         span: name.span,
         args: { name: name.name },
       });
@@ -55,6 +73,7 @@ export function compileProject(sources: readonly string[]): CompileResult {
         code: "pou.unsupported-kind",
         severity: "error",
         pou: name.name,
+        sourceIndex: sourceIndexes.get(ast),
         span: name.span,
         args: { name: name.name },
       });
@@ -71,7 +90,12 @@ export function compileProject(sources: readonly string[]): CompileResult {
   const checked = new Map<Program, CheckedProgram>();
   for (const ast of asts) {
     const result = check(ast, pous, functionIds);
-    diagnostics.push(...result.diagnostics);
+    diagnostics.push(
+      ...result.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        sourceIndex: sourceIndexes.get(ast),
+      })),
+    );
     if (result.checked) checked.set(ast, result.checked);
   }
   if (
@@ -92,6 +116,7 @@ export function compileProject(sources: readonly string[]): CompileResult {
           code: "pou.recursion",
           severity: "error",
           pou: ast.name.name,
+          sourceIndex: sourceIndexes.get(ast),
           span: node.span,
           args: { name: callee.name.name },
         });

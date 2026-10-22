@@ -8,7 +8,7 @@ import { demoSource } from "../demo.js";
 
 describe("panel project persistence", () => {
   it("stamps new projects with the app package version", () => {
-    const project = readProject(savePanelProject(demoSource, [], 10, null)!).value!;
+    const project = readProject(savePanelProject([demoSource], [], 10, null)!).value!;
     expect(project.fileHeader.productVersion).toBe(packageJson.version);
   });
   it("keeps the checked-in example header at the current release version", () => {
@@ -27,9 +27,7 @@ describe("panel project persistence", () => {
       project.contentHeader.author = "Example author";
       project.contentHeader.version = "Project revision 3";
       const original = structuredClone(project);
-      const saved = readProject(
-        savePanelProject(project.pous[0]!, opened.layout, 10, project)!,
-      ).value!;
+      const saved = readProject(savePanelProject(project.pous, opened.layout, 10, project)!).value!;
       expect(saved).toEqual({
         ...original,
         fileHeader: { ...original.fileHeader, productVersion: packageJson.version },
@@ -62,19 +60,19 @@ describe("panel project persistence", () => {
       0.2,
       0.8,
     );
-    const xml = savePanelProject(demoSource, layout, 20, null)!;
+    const xml = savePanelProject([demoSource], layout, 20, null)!;
     expect(xml).toContain("http://www.plcopen.org/xml/tc6_0201");
     const opened = openPanelProject(xml)!;
     expect(opened.layout).toEqual(layout);
     expect(opened.project.pous[0]!).toBe(demoSource);
     expect(opened.project.task.interval).toBe("PT0.02S");
     opened.project.contentHeader.author = "Example";
-    const reopened = openPanelProject(savePanelProject(demoSource, layout, 50, opened.project)!)!;
+    const reopened = openPanelProject(savePanelProject([demoSource], layout, 50, opened.project)!)!;
     expect(reopened.project.contentHeader.author).toBe("Example");
     expect(reopened.project.task.interval).toBe("PT0.05S");
   });
   it("rejects invalid source and malformed XML", () => {
-    expect(savePanelProject("invalid", [], 10, null)).toBeNull();
+    expect(savePanelProject(["invalid"], [], 10, null)).toBeNull();
     expect(openPanelProject("invalid")).toBeNull();
   });
   it("round trips both input palettes and migrates legacy amber through XML", () => {
@@ -85,7 +83,7 @@ describe("panel project persistence", () => {
         color,
       })),
     );
-    const opened = openPanelProject(savePanelProject(demoSource, layout, 10, null)!)!;
+    const opened = openPanelProject(savePanelProject([demoSource], layout, 10, null)!)!;
     expect(opened.layout).toEqual(
       layout.map((part) => ({
         ...part,
@@ -100,7 +98,7 @@ it("saves semantic errors and keeps other POU texts while editing the program", 
   const fn = "FUNCTION F : INT F := 1; END_FUNCTION";
   original.pous = [fn, original.pous[0]!];
   const source = "PROGRAM Changed VAR x : INT; END_VAR x := Missing(1); END_PROGRAM";
-  const saved = readProject(savePanelProject(source, [], 10, original)!);
+  const saved = readProject(savePanelProject([fn, source], [], 10, original)!);
   expect(saved.diagnostics).toEqual([]);
   expect(saved.value!.pous).toEqual([fn, source]);
   expect(saved.value!.instance!.typeName).toBe("Changed");

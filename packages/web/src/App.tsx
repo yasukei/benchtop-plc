@@ -1,9 +1,10 @@
 import { compileProject } from "@benchtop-plc/compiler";
-import { projectSources } from "./panel/project.js";
+import { diagnosticPouIndex, pouSources, sameSources, type EditorDiagnostic } from "./pous.js";
+import { PouList } from "./PouList.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
 import { IoImage } from "./IoImage.js";
-import { useMemo, useRef, useSyncExternalStore } from "react";
+import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { bannerFor } from "./banner.js";
 import { catalogs } from "./catalog.js";
 import { StEditor, type StEditorHandle } from "./editor/StEditor.js";
@@ -18,20 +19,28 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const variables = useMemo(
-    () =>
-      state.loadedSource
-        ? (compileProject(projectSources(state.loadedSource, state.project)).ir?.variables ?? [])
-        : [],
-    [state.loadedSource, state.project],
+    () => (state.loadedSources ? (compileProject(state.loadedSources).ir?.variables ?? []) : []),
+    [state.loadedSources],
   );
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
   const banner = bannerFor(state);
   const editor = useRef<StEditorHandle>(null);
-  const unapplied = state.source !== state.loadedSource;
+  const unapplied = !sameSources(pouSources(state.pous), state.loadedSources);
   const online = !unapplied && !disconnected;
-  const diagnostics =
-    online && state.diagnostic ? [...state.diagnostics, state.diagnostic] : state.diagnostics;
+  const selected = state.pous[state.selectedPou];
+  const faultIndex = state.diagnostic
+    ? diagnosticPouIndex(state.pous, state.diagnostic)
+    : undefined;
+  const diagnostics: EditorDiagnostic[] =
+    online && state.diagnostic
+      ? [...state.diagnostics, { ...state.diagnostic, sourceIndex: faultIndex }]
+      : state.diagnostics;
+  const pendingFocus = useRef<EditorDiagnostic | null>(null);
+  useLayoutEffect(() => {
+    if (pendingFocus.current?.span) editor.current?.focusSpan(pendingFocus.current.span);
+    pendingFocus.current = null;
+  }, [state.selectedPou]);
 
   return (
     <div className="workbench" data-theme={appearance.resolved}>
@@ -148,16 +157,24 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 {unapplied ? text.unapplied : text.applied}
               </span>
             </div>
-            <StEditor
-              ref={editor}
-              source={state.source}
-              onChange={store.setSource}
-              diagnostics={state.diagnostics}
-              snapshot={state.snapshot}
-              online={online}
-              fault={state.diagnostic}
-              language={language}
-            />
+            <div className="pou-workspace">
+              <PouList state={state} store={store} text={text} />
+              {selected && (
+                <StEditor
+                  key={state.editorSession}
+                  ref={editor}
+                  source={state.source}
+                  onChange={store.setSource}
+                  diagnostics={state.diagnostics.filter(
+                    (diagnostic) => diagnostic.sourceIndex === state.selectedPou,
+                  )}
+                  snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
+                  online={online}
+                  fault={faultIndex === state.selectedPou ? state.diagnostic : null}
+                  language={language}
+                />
+              )}
+            </div>
             <section className="diagnostics" aria-labelledby="diagnostics-title">
               <h3 id="diagnostics-title">{text.diagnostics}</h3>
               {diagnostics.length === 0 ? (
@@ -167,9 +184,15 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                   {diagnostics.map((diagnostic, index) => (
                     <li key={index}>
                       <button
-                        disabled={!diagnostic.span}
+                        disabled={!diagnostic.span || diagnostic.sourceIndex === undefined}
                         onClick={() => {
-                          if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
+                          if (
+                            diagnostic.sourceIndex !== undefined &&
+                            diagnostic.sourceIndex !== state.selectedPou
+                          ) {
+                            pendingFocus.current = diagnostic;
+                            store.selectPou(diagnostic.sourceIndex);
+                          } else if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
                         }}
                       >
                         {diagnostic.pou && (
@@ -193,10 +216,10 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             </section>
           </section>
           <div className="side-panels">
-            <OperatorPanel state={state} store={store} text={text} />
+            <OperatorPanel state={state} store={store} text={text} language={language} />
             <IoImage state={state} text={text} />
             <VariableMonitor
-              key={state.loadedSource}
+              key={JSON.stringify(state.loadedSources)}
               state={state}
               store={store}
               text={text}

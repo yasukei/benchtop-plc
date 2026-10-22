@@ -258,3 +258,37 @@ describe("user function call checking", () => {
     rejects([main("x := LIMIT(IN := 1);"), fn()], "call.argument-count", "Main");
   });
 });
+
+it("identifies every diagnostic source independently of a readable or unique name", () => {
+  const broken = compileProject([main(), "FUNCTION", "@"]);
+  expect(broken.diagnostics.map((diagnostic) => diagnostic.sourceIndex)).toEqual([1, 2]);
+  expect(broken.diagnostics.every((diagnostic) => !diagnostic.pou)).toBe(true);
+
+  const duplicate = compileProject([
+    main(),
+    "FUNCTION Same : INT Same := 1; END_FUNCTION",
+    "FUNCTION Same : INT Same := unknown; END_FUNCTION",
+  ]);
+  expect(duplicate.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "pou.duplicate", sourceIndex: 2 }),
+  );
+  expect(duplicate.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "name.undeclared", sourceIndex: 2 }),
+  );
+
+  const collision = compileProject([main(), "FUNCTION ABS END_FUNCTION"]);
+  expect(collision.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "pou.name-collision", sourceIndex: 1 }),
+  );
+  const recursion = compileProject([
+    main(),
+    "FUNCTION Recursive : INT Recursive := Recursive(); END_FUNCTION",
+  ]);
+  expect(recursion.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "pou.recursion", sourceIndex: 1 }),
+  );
+  const project = compileProject(["FUNCTION F END_FUNCTION"]);
+  expect(
+    project.diagnostics.find((diagnostic) => diagnostic.code === "pou.program-count"),
+  ).not.toHaveProperty("sourceIndex");
+});

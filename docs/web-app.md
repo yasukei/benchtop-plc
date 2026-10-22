@@ -1,7 +1,7 @@
 # Web workbench
 
 Run `pnpm dev` to open the Vite development server. The left side displays an
-editable Structured Text program; the right side shows the operator panel, the
+editable Structured Text project with a POU list; the right side shows the operator panel, the
 I/O image and the variable monitor. The layout becomes a single column below 760
 px. The theme selector offers System (the default), Light and Dark. System
 follows the operating system's color scheme, including live changes. An explicit
@@ -37,7 +37,8 @@ retains a latched diagnostic through STOP requests and emergency-stop transition
 
 ## Browser autosave
 
-Editor text (including code that does not compile), panel layout, cycle time and
+Every POU text (including code that does not compile), its last readable name and kind,
+the selected POU, panel layout, cycle time and
 project metadata are saved to a versioned JSON record in `localStorage` 500 ms
 after the last change. Pending changes are also saved when the page is hidden or
 left. Reloading restores that work and loads compilable source into a fresh PLC
@@ -46,11 +47,37 @@ source stays in the editor with diagnostics until it is fixed and applied; it is
 never run automatically. Missing, invalid or unsupported records, or unavailable
 storage, fall back to the bundled example without blocking startup.
 
+Version 2 stores the ordered POU list and migrates version 1 autosaves from
+0.3.0, preserving the latest program draft even when it cannot be parsed.
+
 Autosave is a per-browser convenience. It is not shared between browsers or
 devices, and browser settings or storage limits may prevent persistence. Use
 **Save project** to keep or share a project. **Restore example** replaces the
 current work and is autosaved like other edits. Runtime state and `RETAIN` values
 are not saved.
+
+## POUs
+
+The list next to the editor shows each POU in project order with its kind
+(`PROGRAM`, `FUNCTION` or `FUNCTION_BLOCK`) and diagnostic count. Select a POU to
+edit its text. **Add function** appends a short `FUNCTION F1 : INT` template and
+selects it; the name uses the first available number, ignoring case. Rename a
+POU by editing its header. If the header is damaged, the list keeps the previous
+name and kind until it becomes readable again. The PROGRAM cannot be added or
+deleted through the list. Deleting a function requires confirmation.
+
+The compiler checks the whole project on every edit and before RUN. The problems
+list shows diagnostics from all POUs; selecting a located diagnostic opens its
+POU and selects the source span. Editor squiggles belong only to the selected
+POU. Inline runtime values appear only in the PROGRAM. Switching POUs does not
+reload the PLC; edits to any POU become unapplied changes.
+
+**Save project** and **Open project** preserve the ordered POU list and each exact
+text in PLCopen XML. Semantic errors, including calls to a deleted function, do
+not block saving or opening; they still block RUN. A text that cannot be parsed,
+or an initializer the file format cannot represent, blocks saving and shows the
+codec's diagnostic. Autosave still keeps those drafts. Adding function blocks is
+reserved for the next milestone step.
 
 ## Structured Text editor
 
@@ -62,7 +89,7 @@ in sync with the lexer. Enter indents ST blocks. Tab inserts two spaces at a
 cursor or indents selected lines without replacing their code. Theme and language changes
 reconfigure the existing editor without replacing its selection or undo history.
 
-The store compiles 250 ms after the last edit. Diagnostics use the existing
+The store compiles all POUs 250 ms after the last edit. Diagnostics use the existing
 English/Japanese catalog in both squiggle tooltips and a list; clicking a located
 diagnostic selects and scrolls to its source span. Editing clears stale diagnostic
 locations immediately. RUN compiles synchronously, so it also catches changes

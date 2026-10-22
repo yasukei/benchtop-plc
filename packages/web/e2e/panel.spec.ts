@@ -21,7 +21,7 @@ async function openReference(page: Page, panelLayout = layout) {
   await page.getByLabel("Open project", { exact: true }).setInputFiles({
     name: "reference.xml",
     mimeType: "application/xml",
-    buffer: Buffer.from(savePanelProject(reference, panelLayout, 10, null)!),
+    buffer: Buffer.from(savePanelProject([reference], panelLayout, 10, null)!),
   });
   await expect(page.getByRole("button", { name: "START", exact: true })).toBeVisible();
 }
@@ -98,7 +98,7 @@ test("keeps example controls separated even at twenty-percent spacing and with l
   await page.getByLabel("Open project", { exact: true }).setInputFiles({
     name: "compact.xml",
     mimeType: "application/xml",
-    buffer: Buffer.from(savePanelProject(reference, compact, 10, null)!),
+    buffer: Buffer.from(savePanelProject([reference], compact, 10, null)!),
   });
   await expect(page.locator(".positioned-part")).toHaveCount(compact.length);
   await expectNoOverlap(page);
@@ -122,7 +122,7 @@ for (const initial of ["empty", "example"] as const) {
       await page.getByLabel("Open project", { exact: true }).setInputFiles({
         name: "empty.xml",
         mimeType: "application/xml",
-        buffer: Buffer.from(savePanelProject(reference, [], 10, null)!),
+        buffer: Buffer.from(savePanelProject([reference], [], 10, null)!),
       });
       await expect(page.locator(".positioned-part")).toHaveCount(0);
     }
@@ -192,7 +192,7 @@ test("offers only each kind's palette, renders button colors and imports legacy 
     mimeType: "application/xml",
     buffer: Buffer.from(
       savePanelProject(
-        reference,
+        [reference],
         layout.map((part) =>
           part.kind === "pushbutton" || part.kind === "selector"
             ? { ...part, color: "amber" }

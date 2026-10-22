@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Manage project POUs beside the ST editor: add and delete functions, switch texts,
+  navigate project-wide diagnostics, and preserve all drafts in browser autosave
+  with migration from 0.3.0 single-program work.
+
 - Save and open an ordered collection of programs and functions in PLCopen TC6
   XML, preserving each POU's exact editor text, input/output declarations and
   optional function result type. Existing 0.3.0 project files remain readable.

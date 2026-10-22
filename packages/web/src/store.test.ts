@@ -155,11 +155,11 @@ describe("editor state", () => {
     const { store, worker } = setup();
     store.run();
     expect(worker.sent.map((message) => message.type)).toEqual(["load", "run"]);
-    expect(store.getSnapshot().loadedSource).toBeNull();
+    expect(store.getSnapshot().loadedSources).toBeNull();
     worker.receive({ type: "snapshot", snapshot });
     expect(store.getSnapshot().snapshot).toBeNull();
     worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
-    expect(store.getSnapshot().loadedSource).toBe(store.getSnapshot().source);
+    expect(store.getSnapshot().loadedSources).toEqual([store.getSnapshot().source]);
     store.run();
     expect(worker.sent.map((message) => message.type)).toEqual(["load", "run", "run"]);
     worker.receive({ type: "state", state: "RUN" });
@@ -174,7 +174,7 @@ describe("editor state", () => {
     ]);
     expect(store.getSnapshot().snapshot).toBeNull();
     worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
-    expect(store.getSnapshot().loadedSource).toBe(store.getSnapshot().source);
+    expect(store.getSnapshot().loadedSources).toEqual([store.getSnapshot().source]);
     store.dispose();
   });
   it("clears a debug rejection when RUN applies changes or resumes the loaded source", () => {
@@ -302,7 +302,7 @@ it("restores the bundled example's source, panel and cycle through the project l
   // Replacing a project cannot race an unacknowledged load.
   expect(store.restoreExample()).toBe(false);
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
-  expect(store.getSnapshot().loadedSource).toBe(restored.source);
+  expect(store.getSnapshot().loadedSources).toEqual([restored.source]);
   store.dispose();
 });
 
@@ -347,14 +347,67 @@ it("invalidates applied code when opening unchanged main text with a removed fun
   const xml = (pous: string[]) => writeProject({ ...metadata, pous }).value!;
   expect(store.openProject(xml([main, fn]))).toBe(true);
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
-  expect(store.getSnapshot().loadedSource).toBe(main);
+  expect(store.getSnapshot().loadedSources).toEqual([main, fn]);
   expect(store.openProject(xml([main]))).toBe(true);
-  expect(store.getSnapshot()).toMatchObject({ source: main, loadedSource: null, snapshot: null });
+  expect(store.getSnapshot()).toMatchObject({ source: main, loadedSources: null, snapshot: null });
   worker.sent.length = 0;
   store.run();
   expect(worker.sent).toEqual([]);
   expect(store.getSnapshot().diagnostics.map((item) => item.code)).toContain(
     "call.unknown-function",
   );
+  store.dispose();
+});
+
+it("switches POUs without reloading, reloads on function edits, and blocks Run after deletion", () => {
+  const { store, worker } = setup();
+  store.setSource("PROGRAM Main VAR result : INT; END_VAR result := F1(21); END_PROGRAM");
+  store.addFunction();
+  store.setSource("FUNCTION F1 : INT VAR_INPUT n : INT; END_VAR F1 := n * 2; END_FUNCTION");
+  store.run();
+  expect(worker.sent.map((message) => message.type)).toEqual(["load", "run"]);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  store.selectPou(0);
+  store.run();
+  expect(worker.sent.map((message) => message.type)).toEqual(["load", "run", "run"]);
+  store.selectPou(1);
+  store.setSource(store.getSnapshot().source.replace("n * 2", "n * 3"));
+  store.run();
+  expect(worker.sent.slice(-2).map((message) => message.type)).toEqual(["load", "run"]);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  store.deletePou(1);
+  expect(store.getSnapshot().selectedPou).toBe(0);
+  const count = worker.sent.length;
+  store.run();
+  expect(worker.sent).toHaveLength(count);
+  expect(store.getSnapshot().diagnostics).toContainEqual(
+    expect.objectContaining({ code: "call.unknown-function", sourceIndex: 0 }),
+  );
+  const xml = store.saveProject()!;
+  expect(xml).toBeTruthy();
+  expect(store.openProject(xml)).toBe(true);
+  expect(store.getSnapshot().diagnostics).toContainEqual(
+    expect.objectContaining({ code: "call.unknown-function" }),
+  );
+  store.dispose();
+});
+
+it("saves and reopens all three POU texts in order, and explains unparseable drafts", () => {
+  const { store, worker } = setup();
+  store.addFunction();
+  store.addFunction();
+  const sources = store.getSnapshot().pous.map((pou) => pou.source);
+  const xml = store.saveProject()!;
+  expect(readProject(xml).value!.pous).toEqual(sources);
+  expect(store.openProject(xml)).toBe(true);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(store.getSnapshot().pous.map((pou) => pou.source)).toEqual(sources);
+  store.selectPou(2);
+  store.setSource("FUNCTION");
+  expect(store.getSnapshot().pous[2]!.name).toBe("F2");
+  expect(store.saveProject()).toBeNull();
+  expect(store.getSnapshot().saveDiagnostics.length).toBeGreaterThan(0);
+  store.deletePou(0);
+  expect(store.getSnapshot().pous).toHaveLength(3);
   store.dispose();
 });

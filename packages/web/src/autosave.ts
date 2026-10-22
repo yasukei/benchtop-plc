@@ -1,4 +1,5 @@
 import type { Project } from "@benchtop-plc/project";
+import { createPous, derivePou, initialPouIndex, type EditorPou } from "./pous.js";
 import type { BrowserStorage } from "./browser-storage.js";
 import { readLayout, type PanelLayout } from "./panel/layout.js";
 
@@ -7,7 +8,8 @@ export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
-  source: string;
+  pous: EditorPou[];
+  selectedPou: number;
   layout: PanelLayout;
   cycleMs: CycleMs;
   project: Project | null;
@@ -69,18 +71,48 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
       value.project.pous = [value.project.program];
       delete value.project.program;
     }
+    if (!record(value) || ![1, 2].includes(value.version as number)) return null;
     if (
-      !record(value) ||
-      value.version !== 1 ||
-      typeof value.source !== "string" ||
       !cycleOptions.includes(value.cycleMs as CycleMs) ||
       !(value.project === null || isProject(value.project))
     )
       return null;
+    let pous: EditorPou[];
+    let selectedPou: number;
+    if (value.version === 1) {
+      if (typeof value.source !== "string") return null;
+      pous = createPous(value.project?.pous.length ? value.project.pous : [value.source]);
+      selectedPou = initialPouIndex(pous);
+      // The standalone source contains the latest edits, including unparseable drafts.
+      pous[selectedPou] = derivePou(value.source, pous[selectedPou]);
+    } else {
+      if (
+        !Array.isArray(value.pous) ||
+        !value.pous.every(
+          (pou: unknown) =>
+            record(pou) &&
+            typeof pou.source === "string" &&
+            typeof pou.name === "string" &&
+            ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(pou.kind as string),
+        )
+      )
+        return null;
+      if (
+        !Number.isInteger(value.selectedPou) ||
+        (value.selectedPou as number) < 0 ||
+        (value.pous.length
+          ? (value.selectedPou as number) >= value.pous.length
+          : value.selectedPou !== 0)
+      )
+        return null;
+      pous = value.pous as EditorPou[];
+      selectedPou = value.selectedPou as number;
+    }
     const layout = readLayout(value.layout);
     if (!layout) return null;
     return {
-      source: value.source,
+      pous,
+      selectedPou,
       layout,
       cycleMs: value.cycleMs as CycleMs,
       project: value.project,
@@ -105,7 +137,7 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
     clearTimeout(timer);
     if (!pending) return;
     try {
-      storage?.setItem(autosaveStorageKey, JSON.stringify({ version: 1, ...pending }));
+      storage?.setItem(autosaveStorageKey, JSON.stringify({ version: 2, ...pending }));
     } catch {
       // Editing remains available when storage is blocked or full.
     }
@@ -114,7 +146,8 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
   const unsubscribe = store.subscribe(() => {
     const next = store.getSnapshot();
     if (
-      next.source === previous.source &&
+      next.pous === previous.pous &&
+      next.selectedPou === previous.selectedPou &&
       next.layout === previous.layout &&
       next.cycleMs === previous.cycleMs &&
       next.project === previous.project
@@ -122,7 +155,8 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
       return;
     previous = next;
     pending = {
-      source: next.source,
+      pous: next.pous,
+      selectedPou: next.selectedPou,
       layout: next.layout,
       cycleMs: next.cycleMs,
       project: next.project,

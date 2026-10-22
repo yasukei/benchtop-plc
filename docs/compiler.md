@@ -5,18 +5,20 @@ single-program callers and `compileProject(sources: readonly string[]): CompileR
 for an ordered list of POU texts, each containing exactly one declaration. It runs the
 [parser](compiler-parser.md), [semantic checker](type-checking.md) and IR lowering
 in order. Success returns `{ ir: ProgramIR, diagnostics }`, with any portability warnings. Failure returns
-`{ diagnostics: Diagnostic[] }` with the `ir` property omitted; no partially valid
+`{ diagnostics: CompileDiagnostic[] }` with the `ir` property omitted; no partially valid
 IR is exposed. Diagnostics retain the earlier stage's codes, arguments and spans,
-and carry the source POU name in `pou` when its header is known. Project-level
-program-count errors omit `pou` and `span`.
+and carry the source POU name in `pou` when its header is known. Every `compileProject` diagnostic
+belonging to a POU also carries a zero-based `sourceIndex` into the input list,
+including lexer errors and diagnostics for duplicated names. Project-level
+program-count errors omit `pou`, `sourceIndex` and `span`. The single-source
+`compile` entry point preserves its existing diagnostic shape without `sourceIndex`.
 
 A project requires exactly one `PROGRAM`. `parsePou(source)` parses a `PROGRAM` or
 `FUNCTION`; `parse(source)` remains the single-program parser used by the project
 codec. User function blocks are recognized but rejected until their implementation.
 Project-wide compilation collects signatures before checking any bodies, so forward
 calls work, and checks the complete call graph for direct or indirect recursion.
-See [ADR 0014](adr/0014-user-defined-pous.md). The web editor and PLCopen XML codec
-still handle a single program; multi-POU editing and exchange are separate issues.
+See [ADR 0014](adr/0014-user-defined-pous.md). The web editor manages the ordered POU list and PLCopen XML preserves each text.
 
 `lower(checked): ProgramIR` is also available for callers that already have a
 successful `check(ast)` result. It expects the AST and its semantic side tables
