@@ -147,6 +147,24 @@ describe("overloaded standard function blocks", () => {
     ]);
   });
 
+  it.each(["a(PV := b.CV); b(PV := a.CV);", "b(PV := a.CV); a(PV := b.CV);"])(
+    "keeps cyclic variants with fixed declaration order: %s",
+    (body) => {
+      expect(variants("a, b: CTU;", body)).toEqual(["CTU", "CTU"]);
+    },
+  );
+
+  it.each(["a(PV := b.CV); b(PV := DINT#100);", "b(PV := DINT#100); a(PV := b.CV);"])(
+    "checks dependent bindings with fixed declaration order: %s",
+    (body) => {
+      const result = compile(source("a, b: CTU;", body));
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics).toMatchObject([
+        { code: "type.assign-mismatch", args: { from: "DINT", to: "INT" } },
+      ]);
+    },
+  );
+
   it.each(["b.CV", "b.PV", "(b.CV + DINT#1)", "TO_DINT(b.PV)", "MAX(b.CV, DINT#1)"])(
     "excludes the entire expression reading an inferred member: %s",
     (value) => {
