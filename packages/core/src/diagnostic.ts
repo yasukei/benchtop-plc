@@ -37,6 +37,7 @@ export interface DiagnosticArgs {
   "decl.address-out-of-range": { address: string };
   "decl.nonconstant-initializer": { name: string };
   "decl.fb-initializer": { name: string };
+  "decl.in-out-initializer": { name: string };
   "pou.duplicate": { name: string };
   "pou.name-collision": { name: string };
   "pou.program-count": { found: number };

@@ -172,6 +172,7 @@ function validateInitializers(program: SplitProgram): void {
           item.severity === "error" &&
           item.code !== "name.undeclared" &&
           item.code !== "decl.unknown-type" &&
+          item.code !== "decl.in-out-initializer" &&
           item.span &&
           (item.span.line > span.line ||
             (item.span.line === span.line && item.span.column >= span.column)) &&

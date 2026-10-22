@@ -256,8 +256,8 @@ is reported on the later declaration. Variables cannot reuse any POU name;
 or function block. The function's implicit result variable is the sole exception:
 inside its body the function name can be assigned and read.
 
-A FUNCTION supports elementary `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` declarations,
-with optional initializers. `FUNCTION F : REAL` returns its result variable;
+A FUNCTION supports elementary `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` declarations.
+Initializers are optional except on `VAR_IN_OUT`, where they are forbidden. `FUNCTION F : REAL` returns its result variable;
 `FUNCTION F` has no result and is callable only as a statement. Functions cannot
 declare `VAR_TEMP`, FB instances, or direct addresses.
 A PROGRAM cannot be called and cannot declare `VAR_INPUT`, `VAR_OUTPUT` or
@@ -300,6 +300,9 @@ scan; block VAR_TEMP restarts each call. Neither has a monitored VariableId. A t
 
 `VAR_IN_OUT` parameters use `:=` in formal calls and must be supplied on every
 call (`call.missing-in-out`), including repeated calls to a block instance.
+In-out declarations cannot have initializers (`decl.in-out-initializer`): the value
+always belongs to the caller's actual variable. This is a project restriction;
+verification against the 4th edition remains pending with the other ADR 0014 rules.
 The actual must be a writable scalar variable of the caller, with exactly the
 parameter's elementary type; there is no contextual literal typing or widening.
 Expressions, literals, parenthesized expressions, bit access and `inst.X` members

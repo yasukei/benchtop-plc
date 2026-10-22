@@ -62,17 +62,17 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Derived types and variables
 
-| Feature                                      | Status  | Notes                                                                                                                                           |
-| -------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VAR` with initial values                    | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected                                            |
-| Directly represented variables `%IX`, `%QX`  | Partial | PROGRAM VAR only (restriction; no AT on VAR_TEMP); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                                        |
-| `VAR_INPUT`, `VAR_OUTPUT`                    | Partial | Elementary function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                                        |
-| `VAR_TEMP`                                   | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)            |
-| `VAR_IN_OUT`                                 | Partial | Elementary FUNCTION/FUNCTION_BLOCK aliases; exact-type caller variable required every call; formal only, no instance/bit actuals (restrictions) |
-| `VAR_GLOBAL`, `VAR_EXTERNAL`                 | No      | Deferred                                                                                                                                        |
-| `CONSTANT`, `RETAIN`, `NON_RETAIN`           | No      |                                                                                                                                                 |
-| `TYPE` declarations, enumerations, subranges | No      |                                                                                                                                                 |
-| Arrays, structures, references               | No      |                                                                                                                                                 |
+| Feature                                      | Status  | Notes                                                                                                                                                           |
+| -------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VAR` with initial values                    | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected                                                            |
+| Directly represented variables `%IX`, `%QX`  | Partial | PROGRAM VAR only (restriction; no AT on VAR_TEMP); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                                                        |
+| `VAR_INPUT`, `VAR_OUTPUT`                    | Partial | Elementary function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                                                        |
+| `VAR_TEMP`                                   | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                            |
+| `VAR_IN_OUT`                                 | Partial | Elementary FUNCTION/FUNCTION_BLOCK aliases; exact-type caller variable required every call; formal only, no initializers or instance/bit actuals (restrictions) |
+| `VAR_GLOBAL`, `VAR_EXTERNAL`                 | No      | Deferred                                                                                                                                                        |
+| `CONSTANT`, `RETAIN`, `NON_RETAIN`           | No      |                                                                                                                                                                 |
+| `TYPE` declarations, enumerations, subranges | No      |                                                                                                                                                                 |
+| Arrays, structures, references               | No      |                                                                                                                                                                 |
 
 ## Program organization units
 

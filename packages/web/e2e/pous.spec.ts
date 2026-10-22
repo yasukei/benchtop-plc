@@ -230,3 +230,24 @@ END_PROGRAM`);
   expect(xml).toContain("<inOutVars>");
   expect(readProject(xml).value!.pous[1]).toContain("VAR_IN_OUT");
 });
+
+test("reports an in-out declaration initializer in both languages", async ({ page }) => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await list.getByRole("button", { name: "Add function", exact: true }).click();
+  await editor.fill(`FUNCTION F1
+VAR_IN_OUT n : INT := 5; END_VAR
+END_FUNCTION`);
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "In-out parameter n cannot have an initializer; its value comes from the caller's variable.",
+  );
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(
+    page.getByText(
+      "入出力パラメーターnには初期値を指定できません。値は呼び出し元の変数から取得します。",
+      { exact: false },
+    ),
+  ).toBeVisible();
+});

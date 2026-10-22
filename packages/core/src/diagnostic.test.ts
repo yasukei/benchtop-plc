@@ -27,6 +27,7 @@ const examples = {
   "decl.address-out-of-range": { address: "%IX1.0" },
   "decl.nonconstant-initializer": { name: "Counter" },
   "decl.fb-initializer": { name: "Timer" },
+  "decl.in-out-initializer": { name: "n" },
   "pou.duplicate": { name: "Compute" },
   "pou.name-collision": { name: "TON" },
   "pou.program-count": { found: 0 },

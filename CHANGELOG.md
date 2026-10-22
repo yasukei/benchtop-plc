@@ -13,6 +13,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 - `VAR_IN_OUT` parameters on functions and function blocks, passed as exact-type
   caller variable aliases on every formal call. Writes are visible immediately,
   aliases can be passed on, and monitoring and forces use the actual variable's ID.
+  In-out declaration initializers are rejected because values belong to the caller.
 - Save and open in-out sections as PLCopen XML `inOutVars`, including canonical
   imports without preserved source.
 

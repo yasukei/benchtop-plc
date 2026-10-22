@@ -159,6 +159,12 @@ class Checker {
     const userBlock = this.blockIds.get(type);
     const block = isBlock(type) || userBlock !== undefined;
     const known = isScalar(type) || block;
+    if (declaration.section === "VAR_IN_OUT" && declaration.initializer)
+      this.report(
+        "decl.in-out-initializer",
+        { name: declaration.names[0].name },
+        declaration.initializer.span,
+      );
     if (block && declaration.section)
       this.report(
         "fb.invalid-instance-section",

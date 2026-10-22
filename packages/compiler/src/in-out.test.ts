@@ -85,3 +85,28 @@ it("accepts empty in-out sections and keeps alias slots out of monitored storage
   expect(result.ir?.variables.map((variable) => variable.key)).not.toContain("INST.N");
   expect(JSON.parse(JSON.stringify(result.ir))).toEqual(result.ir);
 });
+
+it.each(["FUNCTION", "FUNCTION_BLOCK"])(
+  "rejects initializers on %s in-outs, even in unused POUs",
+  (kind) => {
+    for (const initializer of ["0", "5", "1 + 2"]) {
+      const source = `${kind} Callee
+VAR_IN_OUT
+  a, b : INT := ${initializer};
+END_VAR
+END_${kind}`;
+      const result = compileProject(["PROGRAM Main END_PROGRAM", source]);
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics).toEqual([
+        {
+          code: "decl.in-out-initializer",
+          severity: "error",
+          args: { name: "a" },
+          pou: "Callee",
+          sourceIndex: 1,
+          span: { line: 3, column: 17, endLine: 3, endColumn: 17 + initializer.length },
+        },
+      ]);
+    }
+  },
+);

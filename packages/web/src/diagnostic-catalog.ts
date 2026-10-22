@@ -59,6 +59,8 @@ export const diagnosticEn = {
     `Initializer for ${name} must be a constant expression.`,
   "decl.fb-initializer": ({ name }) =>
     `Function block instance ${name} cannot have an initializer.`,
+  "decl.in-out-initializer": ({ name }) =>
+    `In-out parameter ${name} cannot have an initializer; its value comes from the caller's variable.`,
   "pou.duplicate": ({ name }) => `Duplicate POU: ${name}.`,
   "pou.name-collision": ({ name }) => `POU ${name} conflicts with a standard name.`,
   "pou.program-count": ({ found }) => `A project requires exactly one PROGRAM; found ${found}.`,
@@ -169,6 +171,8 @@ export const diagnosticJa = {
   "decl.nonconstant-initializer": ({ name }) => `${name}の初期値には定数式が必要です。`,
   "decl.fb-initializer": ({ name }) =>
     `ファンクションブロックのインスタンス${name}には初期値を指定できません。`,
+  "decl.in-out-initializer": ({ name }) =>
+    `入出力パラメーター${name}には初期値を指定できません。値は呼び出し元の変数から取得します。`,
   "pou.duplicate": ({ name }) => `POUが重複しています: ${name}。`,
   "pou.name-collision": ({ name }) => `POU ${name}は標準の名前と衝突しています。`,
   "pou.program-count": ({ found }) => `プロジェクトにはPROGRAMが1つ必要ですが、${found}個です。`,

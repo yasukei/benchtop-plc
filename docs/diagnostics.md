@@ -111,6 +111,7 @@ as syntax errors.
 | `decl.address-out-of-range`      | Valid address syntax refers outside supported I/O    | `{ address: string }`                                                                            |
 | `decl.nonconstant-initializer`   | Initial value is not a constant expression           | `{ name: string }`                                                                               |
 | `decl.fb-initializer`            | Initial value supplied for an FB instance            | `{ name: string }`                                                                               |
+| `decl.in-out-initializer`        | Initial value supplied for an in-out parameter       | `{ name: string }`                                                                               |
 | `name.undeclared`                | Identifier has no declaration                        | `{ name: string }`                                                                               |
 | `type.portability`               | Warning: conversion differs from vendor runtimes     | `{ function: string }`                                                                           |
 | `type.invalid-constant`          | Invalid constant, literal range or REAL overflow     | `{}`                                                                                             |
@@ -217,3 +218,9 @@ In-out call errors apply to both functions and user function blocks:
 `call.missing-in-out` spans the call. External reads/writes of `inst.io` report
 `fb.unknown-member`. Positional functions with in-outs report
 `call.formal-required`; positional blocks retain `fb.unsupported-call`.
+
+`decl.in-out-initializer` rejects an initializer on a `VAR_IN_OUT` declaration,
+with `{ name: string }` naming its first declared variable and a span covering
+the initializer expression. It applies to both functions and function blocks,
+including unused definitions. XML exchange preserves this representable semantic
+error, while retaining the usual initializer type and range checks.
