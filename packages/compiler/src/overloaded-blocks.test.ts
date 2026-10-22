@@ -61,9 +61,9 @@ describe("overloaded standard function blocks", () => {
     (binding) => {
       const result = compile(source("c: CTU;", `c(PV := ${binding});`));
       expect(result.ir).toBeUndefined();
-      expect(result.diagnostics).toContainEqual(
-        expect.objectContaining({ code: "fb.no-matching-variant" }),
-      );
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+        "fb.no-matching-variant",
+      ]);
     },
   );
 
@@ -71,19 +71,35 @@ describe("overloaded standard function blocks", () => {
     for (const body of ["c(PV := LINT#1); c.PV := ULINT#1;", "c.PV := ULINT#1; c(PV := LINT#1);"]) {
       const result = compile(source("c: CTU;", body));
       expect(result.ir).toBeUndefined();
-      expect(result.diagnostics).toContainEqual(
-        expect.objectContaining({ code: "fb.no-matching-variant" }),
-      );
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+        "fb.no-matching-variant",
+      ]);
     }
   });
 
   it("rejects incompatible timer selecting types", () => {
     const result = compile(source("t: TON;", "t(PT := T#1s); t.PT := DINT#1000;"));
     expect(result.ir).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "fb.no-matching-variant" }),
-    );
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "fb.no-matching-variant",
+    ]);
   });
+
+  it.each([
+    ["c(PV := a); c.PV := b; c(PV := 100000); c.PV := 100000;", ["fb.no-matching-variant"]],
+    ["c(PV := d.Q);", ["fb.no-matching-variant"]],
+    ["c(PV := BYTE#1); c.PV := missing;", ["fb.no-matching-variant", "name.undeclared"]],
+    ["c(PV := BYTE#1, CU := INT#1);", ["fb.no-matching-variant", "type.assign-mismatch"]],
+    ["c(PV := BYTE#1, PV := BYTE#2);", ["fb.no-matching-variant", "fb.duplicate-input"]],
+    ["c(PV := BYTE#1); c.PV := INT#40000;", ["fb.no-matching-variant", "type.invalid-constant"]],
+  ] as const)(
+    "avoids default preset errors after failed selection while checking expressions: %s",
+    (body, codes) => {
+      const result = compile(source("c: CTU; a: LINT; b: ULINT; d: TON;", body));
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(codes);
+    },
+  );
 
   it.each(["100000", "(50000 + 50000)"])(
     "leaves %s untyped until checking against INT",

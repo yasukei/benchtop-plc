@@ -248,7 +248,10 @@ bit-index diagnostics. All codes have English and Japanese UI templates.
 Overloaded standard timers and counters report `fb.no-matching-variant` on the
 instance's declaration name when selecting `PT`/`PV` types have no common type or
 no accepting variant (for example LINT with ULINT, or a BYTE preset). `types`
-contains the selecting binding types in source order. Non-selecting bindings are
-checked after resolution with ordinary assignment diagnostics; an untyped
+contains the selecting binding types in source order. After selection fails,
+preset bindings are still checked for expression and parameter errors, but are
+not contextually typed or checked for assignment against the fallback INT/TIME
+variant. This avoids misleading narrowing diagnostics. For successful selection,
+non-selecting bindings are checked after resolution with ordinary assignment diagnostics; an untyped
 `c(PV := 100000)` with no typed binding reports `type.invalid-constant` against
 the default INT. See [type-checking.md](type-checking.md#overloaded-standard-timers-and-counters).
