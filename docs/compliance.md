@@ -182,7 +182,7 @@ operands using exact bigint fractions with one nearest-even rounding. LTIME_TO_T
 truncates toward zero, then wraps. Integer-to-real and real-to-integer conversions
 round nearest, ties to even; 64-bit integers require an explicit conversion to reals.
 LREAL ↔ LWORD follows IEEE binary64 bit reinterpretation and reports the same
-portability warning as REAL ↔ DWORD. LTIME timers remain unsupported (#74).
+portability warning as REAL ↔ DWORD.
 
 Calendar conversion semantics follow ADR 0013, based on the 3rd edition text and
 secondary sources for the 4th edition long forms: DT → DATE/TOD/LTOD/LDT,

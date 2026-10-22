@@ -8,6 +8,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
+All elementary data types except strings, with the standard's conversion and literal rules and the standard functions and function blocks for them. Contains breaking changes to accepted Structured Text; see Changed.
+
 ### Changed
 
 - Conversion portability warnings now name the resolved function and explain the
@@ -133,6 +137,7 @@ First release: the single-file HTML prototype rebuilt as a tested monorepo.
   setting unless you choose Light or Dark.
 - The app opens with the blink example and its panel.
 
-[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/yasukei/benchtop-plc/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yasukei/benchtop-plc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yasukei/benchtop-plc/releases/tag/v0.1.0
