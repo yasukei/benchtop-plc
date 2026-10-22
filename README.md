@@ -37,9 +37,11 @@ Dependencies point inward, `web → compiler | runtime | project → core` (and
 
 The web app opens the bundled blink example (or the work autosaved in this
 browser), compiles it and runs it in a Web Worker. The
-[blink](examples/blink/) and [running light](examples/running-light/) reference
-projects include documented panel controls and virtual-time conformance traces.
-Load the running light XML with **Open project**. See
+[blink](examples/blink/), [running light](examples/running-light/) and
+[motor starters](examples/motor-starters/) reference projects include documented
+panel controls and virtual-time conformance traces. Motor starters reuses a
+user-defined function block for two interlocked motors, with a nested TON start
+delay and a shared function. Load an example's XML with **Open project**. See
 [the web app guide](docs/web-app.md) for the host boundary and browser tests.
 
 Contributor and agent conventions are in [`AGENTS.md`](AGENTS.md).

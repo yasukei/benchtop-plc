@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { readProject } from "@benchtop-plc/project";
+import { readProject, writeProject } from "@benchtop-plc/project";
 import { parseTrace, runTrace } from "./trace.js";
 
 const root = new URL("./", import.meta.url);
@@ -39,5 +39,20 @@ describe("data-driven ST conformance", () => {
     expect(result.value.pous[0]!).toBe(read("running-light/program.st"));
     expect(result.value.task.interval).toBe("PT0.01S");
     runTrace("examples/running-light", result.value.pous[0]!, loadTrace("running-light"));
+  });
+  it("preserves the motor starters POUs on save/reopen and passes their interlocked trace", () => {
+    const result = readProject(read("../../examples/motor-starters/project.xml"));
+    expect(result.diagnostics).toEqual([]);
+    if (!result.value) throw new Error("Expected the motor starters project");
+    expect(result.value.pous).toEqual(
+      ["program", "motor-starter", "can-start"].map((name) => read(`motor-starters/${name}.st`)),
+    );
+    expect(result.value.task.interval).toBe("PT0.01S");
+    const saved = writeProject(result.value);
+    expect(saved.diagnostics).toEqual([]);
+    expect(saved.value).not.toBeNull();
+    const reopened = readProject(saved.value!);
+    expect(reopened).toEqual(result);
+    runTrace("examples/motor-starters", reopened.value!.pous, loadTrace("motor-starters"));
   });
 });
