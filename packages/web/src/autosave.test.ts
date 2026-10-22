@@ -160,3 +160,18 @@ describe("browser autosave", () => {
     store.dispose();
   });
 });
+
+it("migrates the single-program metadata of a 0.3.0 autosave", () => {
+  const { store } = setup();
+  const work = store.getSnapshot();
+  const { pous, ...metadata } = work.project!;
+  const legacy = { version: 1, ...work, project: { ...metadata, program: pous[0] } };
+  const restored = readAutosave({ getItem: () => JSON.stringify(legacy), setItem: vi.fn() });
+  expect(restored).toEqual({
+    source: work.source,
+    layout: work.layout,
+    cycleMs: work.cycleMs,
+    project: work.project,
+  });
+  store.dispose();
+});

@@ -1,4 +1,5 @@
-import { compile } from "@benchtop-plc/compiler";
+import { compileProject } from "@benchtop-plc/compiler";
+import { projectSources } from "./panel/project.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
 import { IoImage } from "./IoImage.js";
@@ -17,8 +18,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const variables = useMemo(
-    () => (state.loadedSource ? (compile(state.loadedSource).ir?.variables ?? []) : []),
-    [state.loadedSource],
+    () =>
+      state.loadedSource
+        ? (compileProject(projectSources(state.loadedSource, state.project)).ir?.variables ?? [])
+        : [],
+    [state.loadedSource, state.project],
   );
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";

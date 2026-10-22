@@ -28,7 +28,7 @@ describe("panel project persistence", () => {
       project.contentHeader.version = "Project revision 3";
       const original = structuredClone(project);
       const saved = readProject(
-        savePanelProject(project.program, opened.layout, 10, project)!,
+        savePanelProject(project.pous[0]!, opened.layout, 10, project)!,
       ).value!;
       expect(saved).toEqual({
         ...original,
@@ -47,8 +47,8 @@ describe("panel project persistence", () => {
     expect(readProject(xml).value?.panel).toBeNull();
     const opened = openPanelProject(xml);
     expect(opened?.layout).toEqual([]);
-    expect(opened?.project.program).toContain("PROGRAM Main");
-    expect(opened?.project.program).toContain("Running := (StartPB OR Running) AND NOT StopPB;");
+    expect(opened?.project.pous[0]).toContain("PROGRAM Main");
+    expect(opened?.project.pous[0]).toContain("Running := (StartPB OR Running) AND NOT StopPB;");
   });
   it.each([{}, false, [{ kind: "led" }]])("rejects malformed non-null panel data: %j", (panel) => {
     const project = readProject(sampleXml).value!;
@@ -66,7 +66,7 @@ describe("panel project persistence", () => {
     expect(xml).toContain("http://www.plcopen.org/xml/tc6_0201");
     const opened = openPanelProject(xml)!;
     expect(opened.layout).toEqual(layout);
-    expect(opened.project.program).toBe(demoSource);
+    expect(opened.project.pous[0]!).toBe(demoSource);
     expect(opened.project.task.interval).toBe("PT0.02S");
     opened.project.contentHeader.author = "Example";
     const reopened = openPanelProject(savePanelProject(demoSource, layout, 50, opened.project)!)!;
@@ -93,4 +93,16 @@ describe("panel project persistence", () => {
       })),
     );
   });
+});
+
+it("saves semantic errors and keeps other POU texts while editing the program", () => {
+  const original = readProject(sampleXml).value!;
+  const fn = "FUNCTION F : INT F := 1; END_FUNCTION";
+  original.pous = [fn, original.pous[0]!];
+  const source = "PROGRAM Changed VAR x : INT; END_VAR x := Missing(1); END_PROGRAM";
+  const saved = readProject(savePanelProject(source, [], 10, original)!);
+  expect(saved.diagnostics).toEqual([]);
+  expect(saved.value!.pous).toEqual([fn, source]);
+  expect(saved.value!.instance!.typeName).toBe("Changed");
+  expect(original.pous[1]).toContain("PROGRAM Main");
 });

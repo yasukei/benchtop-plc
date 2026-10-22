@@ -222,7 +222,9 @@ warning; check rounding expectations when porting a program. See
 
 Multi-POU compilation accepts exactly one PROGRAM plus functions, each in its own
 text, with one case-insensitive namespace shared with all standard names.
-The web editor and PLCopen XML still handle a single program (#96, #97).
+PLCopen XML preserves ordered program and function sources, including parseable
+projects with semantic errors. The web editor shows the first program (or first
+POU); the POU list is tracked in #97.
 
 The following ADR 0014 choices follow the 3rd edition and secondary sources and
 still need verification against the 4th edition: functions without a result type,

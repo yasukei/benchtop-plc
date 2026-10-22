@@ -28,16 +28,16 @@ describe("data-driven ST conformance", () => {
     const result = readProject(read("../../examples/blink/project.xml"));
     expect(result.diagnostics).toEqual([]);
     if (!result.value) throw new Error("Expected the blink project");
-    expect(result.value.program).toBe(read("reference/program.st"));
+    expect(result.value.pous[0]!).toBe(read("reference/program.st"));
     expect(result.value.task.interval).toBe("PT0.01S");
-    runTrace("examples/blink", result.value.program, loadTrace("reference"));
+    runTrace("examples/blink", result.value.pous[0]!, loadTrace("reference"));
   });
   it("loads and compiles the running light XML example and passes its bidirectional trace", () => {
     const result = readProject(read("../../examples/running-light/project.xml"));
     expect(result.diagnostics).toEqual([]);
     if (!result.value) throw new Error("Expected the running light project");
-    expect(result.value.program).toBe(read("running-light/program.st"));
+    expect(result.value.pous[0]!).toBe(read("running-light/program.st"));
     expect(result.value.task.interval).toBe("PT0.01S");
-    runTrace("examples/running-light", result.value.program, loadTrace("running-light"));
+    runTrace("examples/running-light", result.value.pous[0]!, loadTrace("running-light"));
   });
 });

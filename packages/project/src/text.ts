@@ -1,4 +1,4 @@
-import { lex, parse } from "@benchtop-plc/compiler";
+import { lex, parsePou } from "@benchtop-plc/compiler";
 import type { Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import type { ProjectResult, SplitProgram, VariableDeclaration } from "./model.js";
 
@@ -11,14 +11,27 @@ function offset(source: string, span: SourceSpan, end = false): number {
 }
 
 export function splitProgram(source: string): ProjectResult<SplitProgram> {
-  const result = parse(source);
+  const result = parsePou(source);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
+  const unsupported =
+    ast.kind === "functionBlock"
+      ? "pou/@pouType"
+      : ast.sections?.find((section) => !["VAR_INPUT", "VAR_OUTPUT"].includes(section.name))?.name;
+  if (unsupported)
+    return {
+      value: null,
+      diagnostics: [
+        { code: "project.unsupported", severity: "error", args: { path: unsupported } },
+      ],
+    };
   // Lexer tokens supply boundaries without mistaking keywords inside comments for delimiters.
   const { tokens } = lex(source);
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
-  const start = endVars.at(-1)?.span ?? ast.name.span;
-  const end = tokens!.find((token) => token.key === "END_PROGRAM")!.span;
+  const start = endVars.at(-1)?.span ?? ast.resultType?.span ?? ast.name.span;
+  const end = tokens!.find(
+    (token) => token.key === (ast.kind === "program" ? "END_PROGRAM" : "END_FUNCTION"),
+  )!.span;
   const variables: VariableDeclaration[] = [];
   for (const declaration of ast.declarations) {
     if (declaration.address && declaration.names.length !== 1) {
@@ -32,16 +45,14 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
     }
     for (const name of declaration.names) {
       variables.push({
+        section:
+          declaration.section === "VAR_INPUT"
+            ? "inputVars"
+            : declaration.section === "VAR_OUTPUT"
+              ? "outputVars"
+              : "localVars",
         name: name.name,
-        type:
-          (
-            {
-              TIME_OF_DAY: "TOD",
-              DATE_AND_TIME: "DT",
-              LTIME_OF_DAY: "LTOD",
-              LDATE_AND_TIME: "LDT",
-            } as Record<string, string>
-          )[declaration.typeName.key] ?? declaration.typeName.key,
+        type: normalizeType(declaration.typeName.key),
         ...(declaration.address ? { address: declaration.address.text } : {}),
         ...(declaration.initializer
           ? {
@@ -56,7 +67,9 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
   }
   return {
     value: {
+      kind: ast.kind as "program" | "function",
       name: ast.name.name,
+      ...(ast.resultType ? { returnType: normalizeType(ast.resultType.key) } : {}),
       variables,
       body: source.slice(offset(source, start, true), offset(source, end)),
     },
@@ -72,9 +85,30 @@ export function canonicalBody(body: string): string {
 
 /** External files without our source extension receive a canonical declaration section. */
 export function joinProgram(program: SplitProgram): string {
-  const declarations = program.variables.map(
-    (variable) =>
-      `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};`,
+  let declarations = "";
+  let section: VariableDeclaration["section"] | undefined;
+  for (const variable of program.variables) {
+    if (section !== variable.section) {
+      if (section) declarations += "END_VAR\n";
+      section = variable.section;
+      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT" }[section]}\n`;
+    }
+    declarations += `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};\n`;
+  }
+  if (section) declarations += "END_VAR";
+  const keyword = program.kind === "program" ? "PROGRAM" : "FUNCTION";
+  return `${keyword} ${program.name}${program.returnType === undefined ? "" : ` : ${program.returnType}`}${declarations ? `\n${declarations}` : ""}${canonicalBody(program.body)}END_${keyword}\n`;
+}
+
+function normalizeType(type: string): string {
+  return (
+    (
+      {
+        TIME_OF_DAY: "TOD",
+        DATE_AND_TIME: "DT",
+        LTIME_OF_DAY: "LTOD",
+        LDATE_AND_TIME: "LDT",
+      } as Record<string, string>
+    )[type] ?? type
   );
-  return `PROGRAM ${program.name}\nVAR\n${declarations.join("\n")}\nEND_VAR${canonicalBody(program.body)}END_PROGRAM\n`;
 }

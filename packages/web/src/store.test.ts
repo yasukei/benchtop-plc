@@ -1,5 +1,6 @@
 import type { Diagnostic, RuntimeSnapshot } from "@benchtop-plc/core";
 import { describe, expect, it, vi } from "vitest";
+import { readProject, writeProject } from "@benchtop-plc/project";
 import { en, ja } from "./catalog.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
@@ -292,7 +293,7 @@ it("restores the bundled example's source, panel and cycle through the project l
     { kind: "led", label: "Alarm", bit: 2, color: "red" },
     { kind: "estop", label: "Emergency stop", bit: null, color: "red" },
   ]);
-  expect(restored.project?.program).toBe(restored.source);
+  expect(restored.project?.pous[0]).toBe(restored.source);
   expect(restored.cycleMs).toBe(10);
   expect(worker.sent.slice(-2)).toMatchObject([
     { type: "setCycle", ms: 10 },
@@ -320,3 +321,40 @@ it.each(["RUN", "FAULT", "ESTOP", "emergency", "disconnected"] as const)(
     store.dispose();
   },
 );
+
+it("opens and resaves semantic errors without loading them into the runtime", () => {
+  const { worker, store } = setup();
+  const source = "PROGRAM Main VAR x : INT; END_VAR x := Missing(1); END_PROGRAM";
+  store.setSource(source);
+  const xml = store.saveProject()!;
+  expect(xml).toBeTruthy();
+  worker.sent.length = 0;
+  expect(store.openProject(xml)).toBe(true);
+  expect(store.getSnapshot().source).toBe(source);
+  expect(
+    store.getSnapshot().diagnostics.some((item) => item.code === "call.unknown-function"),
+  ).toBe(true);
+  expect(worker.sent.some((message) => message.type === "load")).toBe(false);
+  expect(readProject(store.saveProject()!)).toEqual(readProject(xml));
+  store.dispose();
+});
+
+it("invalidates applied code when opening unchanged main text with a removed function", () => {
+  const { worker, store } = setup();
+  const main = "PROGRAM Main VAR x : INT; END_VAR x := F(); END_PROGRAM";
+  const fn = "FUNCTION F : INT F := 1; END_FUNCTION";
+  const metadata = readProject(store.saveProject()!).value!;
+  const xml = (pous: string[]) => writeProject({ ...metadata, pous }).value!;
+  expect(store.openProject(xml([main, fn]))).toBe(true);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(store.getSnapshot().loadedSource).toBe(main);
+  expect(store.openProject(xml([main]))).toBe(true);
+  expect(store.getSnapshot()).toMatchObject({ source: main, loadedSource: null, snapshot: null });
+  worker.sent.length = 0;
+  store.run();
+  expect(worker.sent).toEqual([]);
+  expect(store.getSnapshot().diagnostics.map((item) => item.code)).toContain(
+    "call.unknown-function",
+  );
+  store.dispose();
+});

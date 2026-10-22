@@ -21,19 +21,20 @@ export interface ContentHeader {
   language?: string;
 }
 
-/** Exactly one program, configuration, resource, cyclic task and bound instance. */
+/** Ordered POU texts and one configuration, resource and cyclic task. */
 export interface Project {
   fileHeader: FileHeader;
   contentHeader: ContentHeader;
-  program: string;
+  pous: string[];
   configuration: string;
   resource: string;
   task: { name: string; interval: string; priority: number };
-  instance: { name: string; typeName: string };
+  instance?: { name: string; typeName: string };
   panel: JsonValue;
 }
 
 export interface VariableDeclaration {
+  section: "localVars" | "inputVars" | "outputVars";
   name: string;
   type: string;
   address?: string;
@@ -41,9 +42,11 @@ export interface VariableDeclaration {
 }
 
 export interface SplitProgram {
+  kind: "program" | "function";
   name: string;
+  returnType?: string;
   variables: VariableDeclaration[];
-  /** Exact text between the last END_VAR (or program name) and END_PROGRAM. */
+  /** Exact text between the last END_VAR (or header) and the closing keyword. */
   body: string;
 }
 

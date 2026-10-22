@@ -39,14 +39,16 @@ function isProject(value: unknown): value is Project {
       ["name"],
       ["version", "modificationDateTime", "organization", "author", "language"],
     ) &&
-    strings(value, ["program", "configuration", "resource"]) &&
+    strings(value, ["configuration", "resource"]) &&
+    Array.isArray(value.pous) &&
+    value.pous.every((source) => typeof source === "string") &&
     strings(value.task, ["name", "interval"]) &&
     record(value.task) &&
     typeof value.task.priority === "number" &&
     Number.isInteger(value.task.priority) &&
     value.task.priority >= 0 &&
     value.task.priority <= 65535 &&
-    strings(value.instance, ["name", "typeName"]) &&
+    (value.instance === undefined || strings(value.instance, ["name", "typeName"])) &&
     (value.panel === null || readLayout(value.panel) !== null)
   );
 }
@@ -57,6 +59,16 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
     const raw = storage?.getItem(autosaveStorageKey);
     if (!raw) return null;
     const value: unknown = JSON.parse(raw);
+    // Version 1 autosaves from 0.3.0 stored one program in the project metadata.
+    if (
+      record(value) &&
+      record(value.project) &&
+      value.project.pous === undefined &&
+      typeof value.project.program === "string"
+    ) {
+      value.project.pous = [value.project.program];
+      delete value.project.program;
+    }
     if (
       !record(value) ||
       value.version !== 1 ||
