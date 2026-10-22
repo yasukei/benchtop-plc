@@ -73,9 +73,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 ### Fixed
 
 - Saving imported PLCopen projects stamps the company, product name and version
-  together as benchtop-plc's writer identity, while preserving creation time and
-  other file/content metadata. Foreign product names no longer receive the app's
-  version.
+  together as benchtop-plc's writer identity and removes imported company URLs and
+  product release strings. Creation time, content description and the content
+  header are preserved. Foreign writer fields no longer receive the app's identity.
 
 ## [0.3.0] - 2026-10-22
 

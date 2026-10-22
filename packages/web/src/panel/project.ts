@@ -22,6 +22,8 @@ export function serializePanelProject(
       companyName: "benchtop-plc",
       productName: "benchtop-plc",
       productVersion: packageJson.version,
+      companyURL: undefined,
+      productRelease: undefined,
     },
     pous: sources,
     task: {

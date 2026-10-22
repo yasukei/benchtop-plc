@@ -45,12 +45,17 @@ for (const kind of ["bundled example", "older project", "foreign project"] as co
     await page.getByRole("button", { name: "Save project", exact: true }).click();
     const download = await downloadPromise;
     const saved = readProject(readFileSync((await download.path())!, "utf8")).value!;
+    const expectedHeader = { ...original.fileHeader };
+    delete expectedHeader.companyURL;
+    delete expectedHeader.productRelease;
     expect(saved.fileHeader).toEqual({
-      ...original.fileHeader,
+      ...expectedHeader,
       companyName: "benchtop-plc",
       productName: "benchtop-plc",
       productVersion: packageJson.version,
     });
+    expect(saved.fileHeader).not.toHaveProperty("companyURL");
+    expect(saved.fileHeader).not.toHaveProperty("productRelease");
     expect(saved.contentHeader).toEqual(original.contentHeader);
   });
 }

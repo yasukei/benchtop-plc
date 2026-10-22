@@ -39,15 +39,20 @@ describe("panel project persistence", () => {
       const saved = readProject(
         savePanelProject(opened.project.pous, opened.layout, 10, opened.project)!,
       ).value!;
+      const expectedHeader = { ...original.fileHeader };
+      delete expectedHeader.companyURL;
+      delete expectedHeader.productRelease;
       expect(saved).toEqual({
         ...original,
         fileHeader: {
-          ...original.fileHeader,
+          ...expectedHeader,
           companyName: "benchtop-plc",
           productName: "benchtop-plc",
           productVersion: packageJson.version,
         },
       });
+      expect(saved.fileHeader).not.toHaveProperty("companyURL");
+      expect(saved.fileHeader).not.toHaveProperty("productRelease");
       expect(opened.project).toEqual(original);
     },
   );
