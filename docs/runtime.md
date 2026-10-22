@@ -151,7 +151,9 @@ then propagate to the host; they are not PLC-language diagnostics.
 
 Each user call references a shared definition in `ProgramIR.functions`. Supplied
 input expressions are evaluated left to right in caller storage, then copied into
-fresh local storage initialized from the definition. Omitted inputs, `VAR`,
+fresh local storage cloned from a template validated at load. Function bodies and
+local initial values are validated once when loading; calls do not walk the body
+or repeat those initial-value checks. Omitted inputs, `VAR`,
 `VAR_OUTPUT` and the result start at their declared initial values (or defaults)
 on every call. Function locals are absent from monitor snapshots, writes and forces.
 The same interpreter keeps the scan's loop counter across all calls.

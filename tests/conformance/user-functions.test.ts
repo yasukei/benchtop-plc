@@ -190,3 +190,28 @@ it("rounds typed REAL inputs, results and local arithmetic", () => {
   ]);
   expect(values(runtime.scanOnce()).x).toBe(Math.fround(Math.fround(1.0000001192092896) + 1));
 });
+
+it("rejects invalid function-local initial values at load even when the function is uncalled", () => {
+  const { ir, runtime } = setup([
+    "PROGRAM Main END_PROGRAM",
+    "FUNCTION Uncalled VAR n: LINT := 1; END_VAR END_FUNCTION",
+  ]);
+  const invalid = structuredClone(ir);
+  Object.assign(invalid.functions![0]!.variables[0]!, { initialValue: "+1" });
+  expect(() => runtime.load(invalid)).toThrow(RangeError);
+  expect(runtime.scanOnce().variables).toEqual([]);
+});
+
+it("rejects invalid literals in unexecuted function branches at load", () => {
+  const { ir, runtime } = setup([
+    "PROGRAM Main END_PROGRAM",
+    "FUNCTION Uncalled VAR n: LINT; END_VAR IF FALSE THEN n := LINT#1; END_IF; END_FUNCTION",
+  ]);
+  const invalid = structuredClone(ir);
+  const conditional = invalid.functions![0]!.body[0]!;
+  if (conditional.kind !== "if") throw new Error("Expected IF");
+  const assignment = conditional.branches[0].body[0]!;
+  if (assignment.kind !== "assignment") throw new Error("Expected assignment");
+  Object.assign(assignment.value, { value: "+1" });
+  expect(() => runtime.load(invalid)).toThrow(RangeError);
+});

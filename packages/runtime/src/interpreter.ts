@@ -24,7 +24,7 @@ import type {
   ConversionFunction,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
-import { Memory } from "./memory.js";
+import type { Memory, MemoryFrame } from "./memory.js";
 
 export const WATCHDOG_LIMIT = 200_000;
 export class RuntimeFault extends Error {
@@ -36,6 +36,7 @@ export class RuntimeFault extends Error {
 type Flow = "exit" | "return" | "abort" | undefined;
 
 export class Interpreter {
+  private memory: MemoryFrame;
   private iterations = 0;
   private readonly annotations = new Map<Statement, StatementAnnotation>();
   private readonly functions: readonly UserFunctionIR[];
@@ -43,13 +44,14 @@ export class Interpreter {
   private callDepth = 0;
 
   constructor(
-    private memory: Memory,
+    private readonly programMemory: Memory,
     private readonly scanStart: number,
     private readonly active: () => boolean,
     private readonly library?: RuntimeLibrary,
   ) {
-    this.functions = memory.ir.functions ?? [];
-    this.pou = memory.ir.name;
+    this.memory = programMemory;
+    this.functions = programMemory.ir.functions ?? [];
+    this.pou = programMemory.ir.name;
   }
 
   private fault(code: "runtime.division-by-zero" | "runtime.for-by-zero", span: SourceSpan): never {
@@ -308,13 +310,7 @@ export class Interpreter {
     }));
     const caller = this.memory,
       callerPou = this.pou;
-    const locals = new Memory({
-      kind: "program",
-      name: definition.name,
-      span: definition.span,
-      variables: definition.variables,
-      body: definition.body,
-    });
+    const locals = this.programMemory.functionFrame(call.function);
     for (const input of inputs) locals.write(input.variable, input.value);
     let result: ScalarValue | null;
     this.memory = locals;
