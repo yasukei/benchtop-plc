@@ -70,6 +70,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   blocks and elementary types. Variables cannot reuse a POU name, including the
   PROGRAM name. PROGRAM parameters and function recursion are compile errors.
 
+### Fixed
+
+- Saving imported PLCopen projects stamps the company, product name and version
+  together as benchtop-plc's writer identity and removes imported company URLs and
+  product release strings. Creation time, content description and the content
+  header are preserved. Foreign writer fields no longer receive the app's identity.
+
 ## [0.3.0] - 2026-10-22
 
 All elementary data types except strings, with the standard's conversion and literal rules and the standard functions and function blocks for them. Contains breaking changes to accepted Structured Text; see Changed.

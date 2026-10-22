@@ -8,20 +8,36 @@ const sampleXml = readFileSync(
   "utf8",
 );
 
-for (const kind of ["bundled example", "older project"] as const) {
-  test(`saves the ${kind} with the app version and preserves other headers`, async ({ page }) => {
+for (const kind of ["bundled example", "older project", "foreign project"] as const) {
+  test(`saves the ${kind} with the app writer identity and preserves other metadata`, async ({
+    page,
+  }) => {
     await page.goto("/");
-    const originalXml =
-      kind === "older project"
-        ? sampleXml
-            .replace(/productVersion="[^"]*"/, 'productVersion="0.0.0"')
-            .replace('name="Blink"', 'name="Legacy project" author="Original author"')
-        : sampleXml;
-    if (kind === "older project") {
+    const original = readProject(sampleXml).value!;
+    if (kind !== "bundled example") {
+      original.fileHeader.productVersion = "0.0.0";
+      original.contentHeader.name = "Imported project";
+      original.contentHeader.author = "Original author";
+    }
+    if (kind === "foreign project") {
+      Object.assign(original.fileHeader, {
+        companyName: "OtherCompany",
+        productName: "OtherTool",
+        productVersion: "9.8.7",
+        creationDateTime: "2025-01-02T03:04:05Z",
+        companyURL: "https://example.com",
+        productRelease: "Original release",
+        contentDescription: "Original description",
+      });
+      original.contentHeader.version = "Project revision 3";
+      original.contentHeader.organization = "Original organization";
+      original.contentHeader.modificationDateTime = "2025-02-03T04:05:06Z";
+    }
+    if (kind !== "bundled example") {
       await page.getByLabel("Open project", { exact: true }).setInputFiles({
-        name: "legacy.xml",
+        name: "imported.xml",
         mimeType: "application/xml",
-        buffer: Buffer.from(originalXml),
+        buffer: Buffer.from(writeProject(original).value!),
       });
     }
     await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
@@ -29,11 +45,17 @@ for (const kind of ["bundled example", "older project"] as const) {
     await page.getByRole("button", { name: "Save project", exact: true }).click();
     const download = await downloadPromise;
     const saved = readProject(readFileSync((await download.path())!, "utf8")).value!;
-    const original = readProject(originalXml).value!;
+    const expectedHeader = { ...original.fileHeader };
+    delete expectedHeader.companyURL;
+    delete expectedHeader.productRelease;
     expect(saved.fileHeader).toEqual({
-      ...original.fileHeader,
+      ...expectedHeader,
+      companyName: "benchtop-plc",
+      productName: "benchtop-plc",
       productVersion: packageJson.version,
     });
+    expect(saved.fileHeader).not.toHaveProperty("companyURL");
+    expect(saved.fileHeader).not.toHaveProperty("productRelease");
     expect(saved.contentHeader).toEqual(original.contentHeader);
   });
 }
