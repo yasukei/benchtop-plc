@@ -18,6 +18,11 @@ const jaTokens: Record<string, string> = {
   eof: "入力の終わり",
   expression: "式",
 };
+const pouKinds: Record<string, string> = {
+  program: "PROGRAM",
+  function: "FUNCTION",
+  functionBlock: "FUNCTION_BLOCK",
+};
 const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
@@ -53,6 +58,20 @@ export const diagnosticEn = {
     `Initializer for ${name} must be a constant expression.`,
   "decl.fb-initializer": ({ name }) =>
     `Function block instance ${name} cannot have an initializer.`,
+  "pou.duplicate": ({ name }) => `Duplicate POU: ${name}.`,
+  "pou.name-collision": ({ name }) => `POU ${name} conflicts with a standard name.`,
+  "pou.program-count": ({ found }) => `A project requires exactly one PROGRAM; found ${found}.`,
+  "pou.unsupported-kind": ({ name }) => `User function block ${name} is not supported yet.`,
+  "pou.invalid-section": ({ section, kind }) =>
+    `${section} is not supported in a ${pouKinds[kind] ?? kind} POU.`,
+  "pou.direct-address": () => "Direct addresses are allowed only in the PROGRAM.",
+  "pou.function-block-in-function": () => "A function cannot declare a function block instance.",
+  "pou.recursion": ({ name }) => `Recursive call to ${name}.`,
+  "call.program": ({ name }) => `PROGRAM ${name} cannot be called.`,
+  "call.no-result": ({ name }) =>
+    `Function ${name} has no result and cannot be used in an expression.`,
+  "call.formal-required": ({ name }) =>
+    `Function ${name} requires named parameters because it has outputs.`,
   "name.undeclared": ({ name }) => `Undeclared identifier: ${name}.`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `Bit ${bit} is outside the width of ${type}, or the type does not support bit access.`,
@@ -140,6 +159,20 @@ export const diagnosticJa = {
   "decl.nonconstant-initializer": ({ name }) => `${name}の初期値には定数式が必要です。`,
   "decl.fb-initializer": ({ name }) =>
     `ファンクションブロックのインスタンス${name}には初期値を指定できません。`,
+  "pou.duplicate": ({ name }) => `POUが重複しています: ${name}。`,
+  "pou.name-collision": ({ name }) => `POU ${name}は標準の名前と衝突しています。`,
+  "pou.program-count": ({ found }) => `プロジェクトにはPROGRAMが1つ必要ですが、${found}個です。`,
+  "pou.unsupported-kind": ({ name }) => `ユーザー定義ファンクションブロック${name}は未対応です。`,
+  "pou.invalid-section": ({ section, kind }) =>
+    `${pouKinds[kind] ?? kind}のPOUでは${section}は未対応です。`,
+  "pou.direct-address": () => "直接アドレスはPROGRAMでのみ使用できます。",
+  "pou.function-block-in-function": () =>
+    "関数ではファンクションブロックのインスタンスを宣言できません。",
+  "pou.recursion": ({ name }) => `${name}への再帰呼び出しです。`,
+  "call.program": ({ name }) => `PROGRAM ${name}は呼び出せません。`,
+  "call.no-result": ({ name }) => `関数${name}には戻り値がないため、式の中で使用できません。`,
+  "call.formal-required": ({ name }) =>
+    `関数${name}には出力があるため、名前付きパラメーターが必要です。`,
   "name.undeclared": ({ name }) => `宣言されていない識別子です: ${name}。`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `${type}のビット${bit}は範囲外、またはビットアクセス非対応の型です。`,

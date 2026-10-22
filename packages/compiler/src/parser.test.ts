@@ -282,6 +282,7 @@ describe("syntax diagnostics", () => {
         {
           code,
           severity: "error",
+          pou: "P",
           args,
           span: { line: 2, column: suffix.length + 1, endLine: 2, endColumn: suffix.length + 1 },
         },
@@ -366,7 +367,15 @@ describe("syntax diagnostics", () => {
   ])("reports code and span for %j", (source, code, args, line, column, endLine, endColumn) => {
     expect(parse(source)).toEqual({
       ast: null,
-      diagnostics: [{ code, severity: "error", args, span: { line, column, endLine, endColumn } }],
+      diagnostics: [
+        {
+          code,
+          severity: "error",
+          ...(source.startsWith("PROGRAM P") ? { pou: "P" } : {}),
+          args,
+          span: { line, column, endLine, endColumn },
+        },
+      ],
     });
   });
 
@@ -378,6 +387,7 @@ describe("syntax diagnostics", () => {
           {
             code: "syntax.expected-token",
             severity: "error",
+            pou: "P",
             args: { expected: "END_REPEAT", found },
             span: { line: 2, column: 28, endLine: 2, endColumn: 29 },
           },
@@ -393,6 +403,7 @@ describe("syntax diagnostics", () => {
         {
           code: "syntax.expected-token",
           severity: "error",
+          pou: "P",
           args: { expected: "address", found: "input" },
           span: { line: 2, column: 10, endLine: 2, endColumn: 15 },
         },

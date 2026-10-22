@@ -10,9 +10,21 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Compile a project from several POU sources with user-defined functions, formal
+  input defaults, output bindings, nested calls and fresh local storage per call.
+  The web editor and PLCopen XML still handle a single program.
+- Compiler and runtime diagnostics identify the source POU; the editor displays
+  that name alongside the location.
+
 - ADR 0014 documents the accepted design for user-defined POUs, calls, instance
   memory, project exchange and monitoring for Milestone 4; implementation follows
   in its sub-issues.
+
+### Changed
+
+- POU names share a case-insensitive namespace with standard functions, function
+  blocks and elementary types. Variables cannot reuse a POU name, including the
+  PROGRAM name. PROGRAM parameters and function recursion are compile errors.
 
 ## [0.3.0] - 2026-10-22
 

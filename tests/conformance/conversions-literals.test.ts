@@ -142,6 +142,7 @@ describe("ADR 0013 conversions and constants", () => {
       {
         code: "type.invalid-constant",
         severity: "error",
+        pou: "P",
         args: {},
         span: { line: 3, column: 10, endLine: 3, endColumn: 15 },
       },

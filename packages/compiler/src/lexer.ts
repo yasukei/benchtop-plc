@@ -360,7 +360,17 @@ class Lexer {
   run(): Token[] {
     const tokens: Token[] = [];
     do {
-      tokens.push(this.next());
+      try {
+        tokens.push(this.next());
+      } catch (error) {
+        if (
+          error instanceof FrontendError &&
+          ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(tokens[0]?.key ?? "") &&
+          tokens[1]?.kind === "identifier"
+        )
+          throw new FrontendError({ ...error.diagnostic, pou: tokens[1].text });
+        throw error;
+      }
     } while (tokens[tokens.length - 1]!.kind !== "eof");
     return tokens;
   }

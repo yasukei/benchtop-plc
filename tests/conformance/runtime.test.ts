@@ -369,6 +369,7 @@ describe("runtime scans over hand-written IR", () => {
       expect(runtime.diagnostic).toEqual({
         code: "runtime.division-by-zero",
         severity: "error",
+        pou: "Test",
         span: at(8),
         args: {},
       });
@@ -422,6 +423,7 @@ describe("runtime scans over hand-written IR", () => {
     expect(runtime.diagnostic).toEqual({
       code: "runtime.watchdog",
       severity: "error",
+      pou: "Test",
       span: at(4),
       args: { limit: 200000 },
     });

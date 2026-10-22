@@ -8,6 +8,7 @@ import type {
   IoImage,
   ProgramIR,
   ScalarValue,
+  ScalarVariable,
   TypedValue,
   VariableReference,
   VariableSnapshot,
@@ -29,65 +30,20 @@ export interface ScanMemory {
   write(variable: number, value: ScalarValue): void;
 }
 
-type Cell =
-  | { kind: "scalar"; value: TypedValue }
-  | { kind: "long"; dataType: LongType; value: bigint }
-  | { kind: "functionBlock"; instance: FunctionBlockInstance };
+type ScalarCell =
+  { kind: "scalar"; value: TypedValue } | { kind: "long"; dataType: LongType; value: bigint };
+type Cell = ScalarCell | { kind: "functionBlock"; instance: FunctionBlockInstance };
 
-export class Memory implements ScanMemory {
-  private readonly cells: Cell[];
+function initialCell(variable: ScalarVariable): ScalarCell {
+  validateValue(variable.dataType, variable.initialValue);
+  return isLongType(variable.dataType)
+    ? { kind: "long", dataType: variable.dataType, value: BigInt(variable.initialValue) }
+    : { kind: "scalar", value: typed(variable.dataType, variable.initialValue) };
+}
 
-  constructor(
-    readonly ir: ProgramIR,
-    library?: RuntimeLibrary,
-  ) {
-    // Check literals even in branches that are not executed. No untrusted long value
-    // may be normalized merely because BigInt accepts its syntax.
-    const validateLiterals = (node: unknown): void => {
-      if (node === null || typeof node !== "object") return;
-      if (
-        "kind" in node &&
-        node.kind === "literal" &&
-        "dataType" in node &&
-        "value" in node &&
-        typeof node.dataType === "string" &&
-        (isLongType(node.dataType) || isCalendarType(node.dataType))
-      )
-        validateValue(node.dataType, node.value);
-      if ("kind" in node && node.kind === "case") {
-        // The IR shape is compiler-checked; value validation also covers label payloads.
-        const statement = node as CaseStatement;
-        const type = statement.selector.dataType;
-        if (isLongType(type)) {
-          for (const branch of statement.branches) {
-            for (const label of branch.labels) {
-              if (label.kind === "value") validateValue(type, label.value);
-              else {
-                validateValue(type, label.lower);
-                validateValue(type, label.upper);
-              }
-            }
-          }
-        }
-      }
-      for (const child of Object.values(node)) validateLiterals(child);
-    };
-    validateLiterals(ir.body);
-    this.cells = ir.variables.map((variable) => {
-      if (variable.kind === "scalar") {
-        validateValue(variable.dataType, variable.initialValue);
-        if (isLongType(variable.dataType))
-          return {
-            kind: "long",
-            dataType: variable.dataType,
-            value: BigInt(variable.initialValue),
-          };
-        return { kind: "scalar", value: typed(variable.dataType, variable.initialValue) };
-      }
-      if (!library) throw new Error("A runtime library is required for function blocks");
-      return { kind: "functionBlock", instance: library.createFunctionBlock(variable.fbType) };
-    });
-  }
+/** Mutable scalar/FB cells; function frames never perform load-time validation. */
+export class MemoryFrame implements ScanMemory {
+  constructor(protected readonly cells: Cell[]) {}
 
   private scalar(variable: number): TypedValue {
     const cell = this.cells[variable];
@@ -145,6 +101,71 @@ export class Memory implements ScanMemory {
     const input = inputs[index];
     if (!input) throw new Error("Expected function block input");
     inputs[index] = typed(input.dataType, value);
+  }
+}
+
+export class Memory extends MemoryFrame {
+  private readonly functionInitialCells: readonly ScalarCell[][];
+
+  constructor(
+    readonly ir: ProgramIR,
+    library?: RuntimeLibrary,
+  ) {
+    // Check literals even in branches that are not executed. No untrusted long value
+    // may be normalized merely because BigInt accepts its syntax.
+    const validateLiterals = (node: unknown): void => {
+      if (node === null || typeof node !== "object") return;
+      if (
+        "kind" in node &&
+        node.kind === "literal" &&
+        "dataType" in node &&
+        "value" in node &&
+        typeof node.dataType === "string" &&
+        (isLongType(node.dataType) || isCalendarType(node.dataType))
+      )
+        validateValue(node.dataType, node.value);
+      if ("kind" in node && node.kind === "case") {
+        // The IR shape is compiler-checked; value validation also covers label payloads.
+        const statement = node as CaseStatement;
+        const type = statement.selector.dataType;
+        if (isLongType(type)) {
+          for (const branch of statement.branches) {
+            for (const label of branch.labels) {
+              if (label.kind === "value") validateValue(type, label.value);
+              else {
+                validateValue(type, label.lower);
+                validateValue(type, label.upper);
+              }
+            }
+          }
+        }
+      }
+      for (const child of Object.values(node)) validateLiterals(child);
+    };
+    validateLiterals(ir.body);
+    const functionInitialCells = (ir.functions ?? []).map((fn) => {
+      validateLiterals(fn.body);
+      return fn.variables.map(initialCell);
+    });
+    super(
+      ir.variables.map((variable): Cell => {
+        if (variable.kind === "scalar") return initialCell(variable);
+        if (!library) throw new Error("A runtime library is required for function blocks");
+        return { kind: "functionBlock", instance: library.createFunctionBlock(variable.fbType) };
+      }),
+    );
+    this.functionInitialCells = functionInitialCells;
+  }
+
+  /** Clone validated initial cells, keeping each invocation independent. */
+  functionFrame(index: number): MemoryFrame {
+    const initial = this.functionInitialCells[index];
+    if (!initial) throw new Error("Missing function locals");
+    return new MemoryFrame(
+      initial.map((cell) =>
+        cell.kind === "long" ? { ...cell } : { kind: "scalar", value: { ...cell.value } },
+      ),
+    );
   }
 
   readInputs(image: IoImage): void {

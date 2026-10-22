@@ -1,7 +1,7 @@
 export * from "./ast.js";
 export { isElementaryTypeName, isKeyword, lex } from "./lexer.js";
 export type { LexResult, Token, TokenKind } from "./lexer.js";
-export { parse } from "./parser.js";
+export { parse, parsePou } from "./parser.js";
 export type { ParseResult } from "./parser.js";
 
 export const packageName = "@benchtop-plc/compiler";
@@ -15,6 +15,6 @@ export type {
   VariableSymbol,
 } from "./checked.js";
 
-export { compile } from "./compile.js";
+export { compile, compileProject } from "./compile.js";
 export type { CompileResult } from "./compile.js";
 export { lower } from "./lower.js";

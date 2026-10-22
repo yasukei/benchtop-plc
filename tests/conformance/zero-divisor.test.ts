@@ -24,6 +24,7 @@ it.each([
   expect(runtime.diagnostic).toEqual({
     code: "runtime.division-by-zero",
     severity: "error",
+    pou: "Division",
     span: statement.value.span,
     args: {},
   });

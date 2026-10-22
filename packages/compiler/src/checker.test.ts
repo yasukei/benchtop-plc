@@ -36,6 +36,7 @@ function failure(declarations: string, body: string, code: DiagnosticCode) {
   expect(result.diagnostics).toContainEqual({
     code,
     severity: "error",
+    pou: "P",
     args: expect.any(Object),
     span: { ...first, endLine: last.line, endColumn: last.column },
   });
@@ -197,6 +198,7 @@ describe("declarations and symbols", () => {
       {
         code: "decl.name-collision",
         severity: "error",
+        pou: "P",
         span: ast.declarations[0]!.names[0].span,
         args: { name: "iNt", kind: "type" },
       },

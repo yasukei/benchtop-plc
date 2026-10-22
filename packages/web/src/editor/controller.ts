@@ -160,6 +160,7 @@ export function createStEditor(
             view.state,
             props.diagnostics.map((diagnostic) => ({
               ...(diagnostic.span ? spanRange(props.source, diagnostic.span) : { from: 0, to: 0 }),
+              source: diagnostic.pou,
               severity: diagnostic.severity,
               message: formatDiagnostic(props.language, diagnostic),
             })),

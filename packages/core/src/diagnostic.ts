@@ -36,6 +36,14 @@ export interface DiagnosticArgs {
   "decl.address-out-of-range": { address: string };
   "decl.nonconstant-initializer": { name: string };
   "decl.fb-initializer": { name: string };
+  "pou.duplicate": { name: string };
+  "pou.name-collision": { name: string };
+  "pou.program-count": { found: number };
+  "pou.unsupported-kind": { name: string };
+  "pou.invalid-section": { section: string; kind: string };
+  "pou.direct-address": NoArguments;
+  "pou.function-block-in-function": NoArguments;
+  "pou.recursion": { name: string };
 
   "name.undeclared": { name: string };
   "type.invalid-bit-access": { type: DataType; bit: number };
@@ -62,6 +70,9 @@ export interface DiagnosticArgs {
   "fb.unsupported-call": { name: string };
   "fb.call-in-expression": { name: string };
   "call.unknown-function": { name: string };
+  "call.program": { name: string };
+  "call.no-result": { name: string };
+  "call.formal-required": { name: string };
   "call.invalid-parameter": { name: string; parameter: string };
   "call.argument-count": { name: string; min: number; max: number | null; found: number };
   "call.argument-type": {
@@ -96,6 +107,8 @@ export type Diagnostic<C extends DiagnosticCode = DiagnosticCode> = {
   [K in C]: {
     code: K;
     severity: DiagnosticSeverity;
+    /** Source POU's spelling; absent for project-level errors or unknown headers. */
+    pou?: string;
     span?: SourceSpan;
     args: DiagnosticArgs[K];
   };

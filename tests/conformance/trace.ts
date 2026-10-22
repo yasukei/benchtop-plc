@@ -1,4 +1,4 @@
-import { compile } from "@benchtop-plc/compiler";
+import { compile, compileProject } from "@benchtop-plc/compiler";
 import { standardFunctionBlocks } from "@benchtop-plc/core";
 import type { IoImage, ProgramIR, RuntimeSnapshot, ScalarValue } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
@@ -105,8 +105,8 @@ function readValue(ir: ProgramIR, snapshot: RuntimeSnapshot, path: string): Scal
 }
 
 /** Execute only through public compiler/runtime APIs, with no real-time waits. */
-export function runTrace(name: string, source: string, trace: Trace): void {
-  const result = compile(source);
+export function runTrace(name: string, source: string | readonly string[], trace: Trace): void {
+  const result = typeof source === "string" ? compile(source) : compileProject(source);
   const codes = result.diagnostics.map((diagnostic) => diagnostic.code).sort();
   if (trace.kind === "compile-error") {
     const expected = [...trace.diagnostics].sort();

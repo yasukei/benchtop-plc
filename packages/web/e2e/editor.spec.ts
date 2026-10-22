@@ -23,7 +23,7 @@ test("shows localized diagnostics, selects their spans and clears them after fix
   const editor = await replaceSource(page, source);
   const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
   const diagnostic = diagnostics.getByRole("button", {
-    name: "Line 3, column 6 Undeclared identifier: missing.",
+    name: "Test: Line 3, column 6 Undeclared identifier: missing.",
   });
   await expect(diagnostic).toBeVisible();
   await expect(page.locator(".cm-lintRange-error")).toHaveText("missing");
@@ -32,6 +32,7 @@ test("shows localized diagnostics, selects their spans and clears them after fix
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("missing");
   await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
   const localized = page.getByRole("region", { name: "診断", exact: true });
+  await expect(localized).toContainText("Test:");
   await expect(localized).toContainText("3行、6列");
   await expect(localized).toContainText("宣言されていない識別子です: missing。");
   await expect(page.getByRole("textbox", { name: "Structured Text", exact: true })).toHaveText(

@@ -33,6 +33,7 @@ import type {
   ExpressionInfo,
   ResolvedReference,
   VariableSymbol,
+  UserCallInfo,
 } from "./checked.js";
 import {
   acceptsKind,
@@ -57,7 +58,7 @@ import {
 export type CheckResult =
   | { checked: CheckedProgram; diagnostics: Diagnostic[] }
   | { checked: null; diagnostics: Diagnostic[] };
-const declarationType = (name: string): string =>
+export const declarationType = (name: string): string =>
   (
     ({
       TIME_OF_DAY: "TOD",
@@ -77,6 +78,14 @@ class Checker {
   private readonly references = new Map<AST.Identifier, ResolvedReference>();
   private readonly functionArguments = new Map<AST.FunctionCall, readonly AST.Expression[]>();
   private readonly functions = new Map<AST.FunctionCall, StandardFunction>();
+  private readonly userCalls = new Map<AST.FunctionCall | AST.FunctionBlockCall, UserCallInfo>();
+  private result?: VariableSymbol;
+
+  constructor(
+    private readonly ast: AST.Program,
+    private readonly pous: ReadonlyMap<string, AST.Program>,
+    private readonly functionIds: ReadonlyMap<string, number>,
+  ) {}
 
   private report<C extends DiagnosticCode>(
     code: C,
@@ -84,12 +93,40 @@ class Checker {
     span: SourceSpan,
   ): void {
     // Generic indexed arguments retain correlation at callers; TS cannot distribute C here.
-    this.diagnostics.push({ code, args, severity: "error", span } as Diagnostic);
+    this.diagnostics.push({
+      code,
+      args,
+      severity: "error",
+      span,
+      pou: this.ast.name.name,
+    } as Diagnostic);
   }
 
   run(ast: AST.Program): CheckResult {
+    for (const section of ast.sections ?? []) {
+      if (
+        ast.kind === "program" ||
+        (ast.kind === "function" && ["VAR_TEMP", "VAR_IN_OUT"].includes(section.name))
+      )
+        this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
+    }
     // Collect all declarations first so forward references receive ordinary type diagnostics.
     for (const declaration of ast.declarations) this.declare(declaration);
+    if (ast.resultType) {
+      const type = declarationType(ast.resultType.key);
+      if (!isScalar(type))
+        this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
+      else {
+        this.result = {
+          id: this.symbols.length,
+          name: ast.name,
+          type,
+          initialValue: isLongType(type) ? "0" : type === "BOOL" ? false : 0,
+        };
+        this.symbols.push(this.result);
+        this.names.set(ast.name.key, this.result);
+      }
+    }
     for (const declaration of ast.declarations) this.initializer(declaration);
     this.statements(ast.body, 0);
     if (this.diagnostics.some((item) => item.severity === "error"))
@@ -102,6 +139,8 @@ class Checker {
         references: this.references,
         functions: this.functions,
         functionArguments: this.functionArguments,
+        userCalls: this.userCalls,
+        ...(this.result ? { result: this.result } : {}),
       },
       diagnostics: this.diagnostics,
     };
@@ -110,6 +149,8 @@ class Checker {
   private declare(declaration: AST.Declaration): void {
     const type = declarationType(declaration.typeName.key);
     const known = isScalar(type) || isBlock(type);
+    if (this.ast.kind === "function" && isBlock(type))
+      this.report("pou.function-block-in-function", {}, declaration.typeName.span);
     if (!known)
       this.report(
         "decl.unknown-type",
@@ -118,6 +159,7 @@ class Checker {
       );
     if (declaration.address) {
       const address = declaration.address;
+      if (this.ast.kind !== "program") this.report("pou.direct-address", {}, address.span);
       if (declaration.names.length > 1) this.report("decl.at-multiple-names", {}, address.span);
       if (address.byte !== 0 || address.bit < 0 || address.bit > 7)
         this.report("decl.address-out-of-range", { address: address.text }, address.span);
@@ -131,7 +173,14 @@ class Checker {
     for (const name of declaration.names) {
       const duplicate = this.declaredNames.has(name.key);
       this.declaredNames.add(name.key);
-      if (isScalar(name.key) || isBlock(name.key)) {
+      const pou = this.pous.get(name.key);
+      if (pou) {
+        this.report(
+          "decl.name-collision",
+          { name: name.name, kind: pou.kind === "function" ? "function" : "type" },
+          name.span,
+        );
+      } else if (isScalar(name.key) || isBlock(name.key)) {
         this.report("decl.name-collision", { name: name.name, kind: "type" }, name.span);
       } else if (isFunction(name.key)) {
         this.report("decl.name-collision", { name: name.name, kind: "function" }, name.span);
@@ -433,7 +482,13 @@ class Checker {
     return infos;
   }
 
-  private functionCall(node: AST.FunctionCall): ExpressionInfo | null {
+  private functionCall(node: AST.FunctionCall, statement = false): ExpressionInfo | null {
+    const pou = this.pous.get(node.name.key);
+    if (pou?.kind === "program") {
+      this.report("call.program", { name: node.name.name }, node.name.span);
+      return null;
+    }
+    if (pou?.kind === "function") return this.userFunctionCall(node, pou, statement);
     const symbol = this.names.get(node.name.key);
     if (symbol && isBlock(symbol.type)) {
       this.report("fb.call-in-expression", { name: node.name.name }, node.span);
@@ -571,6 +626,7 @@ class Checker {
           severity: "warning",
           args: { function: resolved },
           span: node.span,
+          pou: this.ast.name.name,
         });
       }
       return this.constant(
@@ -623,6 +679,80 @@ class Checker {
       }
     }
     return dataType ? { dataType: signature.result ?? dataType } : null;
+  }
+
+  private userFunctionCall(
+    node: AST.FunctionCall,
+    pou: AST.Program,
+    statement: boolean,
+  ): ExpressionInfo | null {
+    const parameters = pou.declarations
+      .flatMap((declaration) =>
+        declaration.names.map((name) => ({
+          name,
+          type: declarationType(declaration.typeName.key),
+          section: declaration.section,
+        })),
+      )
+      .map((parameter, variable) => ({ ...parameter, variable }));
+    const inputs = parameters.filter((parameter) => parameter.section === "VAR_INPUT");
+    const outputs = parameters.filter((parameter) => parameter.section === "VAR_OUTPUT");
+    const result = pou.resultType ? declarationType(pou.resultType.key) : null;
+    if (!statement && result === null)
+      this.report("call.no-result", { name: node.name.name }, node.span);
+    const call: UserCallInfo = {
+      function: this.functionIds.get(pou.name.key)!,
+      inputs: [],
+      outputs: [],
+      result: result && isScalar(result) ? result : null,
+    };
+    this.userCalls.set(node, call);
+    const invalid = (name: AST.Identifier) =>
+      this.report(
+        "call.invalid-parameter",
+        { name: node.name.name, parameter: name.name },
+        name.span,
+      );
+    const formal = node.inputNames !== undefined || node.args.length === 0;
+    if (!formal) {
+      if (outputs.length) this.report("call.formal-required", { name: node.name.name }, node.span);
+      if (node.args.length !== inputs.length)
+        this.report(
+          "call.argument-count",
+          { name: node.name.name, min: inputs.length, max: inputs.length, found: node.args.length },
+          node.span,
+        );
+    }
+    const seen = new Set<string>();
+    node.args.forEach((value, index) => {
+      const name = node.inputNames?.[index];
+      const parameter = formal
+        ? inputs.find((input) => input.name.key === name?.key)
+        : inputs[index];
+      if (name && (!parameter || seen.has(name.key))) invalid(name);
+      if (name) seen.add(name.key);
+      const type = parameter && isScalar(parameter.type) ? parameter.type : undefined;
+      const info = this.expression(value, type);
+      if (parameter && type) {
+        if (info) this.assignment(type, info, value.span);
+        call.inputs.push({ variable: parameter.variable, value, dataType: type });
+      }
+    });
+    for (const output of node.outputs ?? []) {
+      const parameter = outputs.find((item) => item.name.key === output.name.key);
+      if (!parameter || seen.has(output.name.key)) invalid(output.name);
+      seen.add(output.name.key);
+      const target = this.reference(output.target, true);
+      if (target) {
+        this.expressions.set(output.target, target);
+        if (parameter && isScalar(parameter.type)) {
+          this.assignment(target.dataType, { dataType: parameter.type }, output.target.span);
+          call.outputs.push({ variable: parameter.variable, target: output.target });
+        }
+      }
+    }
+    if (result === null) return statement ? { dataType: "BOOL" } : null;
+    return isScalar(result) ? { dataType: result } : null;
   }
 
   private assignment(to: DataType, info: ExpressionInfo, span: SourceSpan): boolean {
@@ -678,10 +808,29 @@ class Checker {
           const symbol = this.names.get(node.call.name.key);
           if (symbol && isBlock(symbol.type))
             this.report("fb.unsupported-call", { name: node.call.name.name }, node.call.span);
-          else this.expression(node.call);
+          else {
+            const info = this.functionCall(node.call, true);
+            if (info) this.expressions.set(node.call, info);
+          }
           break;
         }
         case "fbCall": {
+          if (this.pous.has(node.instance.key)) {
+            const call: AST.FunctionCall = {
+              kind: "functionCall",
+              name: node.instance,
+              args: node.inputs.map((input) => input.value),
+              inputNames: node.inputs.map((input) => input.name),
+              span: node.span,
+            };
+            this.functionCall(call, true);
+            const info = this.userCalls.get(call);
+            if (info) {
+              this.userCalls.delete(call);
+              this.userCalls.set(node, info);
+            }
+            break;
+          }
           const symbol = this.resolve(node.instance);
           if (symbol && !isBlock(symbol.type))
             this.report("fb.not-function-block", { name: node.instance.name }, node.instance.span);
@@ -786,6 +935,10 @@ class Checker {
 }
 
 /** Check a parsed AST. No checked result is exposed when any semantic rule fails. */
-export function check(ast: AST.Program): CheckResult {
-  return new Checker().run(ast);
+export function check(
+  ast: AST.Program,
+  pous: ReadonlyMap<string, AST.Program> = new Map([[ast.name.key, ast]]),
+  functionIds: ReadonlyMap<string, number> = new Map(),
+): CheckResult {
+  return new Checker(ast, pous, functionIds).run(ast);
 }

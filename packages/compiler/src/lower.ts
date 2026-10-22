@@ -9,7 +9,7 @@ import {
 import { commonType } from "./type-rules.js";
 import type * as IR from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
-import type { CheckedProgram } from "./checked.js";
+import type { CheckedProgram, UserCallInfo } from "./checked.js";
 
 /** Missing side-table entries indicate a compiler bug, never a source diagnostic. */
 function required<T>(value: T | undefined): T {
@@ -28,10 +28,40 @@ class Lowerer {
       kind: "program",
       name: ast.name.name,
       span: span(ast),
-      variables: ast.declarations.flatMap((declaration) =>
-        declaration.names.map((name) => this.variable(declaration, name)),
-      ),
+      variables: ast.declarations
+        .flatMap((declaration) => declaration.names.map((name) => this.variable(declaration, name)))
+        .concat(
+          this.checked.result
+            ? [
+                {
+                  kind: "scalar",
+                  name: ast.name.name,
+                  key: ast.name.key,
+                  span: span(ast.name),
+                  dataType: this.checked.result.type,
+                  initialValue: this.checked.result.initialValue,
+                } as IR.ScalarVariable,
+              ]
+            : [],
+        ),
       body: this.statements(ast.body),
+    };
+  }
+
+  private userCall(node: IR.SourceNode, call: UserCallInfo): IR.UserFunctionCall {
+    return {
+      kind: "userFunctionCall",
+      function: call.function,
+      dataType: call.result,
+      span: span(node),
+      inputs: call.inputs.map((input) => ({
+        variable: input.variable,
+        value: this.widen(this.expression(input.value), input.dataType),
+      })),
+      outputs: call.outputs.map((output) => ({
+        variable: output.variable,
+        target: this.target(output.target),
+      })),
     };
   }
 
@@ -155,6 +185,12 @@ class Lowerer {
         };
       }
       case "functionCall": {
+        const user = this.checked.userCalls.get(node);
+        if (user) {
+          const call = this.userCall(node, user);
+          if (call.dataType === null) throw new Error("Checked expression has no result");
+          return { ...call, dataType: call.dataType };
+        }
         const name = required(this.checked.functions.get(node));
         const inputs = required(this.checked.functionArguments.get(node));
         const signature = getStandardFunctionSignature(name);
@@ -171,6 +207,9 @@ class Lowerer {
           ...base,
           kind: "functionCall",
           function: name,
+          ...(node.inputNames
+            ? { evaluationOrder: node.args.map((arg) => inputs.indexOf(arg)) }
+            : {}),
           ...(node.outputs?.length
             ? {
                 outputs: node.outputs.map((output) => ({
@@ -217,11 +256,15 @@ class Lowerer {
           value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
       case "call": {
+        const user = this.checked.userCalls.get(node.call);
+        if (user) return { ...base, kind: "call", call: this.userCall(node.call, user) };
         const call = this.expression(node.call);
         if (call.kind !== "functionCall") throw new Error("Expected a checked function call");
         return { ...base, kind: "call", call };
       }
-      case "fbCall":
+      case "fbCall": {
+        const user = this.checked.userCalls.get(node);
+        if (user) return { ...base, kind: "call", call: this.userCall(node, user) };
         return {
           ...base,
           kind: "fbCall",
@@ -233,6 +276,7 @@ class Lowerer {
             span: span(input),
           })),
         };
+      }
       case "if": {
         const branch = (arm: AST.ConditionalBranch): IR.ConditionalBranch => ({
           condition: this.expression(arm.condition),
@@ -318,4 +362,23 @@ class Lowerer {
 /** Lower only a successful check result; semantic Maps never escape into the plain-data IR. */
 export function lower(checked: CheckedProgram): IR.ProgramIR {
   return new Lowerer(checked).run();
+}
+
+export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
+  const ir = lower(checked);
+  const parameters = checked.ast.declarations.flatMap((declaration) =>
+    declaration.names.map(() => declaration.section),
+  );
+  return {
+    name: ir.name,
+    span: ir.span,
+    body: ir.body,
+    variables: ir.variables.map((variable) => {
+      if (variable.kind !== "scalar") throw new Error("Checked function contains an FB");
+      return variable;
+    }),
+    inputs: parameters.flatMap((section, index) => (section === "VAR_INPUT" ? [index] : [])),
+    outputs: parameters.flatMap((section, index) => (section === "VAR_OUTPUT" ? [index] : [])),
+    ...(checked.result ? { result: checked.result.id } : {}),
+  };
 }

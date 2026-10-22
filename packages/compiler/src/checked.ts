@@ -4,7 +4,21 @@ import type {
   ScalarValue,
   StandardFunction,
 } from "@benchtop-plc/core";
-import type { Expression, FunctionCall, Identifier, Program } from "./ast.js";
+import type {
+  Expression,
+  FunctionCall,
+  FunctionBlockCall,
+  AssignmentTarget,
+  Identifier,
+  Program,
+} from "./ast.js";
+
+export interface UserCallInfo {
+  function: number;
+  inputs: { variable: number; value: Expression; dataType: DataType }[];
+  outputs: { variable: number; target: AssignmentTarget }[];
+  result: DataType | null;
+}
 
 export interface VariableSymbol {
   /** Index in declaration order, shared by all resolved references. */
@@ -36,4 +50,6 @@ export interface CheckedProgram {
   references: ReadonlyMap<Identifier, ResolvedReference>;
   functions: ReadonlyMap<FunctionCall, StandardFunction>;
   functionArguments: ReadonlyMap<FunctionCall, readonly Expression[]>;
+  userCalls: ReadonlyMap<FunctionCall | FunctionBlockCall, UserCallInfo>;
+  result?: VariableSymbol;
 }

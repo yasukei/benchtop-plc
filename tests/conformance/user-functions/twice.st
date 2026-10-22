@@ -1,0 +1,4 @@
+FUNCTION Twice : INT
+VAR_INPUT N: INT; END_VAR
+Twice := Sum(A := N, B := N);
+END_FUNCTION

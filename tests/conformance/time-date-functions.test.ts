@@ -241,6 +241,7 @@ it.each([
       {
         code: "call.argument-count",
         severity: "error",
+        pou: "P",
         args: { name, min, max: min, found },
         span: { line: 3, column, endLine: 3, endColumn: body.length },
       },
@@ -257,6 +258,7 @@ it.each(["timer(TRUE);", "timer(IN := TRUE, Q => yes);"])(
       {
         code: "fb.unsupported-call",
         severity: "error",
+        pou: "P",
         args: { name: "timer" },
         span: { line: 3, column: 1, endLine: 3, endColumn: body.length },
       },

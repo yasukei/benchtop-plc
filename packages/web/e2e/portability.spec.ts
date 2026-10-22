@@ -14,7 +14,7 @@ d := TO_DWORD(r);
 END_PROGRAM`);
   const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
   const bitWarning = diagnostics.getByRole("button", {
-    name: "Line 3, column 6 BYTE_TO_BOOL returns the rightmost bit; some vendor runtimes return TRUE for any non-zero value.",
+    name: "Portability: Line 3, column 6 BYTE_TO_BOOL returns the rightmost bit; some vendor runtimes return TRUE for any non-zero value.",
   });
   await expect(bitWarning).toBeVisible();
   await expect(diagnostics).toContainText(
@@ -43,7 +43,9 @@ END_PROGRAM`);
   await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
   const localized = page.getByRole("region", { name: "診断", exact: true });
   await expect(
-    localized.getByRole("button", { name: /^3行、6列 BYTE_TO_BOOLは最下位ビットを返します。/ }),
+    localized.getByRole("button", {
+      name: /^Portability: 3行、6列 BYTE_TO_BOOLは最下位ビットを返します。/,
+    }),
   ).toBeVisible();
   await expect(localized).toContainText("ゼロ以外のすべての値に対してTRUEを返します。");
   await expect(localized).toContainText("REAL_TO_DWORDはビットパターンを再解釈します。");

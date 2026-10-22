@@ -17,7 +17,11 @@ describe("data-driven ST conformance", () => {
   });
 
   it.each(cases)("%s", (name) => {
-    runTrace(name, read(`${name}/program.st`), loadTrace(name));
+    const files = readdirSync(new URL(`${name}/`, root))
+      .filter((file) => file.endsWith(".st"))
+      .sort();
+    const sources = files.map((file) => read(`${name}/${file}`));
+    runTrace(name, sources, loadTrace(name));
   });
 
   it("loads and compiles the blink XML example and passes the reference trace", () => {

@@ -1,0 +1,4 @@
+FUNCTION Sum : INT
+VAR_INPUT A: INT := 10; B: INT := 20; END_VAR
+Sum := A + B;
+END_FUNCTION
