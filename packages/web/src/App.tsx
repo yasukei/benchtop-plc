@@ -159,21 +159,19 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             </div>
             <div className="pou-workspace">
               <PouList state={state} store={store} text={text} />
-              {selected && (
-                <StEditor
-                  key={state.editorSession}
-                  ref={editor}
-                  source={state.source}
-                  onChange={store.setSource}
-                  diagnostics={state.diagnostics.filter(
-                    (diagnostic) => diagnostic.sourceIndex === state.selectedPou,
-                  )}
-                  snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
-                  online={online}
-                  fault={faultIndex === state.selectedPou ? state.diagnostic : null}
-                  language={language}
-                />
-              )}
+              <StEditor
+                key={state.editorSession}
+                ref={editor}
+                source={state.source}
+                onChange={store.setSource}
+                diagnostics={state.diagnostics.filter(
+                  (diagnostic) => diagnostic.sourceIndex === state.selectedPou,
+                )}
+                snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
+                online={online}
+                fault={faultIndex === state.selectedPou ? state.diagnostic : null}
+                language={language}
+              />
             </div>
             <section className="diagnostics" aria-labelledby="diagnostics-title">
               <h3 id="diagnostics-title">{text.diagnostics}</h3>

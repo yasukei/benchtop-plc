@@ -118,6 +118,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     return true;
   };
   const openProject = (xml: string) => {
+    if (state.saveDiagnostics.length) update({ saveDiagnostics: [] });
     if (
       pendingLoads.length > 0 ||
       state.runtimeState !== "STOP" ||
@@ -177,9 +178,11 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     setSource(source: string) {
       if (source === state.source) return;
       clearTimeout(compileTimer);
-      const pous = state.pous.map((pou, index) =>
-        index === state.selectedPou ? derivePou(source, pou) : pou,
-      );
+      const pous = state.pous.length
+        ? state.pous.map((pou, index) =>
+            index === state.selectedPou ? derivePou(source, pou) : pou,
+          )
+        : createPous([source]);
       update({ source, pous, diagnostics: [], saveDiagnostics: [] });
       compileTimer = setTimeout(compileEditor, 250);
     },

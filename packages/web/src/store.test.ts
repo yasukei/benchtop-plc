@@ -411,3 +411,30 @@ it("saves and reopens all three POU texts in order, and explains unparseable dra
   expect(store.getSnapshot().pous).toHaveLength(3);
   store.dispose();
 });
+
+it("clears an earlier save failure when an open attempt fails", () => {
+  const { store } = setup();
+  store.setSource("PROGRAM");
+  expect(store.saveProject()).toBeNull();
+  expect(store.getSnapshot().saveDiagnostics.length).toBeGreaterThan(0);
+  expect(store.openProject("invalid XML")).toBe(false);
+  expect(store.getSnapshot().saveDiagnostics).toEqual([]);
+  expect(store.getSnapshot().source).toBe("PROGRAM");
+  store.dispose();
+});
+
+it("keeps empty projects saveable and creates a first POU on an editor change", () => {
+  const { store, worker } = setup();
+  const metadata = readProject(store.saveProject()!).value!;
+  const empty = writeProject({ ...metadata, pous: [] }).value!;
+  expect(store.openProject(empty)).toBe(true);
+  expect(store.getSnapshot()).toMatchObject({ pous: [], selectedPou: 0, source: "" });
+  expect(readProject(store.saveProject()!).value!.pous).toEqual([]);
+  store.setSource("PROGRAM New END_PROGRAM");
+  expect(store.getSnapshot().pous).toEqual([
+    { name: "New", kind: "PROGRAM", source: "PROGRAM New END_PROGRAM" },
+  ]);
+  store.run();
+  expect(worker.sent.slice(-2).map((message) => message.type)).toEqual(["load", "run"]);
+  store.dispose();
+});
