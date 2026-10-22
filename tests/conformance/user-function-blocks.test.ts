@@ -192,3 +192,29 @@ it("shares the scan watchdog across several block invocations", () => {
     instance: "SECOND",
   });
 });
+
+it("reports function faults without the calling block's instance path", () => {
+  const { runtime } = setup([
+    `PROGRAM Main VAR m1 : B; END_VAR m1(); END_PROGRAM`,
+    `FUNCTION F : INT VAR_INPUT d : INT; END_VAR F := Divide(d); END_FUNCTION`,
+    `FUNCTION Divide : INT VAR_INPUT d : INT; END_VAR Divide := 1 / d; END_FUNCTION`,
+    `FUNCTION_BLOCK B VAR_OUTPUT Q : INT; END_VAR Q := F(d := 0); END_FUNCTION_BLOCK`,
+  ]);
+  runtime.scanOnce();
+  expect(runtime.diagnostic).toMatchObject({ code: "runtime.division-by-zero", pou: "Divide" });
+  expect(runtime.diagnostic).not.toHaveProperty("instance");
+});
+
+it("restores a block's instance path after a successful function call", () => {
+  const { runtime } = setup([
+    `PROGRAM Main VAR m1 : B; END_VAR m1(); END_PROGRAM`,
+    `FUNCTION F : INT F := 5; END_FUNCTION`,
+    `FUNCTION_BLOCK B VAR Q,zero : INT; END_VAR Q := F(); Q := Q / zero; END_FUNCTION_BLOCK`,
+  ]);
+  runtime.scanOnce();
+  expect(runtime.diagnostic).toMatchObject({
+    code: "runtime.division-by-zero",
+    pou: "B",
+    instance: "M1",
+  });
+});

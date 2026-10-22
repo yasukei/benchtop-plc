@@ -371,12 +371,14 @@ export class Interpreter {
       value: this.expression(input.value),
     }));
     const caller = this.memory,
-      callerPou = this.pou;
+      callerPou = this.pou,
+      callerPath = this.instancePath;
     const locals = this.programMemory.functionFrame(call.function);
     for (const input of inputs) locals.write(input.variable, input.value);
     let result: ScalarValue | null;
     this.memory = locals;
     this.pou = definition.name;
+    this.instancePath = undefined;
     this.callDepth++;
     try {
       this.execute(definition.body);
@@ -385,6 +387,7 @@ export class Interpreter {
       this.callDepth--;
       this.memory = caller;
       this.pou = callerPou;
+      this.instancePath = callerPath;
     }
     for (const output of call.outputs) {
       const variable = definition.variables[output.variable]!;

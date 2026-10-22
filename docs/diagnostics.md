@@ -10,8 +10,9 @@ retains the source POU name and identifies the text to which the span belongs.
 Compiler diagnostics carry it once a header is known, including lexical/syntax
 failures after that header; project-level errors omit it. Runtime execution faults
 name the executing POU, preserving the innermost function through nested calls.
-Faults in a user block also carry `instance?: string`, the canonical dotted path
-(for example `M1.DELAY`). The web catalogs include it alongside the POU name.
+Faults in a user block body also carry `instance?: string`, the canonical dotted path
+(for example `M1.DELAY`). A function called from a block has no instance path
+while its body runs. The web catalogs include a block path alongside the POU name.
 
 ## Naming and compatibility
 

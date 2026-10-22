@@ -185,6 +185,9 @@ nested standard FBs. STOP → RUN, single scan and FAULT preserve persistent sta
 Writes and forces use the existing pre/post execution stages on the monitored
 VariableIds, including private scalar members. Fault diagnostics carry the
 executing `pou` and canonical dotted `instance` path, with the span in that POU.
+A function called from a block clears the instance context while its body runs;
+faults there name only the function POU. Returning restores the caller's instance
+context so later block faults retain their path.
 
 ## Standard library integration
 
