@@ -105,6 +105,7 @@ clauses. The checks and project restrictions below are tracked in
 - Each instance has its own copy of `VAR_INPUT`, `VAR_OUTPUT` and `VAR`, kept between
   calls. `VAR_TEMP` starts from its initial values on every call.
 - Instances can be declared in the `VAR` section of a `PROGRAM` or a `FUNCTION_BLOCK`.
+  Standard and user-defined FB instances in `VAR_TEMP` are compile errors (restriction).
   Nesting is unlimited, but a block cannot contain itself directly or indirectly.
 - FB calls stay formal only: `inst(IN := x, Q => y)`. An input that is not supplied
   keeps its previous value. `=>` copies an output after the call; it also works for
@@ -232,6 +233,7 @@ other behavior:
 
 - Non-formal calls are allowed only for functions whose parameters are all `VAR_INPUT`.
 - Functions cannot declare `VAR_TEMP` or FB instances.
+- FB instances cannot be declared in `VAR_TEMP` of a `PROGRAM` or `FUNCTION_BLOCK`.
 - The `PROGRAM` cannot declare `VAR_INPUT`, `VAR_OUTPUT` or `VAR_IN_OUT` in this milestone.
 - Direct addresses are allowed only in the `PROGRAM`.
 - `CONSTANT` is allowed only on `VAR` sections and cannot be combined with `AT`.
