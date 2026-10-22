@@ -162,11 +162,18 @@ class Parser {
       )
     ) {
       const section = this.take();
-      if (section.key !== "VAR") sections.push({ name: section.key, span: section.span });
+      const constant = this.accept("CONSTANT");
+      if (section.key !== "VAR" || constant)
+        sections.push({
+          name: section.key,
+          span: section.span,
+          ...(constant ? { constant: true } : {}),
+        });
       while (!this.at("END_VAR")) {
         if (this.current.kind === "eof" || this.current.key.startsWith("END_"))
           this.missingEnd("END_VAR");
         const declaration = this.declaration();
+        if (constant) declaration.constant = true;
         if (section.key !== "VAR")
           declaration.section = section.key as NonNullable<Declaration["section"]>;
         declarations.push(declaration);

@@ -29,6 +29,7 @@ class Lowerer {
       name: ast.name.name,
       span: span(ast),
       variables: ast.declarations
+        .filter((declaration) => !declaration.constant)
         .flatMap((declaration) => declaration.names.map((name) => this.variable(declaration, name)))
         .concat(
           this.checked.result
@@ -160,6 +161,24 @@ class Lowerer {
     };
   }
 
+  private usesNamedConstant(node: AST.Expression): boolean {
+    switch (node.kind) {
+      case "name":
+      case "member":
+        return this.checked.expressions.get(node)?.constant !== undefined;
+      case "unary":
+        return this.usesNamedConstant(node.operand);
+      case "binary":
+        return this.usesNamedConstant(node.left) || this.usesNamedConstant(node.right);
+      case "group":
+        return this.usesNamedConstant(node.expression);
+      case "functionCall":
+        return node.args.some((arg) => this.usesNamedConstant(arg));
+      case "literal":
+        return false;
+    }
+  }
+
   private expression(node: AST.Expression): IR.Expression {
     const info = required(this.checked.expressions.get(node));
     const base = { dataType: info.dataType, span: span(node) };
@@ -169,7 +188,8 @@ class Lowerer {
         kind: "literal",
         value: coerceValue(info.dataType, required(info.constant)),
       }) as IR.LiteralExpression;
-    if (info.untyped) return literal();
+    if (info.untyped || (info.constant !== undefined && this.usesNamedConstant(node)))
+      return literal();
     switch (node.kind) {
       case "literal":
         return literal();
@@ -422,9 +442,9 @@ class Lowerer {
 }
 
 function sections(checked: CheckedProgram): AST.Declaration["section"][] {
-  return checked.ast.declarations.flatMap((declaration) =>
-    declaration.names.map(() => declaration.section),
-  );
+  return checked.ast.declarations
+    .filter((declaration) => !declaration.constant)
+    .flatMap((declaration) => declaration.names.map(() => declaration.section));
 }
 
 export function lowerFunctionBlock(checked: CheckedProgram): IR.UserFunctionBlockIR {

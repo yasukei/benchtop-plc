@@ -48,6 +48,61 @@ function executable(ir: unknown): unknown {
 }
 
 describe("several POUs in PLCopen XML", () => {
+  it("round trips ordered constants and dependent initializers in every POU", () => {
+    const pous = [
+      "PROGRAM Main VAR CONSTANT N : INT := 10; END_VAR VAR A : INT := N; END_VAR VAR CONSTANT UpperBound : INT := N + 1; END_VAR END_PROGRAM",
+      "FUNCTION F : INT VAR CONSTANT N : INT := 30000; Wrapped : INT := N + N; END_VAR VAR_INPUT A : INT := Wrapped; END_VAR F := A; END_FUNCTION",
+      "FUNCTION_BLOCK Block VAR CONSTANT N : INT; END_VAR VAR A : INT := N; END_VAR END_FUNCTION_BLOCK",
+    ];
+    const xml = save(pous);
+    expect(xml.match(/<localVars constant="true">/g)).toHaveLength(4);
+    expect(readProject(xml).value!.pous).toEqual(pous);
+    const canonical = readProject(withoutSource(xml));
+    expect(canonical.diagnostics).toEqual([]);
+    expect(canonical.value!.pous[0]).toMatch(/VAR CONSTANT[\s\S]*VAR\n[\s\S]*VAR CONSTANT/);
+    const original = compileProject(pous);
+    expect(original.diagnostics).toEqual([]);
+    expect(executable(compileProject(canonical.value!.pous).ir)).toEqual(executable(original.ir));
+    expect(readProject(writeProject(canonical.value!).value!).value!.pous).toEqual(
+      canonical.value!.pous,
+    );
+  });
+
+  it("checks initializers using earlier constants on save and open", () => {
+    const source =
+      "PROGRAM Main VAR CONSTANT N : DINT := 10; END_VAR VAR A : INT := DINT_TO_INT(N); END_VAR END_PROGRAM";
+    const xml = save([source]);
+    // The constant's own value is valid, but its dependent INT initializer is not.
+    const dependent = source
+      .replace("N : DINT := 10", "N : DINT := 40000")
+      .replace("DINT_TO_INT(N)", "N");
+    expect(writeProject(project([dependent])).value).toBeNull();
+    expect(readProject(xml.replace('value="DINT_TO_INT(N)"', 'value="N"')).value).toBeNull();
+    expect(writeProject(project([source.replace("DINT := 10", "INT := 40000")])).value).toBeNull();
+  });
+
+  it.each(["true", "1", "false", "0"])("reads XML boolean constant=%s", (value) => {
+    const source = "PROGRAM Main VAR N : INT := 10; END_VAR END_PROGRAM";
+    const xml = withoutSource(save([source])).replace(
+      "<localVars>",
+      `<localVars constant="${value}">`,
+    );
+    const reopened = readProject(xml);
+    expect(reopened.diagnostics).toEqual([]);
+    expect(reopened.value!.pous[0]!.includes("VAR CONSTANT")).toBe(["true", "1"].includes(value));
+  });
+
+  it("rejects invalid XML constant flags", () => {
+    expect(
+      readProject(
+        save(["PROGRAM Main VAR N : INT; END_VAR END_PROGRAM"]).replace(
+          "<localVars>",
+          '<localVars constant="yes">',
+        ),
+      ).value,
+    ).toBeNull();
+  });
+
   it("preserves project order and exact source, with per-POU extensions", () => {
     const pous = [increment, main, twice];
     const xml = save(pous);
@@ -145,9 +200,14 @@ describe("several POUs in PLCopen XML", () => {
     ).toBeNull();
   });
 
-  it("rejects constant sections until their XML mapping is supported", () => {
-    const xml = save([procedure]).replace("<inputVars>", '<inputVars constant="true">');
-    expect(readProject(xml).value).toBeNull();
+  it("preserves a representable constant modifier on an invalid section", () => {
+    const source = procedure.replace("VAR_INPUT", "VAR_INPUT CONSTANT");
+    const xml = save([source]);
+    expect(xml).toContain('<inputVars constant="true">');
+    expect(readProject(xml).value!.pous).toEqual([source]);
+    expect(compileProject(readProject(withoutSource(xml)).value!.pous).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "decl.constant-section" }),
+    );
   });
 
   it("preserves empty in-out sections in the exact source extension", () => {

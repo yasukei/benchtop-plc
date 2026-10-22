@@ -57,17 +57,25 @@ it.each([
   expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toContain(code);
 });
 
-it("does not accept CONSTANT variables or VAR_IN_OUT CONSTANT while constants are unsupported", () => {
+it("rejects constant in-out actuals and CONSTANT on in-out sections", () => {
   const sources = [
-    [`PROGRAM Main VAR CONSTANT x : INT := 1; END_VAR F(n := x); END_PROGRAM`, fn],
-    [main("F(n := x);"), `FUNCTION F VAR_IN_OUT CONSTANT n : INT; END_VAR END_FUNCTION`, block],
+    {
+      pous: [`PROGRAM Main VAR CONSTANT x : INT := 1; END_VAR F(n := x); END_PROGRAM`, fn],
+      code: "decl.constant-not-writable",
+    },
+    {
+      pous: [
+        main("F(n := x);"),
+        `FUNCTION F VAR_IN_OUT CONSTANT n : INT; END_VAR END_FUNCTION`,
+        block,
+      ],
+      code: "decl.constant-section",
+    },
   ];
-  for (const pous of sources) {
+  for (const { pous, code } of sources) {
     const result = compileProject(pous);
     expect(result.ir).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "syntax.reserved-identifier" }),
-    );
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code }));
   }
 });
 

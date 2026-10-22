@@ -224,3 +224,22 @@ with `{ name: string }` naming its first declared variable and a span covering
 the initializer expression. It applies to both functions and function blocks,
 including unused definitions. XML exchange preserves this representable semantic
 error, while retaining the usual initializer type and range checks.
+
+## Named constant codes
+
+| Code                         | Meaning                                                                             | Arguments             |
+| ---------------------------- | ----------------------------------------------------------------------------------- | --------------------- |
+| `decl.constant-section`      | CONSTANT on a section other than VAR, including an empty section                    | `{ section: string }` |
+| `decl.constant-type`         | An FB instance declared CONSTANT                                                    | `{}`                  |
+| `decl.constant-address`      | CONSTANT combined with AT                                                           | `{}`                  |
+| `decl.constant-not-writable` | Constant used as assignment/bit target, FOR control, output target or in-out actual | `{ name: string }`    |
+| `decl.constant-order`        | Constant initializer references a constant not initialized earlier in this POU      | `{ name: string }`    |
+
+Section errors span the section keyword, type errors the declared type, and
+address errors the AT address. Write and order errors span the referenced name.
+Existing `decl.nonconstant-initializer` rejects mutable references and other
+nonconstant expressions; `type.invalid-constant` handles out-of-range initializers
+and arithmetic faults. Uses of a constant whose initializer has already failed
+do not add declaration-order errors; the initializer diagnostic identifies the cause.
+Named constants use the existing name collision and
+bit-index diagnostics. All codes have English and Japanese UI templates.

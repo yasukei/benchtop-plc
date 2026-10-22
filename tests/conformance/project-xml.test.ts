@@ -86,6 +86,7 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     const functions = [
       "FUNCTION F : INT VAR_INPUT n : INT := 1; END_VAR VAR_OUTPUT q : INT; END_VAR VAR x : INT; END_VAR VAR_INPUT extra : INT; END_VAR F := n; END_FUNCTION",
       "FUNCTION Notify VAR_INPUT n : INT; END_VAR END_FUNCTION",
+      "FUNCTION Constants : INT VAR CONSTANT N : INT := 10; END_VAR VAR x : INT := N; END_VAR Constants := x; END_FUNCTION",
       "FUNCTION Swap VAR_IN_OUT a,b : INT; END_VAR END_FUNCTION",
       "FUNCTION_BLOCK Increment VAR_IN_OUT n : INT; END_VAR n := n + 1; END_FUNCTION_BLOCK",
     ];

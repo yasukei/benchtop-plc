@@ -31,7 +31,7 @@ the plain tree IR. Source spelling and spans stay in the AST.
 Names are matched by their parser-supplied upper-case keys, across all VAR blocks.
 All declarations are collected before checking expressions. Initializers and CASE
 labels may use constant expressions, including typed literals and conversion calls;
-variable references, FB members and other function calls are not constants.
+mutable variable references, FB members and other function calls are not constants.
 
 Implicit conversions follow [ADR 0013](adr/0013-conversions-literals-and-operators.md).
 The supported paths are SINT → INT → DINT → LINT; USINT → UINT → UDINT → ULINT;
@@ -55,7 +55,8 @@ and TIME/LTIME, and rejects unsigned integers. All comparisons accept BOOL (`FAL
 AND, &, OR, XOR and NOT accept BOOL and bit strings only. Operands widen to their
 common bit type (TRUE AND BYTE#3 is BYTE#1). Comparisons order bit strings by their
 unsigned numeric value. Bit access `x.n` reads or assigns a BOOL on a BYTE, WORD or
-DWORD or LWORD variable; n is a decimal constant index, zero-based and less than its width.
+DWORD or LWORD value; n is a decimal index or a named integer constant, zero-based
+and less than its width. Constant bit strings can be read but cannot be written.
 An invalid index reports `type.invalid-bit-access`. Assignment changes only that bit.
 TIME and LTIME support duration addition/subtraction and scaling with an independently
 typed numeric factor. Mixed TIME/LTIME expressions use LTIME after converting milliseconds
@@ -78,6 +79,26 @@ order within each compatible calendar family. Typed constant operations have exa
 the runtime's wrap, floor and fault semantics.
 
 ### Literals and constants
+
+`VAR CONSTANT` declares elementary typed constants in PROGRAM, FUNCTION and
+FUNCTION_BLOCK. It is allowed only on `VAR`, cannot be combined with `AT`, and
+cannot declare FB instances. Without an initializer the type's default applies.
+Initializers may refer only to constants declared earlier in the same POU;
+self, forward and cyclic references are errors. Mutable variables cannot supply
+constant initializers. Names remain case-insensitive and share the variable namespace.
+
+Each initializer is range-checked against its declared type. References then behave
+as typed constants: with `N : INT := 30000`, `N + N` wraps to -5536, while the
+untyped initializer `30000 + 30000` does not fit INT. Constants may be used in
+later declaration initializers, CASE labels/ranges, bit indices (`bits.N`), FOR
+bounds/step and other constant expressions. Bit reads of constant bit strings
+are folded too.
+
+Constants receive no symbol ID, local storage slot or IR VariableId in any POU.
+Their reads and constant expressions are folded to literals; they never appear
+in the monitor or as write/force targets. Assignment (including bit assignment),
+FOR control variables, `=>` targets and `VAR_IN_OUT` actuals must be writable,
+so constants are rejected in those positions.
 
 Numeric literals without a type, and expressions containing only these literals,
 parentheses, unary signs and arithmetic operators, are untyped constants. They
@@ -307,9 +328,9 @@ The actual must be a writable scalar variable of the caller, with exactly the
 parameter's elementary type; there is no contextual literal typing or widening.
 Expressions, literals, parenthesized expressions, bit access and `inst.X` members
 report `call.in-out-variable`; a different scalar type reports `call.in-out-type`.
-CONSTANT declarations remain unsupported and cannot supply actuals; `VAR_IN_OUT
-CONSTANT` is unsupported too. FB instances, arrays and structures are not in-out
-parameters in this milestone.
+Named constants cannot supply actuals (`decl.constant-not-writable`), and
+`VAR_IN_OUT CONSTANT` is rejected with `decl.constant-section`. FB instances,
+arrays and structures are not in-out parameters in this milestone.
 
 Caller VAR_INPUT, VAR_OUTPUT and VAR_IN_OUT variables can be passed on, as can
 locals, temporaries and a function's result variable. Two in-outs may alias the

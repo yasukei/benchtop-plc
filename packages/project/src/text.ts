@@ -15,7 +15,8 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
   const unsupported = ast.sections?.find(
-    (section) => !["VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP", "VAR_IN_OUT"].includes(section.name),
+    (section) =>
+      !["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP", "VAR_IN_OUT"].includes(section.name),
   )?.name;
   if (unsupported)
     return {
@@ -58,6 +59,7 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
                 : declaration.section === "VAR_TEMP"
                   ? "tempVars"
                   : "localVars",
+        ...(declaration.constant ? { constant: true } : {}),
         name: name.name,
         type: normalizeType(declaration.typeName.key),
         ...(declaration.address ? { address: declaration.address.text } : {}),
@@ -94,11 +96,13 @@ export function canonicalBody(body: string): string {
 export function joinProgram(program: SplitProgram): string {
   let declarations = "";
   let section: VariableDeclaration["section"] | undefined;
+  let constant = false;
   for (const variable of program.variables) {
-    if (section !== variable.section) {
+    if (section !== variable.section || constant !== !!variable.constant) {
       if (section) declarations += "END_VAR\n";
       section = variable.section;
-      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP", inOutVars: "VAR_IN_OUT" }[section]}\n`;
+      constant = !!variable.constant;
+      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP", inOutVars: "VAR_IN_OUT" }[section]}${constant ? " CONSTANT" : ""}\n`;
     }
     declarations += `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};\n`;
   }

@@ -10,6 +10,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- `VAR CONSTANT` in programs, functions and function blocks: typed compile-time
+  values with default initializers, earlier-constant references and wrapping
+  arithmetic. Constants work in initializers, CASE labels, bit indices and FOR
+  bounds/step, with no runtime storage or monitor entries; writes are rejected.
+- PLCopen XML constant sections, including canonical imports and initializer
+  validation in the context of earlier constants in each POU.
+
 - `VAR_IN_OUT` parameters on functions and function blocks, passed as exact-type
   caller variable aliases on every formal call. Writes are visible immediately,
   aliases can be passed on, and monitoring and forces use the actual variable's ID.

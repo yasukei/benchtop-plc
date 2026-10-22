@@ -18,7 +18,7 @@ export interface Program extends SourceNode {
   kind: "program" | "function" | "functionBlock";
   name: Identifier;
   resultType?: Identifier;
-  sections?: { name: string; span: import("@benchtop-plc/core").SourceSpan }[];
+  sections?: { name: string; constant?: boolean; span: import("@benchtop-plc/core").SourceSpan }[];
   declarations: Declaration[];
   body: Statement[];
 }
@@ -29,6 +29,7 @@ export interface Declaration extends SourceNode {
   address?: Address;
   typeName: Identifier;
   initializer?: Expression;
+  constant?: boolean;
   /** Absent means VAR, preserving the original single-program AST. */
   section?: "VAR_INPUT" | "VAR_OUTPUT" | "VAR_IN_OUT" | "VAR_TEMP";
 }

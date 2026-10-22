@@ -202,7 +202,10 @@ function readVariables(pou: XmlNode): VariableDeclaration[] {
   for (const group of intf.children.filter((child) =>
     ["localVars", "inputVars", "outputVars", "tempVars", "inOutVars"].includes(child.name),
   )) {
-    shape(group, [], ["variable"]);
+    shape(group, ["constant"], ["variable"]);
+    const constant = group.attributes.constant;
+    if (constant !== undefined && !["true", "false", "1", "0"].includes(constant))
+      fail("project.invalid", `${group.name}/@constant`);
     for (const variable of group.children.filter((child) => child.name === "variable")) {
       shape(variable, ["name", "address"], ["type", "initialValue"]);
       const type = required(variable, "type");
@@ -216,6 +219,7 @@ function readVariables(pou: XmlNode): VariableDeclaration[] {
       }
       variables.push({
         section: group.name as VariableDeclaration["section"],
+        ...(["true", "1"].includes(constant ?? "") ? { constant: true } : {}),
         name: attribute(variable, "name"),
         type: readType(type),
         ...(variable.attributes.address === undefined
@@ -506,11 +510,19 @@ export function writeProject(project: Project): ProjectResult<string> {
       let current: VariableDeclaration[] = [];
       const flush = () => {
         if (current.length)
-          groups += element(current[0]!.section, {}, current.map(variableXml).join(""));
+          groups += element(
+            current[0]!.section,
+            current[0]!.constant ? { constant: "true" } : {},
+            current.map(variableXml).join(""),
+          );
         current = [];
       };
       for (const variable of program.variables) {
-        if (current.length && current[0]!.section !== variable.section) flush();
+        if (
+          current.length &&
+          (current[0]!.section !== variable.section || current[0]!.constant !== variable.constant)
+        )
+          flush();
         current.push(variable);
       }
       flush();
