@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Overloaded `TON`, `TOF`, `TP`, `CTU`, `CTD` and `CTUD` select timer/counter
+  variants from typed `PT`/`PV` bindings in their declaring POU, including user
+  function blocks. Monitor rows and editor hovers show resolved types; PLCopen XML
+  preserves the declared names and selects again on open. Failed selection reports
+  the incompatible preset types without misleading default-variant narrowing errors.
+
 - `VAR CONSTANT` in programs, functions and function blocks: typed compile-time
   values with default initializers, earlier-constant references and wrapping
   arithmetic. Constants work in initializers, CASE labels, bit indices and FOR

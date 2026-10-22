@@ -46,6 +46,12 @@ import {
 } from "./exact.js";
 import { binaryConstant, unaryConstant, withConstant } from "./constants.js";
 import {
+  blockVariant,
+  readsInferredMember,
+  selectingPort,
+  visitBlockBindings,
+} from "./overloaded-blocks.js";
+import {
   assignable,
   binaryType,
   isInteger,
@@ -88,6 +94,7 @@ class Checker {
   >();
   private readonly userCalls = new Map<AST.FunctionCall | AST.FunctionBlockCall, UserCallInfo>();
   private readonly blockInputTypes = new Map<AST.Identifier, DataType>();
+  private readonly failedBlockSelections = new Set<string>();
   private result?: VariableSymbol;
 
   constructor(
@@ -146,6 +153,7 @@ class Checker {
         if (constant?.name === name) constant.initializerProcessed = true;
       }
     }
+    this.selectBlockVariants();
     this.statements(ast.body, 0);
     if (this.diagnostics.some((item) => item.severity === "error"))
       return { checked: null, diagnostics: this.diagnostics };
@@ -164,6 +172,54 @@ class Checker {
       },
       diagnostics: this.diagnostics,
     };
+  }
+
+  private selectBlockVariants(): void {
+    const instances = new Map(
+      this.symbols
+        .filter((symbol) => selectingPort(symbol.type))
+        .map((symbol) => [symbol.name.key, symbol]),
+    );
+    if (!instances.size) return;
+    const inferred = new Set(instances.keys());
+    // Isolate speculative expression checking: no cached types, references or diagnostics
+    // may leak into the ordinary check against the final variants.
+    const probe = new Checker(this.ast, this.pous, this.functionIds, this.blockIds);
+    for (const [key, symbol] of this.names) probe.names.set(key, symbol);
+    for (const [key, constant] of this.constants) probe.constants.set(key, constant);
+    const bindings = new Map<VariableSymbol, DataType[]>();
+    visitBlockBindings(this.ast.body, (name, port, value) => {
+      const symbol = instances.get(name);
+      if (
+        !symbol ||
+        port !== selectingPort(symbol.type) ||
+        isUntyped(value) ||
+        readsInferredMember(value, inferred)
+      )
+        return;
+      const info = probe.expression(value);
+      if (!info) return;
+      const types = bindings.get(symbol) ?? [];
+      types.push(info.dataType);
+      bindings.set(symbol, types);
+    });
+    // Resolve only after collecting every selecting type, independently of source order.
+    for (const [symbol, types] of bindings) {
+      const variant = blockVariant(symbol.type, types);
+      if (variant) symbol.type = variant;
+      else {
+        this.failedBlockSelections.add(symbol.name.key);
+        this.report("fb.no-matching-variant", { name: symbol.name.name, types }, symbol.name.span);
+      }
+    }
+  }
+
+  private failedPreset(target: AST.AssignmentTarget): boolean {
+    return (
+      target.kind === "member" &&
+      this.failedBlockSelections.has(target.instance.key) &&
+      ["PT", "PV"].includes(target.member.key)
+    );
   }
 
   private declare(declaration: AST.Declaration): void {
@@ -956,16 +1012,20 @@ class Checker {
           bindings.push({ variable: inOut.variable, actual: value });
         return;
       }
-      const target = this.reference(
-        { kind: "member", instance: node.name, member: name, span: name.span },
-        true,
-      );
-      const info = this.expression(value, target?.dataType);
+      const member: AST.MemberReference = {
+        kind: "member",
+        instance: node.name,
+        member: name,
+        span: name.span,
+      };
+      const target = this.reference(member, true);
+      const failed = this.failedPreset(member);
+      const info = this.expression(value, failed ? undefined : target?.dataType);
       if (target) this.blockInputTypes.set(name, target.dataType);
       if (seen.has(name.key))
         this.report("fb.duplicate-input", { name: node.name.name, member: name.name }, name.span);
       seen.add(name.key);
-      if (target && info) this.assignment(target.dataType, info, value.span);
+      if (target && info && !failed) this.assignment(target.dataType, info, value.span);
     });
     this.requireInOuts(inOuts, seen, node);
     for (const output of node.outputs ?? []) {
@@ -1032,10 +1092,11 @@ class Checker {
     for (const node of statements) {
       switch (node.kind) {
         case "assignment": {
+          const failed = this.failedPreset(node.target);
           const target = this.reference(node.target, true),
-            value = this.expression(node.value, target?.dataType);
+            value = this.expression(node.value, failed ? undefined : target?.dataType);
           if (target) this.expressions.set(node.target, target);
-          if (target && value) this.assignment(target.dataType, value, node.value.span);
+          if (target && value && !failed) this.assignment(target.dataType, value, node.value.span);
           break;
         }
         case "call": {

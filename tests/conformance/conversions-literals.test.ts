@@ -44,7 +44,7 @@ describe("ADR 0013 conversions and constants", () => {
     ["x: REAL; y: LREAL;", "x := y;"],
     ["x: REAL; y: DINT;", "x := y;"],
     ["x: INT; y: UINT;", "x := y;"],
-    ["counter: CTU; y: DINT;", "counter(PV := y);"],
+    ["counter: CTU_INT; y: DINT;", "counter(PV := y);"],
     ["i: INT; y: DINT;", "FOR i := 0 TO y DO END_FOR;"],
     ["i: INT;", "CASE i OF DINT#1: END_CASE;"],
     ["x: REAL;", "x := INT_TO_REAL(DINT#1);"],

@@ -48,6 +48,32 @@ function executable(ir: unknown): unknown {
 }
 
 describe("several POUs in PLCopen XML", () => {
+  it("preserves overloaded declarations and selects variants again on open", () => {
+    const pous = [
+      "PROGRAM Main VAR c: CTU; t: TON; instance: Block; END_VAR c(PV := DINT#40000); t(PT := LT#1500us); END_PROGRAM",
+      "FUNCTION_BLOCK Block VAR counter: CTU; END_VAR counter.PV := ULINT#1; END_FUNCTION_BLOCK",
+    ];
+    const xml = save(pous);
+    expect(xml).toContain('<derived name="CTU"/>');
+    expect(xml).toContain('<derived name="TON"/>');
+    expect(xml).not.toContain('<derived name="CTU_DINT"/>');
+    expect(xml).not.toContain('<derived name="TON_LTIME"/>');
+    const expected = compileProject(pous);
+    expect(expected.diagnostics).toEqual([]);
+    expect(expected.ir!.variables).toMatchObject([
+      { fbType: "CTU_DINT" },
+      { fbType: "TON_LTIME" },
+      { fbType: "CTU_ULINT" },
+    ]);
+    for (const saved of [xml, withoutSource(xml)]) {
+      const opened = readProject(saved);
+      expect(opened.diagnostics).toEqual([]);
+      const compiled = compileProject(opened.value!.pous);
+      expect(compiled.diagnostics).toEqual([]);
+      expect(executable(compiled.ir)).toEqual(executable(expected.ir));
+    }
+  });
+
   it("round trips ordered constants and dependent initializers in every POU", () => {
     const pous = [
       "PROGRAM Main VAR CONSTANT N : INT := 10; END_VAR VAR A : INT := N; END_VAR VAR CONSTANT UpperBound : INT := N + 1; END_VAR END_PROGRAM",

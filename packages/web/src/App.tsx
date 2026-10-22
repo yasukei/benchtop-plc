@@ -163,6 +163,8 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 key={state.editorSession}
                 ref={editor}
                 source={state.source}
+                sources={pouSources(state.pous)}
+                sourceIndex={state.selectedPou}
                 onChange={store.setSource}
                 diagnostics={state.diagnostics.filter(
                   (diagnostic) => diagnostic.sourceIndex === state.selectedPou,

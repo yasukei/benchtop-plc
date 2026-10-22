@@ -115,6 +115,8 @@ export const diagnosticEn = {
     `FOR ${enBounds[bound]} must be an integer; found ${type}.`,
   "flow.exit-outside-loop": () => "EXIT must be inside a loop.",
   "fb.not-function-block": ({ name }) => `${name} is not a function block instance.`,
+  "fb.no-matching-variant": ({ name, types }) =>
+    `No timer or counter variant for ${name} accepts these preset types: ${types.join(", ")}.`,
   "fb.unknown-member": ({ name, member }) => `Unknown function block member: ${name}.${member}.`,
   "fb.output-not-writable": ({ name, member }) =>
     `Function block output ${name}.${member} is not writable.`,
@@ -232,6 +234,8 @@ export const diagnosticJa = {
   "flow.exit-outside-loop": () => "EXITはループ内で使用してください。",
   "fb.not-function-block": ({ name }) =>
     `${name}はファンクションブロックのインスタンスではありません。`,
+  "fb.no-matching-variant": ({ name, types }) =>
+    `${name}のプリセット型に適合するタイマーまたはカウンターがありません: ${types.join(", ")}。`,
   "fb.unknown-member": ({ name, member }) =>
     `不明なファンクションブロックのメンバーです: ${name}.${member}。`,
   "fb.output-not-writable": ({ name, member }) =>
