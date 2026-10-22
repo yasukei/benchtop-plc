@@ -751,7 +751,8 @@ class Checker {
         }
       }
     }
-    return result === null ? { dataType: "BOOL" } : isScalar(result) ? { dataType: result } : null;
+    if (result === null) return statement ? { dataType: "BOOL" } : null;
+    return isScalar(result) ? { dataType: result } : null;
   }
 
   private assignment(to: DataType, info: ExpressionInfo, span: SourceSpan): boolean {

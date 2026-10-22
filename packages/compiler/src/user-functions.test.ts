@@ -217,6 +217,25 @@ describe("user function call checking", () => {
     rejects([main("x := F();"), source], "call.no-result", "Main");
     rejects([main(), fn("F := G();"), "FUNCTION G END_FUNCTION"], "call.no-result", "F");
   });
+  it.each(["x := F();", "x := F() + 1;", "x := ABS(F());"])(
+    "reports only the no-result error for %s",
+    (body) => {
+      const result = compileProject([main(body), fn("", "", "")]);
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics.map(({ code }) => code)).toEqual(["call.no-result"]);
+    },
+  );
+  it("still checks arguments of a no-result call used in an expression", () => {
+    const result = compileProject([
+      main("x := F(A := missing);"),
+      fn("", "VAR_INPUT A: INT; END_VAR", ""),
+    ]);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics.map(({ code }) => code)).toEqual([
+      "call.no-result",
+      "name.undeclared",
+    ]);
+  });
   it.each(
     [
       [fn("F := F();")],
