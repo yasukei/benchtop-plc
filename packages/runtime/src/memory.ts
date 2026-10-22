@@ -41,7 +41,11 @@ interface UserBlockCell {
   path: string;
   resetTemporaries(): void;
 }
-type Cell = ScalarCell | { kind: "functionBlock"; instance: FunctionBlockInstance } | UserBlockCell;
+type Cell =
+  | { kind: "unbound" }
+  | ScalarCell
+  | { kind: "functionBlock"; instance: FunctionBlockInstance }
+  | UserBlockCell;
 
 function initialCell(variable: ScalarVariable): ScalarCell {
   validateValue(variable.dataType, variable.initialValue);
@@ -53,6 +57,18 @@ function initialCell(variable: ScalarVariable): ScalarCell {
 /** Mutable scalar/FB cells; function frames never perform load-time validation. */
 export class MemoryFrame implements ScanMemory {
   constructor(protected readonly cells: Cell[]) {}
+
+  /** Share the actual cell, including when it is already an in-out alias. */
+  bind(variable: number, caller: MemoryFrame, actual: number): void {
+    const cell = caller.cells[actual];
+    if (!cell || (cell.kind !== "scalar" && cell.kind !== "long"))
+      throw new Error("Expected scalar in-out actual");
+    this.cells[variable] = cell;
+  }
+
+  unbind(variables: readonly number[]): void {
+    for (const variable of variables) this.cells[variable] = { kind: "unbound" };
+  }
 
   private scalar(variable: number): TypedValue {
     const cell = this.cells[variable];
@@ -193,6 +209,7 @@ export class Memory extends MemoryFrame {
   private frame(storage: readonly InstanceStorage[]): MemoryFrame {
     return new MemoryFrame(
       storage.map((slot) => {
+        if (slot.kind === "inOut") return { kind: "unbound" };
         if (slot.kind === "variable") return this.cells[slot.variable]!;
         if (slot.kind === "temporary") return initialCell(slot.variable);
         let cell = this.instanceCells.get(slot.instance);

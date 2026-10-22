@@ -326,6 +326,8 @@ export class Interpreter {
       const instance = this.memory.userBlock(call.variable);
       const definition = this.programMemory.ir.functionBlocks![instance.block]!;
       instance.resetTemporaries();
+      for (const binding of call.inOuts ?? [])
+        instance.frame.bind(binding.variable, this.memory, binding.actual.variable);
       for (const input of inputs) instance.frame.write(input.input, input.value);
       const caller = this.memory,
         callerPou = this.pou,
@@ -342,6 +344,7 @@ export class Interpreter {
           return typed(variable.dataType, instance.frame.read(slot));
         });
       } finally {
+        instance.frame.unbind(definition.inOuts ?? []);
         this.callDepth--;
         this.memory = caller;
         this.pou = callerPou;
@@ -375,6 +378,8 @@ export class Interpreter {
       callerPath = this.instancePath;
     const locals = this.programMemory.functionFrame(call.function);
     for (const input of inputs) locals.write(input.variable, input.value);
+    for (const binding of call.inOuts ?? [])
+      locals.bind(binding.variable, caller, binding.actual.variable);
     let result: ScalarValue | null;
     this.memory = locals;
     this.pou = definition.name;

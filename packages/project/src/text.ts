@@ -15,7 +15,7 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
   const unsupported = ast.sections?.find(
-    (section) => !["VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP"].includes(section.name),
+    (section) => !["VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP", "VAR_IN_OUT"].includes(section.name),
   )?.name;
   if (unsupported)
     return {
@@ -51,11 +51,13 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
         section:
           declaration.section === "VAR_INPUT"
             ? "inputVars"
-            : declaration.section === "VAR_OUTPUT"
-              ? "outputVars"
-              : declaration.section === "VAR_TEMP"
-                ? "tempVars"
-                : "localVars",
+            : declaration.section === "VAR_IN_OUT"
+              ? "inOutVars"
+              : declaration.section === "VAR_OUTPUT"
+                ? "outputVars"
+                : declaration.section === "VAR_TEMP"
+                  ? "tempVars"
+                  : "localVars",
         name: name.name,
         type: normalizeType(declaration.typeName.key),
         ...(declaration.address ? { address: declaration.address.text } : {}),
@@ -96,7 +98,7 @@ export function joinProgram(program: SplitProgram): string {
     if (section !== variable.section) {
       if (section) declarations += "END_VAR\n";
       section = variable.section;
-      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP" }[section]}\n`;
+      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP", inOutVars: "VAR_IN_OUT" }[section]}\n`;
     }
     declarations += `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};\n`;
   }

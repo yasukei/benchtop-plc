@@ -62,26 +62,27 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Derived types and variables
 
-| Feature                                      | Status  | Notes                                                                                                                                |
-| -------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `VAR` with initial values                    | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected                                 |
-| Directly represented variables `%IX`, `%QX`  | Partial | PROGRAM VAR only (restriction; no AT on VAR_TEMP); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                             |
-| `VAR_INPUT`, `VAR_OUTPUT`                    | Partial | Elementary function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                             |
-| `VAR_TEMP`                                   | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions) |
-| `VAR_IN_OUT`, `VAR_GLOBAL`, `VAR_EXTERNAL`   | No      | Deferred                                                                                                                             |
-| `CONSTANT`, `RETAIN`, `NON_RETAIN`           | No      |                                                                                                                                      |
-| `TYPE` declarations, enumerations, subranges | No      |                                                                                                                                      |
-| Arrays, structures, references               | No      |                                                                                                                                      |
+| Feature                                      | Status  | Notes                                                                                                                                                           |
+| -------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VAR` with initial values                    | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected                                                            |
+| Directly represented variables `%IX`, `%QX`  | Partial | PROGRAM VAR only (restriction; no AT on VAR_TEMP); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                                                        |
+| `VAR_INPUT`, `VAR_OUTPUT`                    | Partial | Elementary function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                                                        |
+| `VAR_TEMP`                                   | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                            |
+| `VAR_IN_OUT`                                 | Partial | Elementary FUNCTION/FUNCTION_BLOCK aliases; exact-type caller variable required every call; formal only, no initializers or instance/bit actuals (restrictions) |
+| `VAR_GLOBAL`, `VAR_EXTERNAL`                 | No      | Deferred                                                                                                                                                        |
+| `CONSTANT`, `RETAIN`, `NON_RETAIN`           | No      |                                                                                                                                                                 |
+| `TYPE` declarations, enumerations, subranges | No      |                                                                                                                                                                 |
+| Arrays, structures, references               | No      |                                                                                                                                                                 |
 
 ## Program organization units
 
-| Feature                      | Status  | Notes                                                                                                                                                                 |
-| ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROGRAM`                    | Partial | Exactly one per project                                                                                                                                               |
-| `FUNCTION`                   | Partial | Multi-source compilation; elementary inputs, outputs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
-| `FUNCTION_BLOCK`             | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR/VAR_TEMP; no VAR_IN_OUT or direct addresses (restrictions)                      |
-| Classes, methods, interfaces | No      |                                                                                                                                                                       |
-| Namespaces                   | No      |                                                                                                                                                                       |
+| Feature                      | Status  | Notes                                                                                                                                                                          |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PROGRAM`                    | Partial | Exactly one per project                                                                                                                                                        |
+| `FUNCTION`                   | Partial | Multi-source compilation; elementary inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
+| `FUNCTION_BLOCK`             | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                                  |
+| Classes, methods, interfaces | No      |                                                                                                                                                                                |
+| Namespaces                   | No      |                                                                                                                                                                                |
 
 ## Operators and statements (ST)
 
@@ -230,14 +231,14 @@ POU); the POU list adds functions and function blocks.
 The following ADR 0014 choices follow the 3rd edition and secondary sources and
 still need verification against the 4th edition: functions without a result type,
 omitted-input defaults in formal user calls, and the direct/indirect recursion ban.
-An empty user call uses all declared input defaults. Non-formal calls support only
+An empty user call uses all declared input defaults when there are no required in-outs. Non-formal calls support only
 input-only functions, with every input supplied in declaration order; this is
 Partial support of the standard's non-formal parameter list.
 
 Project restrictions: functions cannot declare VAR_TEMP or FB instances; PROGRAM
 cannot declare VAR_INPUT, VAR_OUTPUT or VAR_IN_OUT; direct addresses are allowed
 only in PROGRAM, and are forbidden in both functions and function blocks.
-VAR_IN_OUT, CONSTANT and EN/ENO remain deferred.
+CONSTANT and EN/ENO remain deferred. VAR_IN_OUT supports exact-type scalar caller variables in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
 Function locals, outputs and results are fresh per call. Operands and arguments
 evaluate left to right; the 200,000-iteration limit is shared by all calls in a scan.
 

@@ -206,7 +206,8 @@ export type LocalVariable =
 export type InstanceStorage =
   | { kind: "variable"; variable: VariableId }
   | { kind: "temporary"; variable: ScalarVariable }
-  | { kind: "instance"; instance: number };
+  | { kind: "instance"; instance: number }
+  | { kind: "inOut" };
 export interface UserFunctionBlockStorage {
   block: number;
   path: string;
@@ -217,6 +218,8 @@ export interface UserFunctionBlockIR extends SourceNode {
   variables: LocalVariable[];
   inputs: FrameSlot[];
   outputs: FrameSlot[];
+  /** Alias slots, bound to caller scalar cells on every invocation. */
+  inOuts?: FrameSlot[];
   temporaries: FrameSlot[];
   body: Statement[];
 }
@@ -226,9 +229,16 @@ export interface UserFunctionIR extends SourceNode {
   variables: ScalarVariable[];
   inputs: FrameSlot[];
   outputs: FrameSlot[];
+  /** Alias slots, bound to caller scalar cells on every invocation. */
+  inOuts?: FrameSlot[];
   /** Local variable holding the result; absent for a function without a result. */
   result?: FrameSlot;
   body: Statement[];
+}
+
+export interface InOutBinding {
+  variable: FrameSlot;
+  actual: VariableReference;
 }
 
 export interface UserFunctionCall extends SourceNode {
@@ -237,6 +247,7 @@ export interface UserFunctionCall extends SourceNode {
   /** In source order, including for formal calls. Omitted inputs keep their initial values. */
   inputs: { variable: FrameSlot; value: Expression }[];
   outputs: { variable: FrameSlot; target: AssignmentTarget }[];
+  inOuts?: InOutBinding[];
   dataType: DataType | null;
 }
 
@@ -368,6 +379,7 @@ export interface FunctionBlockCallStatement extends SourceNode {
 }
 
 export interface UserFunctionBlockCallStatement extends SourceNode {
+  inOuts?: InOutBinding[];
   kind: "userFbCall";
   variable: FrameSlot;
   inputs: FunctionBlockInput[];

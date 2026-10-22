@@ -4,7 +4,8 @@ import { readFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { XmlDocument, XsdValidator } from "libxml2-wasm";
 import { describe, expect, it } from "vitest";
-import { readProject, writeProject } from "@benchtop-plc/project";
+import { compileProject } from "@benchtop-plc/compiler";
+import { readProject, SOURCE_NAMESPACE, writeProject } from "@benchtop-plc/project";
 import type { Project } from "@benchtop-plc/project";
 
 // The official TC6 v2.01 schema, mirrored at an immutable commit. See docs/project-format.md.
@@ -85,6 +86,8 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     const functions = [
       "FUNCTION F : INT VAR_INPUT n : INT := 1; END_VAR VAR_OUTPUT q : INT; END_VAR VAR x : INT; END_VAR VAR_INPUT extra : INT; END_VAR F := n; END_FUNCTION",
       "FUNCTION Notify VAR_INPUT n : INT; END_VAR END_FUNCTION",
+      "FUNCTION Swap VAR_IN_OUT a,b : INT; END_VAR END_FUNCTION",
+      "FUNCTION_BLOCK Increment VAR_IN_OUT n : INT; END_VAR n := n + 1; END_FUNCTION_BLOCK",
     ];
     try {
       for (const pous of [[...functions, ...project.pous], functions, []]) {
@@ -131,3 +134,43 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     }
   }, 40000);
 });
+
+it.each(["FUNCTION", "FUNCTION_BLOCK"])(
+  "preserves %s in-out initializer errors across XML exchange without ignoring range checks",
+  (kind) => {
+    const pous = [
+      "PROGRAM Main END_PROGRAM",
+      `${kind} Callee VAR_IN_OUT n : INT := 5; END_VAR END_${kind}`,
+    ];
+    const written = writeProject({ ...project, pous });
+    expect(written.diagnostics).toEqual([]);
+    expect(written.value).not.toBeNull();
+    const xml = written.value!;
+    const canonical = xml.replace(
+      new RegExp(`<data name="${SOURCE_NAMESPACE}"[^>]*>[\\s\\S]*?</data>`, "g"),
+      "",
+    );
+    for (const source of [xml, canonical]) {
+      const reopened = readProject(source);
+      expect(reopened.diagnostics).toEqual([]);
+      expect(reopened.value).not.toBeNull();
+      const compiled = compileProject(reopened.value!.pous);
+      expect(compiled.ir).toBeUndefined();
+      expect(compiled.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "decl.in-out-initializer",
+          pou: "Callee",
+          args: { name: "n" },
+        }),
+      );
+    }
+    expect(readProject(xml).value!.pous).toEqual(pous);
+    expect(
+      writeProject({ ...project, pous: [pous[0]!, pous[1]!.replace(":= 5", ":= 40000")] }).value,
+    ).toBeNull();
+    expect(readProject(xml.replace('value="5"', 'value="40000"')).value).toBeNull();
+    expect(
+      writeProject({ ...project, pous: [pous[0]!, pous[1]!.replace(":= 5", ":= TRUE")] }).value,
+    ).toBeNull();
+  },
+);

@@ -37,6 +37,7 @@ export interface DiagnosticArgs {
   "decl.address-out-of-range": { address: string };
   "decl.nonconstant-initializer": { name: string };
   "decl.fb-initializer": { name: string };
+  "decl.in-out-initializer": { name: string };
   "pou.duplicate": { name: string };
   "pou.name-collision": { name: string };
   "pou.program-count": { found: number };
@@ -74,6 +75,9 @@ export interface DiagnosticArgs {
   "call.unknown-function": { name: string };
   "call.program": { name: string };
   "call.no-result": { name: string };
+  "call.in-out-variable": NoArguments;
+  "call.in-out-type": { from: DataType; to: DataType };
+  "call.missing-in-out": { name: string; parameter: string };
   "call.formal-required": { name: string };
   "call.invalid-parameter": { name: string; parameter: string };
   "call.argument-count": { name: string; min: number; max: number | null; found: number };

@@ -67,7 +67,6 @@ it.each([
   ["FUNCTION F VAR inst : Latch; END_VAR END_FUNCTION", "pou.function-block-in-function"],
   ["FUNCTION F Latch(); END_FUNCTION", "call.unknown-function"],
   ["FUNCTION_BLOCK Bad VAR pin AT %IX0.0 : BOOL; END_VAR END_FUNCTION_BLOCK", "pou.direct-address"],
-  ["FUNCTION_BLOCK Bad VAR_IN_OUT END_VAR END_FUNCTION_BLOCK", "pou.invalid-section"],
   ["FUNCTION_BLOCK Bad VAR inst : Latch := 1; END_VAR END_FUNCTION_BLOCK", "decl.fb-initializer"],
 ])("rejects unsupported block declarations: %s", (source, code) => {
   const result = compileProject([main(), block, source]);

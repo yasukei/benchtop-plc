@@ -78,6 +78,10 @@ class Checker {
   private readonly references = new Map<AST.Identifier, ResolvedReference>();
   private readonly functionArguments = new Map<AST.FunctionCall, readonly AST.Expression[]>();
   private readonly functions = new Map<AST.FunctionCall, StandardFunction>();
+  private readonly blockInOuts = new Map<
+    AST.FunctionCall | AST.FunctionBlockCall,
+    UserCallInfo["inOuts"]
+  >();
   private readonly userCalls = new Map<AST.FunctionCall | AST.FunctionBlockCall, UserCallInfo>();
   private readonly blockInputTypes = new Map<AST.Identifier, DataType>();
   private result?: VariableSymbol;
@@ -108,8 +112,7 @@ class Checker {
     for (const section of ast.sections ?? []) {
       if (
         (ast.kind === "program" && section.name !== "VAR_TEMP") ||
-        (ast.kind === "functionBlock" && section.name === "VAR_IN_OUT") ||
-        (ast.kind === "function" && ["VAR_TEMP", "VAR_IN_OUT"].includes(section.name))
+        (ast.kind === "function" && section.name === "VAR_TEMP")
       )
         this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
     }
@@ -144,6 +147,7 @@ class Checker {
         functionArguments: this.functionArguments,
         userCalls: this.userCalls,
         blockInputTypes: this.blockInputTypes,
+        blockInOuts: this.blockInOuts,
         ...(this.result ? { result: this.result } : {}),
       },
       diagnostics: this.diagnostics,
@@ -155,6 +159,12 @@ class Checker {
     const userBlock = this.blockIds.get(type);
     const block = isBlock(type) || userBlock !== undefined;
     const known = isScalar(type) || block;
+    if (declaration.section === "VAR_IN_OUT" && declaration.initializer)
+      this.report(
+        "decl.in-out-initializer",
+        { name: declaration.names[0].name },
+        declaration.initializer.span,
+      );
     if (block && declaration.section)
       this.report(
         "fb.invalid-instance-section",
@@ -748,6 +758,7 @@ class Checker {
       .map((parameter, variable) => ({ ...parameter, variable }));
     const inputs = parameters.filter((parameter) => parameter.section === "VAR_INPUT");
     const outputs = parameters.filter((parameter) => parameter.section === "VAR_OUTPUT");
+    const inOuts = parameters.filter((parameter) => parameter.section === "VAR_IN_OUT");
     const result = pou.resultType ? declarationType(pou.resultType.key) : null;
     if (!statement && result === null)
       this.report("call.no-result", { name: node.name.name }, node.span);
@@ -755,6 +766,7 @@ class Checker {
       function: this.functionIds.get(pou.name.key)!,
       inputs: [],
       outputs: [],
+      inOuts: [],
       result: result && isScalar(result) ? result : null,
     };
     this.userCalls.set(node, call);
@@ -766,7 +778,8 @@ class Checker {
       );
     const formal = node.inputNames !== undefined || node.args.length === 0;
     if (!formal) {
-      if (outputs.length) this.report("call.formal-required", { name: node.name.name }, node.span);
+      if (outputs.length || inOuts.length)
+        this.report("call.formal-required", { name: node.name.name }, node.span);
       if (node.args.length !== inputs.length)
         this.report(
           "call.argument-count",
@@ -778,11 +791,16 @@ class Checker {
     node.args.forEach((value, index) => {
       const name = node.inputNames?.[index];
       const parameter = formal
-        ? inputs.find((input) => input.name.key === name?.key)
+        ? [...inputs, ...inOuts].find((input) => input.name.key === name?.key)
         : inputs[index];
       if (name && (!parameter || seen.has(name.key))) invalid(name);
       if (name) seen.add(name.key);
       const type = parameter && isScalar(parameter.type) ? parameter.type : undefined;
+      if (parameter?.section === "VAR_IN_OUT") {
+        if (type && this.inOutActual(value, type))
+          call.inOuts.push({ variable: parameter.variable, actual: value });
+        return;
+      }
       const info = this.expression(value, type);
       if (parameter && type) {
         if (info) this.assignment(type, info, value.span);
@@ -802,8 +820,38 @@ class Checker {
         }
       }
     }
+    this.requireInOuts(inOuts, seen, node);
     if (result === null) return statement ? { dataType: "BOOL" } : null;
     return isScalar(result) ? { dataType: result } : null;
+  }
+
+  private inOutActual(value: AST.Expression, type: DataType): value is AST.NameReference {
+    if (value.kind !== "name") {
+      this.report("call.in-out-variable", {}, value.span);
+      return false;
+    }
+    const info = this.reference(value, true);
+    if (!info) return false;
+    this.expressions.set(value, info);
+    if (info.dataType !== type) {
+      this.report("call.in-out-type", { from: info.dataType, to: type }, value.span);
+      return false;
+    }
+    return true;
+  }
+
+  private requireInOuts(
+    parameters: { name: AST.Identifier }[],
+    seen: ReadonlySet<string>,
+    node: AST.FunctionCall,
+  ): void {
+    for (const parameter of parameters)
+      if (!seen.has(parameter.name.key))
+        this.report(
+          "call.missing-in-out",
+          { name: node.name.name, parameter: parameter.name.name },
+          node.span,
+        );
   }
 
   private blockCall(node: AST.FunctionCall): void {
@@ -818,9 +866,31 @@ class Checker {
       this.report("fb.unsupported-call", { name: node.name.name }, node.span);
       return;
     }
+    const inOuts =
+      symbol.userBlock === undefined
+        ? []
+        : this.pous
+            .get(symbol.type)!
+            .declarations.flatMap((declaration) =>
+              declaration.names.map((name) => ({ name, declaration })),
+            )
+            .map((parameter, variable) => ({ ...parameter, variable }))
+            .filter(({ declaration }) => declaration.section === "VAR_IN_OUT");
+    const bindings: UserCallInfo["inOuts"] = [];
+    this.blockInOuts.set(node, bindings);
     const seen = new Set<string>();
     node.args.forEach((value, index) => {
       const name = node.inputNames![index]!;
+      const inOut = inOuts.find((parameter) => parameter.name.key === name.key);
+      if (inOut) {
+        if (seen.has(name.key))
+          this.report("fb.duplicate-input", { name: node.name.name, member: name.name }, name.span);
+        seen.add(name.key);
+        const type = declarationType(inOut.declaration.typeName.key);
+        if (isScalar(type) && this.inOutActual(value, type))
+          bindings.push({ variable: inOut.variable, actual: value });
+        return;
+      }
       const target = this.reference(
         { kind: "member", instance: node.name, member: name, span: name.span },
         true,
@@ -832,6 +902,7 @@ class Checker {
       seen.add(name.key);
       if (target && info) this.assignment(target.dataType, info, value.span);
     });
+    this.requireInOuts(inOuts, seen, node);
     for (const output of node.outputs ?? []) {
       const source = this.reference({
         kind: "member",
@@ -927,7 +998,14 @@ class Checker {
               this.userCalls.delete(call);
               this.userCalls.set(node, info);
             }
-          } else this.blockCall(call);
+          } else {
+            this.blockCall(call);
+            const bindings = this.blockInOuts.get(call);
+            if (bindings) {
+              this.blockInOuts.delete(call);
+              this.blockInOuts.set(node, bindings);
+            }
+          }
           break;
         }
         case "if":

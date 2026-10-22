@@ -191,3 +191,63 @@ END_PROGRAM`;
   await list.getByRole("button", { name: /^Latch FUNCTION_BLOCK/ }).click();
   await expect(editor.locator(".cm-line")).toHaveText(block.split("\n"));
 });
+
+test("runs in-out aliases and forces the caller's variable without an alias monitor row", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await list.getByRole("button", { name: "Add function block", exact: true }).click();
+  await editor.fill(`FUNCTION_BLOCK Increment
+VAR_IN_OUT n : INT; END_VAR
+n := n + 1;
+END_FUNCTION_BLOCK`);
+  await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
+  await editor.fill(`PROGRAM Main
+VAR inst : Increment; x,seen : INT; END_VAR
+inst(n := x); seen := x;
+END_PROGRAM`);
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+  const actual = monitor
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: /^x(?: Forced)?$/ }) });
+  const seen = monitor
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: "seen", exact: true }) });
+  await expect(monitor.getByRole("rowheader")).toHaveCount(2);
+  await actual.getByRole("textbox", { name: "Value to write", exact: true }).fill("10");
+  await actual.getByRole("button", { name: "Force", exact: true }).click();
+  await expect(actual).toHaveAttribute("data-forced", "true");
+  await expect(actual.locator("td").nth(2)).toHaveText("10");
+  await expect(seen.locator("td").nth(2)).toHaveText("11");
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  const xml = readFileSync((await (await download).path())!, "utf8");
+  expect(xml).toContain("<inOutVars>");
+  expect(readProject(xml).value!.pous[1]).toContain("VAR_IN_OUT");
+});
+
+test("reports an in-out declaration initializer in both languages", async ({ page }) => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await list.getByRole("button", { name: "Add function", exact: true }).click();
+  await editor.fill(`FUNCTION F1
+VAR_IN_OUT n : INT := 5; END_VAR
+END_FUNCTION`);
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "In-out parameter n cannot have an initializer; its value comes from the caller's variable.",
+  );
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(
+    page.getByText(
+      "入出力パラメーターnには初期値を指定できません。値は呼び出し元の変数から取得します。",
+      { exact: false },
+    ),
+  ).toBeVisible();
+});
