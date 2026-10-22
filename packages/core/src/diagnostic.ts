@@ -59,6 +59,7 @@ export interface DiagnosticArgs {
   "type.case-label-not-constant": NoArguments;
   "fb.invalid-instance-section": { name: string };
   "fb.duplicate-input": { name: string; member: string };
+  "fb.no-matching-variant": { name: string; types: readonly DataType[] };
   "type.assign-mismatch": { from: DataType; to: DataType; hint?: AssignmentHint };
   "type.operand-mismatch": {
     operator: UnaryOperator | BinaryOperator;

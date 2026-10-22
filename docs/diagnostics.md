@@ -126,6 +126,7 @@ as syntax errors.
 | `type.for-bound-not-integer`     | FOR start, end or step is not an integer             | `{ bound: "from" \| "to" \| "step"; type: DataType }`                                            |
 | `flow.exit-outside-loop`         | EXIT occurs outside a loop                           | `{}`                                                                                             |
 | `fb.invalid-instance-section`    | FB instance declared outside VAR                     | `{ name: string }`                                                                               |
+| `fb.no-matching-variant`         | No variant accepts the selecting preset types        | `{ name: string; types: readonly DataType[] }`                                                   |
 | `fb.not-function-block`          | Called instance is not a function block              | `{ name: string }`                                                                               |
 | `fb.unknown-member`              | FB instance has no such member                       | `{ name: string; member: string }`                                                               |
 | `fb.output-not-writable`         | Assignment attempts to write an FB output            | `{ name: string; member: string }`                                                               |
@@ -243,3 +244,11 @@ and arithmetic faults. Uses of a constant whose initializer has already failed
 do not add declaration-order errors; the initializer diagnostic identifies the cause.
 Named constants use the existing name collision and
 bit-index diagnostics. All codes have English and Japanese UI templates.
+
+Overloaded standard timers and counters report `fb.no-matching-variant` on the
+instance's declaration name when selecting `PT`/`PV` types have no common type or
+no accepting variant (for example LINT with ULINT, or a BYTE preset). `types`
+contains the selecting binding types in source order. Non-selecting bindings are
+checked after resolution with ordinary assignment diagnostics; an untyped
+`c(PV := 100000)` with no typed binding reports `type.invalid-constant` against
+the default INT. See [type-checking.md](type-checking.md#overloaded-standard-timers-and-counters).

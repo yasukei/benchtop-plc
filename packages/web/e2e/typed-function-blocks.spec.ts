@@ -30,3 +30,30 @@ END_PROGRAM`);
   }
   await expect(page.locator(".st-fb").filter({ hasText: "TON_LTIME" })).toBeVisible();
 });
+
+test("shows inferred timer and counter types in the monitor and editor hover", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await editor.click();
+  await editor.press("ControlOrMeta+a");
+  await page.keyboard.insertText(`PROGRAM Inferred
+VAR counter: CTU; timer: TON; preset: DINT := 40000; END_VAR
+counter(CU := TRUE, PV := preset);
+timer(IN := TRUE, PT := LT#1500us);
+END_PROGRAM`);
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+  const row = (name: string) =>
+    monitor.getByRole("row").filter({
+      has: page.getByRole("rowheader", { name, exact: true }),
+    });
+  await expect(row("counter").locator("td").nth(1)).toHaveText("CTU_DINT");
+  await expect(row("timer").locator("td").nth(1)).toHaveText("TON_LTIME");
+  await expect(row("timer").locator("td").nth(2)).toHaveText("Q=TRUE, ET=LTIME#1ms500us");
+  await page
+    .locator(".cm-line")
+    .filter({ hasText: /^counter\(/ })
+    .hover({ position: { x: 20, y: 8 } });
+  await expect(page.locator(".cm-tooltip-hover")).toHaveText("counter: CTU_DINT");
+});

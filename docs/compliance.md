@@ -122,7 +122,12 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 Names in this section follow the IEC 61131-3 3rd-edition function block families,
 consistent with PLCnext's typed timer names. CODESYS aliases LTON/LTOF/LTP are
-not provided. Overloaded PT/PV type adaptation is not implemented.
+not provided. Overloaded names select from typed PT/PV calls and member assignments
+within the declaring PROGRAM or FUNCTION_BLOCK, using ADR 0013 common types and
+ADR 0014 exclusions. Untyped constants and expressions reading inferred
+PT/PV/ET/CV ports do not select; defaults remain TIME/INT, outputs never select,
+and typed names provide an explicit choice. This POU-local inference rule is a
+benchtop-plc restriction pending IEC edition verification (see #92).
 
 | Feature                              | Status | Notes                                                                                                                                    |
 | ------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |

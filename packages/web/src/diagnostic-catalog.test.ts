@@ -71,6 +71,7 @@ const examples = {
   "type.for-bound-not-integer": { bound: "step", type: "LREAL" },
   "flow.exit-outside-loop": {},
   "fb.not-function-block": { name: "Counter" },
+  "fb.no-matching-variant": { name: "Counter", types: ["LINT", "ULINT"] },
   "fb.unknown-member": { name: "Timer", member: "MISSING" },
   "fb.output-not-writable": { name: "Timer", member: "Q" },
   "fb.instance-as-value": { name: "Timer" },

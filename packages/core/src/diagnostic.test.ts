@@ -54,6 +54,7 @@ const examples = {
   "type.case-label-not-constant": {},
   "fb.invalid-instance-section": { name: "Timer" },
   "fb.duplicate-input": { name: "Timer", member: "IN" },
+  "fb.no-matching-variant": { name: "Counter", types: ["LINT", "ULINT"] },
   "type.assign-mismatch": { from: "REAL", to: "INT", hint: "explicit-conversion" },
   "type.operand-mismatch": { operator: "+", left: "BOOL", right: "INT" },
   "type.condition-not-bool": { statement: "WHILE" },

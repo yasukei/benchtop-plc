@@ -267,6 +267,42 @@ parameters report `call.invalid-parameter`. Standard and user FB calls accept na
 report `fb.unsupported-call`; FB calls within expressions report
 `fb.call-in-expression`. Named time/date calls are not constant expressions.
 
+## Overloaded standard timers and counters
+
+`TON`, `TOF`, `TP`, `CTU`, `CTD` and `CTUD` select their variant before ordinary
+body checking, from all typed bindings to `PT` (timers) or `PV` (counters) within
+that instance's declaring POU. Both call inputs and assignments such as
+`counter.PV := preset` contribute, including bindings inside branches and loops.
+Selection is per instance declaration; all instances of a declaring user function
+block share its selection. It never flows from callers into that block.
+
+The ADR 0013 common type of all selecting bindings chooses TIME or LTIME for a
+timer, or the first implicitly accepting counter type in INT, DINT, UDINT, LINT,
+ULINT order. For example, `UINT` selects `CTU_DINT`; INT and UDINT together select
+`CTU_LINT`; TIME and LTIME select `TON_LTIME`. LINT and ULINT have no common type;
+BYTE, REAL and BOOL have no matching variant. These fail with
+`fb.no-matching-variant` on the instance declaration.
+
+Untyped constants do not select. Neither does an entire expression reading any
+`PT`, `PV`, `ET` or `CV` member of an overloaded instance, including itself, even
+inside a conversion or generic function call. Explicitly typed instances such as
+`CTU_DINT` have known port types and may supply selecting bindings. There is no
+iteration or dependence on statement or declaration order.
+
+With no selecting binding, TIME/INT defaults remain. Every binding is then
+checked against the selected ports, and untyped constants take that context.
+Thus `c(PV := 100000)` alone fails with `type.invalid-constant` against INT;
+adding `c(PV := DINT#1)` makes both bindings DINT. `a(PV := b.CV); b(PV := a.CV);`
+keeps both INT; `a(PV := b.CV); b(PV := DINT#100);` keeps `a` INT and reports
+DINT-to-INT narrowing on its binding, in either statement order.
+
+Outputs and `=>` targets never select their own instance. To get a variant
+without a typed binding, declare a typed name such as `CTU_DINT` or `TON_LTIME`.
+The resolved variant determines `CV`/`ET` and is shown in monitor rows and instance
+hovers. Legacy TIME/INT variants retain their unsuffixed IR aliases so existing
+programs keep the same IR. PLCopen XML writes the original declared name, such as
+`<derived name="CTU"/>`, and compilation selects the variant again after opening.
+
 ## User-defined POUs and function calls
 
 `compileProject` first collects a case-insensitive namespace shared by all POU

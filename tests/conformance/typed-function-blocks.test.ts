@@ -211,8 +211,14 @@ it.each(["TON", "TOF", "TP"])(
   },
 );
 
-it.each(["TON", "TOF", "TP"])("%s keeps TIME PT and rejects LTIME", (kind) => {
+it.each(["TON_TIME", "TOF_TIME", "TP_TIME"])("%s keeps TIME PT and rejects LTIME", (kind) => {
   const result = compile(`PROGRAM P VAR t: ${kind}; END_VAR t(PT := LT#1ms); END_PROGRAM`);
   expect(result.ir).toBeUndefined();
   expect(result.diagnostics.map((item) => item.code)).toContain("type.assign-mismatch");
+});
+
+it.each(["TON", "TOF", "TP"])("%s selects LTIME from its preset", (kind) => {
+  const result = compile(`PROGRAM P VAR t: ${kind}; END_VAR t(PT := LT#1ms); END_PROGRAM`);
+  expect(result.diagnostics).toEqual([]);
+  expect(result.ir!.variables[0]).toMatchObject({ fbType: `${kind}_LTIME` });
 });

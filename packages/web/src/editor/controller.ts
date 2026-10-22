@@ -8,6 +8,7 @@ import {
   EditorView,
   WidgetType,
   drawSelection,
+  hoverTooltip,
   keymap,
   lineNumbers,
   type DecorationSet,
@@ -16,6 +17,7 @@ import { catalogs, type Language } from "../catalog.js";
 import { formatDiagnostic } from "../diagnostic-catalog.js";
 import { insertSpacesOrIndent } from "./commands.js";
 import { stLanguage } from "./language.js";
+import { blockTypeAt } from "./block-hover.js";
 import { mapAnnotations, spanRange, type InlineAnnotation } from "./mapping.js";
 
 export interface EditorProps {
@@ -25,6 +27,8 @@ export interface EditorProps {
   online: boolean;
   fault: Diagnostic | null;
   language: Language;
+  sources?: readonly string[];
+  sourceIndex?: number;
 }
 
 class ValuesWidget extends WidgetType {
@@ -67,6 +71,7 @@ export function createStEditor(
   onChange: (source: string) => void,
 ) {
   const accessibility = new Compartment();
+  let previous: EditorProps | undefined;
   const view = new EditorView({
     parent,
     state: EditorState.create({
@@ -84,6 +89,25 @@ export function createStEditor(
           ...historyKeymap,
         ]),
         displayField,
+        hoverTooltip((_view, position) => {
+          if (!previous) return null;
+          const hover = blockTypeAt(
+            previous.sources ?? [previous.source],
+            previous.sourceIndex ?? 0,
+            position,
+          );
+          return hover
+            ? {
+                pos: hover.from,
+                end: hover.to,
+                create() {
+                  const dom = document.createElement("div");
+                  dom.textContent = hover.text;
+                  return { dom };
+                },
+              }
+            : null;
+        }),
         accessibility.of([]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChange(update.state.doc.toString());
@@ -114,7 +138,6 @@ export function createStEditor(
       ],
     }),
   });
-  let previous: EditorProps | undefined;
   return {
     update(props: EditorProps) {
       if (view.state.doc.toString() !== props.source) {
