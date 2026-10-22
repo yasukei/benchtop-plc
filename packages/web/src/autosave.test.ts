@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { autosaveStorageKey, createAutosave, readAutosave, type SavedWork } from "./autosave.js";
+import { createPous } from "./pous.js";
 import { browserStorage } from "./browser-storage.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
@@ -41,21 +42,22 @@ describe("browser autosave", () => {
     expect(storage.setItem).toHaveBeenCalledTimes(1);
     const restored = readAutosave(storage)!;
     expect(restored).toEqual({
-      source: "PROGRAM unfinished",
+      pous: store.getSnapshot().pous,
+      selectedPou: 0,
       layout: store.getSnapshot().layout,
       cycleMs: 50,
       project: store.getSnapshot().project,
     });
     expect(restored.project?.contentHeader.name).toBeTruthy();
     expect(Object.keys(JSON.parse(storage.getItem()!)).sort()).toEqual(
-      ["version", "source", "layout", "cycleMs", "project"].sort(),
+      ["version", "pous", "selectedPou", "layout", "cycleMs", "project"].sort(),
     );
     const fresh = createAppStore(new RuntimeClient(new FakeWorker()), restored);
     expect(fresh.getSnapshot()).toMatchObject({
-      source: restored.source,
+      source: restored.pous[restored.selectedPou]!.source,
       runtimeState: "STOP",
       snapshot: null,
-      loadedSource: null,
+      loadedSources: null,
       emergencyActive: false,
     });
     expect(fresh.getSnapshot().diagnostics.length).toBeGreaterThan(0);
@@ -73,10 +75,10 @@ describe("browser autosave", () => {
     expect(storage.setItem).not.toHaveBeenCalled();
     store.setSource("first edit");
     autosave.flush();
-    expect(readAutosave(storage)?.source).toBe("first edit");
+    expect(readAutosave(storage)?.pous[0]?.source).toBe("first edit");
     store.setSource("latest edit");
     autosave.dispose();
-    expect(readAutosave(storage)?.source).toBe("latest edit");
+    expect(readAutosave(storage)?.pous[0]?.source).toBe("latest edit");
     store.setSource("after disposal");
     vi.runAllTimers();
     expect(storage.setItem).toHaveBeenCalledTimes(2);
@@ -129,9 +131,15 @@ describe("browser autosave", () => {
   });
 
   it("accepts a record without project metadata and does not require the source to compile", () => {
-    const work: SavedWork = { source: "", layout: [], cycleMs: 20, project: null };
+    const work: SavedWork = {
+      pous: createPous([""]),
+      selectedPou: 0,
+      layout: [],
+      cycleMs: 20,
+      project: null,
+    };
     expect(
-      readAutosave({ getItem: () => JSON.stringify({ version: 1, ...work }), setItem: vi.fn() }),
+      readAutosave({ getItem: () => JSON.stringify({ version: 2, ...work }), setItem: vi.fn() }),
     ).toEqual(work);
   });
 
@@ -168,10 +176,90 @@ it("migrates the single-program metadata of a 0.3.0 autosave", () => {
   const legacy = { version: 1, ...work, project: { ...metadata, program: pous[0] } };
   const restored = readAutosave({ getItem: () => JSON.stringify(legacy), setItem: vi.fn() });
   expect(restored).toEqual({
-    source: work.source,
+    pous: work.pous,
+    selectedPou: 0,
     layout: work.layout,
     cycleMs: work.cycleMs,
     project: work.project,
   });
+  store.dispose();
+});
+
+it("preserves all draft texts, previous names and selection in version 2", () => {
+  const { store, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  store.addFunction();
+  store.addFunction();
+  store.setSource("FUNCTION");
+  autosave.flush();
+  const restored = readAutosave(storage)!;
+  expect(restored.pous).toEqual(store.getSnapshot().pous);
+  expect(restored.selectedPou).toBe(2);
+  expect(restored.pous[2]).toMatchObject({ name: "F2", source: "FUNCTION", kind: "FUNCTION" });
+  expect(JSON.parse(storage.getItem()!).version).toBe(2);
+  autosave.dispose();
+  store.dispose();
+});
+
+it("migrates the latest unparseable 0.3.0 program draft instead of stale metadata", () => {
+  const { store, storage } = setup();
+  const { pous, ...metadata } = store.getSnapshot().project!;
+  storage.setItem(
+    autosaveStorageKey,
+    JSON.stringify({
+      version: 1,
+      source: "PROGRAM",
+      layout: [],
+      cycleMs: 10,
+      project: { ...metadata, program: pous[0] },
+    }),
+  );
+  const restored = readAutosave(storage)!;
+  expect(restored.pous).toEqual([{ source: "PROGRAM", name: "Main", kind: "PROGRAM" }]);
+  expect(restored.selectedPou).toBe(0);
+  const fresh = createAppStore(new RuntimeClient(new FakeWorker()), restored);
+  expect(fresh.getSnapshot().source).toBe("PROGRAM");
+  expect(fresh.getSnapshot().diagnostics.length).toBeGreaterThan(0);
+  fresh.dispose();
+  store.dispose();
+});
+
+it.each([
+  { pous: null },
+  { pous: [{}] },
+  { pous: [{ source: "draft", name: "F", kind: "OTHER" }] },
+  { selectedPou: -1 },
+  { selectedPou: 1 },
+  { selectedPou: 0.5 },
+  { selectedPou: "0" },
+])("rejects invalid version 2 work %j", (invalid) => {
+  const work: SavedWork = {
+    pous: createPous(["PROGRAM Main END_PROGRAM"]),
+    selectedPou: 0,
+    layout: [],
+    cycleMs: 10,
+    project: null,
+  };
+  expect(
+    readAutosave({
+      getItem: () => JSON.stringify({ version: 2, ...work, ...invalid }),
+      setItem: vi.fn(),
+    }),
+  ).toBeNull();
+});
+
+it("migrates version 1 multi-POU metadata without losing functions or the latest program edit", () => {
+  const { store, storage } = setup();
+  const fn = "FUNCTION F : INT F := 1; END_FUNCTION";
+  const project = { ...store.getSnapshot().project!, pous: [fn, store.getSnapshot().source] };
+  const source = "PROGRAM Renamed END_PROGRAM";
+  storage.setItem(
+    autosaveStorageKey,
+    JSON.stringify({ version: 1, source, layout: [], cycleMs: 10, project }),
+  );
+  const restored = readAutosave(storage)!;
+  expect(restored.pous.map((pou) => pou.source)).toEqual([fn, source]);
+  expect(restored.pous[1]!.name).toBe("Renamed");
+  expect(restored.selectedPou).toBe(1);
   store.dispose();
 });

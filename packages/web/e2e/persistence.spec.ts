@@ -36,7 +36,7 @@ test("autosaves edits, moved panel parts, cycle and metadata during RUN and relo
   await expect
     .poll(() =>
       page.evaluate(
-        (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.source,
+        (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.pous?.[0]?.source,
         autosaveStorageKey,
       ),
     )
@@ -75,7 +75,7 @@ test("keeps uncompilable editor text across reloads with diagnostics and no load
   await expect
     .poll(() =>
       page.evaluate(
-        (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.source,
+        (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.pous?.[0]?.source,
         autosaveStorageKey,
       ),
     )

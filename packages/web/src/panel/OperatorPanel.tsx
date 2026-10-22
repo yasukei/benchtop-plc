@@ -1,3 +1,5 @@
+import { formatDiagnostic } from "../diagnostic-catalog.js";
+import type { Language } from "../catalog.js";
 import { createMomentaryInput } from "./momentary.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ShellCatalog } from "../catalog.js";
@@ -113,10 +115,12 @@ export function OperatorPanel({
   state,
   store,
   text,
+  language,
 }: {
   state: AppState;
   store: AppStore;
   text: ShellCatalog;
+  language: Language;
 }) {
   const [editing, setEditing] = useState(false);
   const [kind, setKind] = useState<PartKind>("led");
@@ -127,7 +131,7 @@ export function OperatorPanel({
     state.runtimeState === "STOP" && !state.emergencyActive && state.connection === "connected";
   useEffect(() => {
     setConfirmRestore(false);
-  }, [state.source, state.layout, state.cycleMs, state.project, canOpenProject]);
+  }, [state.pous, state.layout, state.cycleMs, state.project, canOpenProject]);
   const canvas = useRef<HTMLDivElement>(null);
   const dragging = useRef<{ id: string; pointer: number; dx: number; dy: number } | null>(null);
   const part = state.layout.find((p) => p.id === selected);
@@ -205,7 +209,16 @@ export function OperatorPanel({
           {text.confirmRestoreExample}
         </p>
       )}
-      {projectError && <p role="alert">{text.projectError}</p>}
+      {projectError && (
+        <div role="alert">
+          <p>{text.projectError}</p>
+          {state.saveDiagnostics.map((diagnostic, index) => (
+            <p key={index}>
+              {diagnostic.pou} {formatDiagnostic(language, diagnostic)}
+            </p>
+          ))}
+        </div>
+      )}
       {editing && (
         <>
           <p>{text.panelEditHint}</p>

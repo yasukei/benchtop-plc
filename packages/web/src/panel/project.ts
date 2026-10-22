@@ -2,27 +2,15 @@ import { readProject, splitProgram, writeProject, type Project } from "@benchtop
 import packageJson from "../../package.json" with { type: "json" };
 import { readLayout, type PanelLayout } from "./layout.js";
 
-/** Until the POU list is available, the editor shows the first PROGRAM (or first POU). */
-export function editorPouIndex(project: Project): number {
-  const index = project.pous.findIndex((source) => splitProgram(source).value?.kind === "program");
-  return index < 0 ? 0 : index;
-}
-
-export function projectSources(source: string, project: Project | null): string[] {
-  if (!project) return [source];
-  if (!project.pous.length) return source ? [source] : [];
-  return project.pous.map((text, index) => (index === editorPouIndex(project) ? source : text));
-}
-
-export function savePanelProject(
-  source: string,
+export function serializePanelProject(
+  sources: string[],
   layout: PanelLayout,
   cycleMs: number,
   project: Project | null,
-): string | null {
+) {
   const result = writeProject({
     ...(project ?? {
-      contentHeader: { name: splitProgram(source).value?.name ?? "Project" },
+      contentHeader: { name: splitProgram(sources[0] ?? "").value?.name ?? "Project" },
       configuration: "Config",
       resource: "Res",
       task: { name: "Cyclic", interval: "PT0.01S", priority: 1 },
@@ -35,14 +23,17 @@ export function savePanelProject(
       }),
       productVersion: packageJson.version,
     },
-    pous: projectSources(source, project),
+    pous: sources,
     task: {
       ...(project?.task ?? { name: "Cyclic", priority: 1 }),
       interval: `PT${cycleMs / 1000}S`,
     },
     panel: layout.map((part) => ({ ...part })),
   });
-  return result.value;
+  return result;
+}
+export function savePanelProject(...args: Parameters<typeof serializePanelProject>): string | null {
+  return serializePanelProject(...args).value;
 }
 export function openPanelProject(xml: string): { project: Project; layout: PanelLayout } | null {
   const result = readProject(xml);

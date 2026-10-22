@@ -1,11 +1,15 @@
-import { compileProject } from "@benchtop-plc/compiler";
-import type { Project } from "@benchtop-plc/project";
+import { openPanelProject, serializePanelProject } from "./panel/project.js";
 import {
-  editorPouIndex,
-  openPanelProject,
-  projectSources,
-  savePanelProject,
-} from "./panel/project.js";
+  addFunction,
+  compilePous,
+  createPous,
+  deletePou,
+  derivePou,
+  initialPouIndex,
+  pouSources,
+  sameSources,
+  type EditorDiagnostic,
+} from "./pous.js";
 import type { PanelLayout } from "./panel/layout.js";
 import blinkProjectXml from "../../../examples/blink/project.xml?raw";
 import type {
@@ -21,14 +25,15 @@ import { cycleOptions, type CycleMs, type SavedWork } from "./autosave.js";
 export { cycleOptions } from "./autosave.js";
 export type { CycleMs } from "./autosave.js";
 
-export interface AppState {
+export interface AppState extends SavedWork {
   source: string;
+  editorSession: number;
+  saveDiagnostics: Diagnostic[];
   layout: PanelLayout;
-  project: Project | null;
   emergencyActive: boolean;
   emergencyReleased: boolean;
-  loadedSource: string | null;
-  diagnostics: Diagnostic[];
+  loadedSources: string[] | null;
+  diagnostics: EditorDiagnostic[];
   runtimeState: RuntimeState;
   snapshot: RuntimeSnapshot | null;
   diagnostic: Diagnostic | null;
@@ -39,17 +44,21 @@ export interface AppState {
 
 /** A cached snapshot and subscription API suitable for React's useSyncExternalStore. */
 export function createAppStore(client: RuntimeClient, initial: string | SavedWork = "") {
-  const source = typeof initial === "string" ? initial : initial.source;
+  const pous = typeof initial === "string" ? createPous([initial]) : initial.pous;
+  const selectedPou = typeof initial === "string" ? 0 : initial.selectedPou;
+  const source = pous[selectedPou]?.source ?? "";
   let state: AppState = {
     source,
+    editorSession: 0,
+    saveDiagnostics: [],
+    pous,
+    selectedPou,
     layout: typeof initial === "string" ? [] : initial.layout,
     project: typeof initial === "string" ? null : initial.project,
     emergencyActive: false,
     emergencyReleased: false,
-    loadedSource: null,
-    diagnostics: compileProject(
-      projectSources(source, typeof initial === "string" ? null : initial.project),
-    ).diagnostics,
+    loadedSources: null,
+    diagnostics: compilePous(pous).diagnostics,
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
@@ -58,7 +67,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     connection: "connected",
   };
   let compileTimer: ReturnType<typeof setTimeout> | undefined;
-  const pendingLoads: string[] = [];
+  const pendingLoads: string[][] = [];
   const listeners = new Set<() => void>();
   const update = (patch: Partial<AppState>) => {
     state = { ...state, ...patch };
@@ -74,7 +83,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         // Ignore scans already queued by the previously loaded program.
         if (pendingLoads.length && event.snapshot.scanCount !== 0) break;
         update({
-          ...(pendingLoads.length ? { loadedSource: pendingLoads.shift()! } : {}),
+          ...(pendingLoads.length ? { loadedSources: pendingLoads.shift()! } : {}),
           snapshot: event.snapshot,
           ...(event.snapshot.scanCount === 0 ? { diagnostic: null } : {}),
         });
@@ -95,7 +104,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   });
   const compileEditor = () => {
     clearTimeout(compileTimer);
-    const result = compileProject(projectSources(state.source, state.project));
+    const result = compilePous(state.pous);
     update({ diagnostics: result.diagnostics });
     return result;
   };
@@ -103,12 +112,13 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     if (state.connection !== "connected") return false;
     const result = compileEditor();
     if (!result.ir) return false;
-    pendingLoads.push(state.source);
+    pendingLoads.push(pouSources(state.pous));
     update({ snapshot: null, diagnostic: null, rejection: null });
     client.send({ type: "load", ir: result.ir });
     return true;
   };
   const openProject = (xml: string) => {
+    if (state.saveDiagnostics.length) update({ saveDiagnostics: [] });
     if (
       pendingLoads.length > 0 ||
       state.runtimeState !== "STOP" ||
@@ -121,14 +131,20 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     const ms = Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000;
     if (!cycleOptions.includes(ms as CycleMs)) return false;
     clearTimeout(compileTimer);
+    const pous = createPous(opened.project.pous);
+    const selectedPou = initialPouIndex(pous);
     update({
-      source: opened.project.pous[editorPouIndex(opened.project)] ?? "",
+      pous,
+      selectedPou,
+      editorSession: state.editorSession + 1,
+      saveDiagnostics: [],
+      source: pous[selectedPou]?.source ?? "",
       layout: opened.layout,
       project: opened.project,
-      diagnostics: compileProject(opened.project.pous).diagnostics,
+      diagnostics: compilePous(pous).diagnostics,
       cycleMs: ms as CycleMs,
       // Identical editor text can belong to a different project-wide compilation.
-      loadedSource: null,
+      loadedSources: null,
       snapshot: null,
       diagnostic: null,
       rejection: null,
@@ -143,7 +159,14 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       update({ layout });
     },
     saveProject() {
-      return savePanelProject(state.source, state.layout, state.cycleMs, state.project);
+      const result = serializePanelProject(
+        pouSources(state.pous),
+        state.layout,
+        state.cycleMs,
+        state.project,
+      );
+      update({ saveDiagnostics: result.diagnostics });
+      return result.value;
     },
     openProject,
     restoreExample: () => openProject(blinkProjectXml),
@@ -155,14 +178,56 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     setSource(source: string) {
       if (source === state.source) return;
       clearTimeout(compileTimer);
-      update({ source, diagnostics: [] });
+      const pous = state.pous.length
+        ? state.pous.map((pou, index) =>
+            index === state.selectedPou ? derivePou(source, pou) : pou,
+          )
+        : createPous([source]);
+      update({ source, pous, diagnostics: [], saveDiagnostics: [] });
       compileTimer = setTimeout(compileEditor, 250);
+    },
+    selectPou(index: number) {
+      if (!state.pous[index] || index === state.selectedPou) return;
+      update({
+        selectedPou: index,
+        source: state.pous[index]!.source,
+        editorSession: state.editorSession + 1,
+      });
+    },
+    addFunction() {
+      clearTimeout(compileTimer);
+      const pous = addFunction(state.pous);
+      update({
+        pous,
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+        selectedPou: pous.length - 1,
+        source: pous.at(-1)!.source,
+        diagnostics: compilePous(pous).diagnostics,
+      });
+    },
+    deletePou(index: number) {
+      const pous = deletePou(state.pous, index);
+      if (pous === state.pous) return;
+      clearTimeout(compileTimer);
+      const selectedPou =
+        state.selectedPou > index
+          ? state.selectedPou - 1
+          : Math.max(0, Math.min(state.selectedPou, pous.length - 1));
+      update({
+        pous,
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+        selectedPou,
+        source: pous[selectedPou]?.source ?? "",
+        diagnostics: compilePous(pous).diagnostics,
+      });
     },
     loadEditor,
     run() {
       if (state.connection !== "connected" || pendingLoads.length || state.emergencyActive) return;
       if (state.runtimeState !== "STOP" && state.runtimeState !== "RUN") return;
-      if (state.source !== state.loadedSource && !loadEditor()) return;
+      if (!sameSources(pouSources(state.pous), state.loadedSources) && !loadEditor()) return;
       if (state.rejection) update({ rejection: null });
       update({ emergencyReleased: false });
       client.send({ type: "run" });

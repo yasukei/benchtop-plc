@@ -16,5 +16,5 @@ export type {
 } from "./checked.js";
 
 export { compile, compileProject } from "./compile.js";
-export type { CompileResult } from "./compile.js";
+export type { CompileDiagnostic, CompileResult } from "./compile.js";
 export { lower } from "./lower.js";
