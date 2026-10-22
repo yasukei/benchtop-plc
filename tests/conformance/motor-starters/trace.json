@@ -651,10 +651,182 @@
       }
     },
     {
-      "label": "Both motors finish idle with reset timers",
+      "label": "Release motor 2 buttons with both timers reset",
       "set": {
         "Start2": false,
         "Stop2": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Start motor 1 before testing held START handoffs",
+      "set": {
+        "Start1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Hold motor 2 START while motor 1 completes its delay and runs",
+      "set": {
+        "Start1": false,
+        "Start2": true
+      },
+      "scans": 50,
+      "expect": {
+        "Run1": true,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 500,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Held motor 2 START is accepted in the scan that stops motor 1",
+      "set": {
+        "Stop1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": true,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 2 stays latched after releasing START and completes its fresh delay",
+      "set": {
+        "Stop1": false,
+        "Start2": false
+      },
+      "scans": 50,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": true,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 500
+      }
+    },
+    {
+      "label": "Hold motor 1 START while motor 2 runs",
+      "set": {
+        "Start1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": true,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 500
+      }
+    },
+    {
+      "label": "Held motor 1 START remains blocked in the scan that stops motor 2",
+      "set": {
+        "Stop2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Held motor 1 START is accepted one scan after motor 2 stops",
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Stop motor 1 and release the held START after handoff",
+      "set": {
+        "Start1": false,
+        "Stop1": true,
+        "Stop2": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Both motors finish idle with reset timers",
+      "set": {
+        "Stop1": false
       },
       "scans": 1,
       "expect": {
