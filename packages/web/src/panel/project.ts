@@ -17,10 +17,10 @@ export function serializePanelProject(
     }),
     fileHeader: {
       ...(project?.fileHeader ?? {
-        companyName: "benchtop-plc",
-        productName: "benchtop-plc",
         creationDateTime: new Date().toISOString(),
       }),
+      companyName: "benchtop-plc",
+      productName: "benchtop-plc",
       productVersion: packageJson.version,
     },
     pous: sources,

@@ -77,6 +77,21 @@ breaks only when missing, so repeated exchanges do not accumulate blank lines.
 Optional header fields set to `undefined` are omitted, just like absent fields;
 empty strings remain explicit.
 
+## Writer identity
+
+The web app stamps `fileHeader.companyName` and `fileHeader.productName` as
+`benchtop-plc`, and `fileHeader.productVersion` as the current app package version,
+together on every save. This also applies to imported projects from other tools:
+the three fields identify the tool writing the file, so a foreign product name
+cannot be paired with benchtop-plc's version. This supports PLCopen interchange
+without restricting which tool created the project (ADR 0006).
+
+Saving preserves the imported `creationDateTime`, optional file header fields
+(`companyURL`, `productRelease`, `contentDescription`) and the entire content
+header. New projects receive a creation timestamp when saved. The lower-level
+`readProject` / `writeProject` codec preserves the supplied headers; writer
+identity stamping is the web app's save policy.
+
 ## Official schema test
 
 The official PLCopen TC6 v2.01 XSD can be obtained from the

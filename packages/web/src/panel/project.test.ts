@@ -9,30 +9,46 @@ import { demoSource } from "../demo.js";
 describe("panel project persistence", () => {
   it("stamps new projects with the app package version", () => {
     const project = readProject(savePanelProject([demoSource], [], 10, null)!).value!;
-    expect(project.fileHeader.productVersion).toBe(packageJson.version);
+    expect(project.fileHeader).toMatchObject({
+      companyName: "benchtop-plc",
+      productName: "benchtop-plc",
+      productVersion: packageJson.version,
+    });
   });
   it("keeps the checked-in example header at the current release version", () => {
     expect(readProject(sampleXml).value!.fileHeader.productVersion).toBe(packageJson.version);
   });
-  it.each(["bundled example", "older project"])(
-    "stamps the app version when resaving a %s and preserves unrelated metadata",
+  it.each(["bundled example", "older project", "foreign project"])(
+    "stamps the app writer identity when resaving a %s and preserves unrelated metadata",
     (kind) => {
-      const opened = openPanelProject(sampleXml)!;
-      const project = opened.project;
+      const project = readProject(sampleXml).value!;
       if (kind === "older project") project.fileHeader.productVersion = "0.0.0";
       project.fileHeader.companyName = "Example company";
+      if (kind === "foreign project") {
+        project.fileHeader.companyName = "OtherCompany";
+        project.fileHeader.productName = "OtherTool";
+        project.fileHeader.productVersion = "9.8.7";
+      }
       project.fileHeader.companyURL = "https://example.com";
       project.fileHeader.productRelease = "Original release";
       project.fileHeader.contentDescription = "Original description";
       project.contentHeader.author = "Example author";
       project.contentHeader.version = "Project revision 3";
       const original = structuredClone(project);
-      const saved = readProject(savePanelProject(project.pous, opened.layout, 10, project)!).value!;
+      const opened = openPanelProject(writeProject(project).value!)!;
+      const saved = readProject(
+        savePanelProject(opened.project.pous, opened.layout, 10, opened.project)!,
+      ).value!;
       expect(saved).toEqual({
         ...original,
-        fileHeader: { ...original.fileHeader, productVersion: packageJson.version },
+        fileHeader: {
+          ...original.fileHeader,
+          companyName: "benchtop-plc",
+          productName: "benchtop-plc",
+          productVersion: packageJson.version,
+        },
       });
-      expect(project).toEqual(original);
+      expect(opened.project).toEqual(original);
     },
   );
   it.each([
