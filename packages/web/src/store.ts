@@ -1,6 +1,11 @@
-import { compile } from "@benchtop-plc/compiler";
+import { compileProject } from "@benchtop-plc/compiler";
 import type { Project } from "@benchtop-plc/project";
-import { openPanelProject, savePanelProject } from "./panel/project.js";
+import {
+  editorPouIndex,
+  openPanelProject,
+  projectSources,
+  savePanelProject,
+} from "./panel/project.js";
 import type { PanelLayout } from "./panel/layout.js";
 import blinkProjectXml from "../../../examples/blink/project.xml?raw";
 import type {
@@ -42,7 +47,9 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     emergencyActive: false,
     emergencyReleased: false,
     loadedSource: null,
-    diagnostics: compile(source).diagnostics,
+    diagnostics: compileProject(
+      projectSources(source, typeof initial === "string" ? null : initial.project),
+    ).diagnostics,
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
@@ -88,7 +95,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   });
   const compileEditor = () => {
     clearTimeout(compileTimer);
-    const result = compile(state.source);
+    const result = compileProject(projectSources(state.source, state.project));
     update({ diagnostics: result.diagnostics });
     return result;
   };
@@ -110,19 +117,25 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     )
       return false;
     const opened = openPanelProject(xml);
-    if (!opened || !compile(opened.project.program).ir) return false;
+    if (!opened) return false;
     const ms = Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000;
     if (!cycleOptions.includes(ms as CycleMs)) return false;
     clearTimeout(compileTimer);
     update({
-      source: opened.project.program,
+      source: opened.project.pous[editorPouIndex(opened.project)] ?? "",
       layout: opened.layout,
       project: opened.project,
-      diagnostics: compile(opened.project.program).diagnostics,
+      diagnostics: compileProject(opened.project.pous).diagnostics,
       cycleMs: ms as CycleMs,
+      // Identical editor text can belong to a different project-wide compilation.
+      loadedSource: null,
+      snapshot: null,
+      diagnostic: null,
+      rejection: null,
     });
     client.send({ type: "setCycle", ms });
-    return loadEditor();
+    loadEditor();
+    return true;
   };
   return {
     getSnapshot: () => state,

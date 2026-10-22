@@ -10,9 +10,16 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Save and open an ordered collection of programs and functions in PLCopen TC6
+  XML, preserving each POU's exact editor text, input/output declarations and
+  optional function result type. Existing 0.3.0 project files remain readable.
+- Save and reopen parseable projects with semantic errors, including missing
+  functions, duplicate names and zero or several programs. Initializer range
+  errors still block exchange. The web editor retains the other imported POUs.
+
 - Compile a project from several POU sources with user-defined functions, formal
   input defaults, output bindings, nested calls and fresh local storage per call.
-  The web editor and PLCopen XML still handle a single program.
+  The web editor shows one POU at a time.
 - Compiler and runtime diagnostics identify the source POU; the editor displays
   that name alongside the location.
 

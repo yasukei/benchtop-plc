@@ -41,7 +41,7 @@ const project: Project = {
     creationDateTime: "2026-10-16T00:00:00Z",
   },
   contentHeader: { name: "Reference", language: "en" },
-  program: readFileSync(new URL("./fixtures/reference.st", import.meta.url), "utf8"),
+  pous: [readFileSync(new URL("./fixtures/reference.st", import.meta.url), "utf8")],
   configuration: "Config",
   resource: "Res",
   task: { name: "Cyclic", interval: "PT0.01S", priority: 1 },
@@ -63,6 +63,47 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     expect(written.value).not.toBeNull();
     expect(readProject(written.value!)).toEqual({ value: project, diagnostics: [] });
   });
+  it.each(["blink", "running-light"])(
+    "resaves the 0.3.0 %s project without losing text",
+    (name) => {
+      const original = readProject(
+        readFileSync(new URL(`../../examples/${name}/project.xml`, import.meta.url), "utf8"),
+      );
+      expect(original.diagnostics).toEqual([]);
+      expect(original.value!.pous).toEqual([
+        readFileSync(
+          new URL(`./${name === "blink" ? "reference" : name}/program.st`, import.meta.url),
+          "utf8",
+        ),
+      ]);
+      expect(readProject(writeProject(original.value!).value!)).toEqual(original);
+    },
+  );
+  it("validates ordered POUs, function interfaces and tasks without a program instance", () => {
+    const schema = XmlDocument.fromString(loadSchema());
+    const validator = XsdValidator.fromDoc(schema);
+    const functions = [
+      "FUNCTION F : INT VAR_INPUT n : INT := 1; END_VAR VAR_OUTPUT q : INT; END_VAR VAR x : INT; END_VAR VAR_INPUT extra : INT; END_VAR F := n; END_FUNCTION",
+      "FUNCTION Notify VAR_INPUT n : INT; END_VAR END_FUNCTION",
+    ];
+    try {
+      for (const pous of [[...functions, ...project.pous], functions, []]) {
+        const result = writeProject({ ...project, pous });
+        expect(result.diagnostics).toEqual([]);
+        expect(result.value).not.toBeNull();
+        const document = XmlDocument.fromString(result.value!);
+        try {
+          expect(() => validator.validate(document)).not.toThrow();
+          expect(readProject(result.value!).value!.pous).toEqual(pous);
+        } finally {
+          document.dispose();
+        }
+      }
+    } finally {
+      validator.dispose();
+      schema.dispose();
+    }
+  }, 40000);
   it("validates written and example XML against the official v2.01 XSD and detects an invalid document", () => {
     const schema = XmlDocument.fromString(loadSchema());
     const validator = XsdValidator.fromDoc(schema);

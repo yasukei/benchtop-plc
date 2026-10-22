@@ -20,7 +20,7 @@ export function sampleProject(
       creationDateTime: "2026-10-16T12:00:00Z",
     },
     contentHeader: { name: "Demo <project>", author: 'A "B"', version: "1" },
-    program,
+    pous: [program],
     configuration: "Config",
     resource: "Res",
     task: { name: "Cyclic", interval: "PT0.01S", priority: 0 },
@@ -39,7 +39,7 @@ function xml(project = sampleProject()): string {
   return result.value!;
 }
 function stripExtension(input: string, name: string): string {
-  return input.replace(new RegExp(`<data name="${name}"[^>]*>[\\s\\S]*?</data>`), "");
+  return input.replace(new RegExp(`<data name="${name}"[^>]*>[\\s\\S]*?</data>`, "g"), "");
 }
 
 describe("PLCopen XML", () => {
@@ -55,8 +55,8 @@ describe("PLCopen XML", () => {
       expect(exported).toContain(`<derived name="${type}"/>`);
       const imported = readProject(stripExtension(exported, SOURCE_NAMESPACE));
       expect(imported.diagnostics).toEqual([]);
-      expect(splitProgram(imported.value!.program).value!.variables).toEqual(
-        splitProgram(project.program).value!.variables,
+      expect(splitProgram(imported.value!.pous[0]!).value!.variables).toEqual(
+        splitProgram(project.pous[0]!).value!.variables,
       );
     },
   );
@@ -71,15 +71,15 @@ describe("PLCopen XML", () => {
     const read = readProject(input);
     expect(read.diagnostics).toEqual([]);
     expect(read.value?.panel).toBeNull();
-    const parsed = splitProgram(read.value!.program).value!;
-    expect(parsed.variables).toEqual(splitProgram(sampleProject().program).value!.variables);
+    const parsed = splitProgram(read.value!.pous[0]!).value!;
+    expect(parsed.variables).toEqual(splitProgram(sampleProject().pous[0]!).value!.variables);
     expect(parsed.body).toContain("x := count < 42;");
     expect(readProject(xml(read.value!)).value).toEqual(read.value);
   });
   it("uses standard XML when the saved editor source is stale", () => {
     const read = readProject(xml().replace('value="16#FF"', 'value="23"'));
     expect(read.diagnostics.map((item) => item.code)).toEqual(["project.stale-source"]);
-    expect(read.value?.program).toContain("count : INT := 23;");
+    expect(read.value?.pous[0]).toContain("count : INT := 23;");
   });
   it("ignores namespace prefix spelling", () => {
     const input = xml().replaceAll("xhtml:", "html:").replace("xmlns:xhtml", "xmlns:html");
@@ -88,7 +88,9 @@ describe("PLCopen XML", () => {
   it("warns and drops unknown vendor data at root and inside a POU", () => {
     const extension =
       '<addData><data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data></addData>';
-    const input = xml().replace("</pou>", `${extension}</pou>`).replace("</project>", "</project>");
+    const input = xml()
+      .replace("</addData></pou>", `${extension.replace("<addData>", "")}</pou>`)
+      .replace("</project>", "</project>");
     const read = readProject(input);
     expect(read.value).toEqual(sampleProject());
     expect(read.diagnostics).toMatchObject([{ code: "project.dropped-data", severity: "warning" }]);
@@ -109,7 +111,6 @@ describe("PLCopen XML", () => {
   it.each([
     [(text: string) => text.replace(/<fileHeader[^>]*\/>/, ""), "project.missing"],
     [(text: string) => text.replace(/<interface>[\s\S]*?<\/interface>/, ""), "project.missing"],
-    [(text: string) => text.replace(/<pouInstance[^>]*\/>/, ""), "project.missing"],
     [(text: string) => text.replace('interval="PT0.01S"', 'interval="PT0S"'), "project.invalid"],
     [(text: string) => text.replace('priority="0"', 'priority="65536"'), "project.invalid"],
     [(text: string) => text.replace('typeName="Main"', 'typeName="Other"'), "project.invalid"],
@@ -118,7 +119,7 @@ describe("PLCopen XML", () => {
       "project.invalid-xml",
     ],
     [
-      (text: string) => text.replace('pouType="program"', 'pouType="function"'),
+      (text: string) => text.replace('pouType="program"', 'pouType="functionBlock"'),
       "project.unsupported",
     ],
     [
@@ -127,7 +128,7 @@ describe("PLCopen XML", () => {
     ],
     [
       (text: string) =>
-        text.replace("<localVars>", "<inputVars>").replace("</localVars>", "</inputVars>"),
+        text.replace("<localVars>", "<tempVars>").replace("</localVars>", "</tempVars>"),
       "project.unsupported",
     ],
     [
@@ -136,7 +137,7 @@ describe("PLCopen XML", () => {
     ],
     [
       (text: string) => text.replace("</pous>", '<pou name="Other" pouType="program"/></pous>'),
-      "project.unsupported",
+      "project.missing",
     ],
     [
       (text: string) => text.replace("</resource>", '<task name="Other"/></resource>'),
@@ -251,7 +252,7 @@ it("imports an external ST body without surrounding whitespace", () => {
   );
   const result = readProject(input);
   expect(result.diagnostics).toEqual([]);
-  expect(result.value?.program).toContain("\nEND_VAR\nx := TRUE;\nEND_PROGRAM");
+  expect(result.value?.pous[0]).toContain("\nEND_VAR\nx := TRUE;\nEND_PROGRAM");
 });
 it("accepts CDATA for external ST and rejects nested formatting markup", () => {
   const input = stripExtension(xml(), SOURCE_NAMESPACE).replace(
@@ -269,7 +270,7 @@ it("does not restore stale source after an external body edit", () => {
   const input = xml().replace(/<xhtml:p>[\s\S]*?<\/xhtml:p>/, "<xhtml:p>x := FALSE;</xhtml:p>");
   const result = readProject(input);
   expect(result.diagnostics[0]?.code).toBe("project.stale-source");
-  expect(result.value?.program).toContain("x := FALSE;");
+  expect(result.value?.pous[0]).toContain("x := FALSE;");
 });
 it("preserves every supported optional header field", () => {
   const project = sampleProject();
@@ -332,7 +333,7 @@ it.each([
   const first = readProject(input);
   expect(first.diagnostics).toEqual([]);
   expect(first.value).not.toBeNull();
-  expect(splitProgram(first.value!.program).value?.body).toBe(expectedBody);
+  expect(splitProgram(first.value!.pous[0]!).value?.body).toBe(expectedBody);
   let current = first.value!;
   for (let cycle = 0; cycle < 3; cycle++) {
     const read = readProject(stripExtension(xml(current), SOURCE_NAMESPACE));
@@ -355,7 +356,9 @@ END_PROGRAM`);
   expect(readProject(saved).value).toEqual(project);
   const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
   expect(canonical.diagnostics).toEqual([]);
-  expect(splitProgram(canonical.value!.program).value).toEqual(splitProgram(project.program).value);
+  expect(splitProgram(canonical.value!.pous[0]!).value).toEqual(
+    splitProgram(project.pous[0]!).value,
+  );
 });
 it.each([
   ["SINT", "128"],
@@ -378,7 +381,7 @@ it.each([
   const imported = readProject(saved.replace(`value="${zero}"`, `value="${initial}"`));
   expect(imported.value).toBeNull();
   expect(imported.diagnostics).toContainEqual(expect.objectContaining({ code: "project.invalid" }));
-  project.program = `PROGRAM Main VAR x: ${type} := ${initial}; END_VAR END_PROGRAM`;
+  project.pous[0] = `PROGRAM Main VAR x: ${type} := ${initial}; END_VAR END_PROGRAM`;
   expect(writeProject(project).value).toBeNull();
 });
 
@@ -394,7 +397,9 @@ END_PROGRAM`);
   expect(readProject(saved).value).toEqual(project);
   const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
   expect(canonical.diagnostics).toEqual([]);
-  expect(splitProgram(canonical.value!.program).value).toEqual(splitProgram(project.program).value);
+  expect(splitProgram(canonical.value!.pous[0]!).value).toEqual(
+    splitProgram(project.pous[0]!).value,
+  );
 });
 it.each([
   ["LINT", "9223372036854775808", "0"],
@@ -405,7 +410,7 @@ it.each([
   const project = sampleProject(`PROGRAM Main VAR x: ${type} := ${zero}; END_VAR END_PROGRAM`);
   const saved = xml(project);
   expect(readProject(saved.replace(`value="${zero}"`, `value="${invalid}"`)).value).toBeNull();
-  project.program = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
+  project.pous[0] = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
   expect(writeProject(project).value).toBeNull();
 });
 
@@ -423,8 +428,8 @@ END_PROGRAM`);
   expect(readProject(saved).value).toEqual(project);
   const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
   expect(canonical.diagnostics).toEqual([]);
-  expect(canonical.value?.program).toContain("b : TOD := TOD#12:30:15.5");
-  expect(canonical.value?.program).toContain("e : LTOD := LTOD#23:59:59.999999999");
+  expect(canonical.value?.pous[0]).toContain("b : TOD := TOD#12:30:15.5");
+  expect(canonical.value?.pous[0]).toContain("e : LTOD := LTOD#23:59:59.999999999");
 });
 it.each([
   ["DATE", "D#1970-01-01", "D#2026-02-30"],
@@ -438,6 +443,6 @@ it.each([
   const project = sampleProject(`PROGRAM Main VAR x: ${type} := ${zero}; END_VAR END_PROGRAM`);
   const saved = xml(project);
   expect(readProject(saved.replace(`value="${zero}"`, `value="${invalid}"`)).value).toBeNull();
-  project.program = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
+  project.pous[0] = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
   expect(writeProject(project).value).toBeNull();
 });

@@ -1,7 +1,18 @@
-import { compile } from "@benchtop-plc/compiler";
-import { readProject, writeProject, type Project } from "@benchtop-plc/project";
+import { readProject, splitProgram, writeProject, type Project } from "@benchtop-plc/project";
 import packageJson from "../../package.json" with { type: "json" };
 import { readLayout, type PanelLayout } from "./layout.js";
+
+/** Until the POU list is available, the editor shows the first PROGRAM (or first POU). */
+export function editorPouIndex(project: Project): number {
+  const index = project.pous.findIndex((source) => splitProgram(source).value?.kind === "program");
+  return index < 0 ? 0 : index;
+}
+
+export function projectSources(source: string, project: Project | null): string[] {
+  if (!project) return [source];
+  if (!project.pous.length) return source ? [source] : [];
+  return project.pous.map((text, index) => (index === editorPouIndex(project) ? source : text));
+}
 
 export function savePanelProject(
   source: string,
@@ -9,15 +20,12 @@ export function savePanelProject(
   cycleMs: number,
   project: Project | null,
 ): string | null {
-  const ir = compile(source).ir;
-  if (!ir) return null;
   const result = writeProject({
     ...(project ?? {
-      contentHeader: { name: ir.name },
+      contentHeader: { name: splitProgram(source).value?.name ?? "Project" },
       configuration: "Config",
       resource: "Res",
       task: { name: "Cyclic", interval: "PT0.01S", priority: 1 },
-      instance: { name: "mainInstance", typeName: ir.name },
     }),
     fileHeader: {
       ...(project?.fileHeader ?? {
@@ -27,8 +35,7 @@ export function savePanelProject(
       }),
       productVersion: packageJson.version,
     },
-    program: source,
-    instance: { ...(project?.instance ?? { name: "mainInstance" }), typeName: ir.name },
+    pous: projectSources(source, project),
     task: {
       ...(project?.task ?? { name: "Cyclic", priority: 1 }),
       interval: `PT${cycleMs / 1000}S`,
