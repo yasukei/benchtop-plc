@@ -180,6 +180,32 @@ it("widens user block input durations and transports long output annotations as 
   expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
 });
 
+it("annotates user block outputs in declaration order despite reversed output bindings", () => {
+  const { runtime, scalar } = setup([
+    `PROGRAM Main
+     VAR inst : Outputs; number : INT; flag : BOOL; END_VAR
+     inst(second => flag, first => number);
+     END_PROGRAM`,
+    `FUNCTION_BLOCK Outputs
+     VAR_OUTPUT first : INT; second : BOOL; END_VAR
+     first := 42; second := TRUE;
+     END_FUNCTION_BLOCK`,
+  ]);
+  const snapshot = runtime.scanOnce();
+  expect(runtime.diagnostic).toBeNull();
+  expect(scalar(snapshot, "number")).toBe(42);
+  expect(scalar(snapshot, "flag")).toBe(true);
+  expect(Object.values(snapshot.annotations).flat()).toEqual([
+    expect.objectContaining({
+      span: expect.objectContaining({ line: 3 }),
+      values: [
+        { dataType: "INT", value: 42 },
+        { dataType: "BOOL", value: true },
+      ],
+    }),
+  ]);
+});
+
 it("shares the scan watchdog across several block invocations", () => {
   const { runtime } = setup([
     `PROGRAM Main VAR first,second : Work; END_VAR first(); second(); END_PROGRAM`,

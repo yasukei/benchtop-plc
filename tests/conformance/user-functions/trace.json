@@ -6,7 +6,7 @@
       "label": "results, omitted input default and fresh locals",
       "scans": 1,
       "expect": {
-        "value": 10,
+        "value": 4,
         "defaulted": 12,
         "first": 5,
         "second": 5,
@@ -18,13 +18,13 @@
     {
       "label": "output starts from its initializer again",
       "scans": 1,
-      "expect": { "value": 10, "first": 5, "second": 5, "output": 9, "scans": 2 }
+      "expect": { "value": 7, "first": 5, "second": 5, "output": 9, "scans": 2 }
     },
     {
       "label": "several scans retain only program storage",
       "scans": 3,
       "expect": {
-        "value": 10,
+        "value": 16,
         "defaulted": 12,
         "first": 5,
         "second": 5,

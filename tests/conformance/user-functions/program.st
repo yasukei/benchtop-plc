@@ -8,7 +8,7 @@ VAR
   nested: INT;
   scans: INT;
 END_VAR
-value := Scale(2, 3, 4);
+value := Scale(scans, 3, 4);
 defaulted := Sum(B := 2);
 first := Fresh();
 second := Fresh();

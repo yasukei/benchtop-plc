@@ -1,0 +1,1341 @@
+{
+  "kind": "program",
+  "name": "Main",
+  "span": {
+    "line": 1,
+    "column": 1,
+    "endLine": 50,
+    "endColumn": 12
+  },
+  "variables": [
+    {
+      "name": "StartPB",
+      "key": "STARTPB",
+      "span": {
+        "line": 3,
+        "column": 5,
+        "endLine": 3,
+        "endColumn": 32
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "I",
+        "byte": 0,
+        "bit": 0
+      }
+    },
+    {
+      "name": "StopPB",
+      "key": "STOPPB",
+      "span": {
+        "line": 4,
+        "column": 5,
+        "endLine": 4,
+        "endColumn": 32
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "I",
+        "byte": 0,
+        "bit": 1
+      }
+    },
+    {
+      "name": "Direction",
+      "key": "DIRECTION",
+      "span": {
+        "line": 5,
+        "column": 5,
+        "endLine": 5,
+        "endColumn": 32
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "I",
+        "byte": 0,
+        "bit": 2
+      }
+    },
+    {
+      "name": "Out0",
+      "key": "OUT0",
+      "span": {
+        "line": 6,
+        "column": 5,
+        "endLine": 6,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 0
+      }
+    },
+    {
+      "name": "Out1",
+      "key": "OUT1",
+      "span": {
+        "line": 7,
+        "column": 5,
+        "endLine": 7,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 1
+      }
+    },
+    {
+      "name": "Out2",
+      "key": "OUT2",
+      "span": {
+        "line": 8,
+        "column": 5,
+        "endLine": 8,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 2
+      }
+    },
+    {
+      "name": "Out3",
+      "key": "OUT3",
+      "span": {
+        "line": 9,
+        "column": 5,
+        "endLine": 9,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 3
+      }
+    },
+    {
+      "name": "Out4",
+      "key": "OUT4",
+      "span": {
+        "line": 10,
+        "column": 5,
+        "endLine": 10,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 4
+      }
+    },
+    {
+      "name": "Out5",
+      "key": "OUT5",
+      "span": {
+        "line": 11,
+        "column": 5,
+        "endLine": 11,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 5
+      }
+    },
+    {
+      "name": "Out6",
+      "key": "OUT6",
+      "span": {
+        "line": 12,
+        "column": 5,
+        "endLine": 12,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 6
+      }
+    },
+    {
+      "name": "Out7",
+      "key": "OUT7",
+      "span": {
+        "line": 13,
+        "column": 5,
+        "endLine": 13,
+        "endColumn": 27
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false,
+      "address": {
+        "area": "Q",
+        "byte": 0,
+        "bit": 7
+      }
+    },
+    {
+      "name": "Running",
+      "key": "RUNNING",
+      "span": {
+        "line": 14,
+        "column": 5,
+        "endLine": 14,
+        "endColumn": 20
+      },
+      "kind": "scalar",
+      "dataType": "BOOL",
+      "initialValue": false
+    },
+    {
+      "name": "Pattern",
+      "key": "PATTERN",
+      "span": {
+        "line": 15,
+        "column": 5,
+        "endLine": 15,
+        "endColumn": 30
+      },
+      "kind": "scalar",
+      "dataType": "BYTE",
+      "initialValue": 1
+    },
+    {
+      "name": "Speed",
+      "key": "SPEED",
+      "span": {
+        "line": 16,
+        "column": 5,
+        "endLine": 16,
+        "endColumn": 29
+      },
+      "kind": "scalar",
+      "dataType": "TIME",
+      "initialValue": 200
+    },
+    {
+      "name": "tStep",
+      "key": "TSTEP",
+      "span": {
+        "line": 17,
+        "column": 5,
+        "endLine": 17,
+        "endColumn": 17
+      },
+      "kind": "functionBlock",
+      "fbType": "TON",
+      "initialValue": null
+    },
+    {
+      "name": "Steps",
+      "key": "STEPS",
+      "span": {
+        "line": 18,
+        "column": 5,
+        "endLine": 18,
+        "endColumn": 19
+      },
+      "kind": "scalar",
+      "dataType": "USINT",
+      "initialValue": 0
+    },
+    {
+      "name": "Rotations",
+      "key": "ROTATIONS",
+      "span": {
+        "line": 19,
+        "column": 5,
+        "endLine": 19,
+        "endColumn": 23
+      },
+      "kind": "scalar",
+      "dataType": "UDINT",
+      "initialValue": 0
+    }
+  ],
+  "body": [
+    {
+      "span": {
+        "line": 23,
+        "column": 1,
+        "endLine": 23,
+        "endColumn": 48
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 11,
+        "dataType": "BOOL",
+        "span": {
+          "line": 23,
+          "column": 1,
+          "endLine": 23,
+          "endColumn": 8
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 23,
+          "column": 12,
+          "endLine": 23,
+          "endColumn": 47
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "dataType": "BOOL",
+          "span": {
+            "line": 23,
+            "column": 12,
+            "endLine": 23,
+            "endColumn": 32
+          },
+          "kind": "binary",
+          "operator": "OR",
+          "left": {
+            "kind": "variable",
+            "variable": 0,
+            "dataType": "BOOL",
+            "span": {
+              "line": 23,
+              "column": 13,
+              "endLine": 23,
+              "endColumn": 20
+            }
+          },
+          "right": {
+            "kind": "variable",
+            "variable": 11,
+            "dataType": "BOOL",
+            "span": {
+              "line": 23,
+              "column": 24,
+              "endLine": 23,
+              "endColumn": 31
+            }
+          }
+        },
+        "right": {
+          "dataType": "BOOL",
+          "span": {
+            "line": 23,
+            "column": 37,
+            "endLine": 23,
+            "endColumn": 47
+          },
+          "kind": "unary",
+          "operator": "NOT",
+          "operand": {
+            "kind": "variable",
+            "variable": 1,
+            "dataType": "BOOL",
+            "span": {
+              "line": 23,
+              "column": 41,
+              "endLine": 23,
+              "endColumn": 47
+            }
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 24,
+        "column": 1,
+        "endLine": 24,
+        "endColumn": 35
+      },
+      "kind": "fbCall",
+      "variable": 14,
+      "inputs": [
+        {
+          "name": "IN",
+          "input": 0,
+          "value": {
+            "kind": "variable",
+            "variable": 11,
+            "dataType": "BOOL",
+            "span": {
+              "line": 24,
+              "column": 13,
+              "endLine": 24,
+              "endColumn": 20
+            }
+          },
+          "span": {
+            "line": 24,
+            "column": 7,
+            "endLine": 24,
+            "endColumn": 20
+          }
+        },
+        {
+          "name": "PT",
+          "input": 1,
+          "value": {
+            "kind": "variable",
+            "variable": 13,
+            "dataType": "TIME",
+            "span": {
+              "line": 24,
+              "column": 28,
+              "endLine": 24,
+              "endColumn": 33
+            }
+          },
+          "span": {
+            "line": 24,
+            "column": 22,
+            "endLine": 24,
+            "endColumn": 33
+          }
+        }
+      ]
+    },
+    {
+      "span": {
+        "line": 25,
+        "column": 1,
+        "endLine": 40,
+        "endColumn": 8
+      },
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "kind": "fbMember",
+            "variable": 14,
+            "port": "output",
+            "member": 0,
+            "dataType": "BOOL",
+            "span": {
+              "line": 25,
+              "column": 4,
+              "endLine": 25,
+              "endColumn": 11
+            }
+          },
+          "body": [
+            {
+              "span": {
+                "line": 26,
+                "column": 5,
+                "endLine": 30,
+                "endColumn": 12
+              },
+              "kind": "if",
+              "branches": [
+                {
+                  "condition": {
+                    "kind": "variable",
+                    "variable": 2,
+                    "dataType": "BOOL",
+                    "span": {
+                      "line": 26,
+                      "column": 8,
+                      "endLine": 26,
+                      "endColumn": 17
+                    }
+                  },
+                  "body": [
+                    {
+                      "span": {
+                        "line": 27,
+                        "column": 9,
+                        "endLine": 27,
+                        "endColumn": 36
+                      },
+                      "kind": "assignment",
+                      "target": {
+                        "kind": "variable",
+                        "variable": 12,
+                        "dataType": "BYTE",
+                        "span": {
+                          "line": 27,
+                          "column": 9,
+                          "endLine": 27,
+                          "endColumn": 16
+                        }
+                      },
+                      "value": {
+                        "dataType": "BYTE",
+                        "span": {
+                          "line": 27,
+                          "column": 20,
+                          "endLine": 27,
+                          "endColumn": 35
+                        },
+                        "kind": "functionCall",
+                        "function": "ROR",
+                        "args": [
+                          {
+                            "kind": "variable",
+                            "variable": 12,
+                            "dataType": "BYTE",
+                            "span": {
+                              "line": 27,
+                              "column": 24,
+                              "endLine": 27,
+                              "endColumn": 31
+                            }
+                          },
+                          {
+                            "dataType": "DINT",
+                            "span": {
+                              "line": 27,
+                              "column": 33,
+                              "endLine": 27,
+                              "endColumn": 34
+                            },
+                            "kind": "literal",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "span": {
+                    "line": 26,
+                    "column": 5,
+                    "endLine": 27,
+                    "endColumn": 36
+                  }
+                }
+              ],
+              "elseBody": [
+                {
+                  "span": {
+                    "line": 29,
+                    "column": 9,
+                    "endLine": 29,
+                    "endColumn": 36
+                  },
+                  "kind": "assignment",
+                  "target": {
+                    "kind": "variable",
+                    "variable": 12,
+                    "dataType": "BYTE",
+                    "span": {
+                      "line": 29,
+                      "column": 9,
+                      "endLine": 29,
+                      "endColumn": 16
+                    }
+                  },
+                  "value": {
+                    "dataType": "BYTE",
+                    "span": {
+                      "line": 29,
+                      "column": 20,
+                      "endLine": 29,
+                      "endColumn": 35
+                    },
+                    "kind": "functionCall",
+                    "function": "ROL",
+                    "args": [
+                      {
+                        "kind": "variable",
+                        "variable": 12,
+                        "dataType": "BYTE",
+                        "span": {
+                          "line": 29,
+                          "column": 24,
+                          "endLine": 29,
+                          "endColumn": 31
+                        }
+                      },
+                      {
+                        "dataType": "DINT",
+                        "span": {
+                          "line": 29,
+                          "column": 33,
+                          "endLine": 29,
+                          "endColumn": 34
+                        },
+                        "kind": "literal",
+                        "value": 1
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "span": {
+                "line": 32,
+                "column": 5,
+                "endLine": 32,
+                "endColumn": 24
+              },
+              "kind": "assignment",
+              "target": {
+                "kind": "variable",
+                "variable": 15,
+                "dataType": "USINT",
+                "span": {
+                  "line": 32,
+                  "column": 5,
+                  "endLine": 32,
+                  "endColumn": 10
+                }
+              },
+              "value": {
+                "dataType": "USINT",
+                "span": {
+                  "line": 32,
+                  "column": 14,
+                  "endLine": 32,
+                  "endColumn": 23
+                },
+                "kind": "binary",
+                "operator": "+",
+                "left": {
+                  "kind": "variable",
+                  "variable": 15,
+                  "dataType": "USINT",
+                  "span": {
+                    "line": 32,
+                    "column": 14,
+                    "endLine": 32,
+                    "endColumn": 19
+                  }
+                },
+                "right": {
+                  "dataType": "USINT",
+                  "span": {
+                    "line": 32,
+                    "column": 22,
+                    "endLine": 32,
+                    "endColumn": 23
+                  },
+                  "kind": "literal",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "span": {
+                "line": 33,
+                "column": 5,
+                "endLine": 36,
+                "endColumn": 12
+              },
+              "kind": "if",
+              "branches": [
+                {
+                  "condition": {
+                    "dataType": "BOOL",
+                    "span": {
+                      "line": 33,
+                      "column": 8,
+                      "endLine": 33,
+                      "endColumn": 17
+                    },
+                    "kind": "binary",
+                    "operator": "=",
+                    "left": {
+                      "kind": "variable",
+                      "variable": 15,
+                      "dataType": "USINT",
+                      "span": {
+                        "line": 33,
+                        "column": 8,
+                        "endLine": 33,
+                        "endColumn": 13
+                      }
+                    },
+                    "right": {
+                      "dataType": "USINT",
+                      "span": {
+                        "line": 33,
+                        "column": 16,
+                        "endLine": 33,
+                        "endColumn": 17
+                      },
+                      "kind": "literal",
+                      "value": 8
+                    }
+                  },
+                  "body": [
+                    {
+                      "span": {
+                        "line": 34,
+                        "column": 9,
+                        "endLine": 34,
+                        "endColumn": 36
+                      },
+                      "kind": "assignment",
+                      "target": {
+                        "kind": "variable",
+                        "variable": 16,
+                        "dataType": "UDINT",
+                        "span": {
+                          "line": 34,
+                          "column": 9,
+                          "endLine": 34,
+                          "endColumn": 18
+                        }
+                      },
+                      "value": {
+                        "dataType": "UDINT",
+                        "span": {
+                          "line": 34,
+                          "column": 22,
+                          "endLine": 34,
+                          "endColumn": 35
+                        },
+                        "kind": "binary",
+                        "operator": "+",
+                        "left": {
+                          "kind": "variable",
+                          "variable": 16,
+                          "dataType": "UDINT",
+                          "span": {
+                            "line": 34,
+                            "column": 22,
+                            "endLine": 34,
+                            "endColumn": 31
+                          }
+                        },
+                        "right": {
+                          "dataType": "UDINT",
+                          "span": {
+                            "line": 34,
+                            "column": 34,
+                            "endLine": 34,
+                            "endColumn": 35
+                          },
+                          "kind": "literal",
+                          "value": 1
+                        }
+                      }
+                    },
+                    {
+                      "span": {
+                        "line": 35,
+                        "column": 9,
+                        "endLine": 35,
+                        "endColumn": 20
+                      },
+                      "kind": "assignment",
+                      "target": {
+                        "kind": "variable",
+                        "variable": 15,
+                        "dataType": "USINT",
+                        "span": {
+                          "line": 35,
+                          "column": 9,
+                          "endLine": 35,
+                          "endColumn": 14
+                        }
+                      },
+                      "value": {
+                        "dataType": "USINT",
+                        "span": {
+                          "line": 35,
+                          "column": 18,
+                          "endLine": 35,
+                          "endColumn": 19
+                        },
+                        "kind": "literal",
+                        "value": 0
+                      }
+                    }
+                  ],
+                  "span": {
+                    "line": 33,
+                    "column": 5,
+                    "endLine": 35,
+                    "endColumn": 20
+                  }
+                }
+              ],
+              "elseBody": []
+            },
+            {
+              "span": {
+                "line": 38,
+                "column": 5,
+                "endLine": 38,
+                "endColumn": 37
+              },
+              "kind": "fbCall",
+              "variable": 14,
+              "inputs": [
+                {
+                  "name": "IN",
+                  "input": 0,
+                  "value": {
+                    "dataType": "BOOL",
+                    "span": {
+                      "line": 38,
+                      "column": 17,
+                      "endLine": 38,
+                      "endColumn": 22
+                    },
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "span": {
+                    "line": 38,
+                    "column": 11,
+                    "endLine": 38,
+                    "endColumn": 22
+                  }
+                },
+                {
+                  "name": "PT",
+                  "input": 1,
+                  "value": {
+                    "kind": "variable",
+                    "variable": 13,
+                    "dataType": "TIME",
+                    "span": {
+                      "line": 38,
+                      "column": 30,
+                      "endLine": 38,
+                      "endColumn": 35
+                    }
+                  },
+                  "span": {
+                    "line": 38,
+                    "column": 24,
+                    "endLine": 38,
+                    "endColumn": 35
+                  }
+                }
+              ]
+            },
+            {
+              "span": {
+                "line": 39,
+                "column": 5,
+                "endLine": 39,
+                "endColumn": 39
+              },
+              "kind": "fbCall",
+              "variable": 14,
+              "inputs": [
+                {
+                  "name": "IN",
+                  "input": 0,
+                  "value": {
+                    "kind": "variable",
+                    "variable": 11,
+                    "dataType": "BOOL",
+                    "span": {
+                      "line": 39,
+                      "column": 17,
+                      "endLine": 39,
+                      "endColumn": 24
+                    }
+                  },
+                  "span": {
+                    "line": 39,
+                    "column": 11,
+                    "endLine": 39,
+                    "endColumn": 24
+                  }
+                },
+                {
+                  "name": "PT",
+                  "input": 1,
+                  "value": {
+                    "kind": "variable",
+                    "variable": 13,
+                    "dataType": "TIME",
+                    "span": {
+                      "line": 39,
+                      "column": 32,
+                      "endLine": 39,
+                      "endColumn": 37
+                    }
+                  },
+                  "span": {
+                    "line": 39,
+                    "column": 26,
+                    "endLine": 39,
+                    "endColumn": 37
+                  }
+                }
+              ]
+            }
+          ],
+          "span": {
+            "line": 25,
+            "column": 1,
+            "endLine": 39,
+            "endColumn": 39
+          }
+        }
+      ],
+      "elseBody": []
+    },
+    {
+      "span": {
+        "line": 42,
+        "column": 1,
+        "endLine": 42,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 3,
+        "dataType": "BOOL",
+        "span": {
+          "line": 42,
+          "column": 1,
+          "endLine": 42,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 42,
+          "column": 9,
+          "endLine": 42,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 42,
+            "column": 9,
+            "endLine": 42,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 0,
+          "dataType": "BOOL",
+          "span": {
+            "line": 42,
+            "column": 21,
+            "endLine": 42,
+            "endColumn": 30
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 43,
+        "column": 1,
+        "endLine": 43,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 4,
+        "dataType": "BOOL",
+        "span": {
+          "line": 43,
+          "column": 1,
+          "endLine": 43,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 43,
+          "column": 9,
+          "endLine": 43,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 43,
+            "column": 9,
+            "endLine": 43,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 1,
+          "dataType": "BOOL",
+          "span": {
+            "line": 43,
+            "column": 21,
+            "endLine": 43,
+            "endColumn": 30
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 44,
+        "column": 1,
+        "endLine": 44,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 5,
+        "dataType": "BOOL",
+        "span": {
+          "line": 44,
+          "column": 1,
+          "endLine": 44,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 44,
+          "column": 9,
+          "endLine": 44,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 44,
+            "column": 9,
+            "endLine": 44,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 2,
+          "dataType": "BOOL",
+          "span": {
+            "line": 44,
+            "column": 21,
+            "endLine": 44,
+            "endColumn": 30
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 45,
+        "column": 1,
+        "endLine": 45,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 6,
+        "dataType": "BOOL",
+        "span": {
+          "line": 45,
+          "column": 1,
+          "endLine": 45,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 45,
+          "column": 9,
+          "endLine": 45,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 45,
+            "column": 9,
+            "endLine": 45,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 3,
+          "dataType": "BOOL",
+          "span": {
+            "line": 45,
+            "column": 21,
+            "endLine": 45,
+            "endColumn": 30
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 46,
+        "column": 1,
+        "endLine": 46,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 7,
+        "dataType": "BOOL",
+        "span": {
+          "line": 46,
+          "column": 1,
+          "endLine": 46,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 46,
+          "column": 9,
+          "endLine": 46,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 46,
+            "column": 9,
+            "endLine": 46,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 4,
+          "dataType": "BOOL",
+          "span": {
+            "line": 46,
+            "column": 21,
+            "endLine": 46,
+            "endColumn": 30
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 47,
+        "column": 1,
+        "endLine": 47,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 8,
+        "dataType": "BOOL",
+        "span": {
+          "line": 47,
+          "column": 1,
+          "endLine": 47,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 47,
+          "column": 9,
+          "endLine": 47,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 47,
+            "column": 9,
+            "endLine": 47,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 5,
+          "dataType": "BOOL",
+          "span": {
+            "line": 47,
+            "column": 21,
+            "endLine": 47,
+            "endColumn": 30
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 48,
+        "column": 1,
+        "endLine": 48,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 9,
+        "dataType": "BOOL",
+        "span": {
+          "line": 48,
+          "column": 1,
+          "endLine": 48,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 48,
+          "column": 9,
+          "endLine": 48,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 48,
+            "column": 9,
+            "endLine": 48,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 6,
+          "dataType": "BOOL",
+          "span": {
+            "line": 48,
+            "column": 21,
+            "endLine": 48,
+            "endColumn": 30
+          }
+        }
+      }
+    },
+    {
+      "span": {
+        "line": 49,
+        "column": 1,
+        "endLine": 49,
+        "endColumn": 31
+      },
+      "kind": "assignment",
+      "target": {
+        "kind": "variable",
+        "variable": 10,
+        "dataType": "BOOL",
+        "span": {
+          "line": 49,
+          "column": 1,
+          "endLine": 49,
+          "endColumn": 5
+        }
+      },
+      "value": {
+        "dataType": "BOOL",
+        "span": {
+          "line": 49,
+          "column": 9,
+          "endLine": 49,
+          "endColumn": 30
+        },
+        "kind": "binary",
+        "operator": "AND",
+        "left": {
+          "kind": "variable",
+          "variable": 11,
+          "dataType": "BOOL",
+          "span": {
+            "line": 49,
+            "column": 9,
+            "endLine": 49,
+            "endColumn": 16
+          }
+        },
+        "right": {
+          "kind": "bit",
+          "variable": 12,
+          "bit": 7,
+          "dataType": "BOOL",
+          "span": {
+            "line": 49,
+            "column": 21,
+            "endLine": 49,
+            "endColumn": 30
+          }
+        }
+      }
+    }
+  ]
+}

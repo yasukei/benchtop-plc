@@ -91,3 +91,16 @@ describe("reference program compilation", () => {
     expect(annotationLines).toEqual([17, 20, 21, 22, 25, 27, 31, 34]);
   });
 });
+
+describe("running-light program compilation", () => {
+  it("matches the golden IR from before overload selection (ab9f9b9)", async () => {
+    const source = readFileSync(new URL("./running-light/program.st", import.meta.url), "utf8");
+    const result = compile(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir).toBeDefined();
+    // Generated with the compiler at ab9f9b9c0499b6ff2b935087c4050460b0df7057.
+    await expect(JSON.stringify(result.ir, null, 2) + "\n").toMatchFileSnapshot(
+      "./fixtures/running-light-ir.json",
+    );
+  });
+});
