@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Motor starters example with two independent instances of a user-defined
+  function block, nested TON start delays, a shared interlock function,
+  START/STOP and overload controls, status lamps and virtual-time traces.
+
 - Overloaded `TON`, `TOF`, `TP`, `CTU`, `CTD` and `CTUD` select timer/counter
   variants from typed `PT`/`PV` bindings in their declaring POU, including user
   function blocks. Monitor rows and editor hovers show resolved types; PLCopen XML

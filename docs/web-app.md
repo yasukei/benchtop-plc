@@ -82,6 +82,17 @@ persistent user FB scalar members under dotted paths such as `M1.RUNNING`; write
 and forces address them normally. Nested standard FBs retain their port summary.
 PROGRAM user FB calls show outputs in declaration order as inline values.
 
+Try the [motor starters example](../examples/motor-starters/) by selecting
+`examples/motor-starters/project.xml` with **Open project**. Its POU list contains
+`Main`, `MotorStarter` and `CanStart`: a program, a reusable function block with a
+nested TON, and an interlock function. Press **RUN**, then **M1 START** or
+**M2 START** on the panel. Each motor has a 500 ms start delay, a STOP button,
+an OVERLOAD switch and STARTING/RUN/TRIP lamps. The interlock permits one active
+motor at a time, including during its delay; simultaneous starts while idle give
+motor 1 priority. STOP or overload clears the motor's latch and timer. Clear an
+overload and press START again to restart. Save/reopen keeps all three POU texts
+and the panel. The bundled startup example remains blink.
+
 ## Structured Text editor
 
 A thin React wrapper owns a CodeMirror 6 editor controller. Highlighting is a

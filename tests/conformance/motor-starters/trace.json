@@ -1,0 +1,846 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Both independent instances start idle",
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Simultaneous starts reserve the interlock for motor 1",
+      "set": {
+        "Start1": true,
+        "Start2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Releasing START preserves the latch and the delay is not done at 490 ms",
+      "set": {
+        "Start1": false,
+        "Start2": false
+      },
+      "scans": 49,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 490,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 1 runs at exactly 500 ms",
+      "scans": 1,
+      "expect": {
+        "Run1": true,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 500,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 2 cannot start while motor 1 runs",
+      "set": {
+        "Start2": true
+      },
+      "scans": 3,
+      "expect": {
+        "Run1": true,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 500,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "STOP clears motor 1 and its timer immediately",
+      "set": {
+        "Start2": false,
+        "Stop1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Releasing STOP does not restart",
+      "set": {
+        "Stop1": false
+      },
+      "scans": 60,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 2 starts with its own fresh timer",
+      "set": {
+        "Start2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": true,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 1 is interlocked throughout motor 2 delay",
+      "set": {
+        "Start2": false,
+        "Start1": true
+      },
+      "scans": 49,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": true,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 490
+      }
+    },
+    {
+      "label": "Motor 2 runs at exactly 500 ms while motor 1 stays blocked",
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": true,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 500
+      }
+    },
+    {
+      "label": "Releasing blocked START does not change the running motor",
+      "set": {
+        "Start1": false
+      },
+      "scans": 3,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": true,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 500
+      }
+    },
+    {
+      "label": "Overload trips running motor 2 immediately and resets its timer",
+      "set": {
+        "Overload2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": true,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Clearing overload alone does not restart motor 2",
+      "set": {
+        "Overload2": false
+      },
+      "scans": 60,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 1 can start after motor 2 trips",
+      "set": {
+        "Start1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 1 delay is still pending at 200 ms",
+      "set": {
+        "Start1": false
+      },
+      "scans": 20,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 200,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "STOP cancels an incomplete start delay",
+      "set": {
+        "Stop1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 2 starts without inheriting motor 1 elapsed time",
+      "set": {
+        "Stop1": false,
+        "Start2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": true,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 2 can run again after its overload is cleared",
+      "set": {
+        "Start2": false
+      },
+      "scans": 50,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": true,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 500
+      }
+    },
+    {
+      "label": "STOP also stops running motor 2",
+      "set": {
+        "Stop2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Overload takes priority over motor 1 START",
+      "set": {
+        "Stop2": false,
+        "Start1": true,
+        "Overload1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": true,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 1 stays idle when overload and START are released",
+      "set": {
+        "Start1": false,
+        "Overload1": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "STOP takes priority over motor 1 START",
+      "set": {
+        "Start1": true,
+        "Stop1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Release motor 1 buttons",
+      "set": {
+        "Start1": false,
+        "Stop1": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Restart motor 1 begins a complete new delay",
+      "set": {
+        "Start1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 1 reaches the last scan before completion",
+      "set": {
+        "Start1": false
+      },
+      "scans": 49,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 490,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Overload on the completion scan prevents motor 1 running",
+      "set": {
+        "Overload1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": true,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Clearing the cancelled start does not restart",
+      "set": {
+        "Overload1": false
+      },
+      "scans": 60,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "A new START after overload rearms motor 1 from zero",
+      "set": {
+        "Start1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Restart still requires the full delay",
+      "set": {
+        "Start1": false
+      },
+      "scans": 49,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 490,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Restart completes at exactly 500 ms",
+      "scans": 1,
+      "expect": {
+        "Run1": true,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 500,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Stop motor 1 before checking motor 2 priorities",
+      "set": {
+        "Stop1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Overload takes priority over motor 2 START",
+      "set": {
+        "Stop1": false,
+        "Start2": true,
+        "Overload2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": true,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Release motor 2 overload and START",
+      "set": {
+        "Start2": false,
+        "Overload2": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "STOP takes priority over motor 2 START",
+      "set": {
+        "Start2": true,
+        "Stop2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Release motor 2 buttons with both timers reset",
+      "set": {
+        "Start2": false,
+        "Stop2": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Start motor 1 before testing held START handoffs",
+      "set": {
+        "Start1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Hold motor 2 START while motor 1 completes its delay and runs",
+      "set": {
+        "Start1": false,
+        "Start2": true
+      },
+      "scans": 50,
+      "expect": {
+        "Run1": true,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 500,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Held motor 2 START is accepted in the scan that stops motor 1",
+      "set": {
+        "Stop1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": true,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Motor 2 stays latched after releasing START and completes its fresh delay",
+      "set": {
+        "Stop1": false,
+        "Start2": false
+      },
+      "scans": 50,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": true,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 500
+      }
+    },
+    {
+      "label": "Hold motor 1 START while motor 2 runs",
+      "set": {
+        "Start1": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": true,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": true,
+        "M2.StartTimer.ET": 500
+      }
+    },
+    {
+      "label": "Held motor 1 START remains blocked in the scan that stops motor 2",
+      "set": {
+        "Stop2": true
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Held motor 1 START is accepted one scan after motor 2 stops",
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": true,
+        "Trip1": false,
+        "M1.Active": true,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Stop motor 1 and release the held START after handoff",
+      "set": {
+        "Start1": false,
+        "Stop1": true,
+        "Stop2": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    },
+    {
+      "label": "Both motors finish idle with reset timers",
+      "set": {
+        "Stop1": false
+      },
+      "scans": 1,
+      "expect": {
+        "Run1": false,
+        "Starting1": false,
+        "Trip1": false,
+        "M1.Active": false,
+        "M1.StartTimer.ET": 0,
+        "Run2": false,
+        "Starting2": false,
+        "Trip2": false,
+        "M2.Active": false,
+        "M2.StartTimer.ET": 0
+      }
+    }
+  ]
+}
