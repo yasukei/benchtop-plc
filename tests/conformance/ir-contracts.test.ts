@@ -30,6 +30,14 @@ it("represents every milestone IR variant as transportable data", () => {
     literal: int,
     bit: { kind: "bit", variable: 2, bit: 15, dataType: "BOOL", span },
     variable,
+    userFbMember: {
+      kind: "userFbMember",
+      variable: 0,
+      port: "output",
+      member: 0,
+      dataType: "INT",
+      span,
+    },
     fbMember: { kind: "fbMember", variable: 1, port: "input", member: 0, dataType: "BOOL", span },
     unary: { kind: "unary", operator: "-", operand: int, dataType: "INT", span },
     binary: { kind: "binary", operator: "MOD", left: variable, right: int, dataType: "INT", span },
@@ -48,6 +56,7 @@ it("represents every milestone IR variant as transportable data", () => {
       span,
     },
     assignment: { kind: "assignment", target: variable, value: expressions.functionCall, span },
+    userFbCall: { kind: "userFbCall", variable: 0, inputs: [], span },
     fbCall: {
       kind: "fbCall",
       variable: 1,

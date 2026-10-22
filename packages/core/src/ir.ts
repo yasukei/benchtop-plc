@@ -11,6 +11,8 @@ import type {
 
 /** Zero-based index into ProgramIR.variables, stable for the lifetime of a loaded program. */
 export type VariableId = number;
+/** Declaration index in the executing frame; storage mappings resolve monitored VariableIds. */
+export type FrameSlot = number;
 export type IoBit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface DirectAddress {
@@ -187,15 +189,45 @@ export interface ProgramIR extends SourceNode {
   body: Statement[];
   /** Shared bodies; call indices address this array. Absent in a single-program IR. */
   functions?: UserFunctionIR[];
+  functionBlocks?: UserFunctionBlockIR[];
+  /** Declaration slots mapped to monitored storage, temporaries or user instances. */
+  storage?: InstanceStorage[];
+  instances?: UserFunctionBlockStorage[];
+}
+
+/** Local declaration slots are distinct from the flat monitored VariableIds. */
+export type LocalVariable =
+  | Variable
+  | (VariableBase & {
+      kind: "userFunctionBlock";
+      block: number;
+      initialValue: null;
+    });
+export type InstanceStorage =
+  | { kind: "variable"; variable: VariableId }
+  | { kind: "temporary"; variable: ScalarVariable }
+  | { kind: "instance"; instance: number };
+export interface UserFunctionBlockStorage {
+  block: number;
+  path: string;
+  storage: InstanceStorage[];
+}
+export interface UserFunctionBlockIR extends SourceNode {
+  name: string;
+  variables: LocalVariable[];
+  inputs: FrameSlot[];
+  outputs: FrameSlot[];
+  temporaries: FrameSlot[];
+  body: Statement[];
 }
 
 export interface UserFunctionIR extends SourceNode {
   name: string;
   variables: ScalarVariable[];
-  inputs: number[];
-  outputs: number[];
+  inputs: FrameSlot[];
+  outputs: FrameSlot[];
   /** Local variable holding the result; absent for a function without a result. */
-  result?: number;
+  result?: FrameSlot;
   body: Statement[];
 }
 
@@ -203,8 +235,8 @@ export interface UserFunctionCall extends SourceNode {
   kind: "userFunctionCall";
   function: number;
   /** In source order, including for formal calls. Omitted inputs keep their initial values. */
-  inputs: { variable: number; value: Expression }[];
-  outputs: { variable: number; target: AssignmentTarget }[];
+  inputs: { variable: FrameSlot; value: Expression }[];
+  outputs: { variable: FrameSlot; target: AssignmentTarget }[];
   dataType: DataType | null;
 }
 
@@ -214,14 +246,23 @@ export type LiteralExpression = SourceNode & TypedValue & { kind: "literal" };
 
 export interface VariableReference extends SourceNode {
   kind: "variable";
-  variable: VariableId;
+  variable: FrameSlot;
   dataType: DataType;
 }
 
 /** Port indices address the standard FB descriptor's input or output array. */
 export interface FunctionBlockMemberReference extends SourceNode {
   kind: "fbMember";
-  variable: VariableId;
+  variable: FrameSlot;
+  port: "input" | "output";
+  member: number;
+  dataType: DataType;
+}
+
+/** A public scalar member; member is a slot in the shared block definition. */
+export interface UserFunctionBlockMemberReference extends SourceNode {
+  kind: "userFbMember";
+  variable: FrameSlot;
   port: "input" | "output";
   member: number;
   dataType: DataType;
@@ -230,12 +271,14 @@ export interface FunctionBlockMemberReference extends SourceNode {
 /** A bit of a scalar bit-string variable; assignment preserves all other bits. */
 export interface BitReference extends SourceNode {
   kind: "bit";
-  variable: VariableId;
+  variable: FrameSlot;
   bit: number;
   dataType: "BOOL";
 }
 export type AssignmentTarget =
-  VariableReference | BitReference | (FunctionBlockMemberReference & { port: "input" });
+  | VariableReference
+  | BitReference
+  | ((FunctionBlockMemberReference | UserFunctionBlockMemberReference) & { port: "input" });
 
 export type UnaryOperator = "+" | "-" | "NOT";
 export type BinaryOperator =
@@ -297,6 +340,7 @@ export type Expression =
   | VariableReference
   | BitReference
   | FunctionBlockMemberReference
+  | UserFunctionBlockMemberReference
   | UnaryExpression
   | BinaryExpression
   | UserFunctionCallExpression
@@ -318,8 +362,16 @@ export interface FunctionBlockInput extends SourceNode {
 
 export interface FunctionBlockCallStatement extends SourceNode {
   kind: "fbCall";
-  variable: VariableId;
+  variable: FrameSlot;
   inputs: FunctionBlockInput[];
+  outputs?: FunctionOutputAssignment[];
+}
+
+export interface UserFunctionBlockCallStatement extends SourceNode {
+  kind: "userFbCall";
+  variable: FrameSlot;
+  inputs: FunctionBlockInput[];
+  outputs?: FunctionOutputAssignment[];
 }
 
 export interface ConditionalBranch extends SourceNode {
@@ -385,6 +437,7 @@ export type Statement =
   | AssignmentStatement
   | FunctionCallStatement
   | FunctionBlockCallStatement
+  | UserFunctionBlockCallStatement
   | IfStatement
   | CaseStatement
   | ForStatement

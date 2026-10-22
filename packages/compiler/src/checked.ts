@@ -1,9 +1,4 @@
-import type {
-  DataType,
-  FunctionBlockType,
-  ScalarValue,
-  StandardFunction,
-} from "@benchtop-plc/core";
+import type { DataType, ScalarValue, StandardFunction } from "@benchtop-plc/core";
 import type {
   Expression,
   FunctionCall,
@@ -24,7 +19,8 @@ export interface VariableSymbol {
   /** Index in declaration order, shared by all resolved references. */
   id: number;
   name: Identifier;
-  type: DataType | FunctionBlockType;
+  type: string;
+  userBlock?: number;
   initialValue: ScalarValue | null;
 }
 
@@ -40,6 +36,7 @@ export interface ResolvedReference {
   port?: "input" | "output";
   member?: number;
   bit?: number;
+  userBlock?: boolean;
 }
 
 /** Semantic side tables use AST object identity; they are compiler-local, not wire IR. */
@@ -51,5 +48,6 @@ export interface CheckedProgram {
   functions: ReadonlyMap<FunctionCall, StandardFunction>;
   functionArguments: ReadonlyMap<FunctionCall, readonly Expression[]>;
   userCalls: ReadonlyMap<FunctionCall | FunctionBlockCall, UserCallInfo>;
+  blockInputTypes: ReadonlyMap<Identifier, DataType>;
   result?: VariableSymbol;
 }

@@ -197,7 +197,6 @@ it.each([
   "SPLIT_DATE(IN := D#2024-02-29, IN := D#2024-02-29);",
   "SPLIT_DATE(YEAR => x);",
   "SPLIT_DATE(IN := TOD#00:00:00, YEAR => x);",
-  "timer(IN := TRUE, Q => yes);",
   "CONCAT_DATE(2024, 2.0, 29);",
   "CONCAT_DATE(YEAR := 2024, DAY := 29);",
   "ADD_TIME(LT#1ns, T#1ms);",
@@ -249,19 +248,16 @@ it.each([
   },
 );
 
-it.each(["timer(TRUE);", "timer(IN := TRUE, Q => yes);"])(
-  "explains unsupported FB statement syntax: %s",
-  (body) => {
-    const result = program("timer: TON; yes: BOOL;", body);
-    expect(result.ir).toBeUndefined();
-    expect(result.diagnostics).toEqual([
-      {
-        code: "fb.unsupported-call",
-        severity: "error",
-        pou: "P",
-        args: { name: "timer" },
-        span: { line: 3, column: 1, endLine: 3, endColumn: body.length },
-      },
-    ]);
-  },
-);
+it.each(["timer(TRUE);"])("explains unsupported FB statement syntax: %s", (body) => {
+  const result = program("timer: TON; yes: BOOL;", body);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics).toEqual([
+    {
+      code: "fb.unsupported-call",
+      severity: "error",
+      pou: "P",
+      args: { name: "timer" },
+      span: { line: 3, column: 1, endLine: 3, endColumn: body.length },
+    },
+  ]);
+});

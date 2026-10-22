@@ -25,6 +25,14 @@ export function PouList({
       >
         {text.addFunction}
       </button>
+      <button
+        onClick={() => {
+          setDeleting(null);
+          store.addFunctionBlock();
+        }}
+      >
+        {text.addFunctionBlock}
+      </button>
       <ul>
         {state.pous.map((pou, index) => (
           <li key={index}>

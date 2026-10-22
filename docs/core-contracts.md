@@ -100,7 +100,7 @@ short/long operands. Implicit assignment and selection widening uses conversion 
 
 All nodes, including declarations, branch arms, labels and named FB inputs, carry
 a `SourceSpan`. Positions are one-based; the end is exclusive. A program has one
-variable table in declaration order and a statement tree. Each variable retains
+monitored variable table and a statement tree. Persistent declarations expand in source order; user block instances expand depth first into dotted scalar and standard FB entries. Each variable retains
 its source spelling and upper-case key. Scalar declarations contain their coerced
 `initialValue`, including defaults. FB declarations use `initialValue: null` to
 request the standard FB's initial state; user initializers on FBs are unsupported.
@@ -116,7 +116,7 @@ Implicit widening to a long operand is represented with conversion-call nodes,
 including the unit change from TIME milliseconds to LTIME nanoseconds.
 
 Variable references, assignment targets, FOR variables and FB calls use zero-based
-indices into `ProgramIR.variables`. FB member references use an input/output
+`FrameSlot` indices into the executing frame (the monitored table for legacy single-program IR). FB member references use an input/output
 discriminator and an index into the corresponding descriptor array. Named FB
 arguments retain the canonical name for inspection and the resolved input index
 for execution. Standard-function names are closed opcodes, not unresolved source
@@ -138,6 +138,22 @@ the caller's table. `dataType: null` denotes a no-result statement call; express
 always have an elementary type. Function locals are fresh per call and never appear
 in snapshots. Standard formal calls may carry an `evaluationOrder` permutation of
 `args` indices so source order is preserved independently of descriptor order.
+
+`ProgramIR.functionBlocks` holds shared `UserFunctionBlockIR` bodies with local
+`variables` (scalar, standard FB or user FB declaration), input/output slot arrays
+and temporary slots. `userFbCall` and `userFbMember` reference a caller frame slot;
+member/input/output indices are slots in the callee definition. Standard `fbCall`
+now also accepts `outputs` with descriptor output indices and writable targets.
+
+When present, PROGRAM `storage` maps each declaration slot to a monitored
+`VariableId` (an index into monitored storage/snapshots), a temporary scalar initializer, or an `instances` index. Each
+`UserFunctionBlockStorage` contains the block index, canonical `path`, and its own
+storage mapping. All persistent scalar leaves and standard FBs live in
+`ProgramIR.variables`; user instance objects and temporaries do not appear in
+snapshots. Frames alias those monitored cells, so writes and forces address the
+same state the shared body executes against. Without `storage`, PROGRAM references
+continue to index `ProgramIR.variables` directly. Load/cold reset rebuilds all
+persistent cells, including nested standard FB private state.
 
 Port indices follow core's shared `standardFunctionBlocks` registry. The compiler
 and runtime consume these descriptors, with implementations in runtime:

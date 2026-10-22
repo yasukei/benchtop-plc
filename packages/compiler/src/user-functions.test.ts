@@ -77,8 +77,10 @@ describe("project-wide POU compilation", () => {
       found: 2,
     });
   });
-  it("rejects user function blocks until their implementation", () => {
-    rejects([main(), "FUNCTION_BLOCK Block END_FUNCTION_BLOCK"], "pou.unsupported-kind", "Block");
+  it("accepts a shared user function block definition", () => {
+    const result = compileProject([main(), "FUNCTION_BLOCK Block END_FUNCTION_BLOCK"]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.functionBlocks).toHaveLength(1);
   });
 
   it("uses the type collision kind for a user function block name", () => {

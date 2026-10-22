@@ -185,14 +185,14 @@ test("reports missing formal inputs once and explains unsupported FB statements"
   await expect(diagnostics).toContainText("SPLIT_DATE requires 1 arguments; found 0.");
   await replaceSource(
     page,
-    "PROGRAM P\nVAR timer: TON; yes: BOOL; END_VAR\ntimer(IN := TRUE, Q => yes);\nEND_PROGRAM",
+    "PROGRAM P\nVAR timer: TON; yes: BOOL; END_VAR\ntimer(TRUE);\nEND_PROGRAM",
   );
   await expect(diagnostics.getByRole("button")).toHaveCount(1);
   await expect(diagnostics).toContainText(
-    "Function block timer requires named := inputs; positional arguments and => outputs are unsupported.",
+    "Function block timer requires named := inputs; positional arguments are unsupported.",
   );
   await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
   await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(
-    "ファンクションブロックtimerの入力は名前付きの:=で指定してください。位置引数と=>による出力指定には対応していません。",
+    "ファンクションブロックtimerの入力は名前付きの:=で指定してください。位置引数には対応していません。",
   );
 });

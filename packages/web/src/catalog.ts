@@ -20,6 +20,7 @@ export const en = {
   controlCharacter: "Control character",
   pous: "POUs",
   addFunction: "Add function",
+  addFunctionBlock: "Add function block",
   delete: "Delete",
   deletePou: "Delete {name}",
   confirmDeletePou: "Delete {name}? Calls to this POU may stop compiling.",
@@ -118,6 +119,7 @@ export const ja: Record<keyof typeof en, string> = {
   controlCharacter: "制御文字",
   pous: "POU一覧",
   addFunction: "関数を追加",
+  addFunctionBlock: "ファンクションブロックを追加",
   delete: "削除",
   deletePou: "{name}を削除",
   confirmDeletePou:

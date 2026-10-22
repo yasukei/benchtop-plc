@@ -134,3 +134,60 @@ test("edits an empty project and the empty list after deleting its last function
   await page.getByRole("button", { name: "RUN", exact: true }).click();
   await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
 });
+
+test("adds a function block and writes and forces its monitored member", async ({ page }) => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await list.getByRole("button", { name: "Add function block", exact: true }).click();
+  await expect(editor).toContainText("FUNCTION_BLOCK FB1");
+  const block = `FUNCTION_BLOCK Latch
+VAR_OUTPUT Q : INT; END_VAR
+VAR running : INT; END_VAR
+Q := running;
+END_FUNCTION_BLOCK`;
+  await editor.fill(block);
+  await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
+  const program = `PROGRAM Main
+VAR m1 : Latch; seen : INT; END_VAR
+m1(Q => seen);
+END_PROGRAM`;
+  await editor.fill(program);
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+  const member = monitor
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: /^M1\.RUNNING/ }) });
+  const seen = monitor
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: "seen", exact: true }) });
+  await member.getByRole("textbox", { name: "Value to write", exact: true }).fill("10");
+  await member.getByRole("button", { name: "Write", exact: true }).click();
+  await expect(seen.locator("td").nth(2)).toHaveText("10");
+  await member.getByRole("textbox", { name: "Value to write", exact: true }).fill("20");
+  await member.getByRole("button", { name: "Force", exact: true }).click();
+  await expect(seen.locator("td").nth(2)).toHaveText("20");
+  await expect(member).toHaveAttribute("data-forced", "true");
+  await expect(page.locator(".inline-values")).toContainText("20");
+  await list.getByRole("button", { name: /^Latch FUNCTION_BLOCK/ }).click();
+  await expect(page.locator(".inline-values")).toHaveCount(0);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  const xml = readFileSync((await (await download).path())!, "utf8");
+  expect(readProject(xml).value!.pous).toEqual([program, block]);
+  await page
+    .getByRole("region", { name: "Runtime controls", exact: true })
+    .getByRole("button", { name: "STOP", exact: true })
+    .click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "blocks.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(xml),
+  });
+  await expect(list.getByRole("listitem")).toHaveCount(2);
+  await list.getByRole("button", { name: /^Latch FUNCTION_BLOCK/ }).click();
+  await expect(editor.locator(".cm-line")).toHaveText(block.split("\n"));
+});

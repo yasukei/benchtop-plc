@@ -41,7 +41,7 @@ USINT → INT, UINT → DINT and UDINT → LINT; integers up to 16 bits → REAL
 conversion requires a conversion function; the diagnostic includes the localizable
 `explicit-conversion` hint.
 These rules apply to assignments, initializers, FB inputs, fixed function
-parameters, function outputs, CASE labels and FOR start/end/step values (the control variable's type).
+parameters, function and FB outputs, CASE labels and FOR start/end/step values (the control variable's type).
 
 Operators and generic function value arguments use one set-based common
 type, independent of argument order: select a candidate all operands can widen to
@@ -241,9 +241,9 @@ forms; milliseconds discard sub-millisecond precision. Each target must be writa
 and accept INT through an ADR 0013 implicit conversion (for example INT, DINT,
 LINT, REAL or LREAL). Narrowing and signed-to-unsigned output assignments are
 errors. Outputs may be omitted. Unknown, duplicate or incorrectly directed formal
-parameters report `call.invalid-parameter`. FB calls still accept only `:=` inputs;
-`=>` for FBs remains unsupported. FB statements with positional inputs or `=>`
-outputs report `fb.unsupported-call`; FB calls within expressions report
+parameters report `call.invalid-parameter`. Standard and user FB calls accept named
+`:=` inputs and `=>` outputs with the same widening rules. Positional FB inputs
+report `fb.unsupported-call`; FB calls within expressions report
 `fb.call-in-expression`. Named time/date calls are not constant expressions.
 
 ## User-defined POUs and function calls
@@ -276,3 +276,22 @@ User function calls are never constant expressions. All function bodies are chec
 even when unreachable from the PROGRAM; direct and indirect recursion are errors.
 These semantics follow ADR 0014, based on the 3rd edition and secondary sources;
 its standard-dependent choices await verification against the 4th edition.
+
+## User function blocks
+
+A FUNCTION_BLOCK supports elementary VAR_INPUT, VAR_OUTPUT, VAR and VAR_TEMP.
+Persistent standard or user FB instances may appear only in VAR of PROGRAM or
+FUNCTION_BLOCK; other sections report `fb.invalid-instance-section`, and functions
+cannot declare instances. Blocks cannot contain themselves directly or through
+other blocks (`pou.recursion`), including unused definitions. AT declarations in
+blocks report `pou.direct-address`; VAR_IN_OUT remains deferred.
+
+Outside an instance, inputs are readable/writable and outputs are readable.
+VAR and VAR_TEMP members report `fb.unknown-member`; a nested instance is private
+to its declaring block. Calls permit only formal arguments. Omitted inputs keep
+their previous values. `=>` sources must be outputs, may be omitted, and cannot be
+duplicated; targets follow assignment rules, including public user FB inputs.
+Inputs get contextual constant typing and implicit widening. RETURN exits only the
+current block. PROGRAM VAR_TEMP starts from its declared/default initializer each
+scan; block VAR_TEMP restarts each call. Neither has a monitored VariableId. A temporary cannot have an AT address
+(`decl.temp-address`); directly represented storage belongs to PROGRAM VAR.

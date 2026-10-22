@@ -52,6 +52,7 @@ export const diagnosticEn = {
     `${name} conflicts with a ${kind === "type" ? "type" : "function"} name.`,
   "decl.direct-address-type": ({ name, type }) =>
     `Direct address on ${name} requires BOOL; found ${type}.`,
+  "decl.temp-address": () => "Temporary variables cannot have direct addresses.",
   "decl.at-multiple-names": () => "AT cannot apply to multiple declared names.",
   "decl.address-out-of-range": ({ address }) => `Address is outside supported I/O: ${address}.`,
   "decl.nonconstant-initializer": ({ name }) =>
@@ -81,6 +82,8 @@ export const diagnosticEn = {
       : `${name} reinterprets the bit pattern; some vendor runtimes convert the numeric value instead.`,
   "type.invalid-constant": () => "Invalid constant or numeric value outside the supported range.",
   "type.case-label-not-constant": () => "CASE label must be an integer constant expression.",
+  "fb.invalid-instance-section": ({ name }) =>
+    `Function block instance ${name} must be declared in VAR.`,
   "fb.duplicate-input": ({ name, member }) => `Input ${name}.${member} is supplied more than once.`,
   "type.assign-mismatch": ({ from, to, hint }) =>
     `Cannot assign ${from} to ${to}.${hint === "explicit-conversion" ? " Use an explicit conversion." : ""}`,
@@ -104,7 +107,7 @@ export const diagnosticEn = {
   "fb.instance-as-value": ({ name }) =>
     `Function block instance ${name} cannot be used as a scalar value.`,
   "fb.unsupported-call": ({ name }) =>
-    `Function block ${name} requires named := inputs; positional arguments and => outputs are unsupported.`,
+    `Function block ${name} requires named := inputs; positional arguments are unsupported.`,
   "fb.call-in-expression": ({ name }) =>
     `Function block call ${name} cannot be used in an expression.`,
   "call.unknown-function": ({ name }) => `Unknown function: ${name}.`,
@@ -154,6 +157,7 @@ export const diagnosticJa = {
     `${name}は${kind === "type" ? "型" : "関数"}の名前と衝突しています。`,
   "decl.direct-address-type": ({ name, type }) =>
     `${name}の直接アドレスにはBOOLが必要ですが、${type}です。`,
+  "decl.temp-address": () => "一時変数に直接アドレスは指定できません。",
   "decl.at-multiple-names": () => "ATを複数の宣言名に適用することはできません。",
   "decl.address-out-of-range": ({ address }) => `対応するI/Oの範囲外のアドレスです: ${address}。`,
   "decl.nonconstant-initializer": ({ name }) => `${name}の初期値には定数式が必要です。`,
@@ -182,6 +186,8 @@ export const diagnosticJa = {
       : `${name}はビットパターンを再解釈します。一部のベンダーの実行環境では、代わりに数値を変換します。`,
   "type.invalid-constant": () => "定数が不正、または数値が対応範囲外です。",
   "type.case-label-not-constant": () => "CASEラベルには整数の定数式が必要です。",
+  "fb.invalid-instance-section": ({ name }) =>
+    `ファンクションブロックのインスタンス${name}はVARで宣言してください。`,
   "fb.duplicate-input": ({ name, member }) => `入力${name}.${member}が複数回指定されています。`,
   "type.assign-mismatch": ({ from, to, hint }) =>
     `${from}を${to}に代入することはできません。${hint === "explicit-conversion" ? "明示的な型変換を使用してください。" : ""}`,
@@ -206,7 +212,7 @@ export const diagnosticJa = {
   "fb.instance-as-value": ({ name }) =>
     `ファンクションブロックのインスタンス${name}はスカラー値として使用できません。`,
   "fb.unsupported-call": ({ name }) =>
-    `ファンクションブロック${name}の入力は名前付きの:=で指定してください。位置引数と=>による出力指定には対応していません。`,
+    `ファンクションブロック${name}の入力は名前付きの:=で指定してください。位置引数には対応していません。`,
   "fb.call-in-expression": ({ name }) =>
     `ファンクションブロックの呼び出し${name}は式の中で使用できません。`,
   "call.unknown-function": ({ name }) => `不明な関数です: ${name}。`,
@@ -244,5 +250,6 @@ export function formatDiagnostic<C extends DiagnosticCode>(
   const template = diagnosticCatalogs[language][diagnostic.code] as (
     args: DiagnosticArgs[C],
   ) => string;
-  return template(diagnostic.args);
+  const message = template(diagnostic.args);
+  return diagnostic.instance ? `${diagnostic.pou} (${diagnostic.instance}): ${message}` : message;
 }

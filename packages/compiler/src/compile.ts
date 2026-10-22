@@ -3,7 +3,7 @@ import type { Diagnostic, ProgramIR } from "@benchtop-plc/core";
 import type { Program } from "./ast.js";
 import type { CheckedProgram } from "./checked.js";
 import { check } from "./checker.js";
-import { lower, lowerFunction } from "./lower.js";
+import { lower, lowerFunction, lowerFunctionBlock } from "./lower.js";
 import { isElementaryTypeName } from "./lexer.js";
 import { parsePou } from "./parser.js";
 
@@ -68,15 +68,6 @@ export function compileProject(sources: readonly string[]): CompileResult {
         span: name.span,
         args: { name: name.name },
       });
-    if (ast.kind === "functionBlock")
-      diagnostics.push({
-        code: "pou.unsupported-kind",
-        severity: "error",
-        pou: name.name,
-        sourceIndex: sourceIndexes.get(ast),
-        span: name.span,
-        args: { name: name.name },
-      });
   }
   const programs = asts.filter((ast) => ast.kind === "program");
   if (programs.length !== 1)
@@ -87,9 +78,11 @@ export function compileProject(sources: readonly string[]): CompileResult {
     });
   const functions = asts.filter((ast) => ast.kind === "function");
   const functionIds = new Map(functions.map((ast, index) => [ast.name.key, index]));
+  const blocks = asts.filter((ast) => ast.kind === "functionBlock");
+  const blockIds = new Map(blocks.map((ast, index) => [ast.name.key, index]));
   const checked = new Map<Program, CheckedProgram>();
   for (const ast of asts) {
-    const result = check(ast, pous, functionIds);
+    const result = check(ast, pous, functionIds, blockIds);
     diagnostics.push(
       ...result.diagnostics.map((diagnostic) => ({
         ...diagnostic,
@@ -109,8 +102,17 @@ export function compileProject(sources: readonly string[]): CompileResult {
   const visit = (ast: Program): void => {
     if (visited.has(ast)) return;
     visiting.add(ast);
-    for (const [node, call] of checked.get(ast)!.userCalls) {
-      const callee = functions[call.function]!;
+    const edges = [
+      ...[...checked.get(ast)!.userCalls].map(([node, call]) => ({
+        node,
+        callee: functions[call.function]!,
+      })),
+      ...ast.declarations.flatMap((node) => {
+        const callee = pous.get(node.typeName.key);
+        return callee?.kind === "functionBlock" ? [{ node, callee }] : [];
+      }),
+    ];
+    for (const { node, callee } of edges) {
       if (visiting.has(callee))
         diagnostics.push({
           code: "pou.recursion",
@@ -127,7 +129,10 @@ export function compileProject(sources: readonly string[]): CompileResult {
   };
   for (const ast of asts) visit(ast);
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
-  const ir = lower(checked.get(programs[0]!)!);
+  const ir = lower(
+    checked.get(programs[0]!)!,
+    blocks.map((ast) => lowerFunctionBlock(checked.get(ast)!)),
+  );
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));
   return { ir, diagnostics };
 }

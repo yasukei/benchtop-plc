@@ -14,10 +14,9 @@ program-count errors omit `pou`, `sourceIndex` and `span`. The single-source
 `compile` entry point preserves its existing diagnostic shape without `sourceIndex`.
 
 A project requires exactly one `PROGRAM`. `parsePou(source)` parses a `PROGRAM` or
-`FUNCTION`; `parse(source)` remains the single-program parser used by the project
-codec. User function blocks are recognized but rejected until their implementation.
+`FUNCTION` or `FUNCTION_BLOCK`; `parse(source)` remains the single-program parser.
 Project-wide compilation collects signatures before checking any bodies, so forward
-calls work, and checks the complete call graph for direct or indirect recursion.
+calls work, and checks function calls and block containment for direct or indirect recursion.
 See [ADR 0014](adr/0014-user-defined-pous.md). The web editor manages the ordered POU list and PLCopen XML preserves each text.
 
 `lower(checked): ProgramIR` is also available for callers that already have a
@@ -63,6 +62,22 @@ variable is appended after declared locals and starts at the result type's defau
 An expression call has an elementary `dataType`; a no-result statement call has
 `dataType: null`. Standard functions retain their opcode representation; formal
 calls include `evaluationOrder` when signature order differs from source order.
+
+## User function blocks and storage
+
+`ProgramIR.functionBlocks` holds each block body once. `userFbCall.variable` selects
+an instance slot in the caller's frame, and `userFbMember` selects a public scalar
+input/output by its declaration slot in that instance. User and standard FB calls
+support named `:=` inputs and `=>` output bindings, with assignment widening.
+
+`ProgramIR.variables` is the flat monitored storage table: program scalars and
+standard FBs, plus every persistent scalar or standard FB below a user instance.
+Nested entries use canonical dotted names, such as `M1.RUNNING` and `M1.DELAY`.
+`storage` maps PROGRAM declaration slots to those VariableIds, temporary scalar
+initial values or indices into `instances`. Each instance records its block index,
+path and the same storage mapping for its own declaration slots. No code is copied
+while allocating the instance tree. PROGRAM and block `VAR_TEMP` declarations have
+frame slots but no monitored identity.
 
 ## Verification
 

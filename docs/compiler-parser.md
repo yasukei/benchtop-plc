@@ -90,6 +90,6 @@ types such as `WORD`, `SINT` and `STRING`, are accepted in type position and
 retained for semantic analysis to report `decl.unknown-type`. They remain reserved
 in identifier positions; string literals and extended string type syntax are
 unsupported. In particular, an address such as `%IX12.9` is syntactically valid and
-remains available for a later `decl.address-out-of-range` diagnostic. FUNCTION,
-FUNCTION_BLOCK, extended VAR forms, arrays, structs, strings and `=>` call outputs
-are outside this parser's scope.
+remains available for a later `decl.address-out-of-range` diagnostic. `parsePou` also accepts FUNCTION and FUNCTION_BLOCK, their input/output/temporary
+sections and formal `=>` call outputs. Arrays, structs, strings and unsupported
+extended VAR forms remain outside this parser's scope.

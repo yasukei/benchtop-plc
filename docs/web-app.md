@@ -61,10 +61,11 @@ are not saved.
 The list next to the editor shows each POU in project order with its kind
 (`PROGRAM`, `FUNCTION` or `FUNCTION_BLOCK`) and diagnostic count. Select a POU to
 edit its text. **Add function** appends a short `FUNCTION F1 : INT` template and
-selects it; the name uses the first available number, ignoring case. Rename a
+selects it. **Add function block** appends a `FUNCTION_BLOCK FB1` template with
+BOOL input/output ports. Each name uses the first available number, ignoring case. Rename a
 POU by editing its header. If the header is damaged, the list keeps the previous
 name and kind until it becomes readable again. The PROGRAM cannot be added or
-deleted through the list. Deleting a function requires confirmation.
+deleted through the list. Deleting a function or block requires confirmation.
 
 The compiler checks the whole project on every edit and before RUN. The problems
 list shows diagnostics from all POUs; selecting a located diagnostic opens its
@@ -76,8 +77,10 @@ reload the PLC; edits to any POU become unapplied changes.
 text in PLCopen XML. Semantic errors, including calls to a deleted function, do
 not block saving or opening; they still block RUN. A text that cannot be parsed,
 or an initializer the file format cannot represent, blocks saving and shows the
-codec's diagnostic. Autosave still keeps those drafts. Adding function blocks is
-reserved for the next milestone step.
+codec's diagnostic. Autosave still keeps those drafts. The variable monitor shows
+persistent user FB scalar members under dotted paths such as `M1.RUNNING`; writes
+and forces address them normally. Nested standard FBs retain their port summary.
+PROGRAM user FB calls show outputs in declaration order as inline values.
 
 ## Structured Text editor
 

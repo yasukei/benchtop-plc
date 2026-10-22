@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addFunction,
+  addFunctionBlock,
   compilePous,
   createPous,
   deletePou,
@@ -94,4 +95,12 @@ it("routes checker diagnostics to the later same-named POU", () => {
     expect.objectContaining({ code: "name.undeclared", sourceIndex: 2 }),
   );
   expect(result.diagnostics.filter((diagnostic) => diagnostic.sourceIndex === 1)).toEqual([]);
+});
+
+it("adds a compilable function block with a unique case-insensitive name", () => {
+  const pous = createPous([main, "FUNCTION fb1 END_FUNCTION"]);
+  const added = addFunctionBlock(pous);
+  expect(added.at(-1)).toMatchObject({ name: "FB2", kind: "FUNCTION_BLOCK" });
+  expect(compilePous(added).diagnostics).toEqual([]);
+  expect(addFunctionBlock(added).at(-1)?.name).toBe("FB3");
 });

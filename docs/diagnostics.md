@@ -10,6 +10,9 @@ retains the source POU name and identifies the text to which the span belongs.
 Compiler diagnostics carry it once a header is known, including lexical/syntax
 failures after that header; project-level errors omit it. Runtime execution faults
 name the executing POU, preserving the innermost function through nested calls.
+Faults in a user block body also carry `instance?: string`, the canonical dotted path
+(for example `M1.DELAY`). A function called from a block has no instance path
+while its body runs. The web catalogs include a block path alongside the POU name.
 
 ## Naming and compatibility
 
@@ -102,7 +105,8 @@ as syntax errors.
 | `decl.unknown-type`              | Declaration refers to an unknown type                | `{ name: string }`                                                                               |
 | `decl.duplicate`                 | Name is declared more than once                      | `{ name: string }`                                                                               |
 | `decl.name-collision`            | Name collides with a type or function                | `{ name: string; kind: "type" \| "function" }`                                                   |
-| `decl.direct-address-type`       | Direct address applied to a non-BOOL declaration     | `{ name: string; type: DataType \| FunctionBlockType }`                                          |
+| `decl.direct-address-type`       | Direct address applied to a non-BOOL declaration     | `{ name: string; type: string }`                                                                 |
+| `decl.temp-address`              | Direct address on a temporary variable               | `{}`                                                                                             |
 | `decl.at-multiple-names`         | `AT` applied to more than one declared name          | `{}`                                                                                             |
 | `decl.address-out-of-range`      | Valid address syntax refers outside supported I/O    | `{ address: string }`                                                                            |
 | `decl.nonconstant-initializer`   | Initial value is not a constant expression           | `{ name: string }`                                                                               |
@@ -120,11 +124,12 @@ as syntax errors.
 | `type.for-variable-not-integer`  | FOR control variable is not an integer               | `{ name: string; type: DataType }`                                                               |
 | `type.for-bound-not-integer`     | FOR start, end or step is not an integer             | `{ bound: "from" \| "to" \| "step"; type: DataType }`                                            |
 | `flow.exit-outside-loop`         | EXIT occurs outside a loop                           | `{}`                                                                                             |
+| `fb.invalid-instance-section`    | FB instance declared outside VAR                     | `{ name: string }`                                                                               |
 | `fb.not-function-block`          | Called instance is not a function block              | `{ name: string }`                                                                               |
 | `fb.unknown-member`              | FB instance has no such member                       | `{ name: string; member: string }`                                                               |
 | `fb.output-not-writable`         | Assignment attempts to write an FB output            | `{ name: string; member: string }`                                                               |
 | `fb.instance-as-value`           | FB instance used as a scalar value                   | `{ name: string }`                                                                               |
-| `fb.unsupported-call`            | FB statement uses positional inputs or `=>` outputs  | `{ name: string }`                                                                               |
+| `fb.unsupported-call`            | FB statement uses positional inputs                  | `{ name: string }`                                                                               |
 | `fb.call-in-expression`          | FB call used within an expression                    | `{ name: string }`                                                                               |
 | `call.unknown-function`          | Function name is unknown                             | `{ name: string }`                                                                               |
 | `call.invalid-parameter`         | Unknown, duplicate or misdirected formal parameter   | `{ name: string; parameter: string }`                                                            |
@@ -186,11 +191,11 @@ It does not prevent compilation, loading or execution.
 | `pou.duplicate`                  | Duplicate POU name, on the later POU                               | `{ name: string }`                  |
 | `pou.name-collision`             | POU name conflicts with a standard function, FB or elementary type | `{ name: string }`                  |
 | `pou.program-count`              | Project does not have exactly one PROGRAM; no POU or span          | `{ found: number }`                 |
-| `pou.unsupported-kind`           | User FUNCTION_BLOCK implementation is deferred                     | `{ name: string }`                  |
+| `pou.unsupported-kind`           | Reserved compatibility code; no longer emitted for FUNCTION_BLOCK  | `{ name: string }`                  |
 | `pou.invalid-section`            | Variable section unsupported in this POU kind                      | `{ section: string; kind: string }` |
 | `pou.direct-address`             | Direct address outside the PROGRAM                                 | `{}`                                |
 | `pou.function-block-in-function` | FB instance declared in a function                                 | `{}`                                |
-| `pou.recursion`                  | Direct or indirect recursive call                                  | `{ name: string }`                  |
+| `pou.recursion`                  | Direct or indirect recursive call or FB containment                | `{ name: string }`                  |
 | `call.program`                   | Attempt to call a PROGRAM                                          | `{ name: string }`                  |
 | `call.no-result`                 | No-result function used in an expression                           | `{ name: string }`                  |
 | `call.formal-required`           | Positional call to a function with output parameters               | `{ name: string }`                  |

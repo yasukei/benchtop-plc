@@ -36,11 +36,11 @@ export const initialPouIndex = (pous: readonly EditorPou[]): number =>
 export const sameSources = (a: readonly string[], b: readonly string[] | null): boolean =>
   b !== null && a.length === b.length && a.every((source, index) => source === b[index]);
 
-export function uniqueFunctionName(pous: readonly EditorPou[]): string {
+export function uniqueFunctionName(pous: readonly EditorPou[], prefix = "F"): string {
   const names = new Set(pous.map((pou) => pou.name.toUpperCase()));
   let number = 1;
-  while (names.has(`F${number}`)) number++;
-  return `F${number}`;
+  while (names.has(`${prefix}${number}`)) number++;
+  return `${prefix}${number}`;
 }
 
 export function addFunction(pous: readonly EditorPou[]): EditorPou[] {
@@ -49,6 +49,16 @@ export function addFunction(pous: readonly EditorPou[]): EditorPou[] {
     ...pous,
     derivePou(
       `FUNCTION ${name} : INT\nVAR_INPUT\n  value : INT;\nEND_VAR\n\n${name} := value;\nEND_FUNCTION\n`,
+    ),
+  ];
+}
+
+export function addFunctionBlock(pous: readonly EditorPou[]): EditorPou[] {
+  const name = uniqueFunctionName(pous, "FB");
+  return [
+    ...pous,
+    derivePou(
+      `FUNCTION_BLOCK ${name}\nVAR_INPUT\n  value : BOOL;\nEND_VAR\nVAR_OUTPUT\n  Q : BOOL;\nEND_VAR\n\nQ := value;\nEND_FUNCTION_BLOCK\n`,
     ),
   ];
 }

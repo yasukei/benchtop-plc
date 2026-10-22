@@ -6,7 +6,7 @@ Warnings can accompany a successful value. No filesystem, DOM or Node globals ar
 used by the package, so its built ESM also runs in a Web Worker.
 
 The model includes file/content header metadata, an ordered `pous: string[]`
-(each text contains exactly one `PROGRAM` or `FUNCTION`), one configuration,
+(each text contains exactly one `PROGRAM`, `FUNCTION` or `FUNCTION_BLOCK`), one configuration,
 one resource, one positive fixed-duration cyclic task, an optional program
 instance bound to that task, and a JSON panel layout. Task intervals use ISO 8601
 fixed durations such as `PT0.01S`; task priority is 0–65535. Writing binds the
@@ -18,13 +18,14 @@ SFC; graphical bodies are unsupported.
 
 `splitProgram` uses the compiler POU parser and lexer spans to convert each editor
 text to the standard's interface and ST body; `joinProgram` constructs canonical
-POU text for imported files. Both functions support programs and functions despite
-their historical names. Each `<pou>` has `pouType="program"` or `pouType="function"`.
+POU text for imported files. Both functions support all three POU kinds despite
+their historical names. Each `<pou>` has `pouType="program"`, `"function"` or `"functionBlock"`.
 A function's optional result type is stored in `interface/returnType`. Local,
-input and output variable sections map to `localVars`, `inputVars` and
-`outputVars`, preserving declaration order, including repeated sections. Grouped
+input, output and temporary sections map to `localVars`, `inputVars`,
+`outputVars` and `tempVars`, preserving declaration order, including repeated sections. Grouped
 names, scalar and derived types, direct addresses and initializer text keep their
-existing mapping. ST bodies use an XHTML `p` element as required by TC6's
+existing mapping. User and standard FB instances use `<derived name="Latch"/>`
+types, including nested instances. ST bodies use an XHTML `p` element as required by TC6's
 `formattedText`.
 
 Saving requires each POU to parse and each initializer to pass the compiler's
@@ -33,13 +34,13 @@ unresolved name or declaration type does not block exchange, while an initialize
 value outside its declared type does. Other semantic errors, including unknown
 calls, duplicate names, name clashes, zero or several programs, and supported
 sections disallowed for a POU kind, are preserved for the compiler to report after
-opening. Run still requires error-free compilation. `FUNCTION_BLOCK`, `VAR_TEMP`,
-`VAR_IN_OUT`, constant sections, and variable sections without a mapping are
+opening. Run still requires error-free compilation. VAR_TEMP in a FUNCTION and
+AT in a FUNCTION_BLOCK remain exchangeable semantic errors. `VAR_IN_OUT`, constant
+sections, and variable sections without a mapping are
 unsupported in this version; later issues extend the mapping (ADR 0014).
 
-The web app retains every imported POU and compiles them together. Until the POU
-list UI is available, its editor shows the first program (or the first POU if no
-program exists); saving replaces only that text and preserves the other POUs.
+The web app retains every imported POU and compiles them together. The POU list
+selects the text to edit; saving preserves every text.
 Parseable projects with semantic errors can be saved and opened without loading
 invalid code into the runtime. Existing version 1 browser autosaves with a single
 `program` metadata field migrate to `pous` on read.

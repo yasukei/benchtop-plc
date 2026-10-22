@@ -86,19 +86,22 @@ export function parseTrace(value: unknown): Trace {
 }
 
 function readValue(ir: ProgramIR, snapshot: RuntimeSnapshot, path: string): ScalarValue {
-  const [name, member, extra] = path.toUpperCase().split(".");
+  const key = path.toUpperCase();
+  const scalarIndex = ir.variables.findIndex((variable) => variable.key === key);
+  const scalar = snapshot.variables[scalarIndex];
+  if (scalar?.kind === "scalar") return scalar.value;
+  const separator = key.lastIndexOf(".");
+  const name = key.slice(0, separator),
+    member = key.slice(separator + 1);
   const index = ir.variables.findIndex((variable) => variable.key === name);
-  const variable = ir.variables[index];
-  const cell = snapshot.variables[index];
-  if (variable && cell && extra === undefined) {
-    if (cell.kind === "scalar" && member === undefined) return cell.value;
-    if (variable.kind === "functionBlock" && cell.kind === "functionBlock" && member) {
-      const descriptor = standardFunctionBlocks[variable.fbType];
-      for (const port of ["inputs", "outputs"] as const) {
-        const memberIndex = descriptor[port].findIndex(([key]) => key === member);
-        const value = cell[port][memberIndex];
-        if (value) return value.value;
-      }
+  const variable = ir.variables[index],
+    cell = snapshot.variables[index];
+  if (variable?.kind === "functionBlock" && cell?.kind === "functionBlock") {
+    const descriptor = standardFunctionBlocks[variable.fbType];
+    for (const port of ["inputs", "outputs"] as const) {
+      const memberIndex = descriptor[port].findIndex(([key]) => key === member);
+      const value = cell[port][memberIndex];
+      if (value) return value.value;
     }
   }
   throw new Error(`Unknown variable or function block member: ${path}`);

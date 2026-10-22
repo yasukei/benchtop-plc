@@ -1,5 +1,5 @@
 import type { SourceSpan } from "./source.js";
-import type { BinaryOperator, FunctionBlockType, UnaryOperator } from "./ir.js";
+import type { BinaryOperator, UnaryOperator } from "./ir.js";
 import type { DataType } from "./values.js";
 
 /** An empty object with no argument keys (unlike TypeScript's permissive `{}`). */
@@ -31,7 +31,8 @@ export interface DiagnosticArgs {
   "decl.unknown-type": { name: string };
   "decl.duplicate": { name: string };
   "decl.name-collision": { name: string; kind: "type" | "function" };
-  "decl.direct-address-type": { name: string; type: DataType | FunctionBlockType };
+  "decl.direct-address-type": { name: string; type: string };
+  "decl.temp-address": NoArguments;
   "decl.at-multiple-names": NoArguments;
   "decl.address-out-of-range": { address: string };
   "decl.nonconstant-initializer": { name: string };
@@ -50,6 +51,7 @@ export interface DiagnosticArgs {
   "type.portability": { function: string };
   "type.invalid-constant": NoArguments;
   "type.case-label-not-constant": NoArguments;
+  "fb.invalid-instance-section": { name: string };
   "fb.duplicate-input": { name: string; member: string };
   "type.assign-mismatch": { from: DataType; to: DataType; hint?: AssignmentHint };
   "type.operand-mismatch": {
@@ -109,6 +111,8 @@ export type Diagnostic<C extends DiagnosticCode = DiagnosticCode> = {
     severity: DiagnosticSeverity;
     /** Source POU's spelling; absent for project-level errors or unknown headers. */
     pou?: string;
+    /** Canonical dotted path of the active function block instance. */
+    instance?: string;
     span?: SourceSpan;
     args: DiagnosticArgs[K];
   };
