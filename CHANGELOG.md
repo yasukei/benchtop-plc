@@ -11,7 +11,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 ### Added
 
 - ADR 0015 documents the accepted design for data type declarations, enumerations,
-  subranges, arrays, structures, strings and references for Milestone 5.
+  subranges, arrays, structures, strings and references for Milestone 5;
+  implementation follows in its sub-issues.
 
 ## [0.4.0] - 2026-10-23
 
