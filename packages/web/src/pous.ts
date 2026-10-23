@@ -10,6 +10,11 @@ export interface EditorPou {
 }
 export type EditorDiagnostic = CompileDiagnostic;
 
+/** Source indexes belong to separate lists for POUs and data types. */
+export function diagnosticPouSourceIndex(diagnostic: EditorDiagnostic): number | undefined {
+  return diagnostic.sourceKind === "dataType" ? undefined : diagnostic.sourceIndex;
+}
+
 export function derivePou(source: string, previous?: EditorPou): EditorPou {
   const scanned = lex(source);
   const tokens =
@@ -69,8 +74,8 @@ export function deletePou(pous: EditorPou[], index: number): EditorPou[] {
 }
 
 /** Give even a broken header's diagnostics a stable editor location. */
-export function compilePous(pous: readonly EditorPou[]) {
-  return compileProject(pouSources(pous));
+export function compilePous(pous: readonly EditorPou[], dataTypes: readonly string[] = []) {
+  return compileProject(pouSources(pous), dataTypes);
 }
 
 export function diagnosticPouIndex(

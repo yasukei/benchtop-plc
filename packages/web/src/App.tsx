@@ -1,5 +1,11 @@
 import { compileProject } from "@benchtop-plc/compiler";
-import { diagnosticPouIndex, pouSources, sameSources, type EditorDiagnostic } from "./pous.js";
+import {
+  diagnosticPouIndex,
+  diagnosticPouSourceIndex,
+  pouSources,
+  sameSources,
+  type EditorDiagnostic,
+} from "./pous.js";
 import { PouList } from "./PouList.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
@@ -19,8 +25,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const loadedIr = useMemo(
-    () => (state.loadedSources ? compileProject(state.loadedSources).ir : undefined),
-    [state.loadedSources],
+    () =>
+      state.loadedSources
+        ? compileProject(state.loadedSources, state.project?.dataTypes).ir
+        : undefined,
+    [state.loadedSources, state.project?.dataTypes],
   );
   const variables = loadedIr?.variables ?? [];
   const disconnected = state.connection !== "connected";
@@ -166,10 +175,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 ref={editor}
                 source={state.source}
                 sources={pouSources(state.pous)}
+                dataTypes={state.project?.dataTypes}
                 sourceIndex={state.selectedPou}
                 onChange={store.setSource}
                 diagnostics={state.diagnostics.filter(
-                  (diagnostic) => diagnostic.sourceIndex === state.selectedPou,
+                  (diagnostic) => diagnosticPouSourceIndex(diagnostic) === state.selectedPou,
                 )}
                 snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
                 online={online}
@@ -186,14 +196,14 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                   {diagnostics.map((diagnostic, index) => (
                     <li key={index}>
                       <button
-                        disabled={!diagnostic.span || diagnostic.sourceIndex === undefined}
+                        disabled={
+                          !diagnostic.span || diagnosticPouSourceIndex(diagnostic) === undefined
+                        }
                         onClick={() => {
-                          if (
-                            diagnostic.sourceIndex !== undefined &&
-                            diagnostic.sourceIndex !== state.selectedPou
-                          ) {
+                          const sourceIndex = diagnosticPouSourceIndex(diagnostic);
+                          if (sourceIndex !== undefined && sourceIndex !== state.selectedPou) {
                             pendingFocus.current = diagnostic;
-                            store.selectPou(diagnostic.sourceIndex);
+                            store.selectPou(sourceIndex);
                           } else if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
                         }}
                       >

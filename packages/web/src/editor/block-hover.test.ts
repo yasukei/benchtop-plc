@@ -25,3 +25,11 @@ it("resolves in uninstantiated user blocks and refreshes after editing the bindi
     blockTypeAt([main, block.replace("ULINT#1", "100000")], 1, block.indexOf("c:")),
   ).toBeNull();
 });
+
+it("keeps block hovers available when the project uses declared data types", () => {
+  const source = "PROGRAM Main VAR s : State; c : CTU; END_VAR c(PV := DINT#40000); END_PROGRAM";
+  expect(
+    blockTypeAt([source], 0, source.indexOf("c :"), ["TYPE State : (Idle, Running); END_TYPE"])
+      ?.text,
+  ).toBe("c: CTU_DINT");
+});

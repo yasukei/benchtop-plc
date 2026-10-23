@@ -114,3 +114,82 @@ for (const available of [true, false]) {
     }
   });
 }
+
+test("opens, runs, autosaves and resaves ordered data types with their exact texts", async ({
+  page,
+}) => {
+  const dataTypes = [
+    "// Keep this text\r\ntype State : (Idle, Running, Done) := Running; end_type;\r\n",
+    "TYPE Percent : INT (0..100) := 25; END_TYPE",
+  ];
+  const pous = [
+    "PROGRAM Main VAR currentState : State; p : Percent; inlineValue : INT (0..100) := 10; END_VAR currentState := Next(currentState); p := p + 1; END_PROGRAM",
+    "FUNCTION Next : State VAR_INPUT s : State; END_VAR Next := State#Done; END_FUNCTION",
+  ];
+  const project = { ...readProject(sampleXml).value!, dataTypes, pous, panel: [] };
+  const written = writeProject(project);
+  expect(written.diagnostics).toEqual([]);
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "types.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(written.value!),
+  });
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "No diagnostics",
+  );
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  const row = (name: string) =>
+    page.getByRole("row").filter({ has: page.getByRole("rowheader", { name, exact: true }) });
+  await expect(row("currentState").locator("td").nth(2)).toHaveText("Running");
+  await expect(row("p").locator("td").nth(2)).toHaveText("25");
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(row("currentState").locator("td").nth(2)).toHaveText("Done");
+  await expect(row("p").locator("td").nth(2)).toHaveText("26");
+  // Immediate reload flushes the browser autosave and restores the type context.
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "No diagnostics",
+  );
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(row("currentState").locator("td").nth(2)).toHaveText("Done");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  const path = (await (await downloadPromise).path())!;
+  const saved = readProject(readFileSync(path, "utf8"));
+  expect(saved.diagnostics).toEqual([]);
+  expect(saved.value!.dataTypes).toEqual(dataTypes);
+  expect(saved.value!.pous).toEqual(pous);
+  await page.getByLabel("Open project", { exact: true }).setInputFiles(path);
+  await expect(row("currentState").locator("td").nth(2)).toHaveText("Running");
+});
+
+test("preserves an unresolved enum type default without routing its diagnostic into a POU", async ({
+  page,
+}) => {
+  const dataTypes = ["TYPE State : (Idle, Running) := State#Missing; END_TYPE"];
+  const project = {
+    ...readProject(sampleXml).value!,
+    dataTypes,
+    pous: ["PROGRAM Main VAR s : State; END_VAR END_PROGRAM"],
+    panel: [],
+  };
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "unresolved.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(writeProject(project).value!),
+  });
+  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+  await expect(diagnostics).toContainText("Missing");
+  await expect(diagnostics.getByRole("button")).toBeDisabled();
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  await expect(list.getByRole("button", { name: /^Main/ })).toContainText("Diagnostics: 0");
+  await expect(page.getByRole("button", { name: "Single scan", exact: true })).toBeDisabled();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  const saved = readProject(readFileSync((await (await downloadPromise).path())!, "utf8"));
+  expect(saved.value!.dataTypes).toEqual(dataTypes);
+});

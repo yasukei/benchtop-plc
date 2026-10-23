@@ -29,6 +29,7 @@ export interface EditorProps {
   language: Language;
   ir?: ProgramIR;
   sources?: readonly string[];
+  dataTypes?: readonly string[];
   sourceIndex?: number;
 }
 
@@ -96,6 +97,7 @@ export function createStEditor(
             previous.sources ?? [previous.source],
             previous.sourceIndex ?? 0,
             position,
+            previous.dataTypes,
           );
           return hover
             ? {

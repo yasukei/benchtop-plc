@@ -6,6 +6,7 @@ import {
   createPous,
   deletePou,
   derivePou,
+  diagnosticPouSourceIndex,
   initialPouIndex,
   pouSources,
   sameSources,
@@ -14,6 +15,21 @@ import {
 
 const main = "PROGRAM Main END_PROGRAM";
 const fn = "FUNCTION F1 : INT F1 := 1; END_FUNCTION";
+
+it("keeps data type and project diagnostics out of POU source locations", () => {
+  const types = ["TYPE State : (Idle, Running) := State#Missing; END_TYPE"];
+  const typeErrors = compilePous(createPous([main]), types).diagnostics;
+  expect(typeErrors).toHaveLength(1);
+  expect(typeErrors[0]).toMatchObject({ sourceKind: "dataType", sourceIndex: 0 });
+  expect(typeErrors.map(diagnosticPouSourceIndex)).toEqual([undefined]);
+
+  const pouErrors = compilePous(
+    createPous([main, "FUNCTION F1 : INT F1 := missing; END_FUNCTION"]),
+  ).diagnostics;
+  expect(pouErrors).toHaveLength(1);
+  expect(pouErrors.map(diagnosticPouSourceIndex)).toEqual([1]);
+  expect(compilePous([]).diagnostics.map(diagnosticPouSourceIndex)).toEqual([undefined]);
+});
 
 describe("POU list operations", () => {
   it("preserves project order, chooses the program, and adds a compilable function", () => {

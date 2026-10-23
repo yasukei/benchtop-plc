@@ -42,6 +42,8 @@ function isProject(value: unknown): value is Project {
       ["version", "modificationDateTime", "organization", "author", "language"],
     ) &&
     strings(value, ["configuration", "resource"]) &&
+    Array.isArray(value.dataTypes) &&
+    value.dataTypes.every((source) => typeof source === "string") &&
     Array.isArray(value.pous) &&
     value.pous.every((source) => typeof source === "string") &&
     strings(value.task, ["name", "interval"]) &&
@@ -72,6 +74,9 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
       delete value.project.program;
     }
     if (!record(value) || ![1, 2].includes(value.version as number)) return null;
+    // Older autosaves predate the separate data type source list.
+    if (record(value.project) && value.project.dataTypes === undefined)
+      value.project.dataTypes = [];
     if (
       !cycleOptions.includes(value.cycleMs as CycleMs) ||
       !(value.project === null || isProject(value.project))

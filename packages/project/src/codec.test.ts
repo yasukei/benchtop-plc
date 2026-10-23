@@ -20,6 +20,7 @@ export function sampleProject(
       creationDateTime: "2026-10-16T12:00:00Z",
     },
     contentHeader: { name: "Demo <project>", author: 'A "B"', version: "1" },
+    dataTypes: [],
     pous: [program],
     configuration: "Config",
     resource: "Res",
@@ -133,7 +134,7 @@ describe("PLCopen XML", () => {
     ],
     [
       (text: string) => text.replace("<dataTypes/>", '<dataTypes><dataType name="T"/></dataTypes>'),
-      "project.unsupported",
+      "project.missing",
     ],
     [
       (text: string) => text.replace("</pous>", '<pou name="Other" pouType="program"/></pous>'),
@@ -447,11 +448,10 @@ it.each([
   expect(writeProject(project).value).toBeNull();
 });
 
-it("rejects inline subranges until TC6 mapping is supported instead of dropping the limits", () => {
+it("preserves inline subranges in TC6 instead of dropping their limits", () => {
   const source = "PROGRAM Main VAR p : INT (0..100); END_VAR END_PROGRAM";
   const result = writeProject(sampleProject(source));
-  expect(result.value).toBeNull();
-  expect(result.diagnostics).toContainEqual(
-    expect.objectContaining({ code: "project.unsupported", args: { path: "subrange" } }),
-  );
+  expect(result.diagnostics).toEqual([]);
+  expect(result.value).toContain('<subrangeSigned><range lower="0" upper="100"/>');
+  expect(readProject(result.value!).value!.pous).toEqual([source]);
 });

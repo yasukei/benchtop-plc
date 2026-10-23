@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { EditorPou } from "./pous.js";
+import { diagnosticPouSourceIndex, type EditorPou } from "./pous.js";
 import type { ShellCatalog } from "./catalog.js";
 import type { AppState, AppStore } from "./store.js";
 
@@ -49,8 +49,9 @@ export function PouList({
                 {text.diagnosticCount.replace(
                   "{count}",
                   String(
-                    state.diagnostics.filter((diagnostic) => diagnostic.sourceIndex === index)
-                      .length,
+                    state.diagnostics.filter(
+                      (diagnostic) => diagnosticPouSourceIndex(diagnostic) === index,
+                    ).length,
                   ),
                 )}
               </span>

@@ -263,3 +263,32 @@ it("migrates version 1 multi-POU metadata without losing functions or the latest
   expect(restored.selectedPou).toBe(1);
   store.dispose();
 });
+
+it("migrates project metadata without data types and rejects malformed type sources", () => {
+  const { store, storage } = setup();
+  const legacy = { ...store.getSnapshot().project! };
+  Reflect.deleteProperty(legacy, "dataTypes");
+  const work = {
+    version: 2,
+    pous: store.getSnapshot().pous,
+    selectedPou: 0,
+    layout: [],
+    cycleMs: 10,
+  };
+  storage.setItem(autosaveStorageKey, JSON.stringify({ ...work, project: legacy }));
+  expect(readAutosave(storage)?.project?.dataTypes).toEqual([]);
+  for (const dataTypes of [null, "TYPE T : INT; END_TYPE", [42]]) {
+    storage.setItem(
+      autosaveStorageKey,
+      JSON.stringify({ ...work, project: { ...legacy, dataTypes } }),
+    );
+    expect(readAutosave(storage)).toBeNull();
+  }
+  const dataTypes = ["TYPE State : (Idle, Running); END_TYPE"];
+  storage.setItem(
+    autosaveStorageKey,
+    JSON.stringify({ ...work, project: { ...legacy, dataTypes } }),
+  );
+  expect(readAutosave(storage)?.project?.dataTypes).toEqual(dataTypes);
+  store.dispose();
+});
