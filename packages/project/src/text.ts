@@ -183,7 +183,8 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
       types,
     );
     const descriptor = result.checked?.symbols.at(-1)?.descriptor;
-    if (descriptor) return formatType(descriptor);
+    // XML readers canonicalize derived names too; source extensions keep declared spelling.
+    if (descriptor) return formatType(descriptor).toUpperCase();
     if ("dimensions" in range && result.diagnostics.some((d) => d.code === "decl.unknown-type")) {
       // Unknown element names are exchangeable semantic errors; fold only the dimensions.
       const eraseElement = (

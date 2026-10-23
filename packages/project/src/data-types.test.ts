@@ -404,3 +404,32 @@ it.each(["[-1(0)]", "[N(0)]", "[2.5(0)]", "[[1](0)]"])(
     ).toBeNull();
   },
 );
+
+it.each(["State", "Percent", "Table", "Alias"])(
+  "round trips POU arrays with named %s elements through canonical XML spelling",
+  (element) => {
+    const value = project(
+      [
+        "TYPE State : (Idle, Running); END_TYPE",
+        "TYPE Percent : INT (0..100); END_TYPE",
+        "TYPE Table : ARRAY[-1..1] OF State; END_TYPE",
+        "TYPE Alias : Table; END_TYPE",
+      ],
+      [
+        `PROGRAM Main VAR a : ARRAY[1..3] OF ${element}; nested : ARRAY[1..2] OF ARRAY[0..1] OF ${element}; END_VAR END_PROGRAM`,
+        `FUNCTION_BLOCK Block VAR a : ARRAY[1..3] OF ${element}; END_VAR END_FUNCTION_BLOCK`,
+        `FUNCTION Local : INT VAR a : ARRAY[1..3] OF ${element}; END_VAR END_FUNCTION`,
+      ],
+    );
+    const xml = save(value);
+    expect(xml).toContain(`<derived name="${element.toUpperCase()}"/>`);
+    expect(readProject(xml)).toEqual({ value, diagnostics: [] });
+    const canonical = readProject(withoutSource(xml));
+    expect(canonical.diagnostics).toEqual([]);
+    const compiled = compileProject(canonical.value!.pous, canonical.value!.dataTypes);
+    expect(compiled.diagnostics).toEqual([]);
+    expect(executable(compiled.ir)).toEqual(
+      executable(compileProject(value.pous, value.dataTypes).ir),
+    );
+  },
+);
