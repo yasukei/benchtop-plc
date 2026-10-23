@@ -66,3 +66,45 @@ END_FUNCTION_BLOCK`);
   await page.mouse.move(point.x, point.y);
   await expect(page.locator(".cm-tooltip-hover")).toHaveText("counters: ARRAY[1..2] OF CTU_DINT");
 });
+
+for (const form of ["named", "nested"] as const) {
+  test(`explains unsupported ${form} instance arrays once in both languages`, async ({ page }) => {
+    await page.goto("/");
+    if (form === "named")
+      await page
+        .getByRole("region", { name: "POUs", exact: true })
+        .getByRole("button", { name: "Add data type", exact: true })
+        .click();
+    const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+    await editor.fill(
+      form === "named"
+        ? "TYPE Timers : ARRAY[1..2] OF TON; END_TYPE"
+        : "PROGRAM Main VAR timers : ARRAY[1..2] OF ARRAY[1..2] OF TON; END_VAR END_PROGRAM",
+    );
+    const english =
+      form === "named"
+        ? "Named function block array types are not supported; declare the instance array directly in a PROGRAM or FUNCTION_BLOCK VAR section."
+        : "Function block instances are not supported inside nested array types; use a multidimensional instance array instead.";
+    const japanese =
+      form === "named"
+        ? "ファンクションブロックの配列に名前付きの型は使用できません。PROGRAM または FUNCTION_BLOCK の VAR セクションで配列を直接宣言してください。"
+        : "入れ子の配列型にはファンクションブロックを含められません。多次元のインスタンス配列を使用してください。";
+    const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+    await expect(diagnostics.getByRole("listitem")).toHaveCount(1);
+    await expect(diagnostics).toContainText(english);
+    await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+    await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(japanese);
+  });
+}
+
+test("names the scalar block type when it is indexed", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await editor.fill("PROGRAM Main VAR timer : TON; END_VAR timer[1](); END_PROGRAM");
+  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+  await expect(diagnostics).toContainText("Cannot index TON; an array is required.");
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(
+    "TON に添字は使えません。配列が必要です。",
+  );
+});

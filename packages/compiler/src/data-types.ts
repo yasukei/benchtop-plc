@@ -24,7 +24,10 @@ import { check, declarationType } from "./checker.js";
 import { scalarTypes } from "./type-rules.js";
 
 /** Resolve declarations before POU checking; forward aliases are allowed, cycles are not. */
-export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): {
+export function resolveDataTypes(
+  declarations: readonly DataTypeDeclaration[],
+  blockIds: ReadonlyMap<string, number> = new Map(),
+): {
   types: TypeTable;
   diagnostics: Diagnostic[];
 } {
@@ -32,6 +35,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
   const diagnostics: Diagnostic[] = [];
   const pending = new Map(declarations.map((ast) => [ast.name.key, ast]));
   const visiting = new Set<string>();
+  const unsupportedBlockArrayTypes = new Set<string>();
   const report = (ast: DataTypeDeclaration, diagnostic: Diagnostic): void => {
     diagnostics.push({ ...diagnostic, pou: ast.name.name });
   };
@@ -97,6 +101,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
   const resolve = (ast: DataTypeDeclaration): TypeEntry | undefined => {
     const existing = types.find((entry) => entry.name.toUpperCase() === ast.name.key);
     if (existing) return existing;
+    if (unsupportedBlockArrayTypes.has(ast.name.key)) return undefined;
     if (visiting.has(ast.name.key)) {
       report(ast, {
         code: "type.invalid-constant",
@@ -259,17 +264,20 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
         },
         new Map(),
         new Map(),
-        new Map(),
+        blockIds,
         types,
       );
       diagnostics.push(...result.diagnostics.map((d) => ({ ...d, pou: ast.name.name })));
+      if (result.diagnostics.some((diagnostic) => diagnostic.code === "decl.fb-array-form"))
+        unsupportedBlockArrayTypes.add(ast.name.key);
       const symbol = result.checked?.symbols[0];
-      if (symbol && isFunctionBlockType(symbol.type)) {
+      if (symbol && (isFunctionBlockType(symbol.type) || symbol.userBlock !== undefined)) {
+        unsupportedBlockArrayTypes.add(ast.name.key);
         report(ast, {
-          code: "decl.unknown-type",
+          code: "decl.fb-array-form",
           severity: "error",
           span: ast.array.typeName.span,
-          args: { name: ast.array.typeName.name },
+          args: { form: "named" },
         });
         visiting.delete(ast.name.key);
         return undefined;

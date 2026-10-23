@@ -127,7 +127,9 @@ export function compileProject(
   }
   if (dataTypeSources.length && diagnostics.some((diagnostic) => diagnostic.severity === "error"))
     return { diagnostics };
-  const resolved = resolveDataTypes(dataTypes);
+  const blocks = asts.filter((ast) => ast.kind === "functionBlock");
+  const blockIds = new Map(blocks.map((ast, index) => [ast.name.key, index]));
+  const resolved = resolveDataTypes(dataTypes, blockIds);
   diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({
       ...diagnostic,
@@ -146,8 +148,6 @@ export function compileProject(
     });
   const functions = asts.filter((ast) => ast.kind === "function");
   const functionIds = new Map(functions.map((ast, index) => [ast.name.key, index]));
-  const blocks = asts.filter((ast) => ast.kind === "functionBlock");
-  const blockIds = new Map(blocks.map((ast, index) => [ast.name.key, index]));
   const interfaces = new Map<Program, CheckedProgram>();
   for (const ast of asts) {
     const result = checkDeclarations(ast, resolved.types, pous, blockIds);

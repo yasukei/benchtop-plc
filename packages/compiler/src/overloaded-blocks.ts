@@ -1,17 +1,9 @@
 import type { DataType, FunctionBlockType } from "@benchtop-plc/core";
-import type { AssignmentTarget, Expression, Statement } from "./ast.js";
+import { rootName, type Expression, type Statement } from "./ast.js";
 import { assignable, commonType } from "./type-rules.js";
 
 export const selectingPort = (type: string): "PT" | "PV" | null =>
   ["TON", "TOF", "TP"].includes(type) ? "PT" : ["CTU", "CTD", "CTUD"].includes(type) ? "PV" : null;
-
-function rootName(node: AssignmentTarget): string {
-  if (node.kind === "name") return node.name.key;
-  if (node.kind === "member") return node.instance.key;
-  return rootName(
-    node.kind === "index" ? node.array : node.kind === "field" ? node.object : node.element,
-  );
-}
 
 /** Reads of inferred ports exclude the whole expression, even inside a fixed-result call. */
 export function readsInferredMember(node: Expression, instances: ReadonlySet<string>): boolean {
@@ -26,7 +18,7 @@ export function readsInferredMember(node: Expression, instances: ReadonlySet<str
       );
     case "field":
       return (
-        (instances.has(rootName(node.object)) &&
+        (instances.has(rootName(node.object).key) &&
           ["PT", "PV", "ET", "CV"].includes(node.member.key)) ||
         readsInferredMember(node.object, instances)
       );
@@ -62,7 +54,7 @@ export function visitBlockBindings(
         if (node.target.kind === "member")
           visit(node.target.instance.key, node.target.member.key, node.value);
         if (node.target.kind === "field")
-          visit(rootName(node.target.object), node.target.member.key, node.value);
+          visit(rootName(node.target.object).key, node.target.member.key, node.value);
         break;
       case "call":
         node.call.args.forEach((value, index) => {

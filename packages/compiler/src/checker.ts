@@ -50,6 +50,7 @@ import type {
   StandardFunction,
 } from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
+import { rootName } from "./ast.js";
 import type {
   CheckedProgram,
   ExpressionInfo,
@@ -126,6 +127,7 @@ class Checker {
   private readonly failedBlockSelections = new Set<string>();
   private result?: VariableSymbol;
   private collectingDeclarations = true;
+  private readonly unsupportedBlockArrays = new Set<AST.ArrayDeclaration>();
 
   constructor(
     private readonly ast: AST.Program,
@@ -278,7 +280,7 @@ class Checker {
   private failedPreset(target: AST.AssignmentTarget): boolean {
     return (
       (target.kind === "member" || target.kind === "field") &&
-      this.failedBlockSelections.has(this.rootName(target).key) &&
+      this.failedBlockSelections.has(rootName(target).key) &&
       ["PT", "PV"].includes(target.member.key)
     );
   }
@@ -292,6 +294,7 @@ class Checker {
   }
 
   private arrayDeclaration(node: AST.ArrayDeclaration): TypeDescriptor | undefined {
+    if (this.unsupportedBlockArrays.has(node)) return undefined;
     const key = declarationType(node.typeName.key);
     const block = !node.array && (isBlock(key) || this.blockIds.has(key));
     if (block && (node.subrange || node.stringLength !== undefined)) {
@@ -305,10 +308,15 @@ class Checker {
           ...(this.blockIds.has(key) ? { block: this.blockIds.get(key)! } : {}),
         }
       : this.descriptor(node.typeName, node.subrange, node.stringLength, node.array);
-    if (!element) return undefined;
+    if (!element) {
+      if (node.array && this.unsupportedBlockArrays.has(node.array))
+        this.unsupportedBlockArrays.add(node);
+      return undefined;
+    }
     const nested = arrayType(element, this.types);
     if (nested && typeof nested.element !== "string" && nested.element.kind === "functionBlock") {
-      this.report("decl.unknown-type", { name: node.typeName.name }, node.span);
+      this.unsupportedBlockArrays.add(node);
+      this.report("decl.fb-array-form", { form: "nested" }, node.span);
       return undefined;
     }
     if (this.collectingDeclarations)
@@ -550,6 +558,7 @@ class Checker {
       declaration.stringLength,
       declaration.array,
     );
+    if (declaration.array && this.unsupportedBlockArrays.has(declaration.array)) return;
     const element = descriptor && arrayType(descriptor, this.types)?.element;
     const type =
       element && typeof element !== "string" && element.kind === "functionBlock"
@@ -802,7 +811,7 @@ class Checker {
         this.report(
           "fb.unknown-member",
           {
-            name: this.rootName(node.object).name,
+            name: rootName(node.object).name,
             member: `${node.object.member.name}.${node.member.name}`,
           },
           node.member.span,
@@ -811,7 +820,7 @@ class Checker {
       }
       this.expressions.set(node.object, object);
       if (typeof object.descriptor !== "string" && object.descriptor?.kind === "functionBlock") {
-        const symbol = this.names.get(this.rootName(node.object).key);
+        const symbol = this.names.get(rootName(node.object).key);
         return symbol ? this.blockMember(symbol, node.member, write) : null;
       }
       return this.field(object.descriptor ?? object.dataType, node.member);
@@ -855,7 +864,7 @@ class Checker {
         typeof array.element !== "string" &&
         array.element.kind === "functionBlock"
       ) {
-        this.report("fb.instance-as-value", { name: this.rootName(node).name }, node.span);
+        this.report("fb.instance-as-value", { name: rootName(node).name }, node.span);
         return null;
       }
       return { dataType: this.base(array.element), descriptor: array.element };
@@ -901,7 +910,9 @@ class Checker {
       }
       return {
         dataType: isScalar(symbol.type) ? symbol.type : "INT",
-        descriptor: symbol.descriptor,
+        descriptor:
+          symbol.descriptor ??
+          (isScalar(symbol.type) ? undefined : { kind: "functionBlock", name: symbol.type }),
       };
     }
     if (symbol.descriptor && structureType(symbol.descriptor, this.types)) {
@@ -1714,14 +1725,6 @@ class Checker {
           { name: node.name.name, parameter: parameter.name.name },
           node.span,
         );
-  }
-
-  private rootName(node: AST.AssignmentTarget): AST.Identifier {
-    if (node.kind === "name") return node.name;
-    if (node.kind === "member") return node.instance;
-    return this.rootName(
-      node.kind === "index" ? node.array : node.kind === "field" ? node.object : node.element,
-    );
   }
 
   private blockCall(node: AST.FunctionCall): void {

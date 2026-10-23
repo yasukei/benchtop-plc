@@ -15,6 +15,7 @@ import {
 import { commonType, stringArgumentType } from "./type-rules.js";
 import type * as IR from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
+import { rootName } from "./ast.js";
 import type { CheckedProgram, UserCallInfo } from "./checked.js";
 
 /** Missing side-table entries indicate a compiler bug, never a source diagnostic. */
@@ -120,14 +121,6 @@ class Lowerer {
     } as IR.ScalarVariable;
   }
 
-  private rootName(node: AST.AssignmentTarget): AST.Identifier {
-    if (node.kind === "name") return node.name;
-    if (node.kind === "member") return node.instance;
-    return this.rootName(
-      node.kind === "index" ? node.array : node.kind === "field" ? node.object : node.element,
-    );
-  }
-
   private reference(
     node: AST.AssignmentTarget,
   ):
@@ -149,8 +142,8 @@ class Lowerer {
         ...(typeof dataType !== "string" && dataType.kind === "functionBlock"
           ? {
               instanceName:
-                this.checked.symbols[this.checked.references.get(this.rootName(node))!.variable]!
-                  .name.key,
+                this.checked.symbols[this.checked.references.get(rootName(node))!.variable]!.name
+                  .key,
             }
           : {}),
         array,

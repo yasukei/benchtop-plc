@@ -159,3 +159,67 @@ it.each(["flag := m[1].flags.0;", "m[1].flags.0 := TRUE;"])(
     expect(result.diagnostics.map((d) => d.code)).toContain("fb.unknown-member");
   },
 );
+
+it.each(["TON", "MotorStarter"])(
+  "names the actual %s type when a scalar instance is indexed",
+  (type) => {
+    for (const body of ["flag := t[1].Q;", "t[1]();"]) {
+      const result = compileProject([main(body, `t : ${type}; flag : BOOL;`), block]);
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics.map(({ code, args }) => ({ code, args }))).toEqual([
+        {
+          code: "type.not-array",
+          args: { type: { kind: "functionBlock", name: type.toUpperCase() } },
+        },
+      ]);
+    }
+  },
+);
+
+it.each(["TON", "MotorStarter"])(
+  "explains nested %s instance arrays once per declaration",
+  (type) => {
+    const result = compileProject([main("", `t : ARRAY[1..2] OF ARRAY[1..2] OF ${type};`), block]);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics.map(({ code, args }) => ({ code, args }))).toEqual([
+      { code: "decl.fb-array-form", args: { form: "nested" } },
+    ]);
+  },
+);
+
+it.each(["TON", "MotorStarter"])(
+  "explains named %s instance-array types without reporting known blocks as unknown",
+  (type) => {
+    const result = compileProject(
+      [main(), block],
+      [`TYPE Timers : ARRAY[1..2] OF ${type}; END_TYPE`],
+    );
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics.map(({ code, args }) => ({ code, args }))).toEqual([
+      { code: "decl.fb-array-form", args: { form: "named" } },
+    ]);
+  },
+);
+
+it("reports one restriction for deeply nested instance arrays", () => {
+  const result = compileProject([
+    main("", "t : ARRAY[1..2] OF ARRAY[1..2] OF ARRAY[1..2] OF TON;"),
+  ]);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics.map(({ code, args }) => ({ code, args }))).toEqual([
+    { code: "decl.fb-array-form", args: { form: "nested" } },
+  ]);
+});
+
+it("does not repeat an unsupported array type diagnostic when aliases revisit it", () => {
+  const result = compileProject(
+    ["PROGRAM Main END_PROGRAM"],
+    [
+      "TYPE Timers : ARRAY[1..2] OF TON; END_TYPE",
+      "TYPE First : Timers; END_TYPE",
+      "TYPE Second : Timers; END_TYPE",
+    ],
+  );
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics.filter((d) => d.code === "decl.fb-array-form")).toHaveLength(1);
+});

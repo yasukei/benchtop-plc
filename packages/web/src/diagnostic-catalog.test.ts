@@ -36,6 +36,7 @@ const examples = {
   "syntax.missing-end": { expected: "END_IF" },
   "decl.unknown-type": { name: "STRING" },
   "decl.structure-member-type": { name: "TON" },
+  "decl.fb-array-form": { form: "named" },
   "decl.duplicate": { name: "Counter" },
   "decl.name-collision": { name: "ABS", kind: "function" },
   "decl.direct-address-type": { name: "Counter", type: "INT" },
@@ -139,7 +140,7 @@ describe("translation catalogs", () => {
       expect(message).not.toMatch(/undefined|null|\$\{/);
       // Internal labels and zero-based positions are translated or reformatted.
       for (const [key, value] of Object.entries(args)) {
-        if (value === null || ["hint", "kind", "bound", "index"].includes(key)) continue;
+        if (value === null || ["hint", "kind", "bound", "index", "form"].includes(key)) continue;
         for (const part of Array.isArray(value) ? value : [value]) {
           expect(message).toContain(
             typeof part === "object" ? formatType(part as TypeDescriptor) : String(part),

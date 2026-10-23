@@ -503,6 +503,10 @@ unsupported until #128.
 
 ## Function block array checks
 
+Indexing a scalar instance reports `type.not-array` with its function block type.
+Unsupported named/nested instance-array types report `decl.fb-array-form` once per
+declaration, with `form` identifying the restriction.
+
 Inline arrays with standard or user function block element types are instances,
 allowed only in persistent PROGRAM/FB `VAR`. Declaration section, initializer,
 constant and recursion checks apply as for scalar instances. Function block types

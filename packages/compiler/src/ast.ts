@@ -235,3 +235,12 @@ export type Statement =
   | WhileStatement
   | RepeatStatement
   | (SourceNode & { kind: "exit" | "return" });
+
+/** Return the declaration identifier at the root of an access chain. */
+export function rootName(node: AssignmentTarget): Identifier {
+  if (node.kind === "name") return node.name;
+  if (node.kind === "member") return node.instance;
+  return rootName(
+    node.kind === "index" ? node.array : node.kind === "field" ? node.object : node.element,
+  );
+}

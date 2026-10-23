@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Diagnostics name the actual block type when a scalar instance is indexed, and
+  explain unsupported named/nested function block arrays once per declaration in
+  English and Japanese.
+
 - Arrays of standard and user function block instances in PROGRAM and function
   block VAR sections, with indexed calls and public port access, independent
   persistent state, shared timer/counter variant selection and cold reset of

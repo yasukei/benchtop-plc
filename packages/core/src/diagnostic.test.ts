@@ -23,6 +23,7 @@ const examples = {
   "syntax.missing-end": { expected: "END_IF" },
   "decl.unknown-type": { name: "STRING" },
   "decl.structure-member-type": { name: "TON" },
+  "decl.fb-array-form": { form: "named" },
   "decl.duplicate": { name: "Counter" },
   "decl.name-collision": { name: "ABS", kind: "function" },
   "decl.direct-address-type": { name: "Counter", type: "INT" },
