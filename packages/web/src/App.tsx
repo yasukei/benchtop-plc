@@ -1,5 +1,11 @@
 import { compileProject } from "@benchtop-plc/compiler";
-import { diagnosticPouIndex, pouSources, sameSources, type EditorDiagnostic } from "./pous.js";
+import {
+  diagnosticPouIndex,
+  diagnosticPouSourceIndex,
+  pouSources,
+  sameSources,
+  type EditorDiagnostic,
+} from "./pous.js";
 import { PouList } from "./PouList.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
@@ -173,9 +179,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 sourceIndex={state.selectedPou}
                 onChange={store.setSource}
                 diagnostics={state.diagnostics.filter(
-                  (diagnostic) =>
-                    diagnostic.sourceKind !== "dataType" &&
-                    diagnostic.sourceIndex === state.selectedPou,
+                  (diagnostic) => diagnosticPouSourceIndex(diagnostic) === state.selectedPou,
                 )}
                 snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
                 online={online}
@@ -193,17 +197,13 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                     <li key={index}>
                       <button
                         disabled={
-                          diagnostic.sourceKind === "dataType" ||
-                          !diagnostic.span ||
-                          diagnostic.sourceIndex === undefined
+                          !diagnostic.span || diagnosticPouSourceIndex(diagnostic) === undefined
                         }
                         onClick={() => {
-                          if (
-                            diagnostic.sourceIndex !== undefined &&
-                            diagnostic.sourceIndex !== state.selectedPou
-                          ) {
+                          const sourceIndex = diagnosticPouSourceIndex(diagnostic);
+                          if (sourceIndex !== undefined && sourceIndex !== state.selectedPou) {
                             pendingFocus.current = diagnostic;
-                            store.selectPou(diagnostic.sourceIndex);
+                            store.selectPou(sourceIndex);
                           } else if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
                         }}
                       >

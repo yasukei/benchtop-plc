@@ -185,6 +185,8 @@ test("preserves an unresolved enum type default without routing its diagnostic i
   const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
   await expect(diagnostics).toContainText("Missing");
   await expect(diagnostics.getByRole("button")).toBeDisabled();
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  await expect(list.getByRole("button", { name: /^Main/ })).toContainText("Diagnostics: 0");
   await expect(page.getByRole("button", { name: "Single scan", exact: true })).toBeDisabled();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save project", exact: true }).click();
