@@ -58,6 +58,19 @@ checks and project restrictions below are tracked in
   `CHAR` and `WCHAR` join them; a string leaf is one value, not an array of characters.
   The declared length of a `STRING[n]` is part of the variable's descriptor, not of the
   `TypedValue`.
+- Enumeration and reference leaves across the UI–runtime boundary:
+  - An enumeration value is a `TypedValue` of its base type holding the integer value
+    (`{ dataType: "INT", value: 10 }` for `Mode#Auto`), in snapshots, writes, forces and
+    inline values. The UI maps it to the value name through the variable's descriptor,
+    or for an inline value the descriptor of the assignment target in the IR, and the
+    type table. For a write or force the UI resolves the typed name, in any case, to
+    its integer; the runtime rejects an integer that is not a declared value without
+    changing the variable, as it rejects an out-of-range subrange write.
+  - A reference value is `{ kind: "reference"; target: string | null }`, where `target`
+    is the display path of the referenced variable, element or member (`P.X`,
+    `LINE[2]`, `M1.SPEED`), or `null` for `NULL`. It is a new `VariableSnapshot` variant
+    and a new member type of `StatementAnnotation.values`; the runtime builds the path
+    from the target's storage. References cannot be written or forced.
 - Type compatibility:
   - Enumerations and structures use name equivalence: two structure types with the same
     members are different types.
@@ -68,6 +81,13 @@ checks and project restrictions below are tracked in
     its default value differs.
   - A subrange value is used as a value of its base type. A value of the base type can
     be stored into a subrange variable, checked as described under Subranges.
+  - Where a type must match exactly (in-out parameters, `REF_TO` types, and the element
+    and member types compared by array equivalence), a subrange is a distinct type and
+    does not match its base type. Two subranges match when their base types and limits
+    are the same, whether named or anonymous, so `Percent` matches `INT (0..100)`. So
+    `p : Percent` cannot be passed to an `INT` in-out, `REF(p)` is not a `REF_TO INT`,
+    and `ARRAY[1..3] OF Percent` is not the same type as `ARRAY[1..3] OF INT`. Every
+    store into subrange storage therefore goes through the subrange's own check.
   - A string's length is a capacity, not part of its type: `STRING[n]` and `STRING[m]`
     are the same type everywhere, including array elements, in-out parameters and
     reference targets. Whenever a value is stored into a string variable, element or
@@ -257,9 +277,11 @@ checks and project restrictions below are tracked in
     the monitor shows it (`formatValue`, ADR 0012): `INT_TO_STRING(-42)` is `'-42'`,
     `BOOL_TO_STRING(TRUE)` is `'TRUE'`, `TIME_TO_STRING(T#1500ms)` is `'T#1s500ms'`.
   - `STRING_TO_<type>` and `WSTRING_TO_<type>` accept what a typed literal of the type
-    accepts after its `<type>#` prefix, with or without the prefix, and surrounding
-    spaces. Anything else, or a value outside the type, faults with
-    `runtime.invalid-value`.
+    accepts after its prefix, with or without the prefix, and surrounding spaces. Every
+    prefix of the type is accepted, long and short (`TIME#` and `T#`, `DATE#` and `D#`,
+    `TIME_OF_DAY#` and `TOD#`, `LTIME#` and `LT#`, and so on), so
+    `STRING_TO_<type>(<type>_TO_STRING(x)) = x` for every value `x`. Anything else, or
+    a value outside the type, faults with `runtime.invalid-value`.
   - `STRING_TO_WSTRING`, `WSTRING_TO_STRING`, `CHAR_TO_STRING`, `WCHAR_TO_WSTRING`,
     `STRING_TO_CHAR`, `WSTRING_TO_WCHAR` (the first character; `''` faults),
     `CHAR_TO_WCHAR`, `WCHAR_TO_CHAR`, `CHAR_TO_BYTE`, `BYTE_TO_CHAR`, `WCHAR_TO_WORD`
@@ -346,6 +368,11 @@ A fault names the POU and instance path, as in ADR 0014.
   under `M[2].RUNNING`.
 - Writes and forces address one leaf by `VariableId`, as today. A whole array or
   structure cannot be written or forced.
+- A string or character write or force is entered as a quoted literal with `$`
+  escapes, as the monitor shows it. A value longer than the leaf's length, a malformed
+  literal, or a character above 16#FF for a single-byte leaf is rejected without
+  changing the value, as ADR 0012 rejects out-of-range writes; unlike a program store,
+  it is not truncated.
 - The monitor shows a composite variable as one collapsible row with its leaves
   below it. Strings show as quoted literals with `$` escapes, enumerations by value
   name, references by their target path or `NULL`. References cannot be written or
@@ -444,7 +471,8 @@ forbids other behavior:
 - An unqualified enumeration value that matches a variable in scope must be qualified.
 - Enumerations allow no ordering and no conversion functions.
 - A run-time store outside a subrange faults; a subrange variable cannot control a
-  `FOR` loop.
+  `FOR` loop; where types must match exactly, a subrange matches only a subrange with
+  the same base type and limits.
 - Array bounds fit DINT; arrays have at most 3 dimensions and 10,000 elements; a
   variable has at most 10,000 scalar leaves.
 - Aggregate initializers appear only in declarations; constant arrays and structures
