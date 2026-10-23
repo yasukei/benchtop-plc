@@ -7,7 +7,7 @@ export function serializePanelProject(
   layout: PanelLayout,
   cycleMs: number,
   project: Project | null,
-  dataTypes: string[] = project?.dataTypes ?? [],
+  dataTypes: string[],
 ) {
   const result = writeProject({
     ...(project ?? {
