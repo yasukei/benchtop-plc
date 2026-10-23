@@ -8,6 +8,11 @@ export interface EditorPou {
   name: string;
   kind: PouKind;
 }
+export interface EditorDataType {
+  source: string;
+  name: string;
+  kind: "TYPE";
+}
 export type EditorDiagnostic = CompileDiagnostic;
 
 /** Source indexes belong to separate lists for POUs and data types. */
@@ -15,11 +20,44 @@ export function diagnosticPouSourceIndex(diagnostic: EditorDiagnostic): number |
   return diagnostic.sourceKind === "dataType" ? undefined : diagnostic.sourceIndex;
 }
 
-export function derivePou(source: string, previous?: EditorPou): EditorPou {
+function headerTokens(source: string) {
   const scanned = lex(source);
   const tokens =
     scanned.tokens ??
     lex(source.slice(0, spanRange(source, scanned.diagnostics[0]!.span!).from)).tokens;
+  return tokens;
+}
+
+export function deriveDataType(source: string, previous?: EditorDataType): EditorDataType {
+  const tokens = headerTokens(source);
+  const name =
+    tokens?.[0]?.key === "TYPE" && tokens[1]?.kind === "identifier"
+      ? tokens[1].text
+      : (previous?.name ?? "Type1");
+  return { source, name, kind: "TYPE" };
+}
+export const createDataTypes = (sources: readonly string[]): EditorDataType[] =>
+  sources.map((source) => deriveDataType(source));
+export function addDataType(dataTypes: readonly EditorDataType[], pous: readonly EditorPou[]) {
+  const name = uniqueFunctionName([...pous, ...dataTypes], "Type");
+  return [...dataTypes, deriveDataType(`TYPE ${name} : (Idle, Running, Done); END_TYPE\n`)];
+}
+export function deleteDataType(dataTypes: EditorDataType[], index: number): EditorDataType[] {
+  return dataTypes[index] ? dataTypes.filter((_, position) => position !== index) : dataTypes;
+}
+export function diagnosticSourceMatches(
+  diagnostic: EditorDiagnostic,
+  selectedPou: number,
+  selectedDataType: number | null,
+): boolean {
+  return (
+    diagnostic.sourceIndex === (selectedDataType ?? selectedPou) &&
+    (diagnostic.sourceKind === "dataType") === (selectedDataType !== null)
+  );
+}
+
+export function derivePou(source: string, previous?: EditorPou): EditorPou {
+  const tokens = headerTokens(source);
   const kind = tokens?.[0]?.key;
   const name = tokens?.[1];
   if (
@@ -32,7 +70,8 @@ export function derivePou(source: string, previous?: EditorPou): EditorPou {
 
 export const createPous = (sources: readonly string[]): EditorPou[] =>
   sources.map((source) => derivePou(source));
-export const pouSources = (pous: readonly EditorPou[]): string[] => pous.map((pou) => pou.source);
+export const pouSources = (pous: readonly { source: string }[]): string[] =>
+  pous.map((pou) => pou.source);
 export const initialPouIndex = (pous: readonly EditorPou[]): number =>
   Math.max(
     0,
@@ -41,15 +80,18 @@ export const initialPouIndex = (pous: readonly EditorPou[]): number =>
 export const sameSources = (a: readonly string[], b: readonly string[] | null): boolean =>
   b !== null && a.length === b.length && a.every((source, index) => source === b[index]);
 
-export function uniqueFunctionName(pous: readonly EditorPou[], prefix = "F"): string {
+export function uniqueFunctionName(pous: readonly { name: string }[], prefix = "F"): string {
   const names = new Set(pous.map((pou) => pou.name.toUpperCase()));
   let number = 1;
-  while (names.has(`${prefix}${number}`)) number++;
+  while (names.has(`${prefix.toUpperCase()}${number}`)) number++;
   return `${prefix}${number}`;
 }
 
-export function addFunction(pous: readonly EditorPou[]): EditorPou[] {
-  const name = uniqueFunctionName(pous);
+export function addFunction(
+  pous: readonly EditorPou[],
+  dataTypes: readonly EditorDataType[] = [],
+): EditorPou[] {
+  const name = uniqueFunctionName([...pous, ...dataTypes]);
   return [
     ...pous,
     derivePou(
@@ -58,8 +100,11 @@ export function addFunction(pous: readonly EditorPou[]): EditorPou[] {
   ];
 }
 
-export function addFunctionBlock(pous: readonly EditorPou[]): EditorPou[] {
-  const name = uniqueFunctionName(pous, "FB");
+export function addFunctionBlock(
+  pous: readonly EditorPou[],
+  dataTypes: readonly EditorDataType[] = [],
+): EditorPou[] {
+  const name = uniqueFunctionName([...pous, ...dataTypes], "FB");
   return [
     ...pous,
     derivePou(

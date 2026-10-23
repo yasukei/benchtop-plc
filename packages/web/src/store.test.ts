@@ -438,3 +438,89 @@ it("keeps empty projects saveable and creates a first POU on an editor change", 
   expect(worker.sent.slice(-2).map((message) => message.type)).toEqual(["load", "run"]);
   store.dispose();
 });
+
+it("edits and renames types, blocks run after deleting a used type, and still saves", () => {
+  vi.useFakeTimers();
+  const { store, worker } = setup();
+  store.addDataType();
+  expect(store.getSnapshot()).toMatchObject({
+    selectedDataType: 0,
+    source: expect.stringContaining("TYPE Type1"),
+  });
+  const type = "TYPE State : (Idle, Running, Done); END_TYPE";
+  store.setSource(type);
+  store.selectPou(0);
+  const main = "PROGRAM Main VAR phase : State; END_VAR phase := State#Running; END_PROGRAM";
+  store.setSource(main);
+  store.run();
+  expect(store.getSnapshot().diagnostics).toEqual([]);
+  const load = worker.sent.find((message) => message.type === "load");
+  expect(load?.type === "load" && load.ir.types?.[0]?.name).toBe("State");
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(store.getSnapshot().loadedDataTypes).toEqual([type]);
+  const loadedSources = store.getSnapshot().loadedSources;
+  store.selectDataType(0);
+  store.setSource("TYPE");
+  vi.advanceTimersByTime(250);
+  expect(store.getSnapshot().dataTypes[0]?.name).toBe("State");
+  expect(store.getSnapshot().diagnostics).toContainEqual(
+    expect.objectContaining({ sourceKind: "dataType", sourceIndex: 0 }),
+  );
+  expect(store.saveProject()).toBeNull();
+  store.setSource(type);
+  const xml = store.saveProject()!;
+  expect(readProject(xml).value?.dataTypes).toEqual([type]);
+  store.deleteDataType(0);
+  expect(store.getSnapshot()).toMatchObject({ selectedDataType: null, source: main });
+  expect(store.getSnapshot().diagnostics).toContainEqual(
+    expect.objectContaining({ code: "decl.unknown-type", sourceIndex: 0 }),
+  );
+  expect(store.getSnapshot().loadedSources).toBe(loadedSources);
+  expect(store.getSnapshot().loadedDataTypes).toEqual([type]);
+  worker.sent.length = 0;
+  store.run();
+  expect(worker.sent).toEqual([]);
+  const missing = store.saveProject()!;
+  expect(readProject(missing).value).toMatchObject({ dataTypes: [], pous: [main] });
+  expect(store.openProject(missing)).toBe(true);
+  expect(store.getSnapshot().diagnostics.length).toBeGreaterThan(0);
+  expect(worker.sent.filter((message) => message.type === "load")).toEqual([]);
+  store.dispose();
+  vi.useRealTimers();
+});
+
+it("reloads when only type text changes and preserves selection across list operations", () => {
+  const { store, worker } = setup();
+  store.addDataType();
+  store.addDataType();
+  store.addDataType();
+  store.deleteDataType(0);
+  expect(store.getSnapshot()).toMatchObject({
+    selectedDataType: 1,
+    source: expect.stringContaining("TYPE Type3"),
+  });
+  store.deleteDataType(1);
+  expect(store.getSnapshot()).toMatchObject({
+    selectedDataType: 0,
+    source: expect.stringContaining("TYPE Type2"),
+  });
+  store.addFunction();
+  expect(store.getSnapshot().selectedDataType).toBeNull();
+  store.selectDataType(0);
+  store.deletePou(1);
+  expect(store.getSnapshot().source).toContain("TYPE Type2");
+  store.selectPou(0);
+  store.deleteDataType(99);
+  expect(store.getSnapshot().selectedDataType).toBeNull();
+  store.loadEditor();
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  worker.sent.length = 0;
+  store.selectDataType(0);
+  store.setSource("TYPE Type2 : (First, Second); END_TYPE");
+  store.run();
+  expect(worker.sent.map((message) => message.type)).toEqual(["load", "run"]);
+  expect(store.getSnapshot().loadedDataTypes).toEqual([expect.stringContaining("Idle")]);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(store.getSnapshot().loadedDataTypes).toEqual(["TYPE Type2 : (First, Second); END_TYPE"]);
+  store.dispose();
+});

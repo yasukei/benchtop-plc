@@ -37,8 +37,8 @@ retains a latched diagnostic through STOP requests and emergency-stop transition
 
 ## Browser autosave
 
-Every POU text (including code that does not compile), its last readable name and kind,
-the selected POU, panel layout, cycle time and
+Every POU and data type text (including code that does not compile), its last readable name and kind,
+the selected source, panel layout, cycle time and
 project metadata are saved to a versioned JSON record in `localStorage` 500 ms
 after the last change. Pending changes are also saved when the page is hidden or
 left. Reloading restores that work and loads compilable source into a fresh PLC
@@ -47,8 +47,10 @@ source stays in the editor with diagnostics until it is fixed and applied; it is
 never run automatically. Missing, invalid or unsupported records, or unavailable
 storage, fall back to the bundled example without blocking startup.
 
-Version 2 stores the ordered POU list and migrates version 1 autosaves from
-0.3.0, preserving the latest program draft even when it cannot be parsed.
+Version 3 stores separate ordered data type and POU lists and the selected source.
+It migrates version 2 autosaves from 0.4.0 with every POU and selection intact,
+and version 1 autosaves from 0.3.0 with the latest program draft even when it
+cannot be parsed. Imported types in older project metadata are retained.
 
 Autosave is a per-browser convenience. It is not shared between browsers or
 devices, and browser settings or storage limits may prevent persistence. Use
@@ -57,6 +59,15 @@ current work and is autosaved like other edits. Runtime state and `RETAIN` value
 are not saved.
 
 ## POUs
+
+Data types appear in their own group before the POUs, in project order, with a
+`TYPE` label and diagnostic count. **Add data type** appends an enumerated type
+such as `TYPE Type1 : (Idle, Running, Done); END_TYPE` and selects its text.
+Generated names are unique across both groups, ignoring case. Edit the header to
+rename a type; an unreadable header keeps its previous name. Deletion requires
+confirmation. POUs that use a deleted type show diagnostics and cannot be run,
+but saving and reopening still work. Data type text and order survive both
+browser autosave and PLCopen XML save/open.
 
 The list next to the editor shows each POU in project order with its kind
 (`PROGRAM`, `FUNCTION` or `FUNCTION_BLOCK`) and diagnostic count. Select a POU to
@@ -68,10 +79,10 @@ name and kind until it becomes readable again. The PROGRAM cannot be added or
 deleted through the list. Deleting a function or block requires confirmation.
 
 The compiler checks the whole project on every edit and before RUN. The problems
-list shows diagnostics from all POUs; selecting a located diagnostic opens its
-POU and selects the source span. Editor squiggles belong only to the selected
-POU. Inline runtime values appear only in the PROGRAM. Switching POUs does not
-reload the PLC; edits to any POU become unapplied changes.
+list shows diagnostics from all POUs and data types; selecting a located diagnostic
+opens its source and selects the source span. Editor squiggles belong only to the
+selected source. Inline runtime values appear only in the PROGRAM. Switching sources
+does not reload the PLC; edits to any POU or data type become unapplied changes.
 
 **Save project** and **Open project** preserve the ordered POU list and each exact
 text in PLCopen XML. Semantic errors, including calls to a deleted function, do
@@ -97,13 +108,15 @@ and the panel. The bundled startup example remains blink.
 
 A thin React wrapper owns a CodeMirror 6 editor controller. Highlighting is a
 line-oriented tokenizer tolerant of incomplete input, with nested block comments,
-keywords, elementary and function block types, literals and direct addresses.
+keywords, elementary, declared data type and function block names, literals and direct addresses.
+Hovering a variable shows its declared type, including named types and inline
+subranges; standard function blocks show their resolved variant.
 Keyword and elementary type classification comes from the compiler to keep it
 in sync with the lexer. Enter indents ST blocks. Tab inserts two spaces at a
 cursor or indents selected lines without replacing their code. Theme and language changes
 reconfigure the existing editor without replacing its selection or undo history.
 
-The store compiles all POUs 250 ms after the last edit. Diagnostics use the existing
+The store compiles all POUs and data types 250 ms after the last edit. Diagnostics use the existing
 English/Japanese catalog in both squiggle tooltips and a list; clicking a located
 diagnostic selects and scrolls to its source span. Editing clears stale diagnostic
 locations immediately. RUN compiles synchronously, so it also catches changes

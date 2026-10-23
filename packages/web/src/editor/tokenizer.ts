@@ -19,6 +19,7 @@ export type TokenStyle =
 export function readStToken(
   source: string,
   state: TokenizerState,
+  typeNames: ReadonlySet<string> = new Set(),
 ): { length: number; style: TokenStyle | null } {
   if (state.commentDepth > 0 || source.startsWith("(*")) {
     let length = 0;
@@ -58,7 +59,7 @@ export function readStToken(
     const style =
       key === "TRUE" || key === "FALSE"
         ? "bool"
-        : isElementaryTypeName(key)
+        : isElementaryTypeName(key) || typeNames.has(key)
           ? "typeName"
           : isFunctionBlockType(key)
             ? "className"

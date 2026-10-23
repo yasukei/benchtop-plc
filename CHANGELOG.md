@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Data types appear before POUs in the web editor, with templates, text-based
+  renaming, confirmed deletion and diagnostic navigation. Project-wide Run,
+  type highlighting and variable hovers include declared types; autosave keeps
+  unfinished type drafts and restores older POU autosaves.
+
 - PLCopen XML saves and opens ordered data type sources, including enumerations,
   named and inline integer subranges, elementary and derived aliases, and their
   initial values. Source extensions preserve exact text; imports without them
@@ -20,7 +25,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   inline integer subranges (ADR 0015). Enumerations support contextual literals,
   CASE, selection functions and scalar POU parameters/results; subrange stores
   fault outside their limits. Monitor helpers format enum names and validate
-  writes and forces. The web type list remains deferred.
+  writes and forces. The web editor lists these types alongside POUs.
 
 - ADR 0015 documents the accepted design for data type declarations, enumerations,
   subranges, arrays, structures, strings and references for Milestone 5;

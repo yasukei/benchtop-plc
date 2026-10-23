@@ -140,3 +140,13 @@ it.each([
     style: "number",
   });
 });
+
+it("highlights declared type names case insensitively without changing comments", () => {
+  const types = new Set(["STATE"]);
+  expect(readStToken("state;", { commentDepth: 0 }, types)).toEqual({
+    length: 5,
+    style: "typeName",
+  });
+  expect(readStToken("// State", { commentDepth: 0 }, types).style).toBe("comment");
+  expect(readStToken("Other", { commentDepth: 0 }, types).style).toBe("variableName");
+});

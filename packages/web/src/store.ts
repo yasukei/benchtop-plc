@@ -1,5 +1,9 @@
 import { openPanelProject, serializePanelProject } from "./panel/project.js";
 import {
+  addDataType,
+  createDataTypes,
+  deriveDataType,
+  deleteDataType,
   addFunction,
   addFunctionBlock,
   compilePous,
@@ -34,6 +38,7 @@ export interface AppState extends SavedWork {
   emergencyActive: boolean;
   emergencyReleased: boolean;
   loadedSources: string[] | null;
+  loadedDataTypes: string[] | null;
   diagnostics: EditorDiagnostic[];
   runtimeState: RuntimeState;
   snapshot: RuntimeSnapshot | null;
@@ -47,9 +52,14 @@ export interface AppState extends SavedWork {
 export function createAppStore(client: RuntimeClient, initial: string | SavedWork = "") {
   const pous = typeof initial === "string" ? createPous([initial]) : initial.pous;
   const selectedPou = typeof initial === "string" ? 0 : initial.selectedPou;
-  const source = pous[selectedPou]?.source ?? "";
+  const dataTypes = typeof initial === "string" ? [] : initial.dataTypes;
+  const selectedDataType = typeof initial === "string" ? null : initial.selectedDataType;
+  const source =
+    (selectedDataType === null ? pous[selectedPou] : dataTypes[selectedDataType])?.source ?? "";
   let state: AppState = {
     source,
+    dataTypes,
+    selectedDataType,
     editorSession: 0,
     saveDiagnostics: [],
     pous,
@@ -59,8 +69,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     emergencyActive: false,
     emergencyReleased: false,
     loadedSources: null,
-    diagnostics: compilePous(pous, typeof initial === "string" ? [] : initial.project?.dataTypes)
-      .diagnostics,
+    loadedDataTypes: null,
+    diagnostics: compilePous(pous, pouSources(dataTypes)).diagnostics,
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
@@ -69,7 +79,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     connection: "connected",
   };
   let compileTimer: ReturnType<typeof setTimeout> | undefined;
-  const pendingLoads: string[][] = [];
+  const pendingLoads: { loadedSources: string[]; loadedDataTypes: string[] }[] = [];
   const listeners = new Set<() => void>();
   const update = (patch: Partial<AppState>) => {
     state = { ...state, ...patch };
@@ -85,7 +95,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         // Ignore scans already queued by the previously loaded program.
         if (pendingLoads.length && event.snapshot.scanCount !== 0) break;
         update({
-          ...(pendingLoads.length ? { loadedSources: pendingLoads.shift()! } : {}),
+          ...(pendingLoads.length ? pendingLoads.shift()! : {}),
           snapshot: event.snapshot,
           ...(event.snapshot.scanCount === 0 ? { diagnostic: null } : {}),
         });
@@ -106,7 +116,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   });
   const compileEditor = () => {
     clearTimeout(compileTimer);
-    const result = compilePous(state.pous, state.project?.dataTypes);
+    const result = compilePous(state.pous, pouSources(state.dataTypes));
     update({ diagnostics: result.diagnostics });
     return result;
   };
@@ -114,7 +124,10 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     if (state.connection !== "connected") return false;
     const result = compileEditor();
     if (!result.ir) return false;
-    pendingLoads.push(pouSources(state.pous));
+    pendingLoads.push({
+      loadedSources: pouSources(state.pous),
+      loadedDataTypes: pouSources(state.dataTypes),
+    });
     update({ snapshot: null, diagnostic: null, rejection: null });
     client.send({ type: "load", ir: result.ir });
     return true;
@@ -135,9 +148,12 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     clearTimeout(compileTimer);
     const pous = createPous(opened.project.pous);
     const selectedPou = initialPouIndex(pous);
+    const dataTypes = createDataTypes(opened.project.dataTypes);
     update({
       pous,
       selectedPou,
+      dataTypes,
+      selectedDataType: null,
       editorSession: state.editorSession + 1,
       saveDiagnostics: [],
       source: pous[selectedPou]?.source ?? "",
@@ -147,6 +163,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       cycleMs: ms as CycleMs,
       // Identical editor text can belong to a different project-wide compilation.
       loadedSources: null,
+      loadedDataTypes: null,
       snapshot: null,
       diagnostic: null,
       rejection: null,
@@ -166,6 +183,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         state.layout,
         state.cycleMs,
         state.project,
+        pouSources(state.dataTypes),
       );
       update({ saveDiagnostics: result.diagnostics });
       return result.value;
@@ -180,6 +198,14 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     setSource(source: string) {
       if (source === state.source) return;
       clearTimeout(compileTimer);
+      if (state.selectedDataType !== null) {
+        const dataTypes = state.dataTypes.map((type, index) =>
+          index === state.selectedDataType ? deriveDataType(source, type) : type,
+        );
+        update({ source, dataTypes, diagnostics: [], saveDiagnostics: [] });
+        compileTimer = setTimeout(compileEditor, 250);
+        return;
+      }
       const pous = state.pous.length
         ? state.pous.map((pou, index) =>
             index === state.selectedPou ? derivePou(source, pou) : pou,
@@ -189,35 +215,82 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       compileTimer = setTimeout(compileEditor, 250);
     },
     selectPou(index: number) {
-      if (!state.pous[index] || index === state.selectedPou) return;
+      if (!state.pous[index] || (index === state.selectedPou && state.selectedDataType === null))
+        return;
       update({
         selectedPou: index,
+        selectedDataType: null,
         source: state.pous[index]!.source,
         editorSession: state.editorSession + 1,
       });
     },
+    selectDataType(index: number) {
+      if (!state.dataTypes[index] || index === state.selectedDataType) return;
+      update({
+        selectedDataType: index,
+        source: state.dataTypes[index]!.source,
+        editorSession: state.editorSession + 1,
+      });
+    },
+    addDataType() {
+      clearTimeout(compileTimer);
+      const dataTypes = addDataType(state.dataTypes, state.pous);
+      update({
+        dataTypes,
+        selectedDataType: dataTypes.length - 1,
+        source: dataTypes.at(-1)!.source,
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+        diagnostics: compilePous(state.pous, pouSources(dataTypes)).diagnostics,
+      });
+    },
+    deleteDataType(index: number) {
+      const dataTypes = deleteDataType(state.dataTypes, index);
+      if (dataTypes === state.dataTypes) return;
+      clearTimeout(compileTimer);
+      const selectedDataType =
+        state.selectedDataType === null
+          ? null
+          : dataTypes.length === 0
+            ? null
+            : state.selectedDataType > index
+              ? state.selectedDataType - 1
+              : Math.min(state.selectedDataType, dataTypes.length - 1);
+      update({
+        dataTypes,
+        selectedDataType,
+        source:
+          (selectedDataType === null ? state.pous[state.selectedPou] : dataTypes[selectedDataType])
+            ?.source ?? "",
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+        diagnostics: compilePous(state.pous, pouSources(dataTypes)).diagnostics,
+      });
+    },
     addFunction() {
       clearTimeout(compileTimer);
-      const pous = addFunction(state.pous);
+      const pous = addFunction(state.pous, state.dataTypes);
       update({
         pous,
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou: pous.length - 1,
+        selectedDataType: null,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous, state.project?.dataTypes).diagnostics,
+        diagnostics: compilePous(pous, pouSources(state.dataTypes)).diagnostics,
       });
     },
     addFunctionBlock() {
       clearTimeout(compileTimer);
-      const pous = addFunctionBlock(state.pous);
+      const pous = addFunctionBlock(state.pous, state.dataTypes);
       update({
         pous,
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou: pous.length - 1,
+        selectedDataType: null,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous, state.project?.dataTypes).diagnostics,
+        diagnostics: compilePous(pous, pouSources(state.dataTypes)).diagnostics,
       });
     },
     deletePou(index: number) {
@@ -233,15 +306,24 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou,
-        source: pous[selectedPou]?.source ?? "",
-        diagnostics: compilePous(pous, state.project?.dataTypes).diagnostics,
+        source:
+          (state.selectedDataType === null
+            ? pous[selectedPou]
+            : state.dataTypes[state.selectedDataType]
+          )?.source ?? "",
+        diagnostics: compilePous(pous, pouSources(state.dataTypes)).diagnostics,
       });
     },
     loadEditor,
     run() {
       if (state.connection !== "connected" || pendingLoads.length || state.emergencyActive) return;
       if (state.runtimeState !== "STOP" && state.runtimeState !== "RUN") return;
-      if (!sameSources(pouSources(state.pous), state.loadedSources) && !loadEditor()) return;
+      if (
+        (!sameSources(pouSources(state.pous), state.loadedSources) ||
+          !sameSources(pouSources(state.dataTypes), state.loadedDataTypes)) &&
+        !loadEditor()
+      )
+        return;
       if (state.rejection) update({ rejection: null });
       update({ emergencyReleased: false });
       client.send({ type: "run" });
