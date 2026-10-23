@@ -1,6 +1,10 @@
+import { formatMonitoredValue } from "../monitor.js";
 import {
   formatValue,
   type RuntimeSnapshot,
+  type ProgramIR,
+  type TypeDescriptor,
+  type Statement,
   type SourceSpan,
   type TypedValue,
 } from "@benchtop-plc/core";
@@ -33,8 +37,30 @@ export function mapAnnotations(
   source: string,
   snapshot: RuntimeSnapshot | null,
   online: boolean,
+  ir?: ProgramIR,
 ): InlineAnnotation[] {
   if (!online || !snapshot) return [];
+  const descriptors = new Map<string, TypeDescriptor>();
+  const spanKey = (span: SourceSpan) =>
+    `${span.line}:${span.column}:${span.endLine}:${span.endColumn}`;
+  const visit = (statements: readonly Statement[]): void => {
+    for (const statement of statements) {
+      if (statement.kind === "assignment")
+        descriptors.set(spanKey(statement.span), statement.target.dataType);
+      else if (statement.kind === "call" && statement.call.dataType)
+        descriptors.set(spanKey(statement.span), statement.call.dataType);
+      else if (statement.kind === "if" || statement.kind === "case") {
+        for (const branch of statement.branches) visit(branch.body);
+        visit(statement.elseBody);
+      } else if (
+        statement.kind === "for" ||
+        statement.kind === "while" ||
+        statement.kind === "repeat"
+      )
+        visit(statement.body);
+    }
+  };
+  if (ir) visit(ir.body);
   const lines = source.split("\n");
   const positions: number[] = [];
   let offset = 0;
@@ -53,7 +79,9 @@ export function mapAnnotations(
         .toSorted((a, b) => a.span.column - b.span.column)
         .flatMap((entry) =>
           entry.values.map((value) => ({
-            text: formatValue(value.dataType, value.value),
+            text: descriptors.has(spanKey(entry.span))
+              ? formatMonitoredValue(descriptors.get(spanKey(entry.span))!, value, ir?.types)
+              : formatValue(value.dataType, value.value),
             dataType: value.dataType,
           })),
         );

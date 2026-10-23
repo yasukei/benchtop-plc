@@ -1,5 +1,7 @@
 import {
   coerceValue,
+  scalarBase,
+  SubrangeViolation,
   convertValue,
   isCalendarType,
   calendarBinary,
@@ -13,6 +15,7 @@ import {
 } from "@benchtop-plc/core";
 import type {
   Diagnostic,
+  TypeDescriptor,
   Expression,
   ScalarValue,
   SourceSpan,
@@ -57,6 +60,32 @@ export class Interpreter {
     this.pou = programMemory.ir.name;
   }
 
+  private base(type: TypeDescriptor) {
+    return scalarBase(type, this.programMemory.ir.types);
+  }
+
+  private invalidValue(error: RangeError, span: SourceSpan): RuntimeFault {
+    return new RuntimeFault({
+      severity: "error",
+      span,
+      pou: this.pou,
+      ...(this.instancePath ? { instance: this.instancePath } : {}),
+      ...(error instanceof SubrangeViolation
+        ? {
+            code: "runtime.subrange-violation",
+            args: {
+              value:
+                typeof error.value === "bigint" || typeof error.value === "string"
+                  ? error.value.toString()
+                  : Number(error.value),
+              lower: error.range.lower,
+              upper: error.range.upper,
+            },
+          }
+        : { code: "runtime.invalid-value", args: {} }),
+    });
+  }
+
   private fault(code: "runtime.division-by-zero" | "runtime.for-by-zero", span: SourceSpan): never {
     throw new RuntimeFault({
       code,
@@ -85,15 +114,7 @@ export class Interpreter {
     try {
       return this.evaluate(expr);
     } catch (error) {
-      if (error instanceof RangeError)
-        throw new RuntimeFault({
-          code: "runtime.invalid-value",
-          severity: "error",
-          span: expr.span,
-          pou: this.pou,
-          ...(this.instancePath ? { instance: this.instancePath } : {}),
-          args: {},
-        });
+      if (error instanceof RangeError) throw this.invalidValue(error, expr.span);
       throw error;
     }
   }
@@ -101,8 +122,8 @@ export class Interpreter {
   private evaluate(expr: Expression): ScalarValue {
     switch (expr.kind) {
       case "literal":
-        if (isLongType(expr.dataType) || isCalendarType(expr.dataType))
-          validateValue(expr.dataType, expr.value);
+        if (isLongType(this.base(expr.dataType)) || isCalendarType(this.base(expr.dataType)))
+          validateValue(this.base(expr.dataType), expr.value);
         return expr.value;
       case "variable":
       case "bit":
@@ -112,7 +133,7 @@ export class Interpreter {
       case "unary": {
         const value = this.expression(expr.operand);
         const result = unaryValue(expr.operator, value);
-        return coerceValue(expr.dataType, result);
+        return coerceValue(this.base(expr.dataType), result);
       }
       case "binary": {
         const left = this.expression(expr.left),
@@ -120,35 +141,39 @@ export class Interpreter {
         if (expr.operator === "/" && Number(right) === 0) {
           this.fault("runtime.division-by-zero", expr.span);
         }
-        if (isCalendarType(expr.left.dataType))
+        const leftType = this.base(expr.left.dataType);
+        if (isCalendarType(leftType))
           return calendarBinary(
             expr.operator,
-            expr.left.dataType,
+            leftType,
             left,
-            expr.right.dataType,
+            this.base(expr.right.dataType),
             right,
           );
-        return expr.dataType === "LTIME"
+        return this.base(expr.dataType) === "LTIME"
           ? ltimeBinary(
               expr.operator as "+" | "-" | "*" | "/",
               BigInt(left),
-              expr.right.dataType === "REAL" || expr.right.dataType === "LREAL"
+              this.base(expr.right.dataType) === "REAL" ||
+                this.base(expr.right.dataType) === "LREAL"
                 ? Number(right)
                 : BigInt(right),
-              expr.right.dataType,
+              this.base(expr.right.dataType),
             )
-          : expr.dataType === "TIME"
+          : this.base(expr.dataType) === "TIME"
             ? timeBinary(
                 expr.operator as "+" | "-" | "*" | "/",
                 Number(left),
                 typeof right === "string" || typeof right === "bigint"
                   ? BigInt(right)
                   : Number(right),
-                expr.right.dataType,
+                this.base(expr.right.dataType),
               )
             : coerceValue(
-                expr.dataType,
-                expr.operator === "*" && isIntegerType(expr.dataType) && !isLongType(expr.dataType)
+                this.base(expr.dataType),
+                expr.operator === "*" &&
+                  isIntegerType(this.base(expr.dataType)) &&
+                  !isLongType(this.base(expr.dataType))
                   ? Math.imul(Number(left), Number(right))
                   : binaryValue(expr.operator, left, right),
               );
@@ -162,9 +187,9 @@ export class Interpreter {
           this.fault("runtime.division-by-zero", expr.span);
         const outputs = new Map<number, ScalarValue>();
         const result = coerceValue(
-          expr.dataType,
-          this.library.callFunction(expr.function, args, expr.dataType, {
-            argumentTypes: expr.args.map((arg) => arg.dataType),
+          this.base(expr.dataType),
+          this.library.callFunction(expr.function, args, this.base(expr.dataType), {
+            argumentTypes: expr.args.map((arg) => this.base(arg.dataType)),
             output: (index, value) => outputs.set(index, value),
           }),
         );
@@ -198,15 +223,7 @@ export class Interpreter {
       try {
         flow = this.statement(statement);
       } catch (error) {
-        if (error instanceof RangeError)
-          throw new RuntimeFault({
-            code: "runtime.invalid-value",
-            severity: "error",
-            span: statement.span,
-            pou: this.pou,
-            ...(this.instancePath ? { instance: this.instancePath } : {}),
-            args: {},
-          });
+        if (error instanceof RangeError) throw this.invalidValue(error, statement.span);
         throw error;
       }
       if (flow) return flow;
@@ -226,13 +243,13 @@ export class Interpreter {
           const result = this.userCall(statement.call);
           if (statement.call.dataType !== null && result !== null)
             this.annotate(statement, [
-              { dataType: statement.call.dataType, value: result } as TypedValue,
+              { dataType: this.base(statement.call.dataType), value: result } as TypedValue,
             ]);
           break;
         }
         this.annotate(statement, [
           {
-            dataType: statement.call.dataType,
+            dataType: this.base(statement.call.dataType),
             value: this.expression(statement.call),
           } as TypedValue,
         ]);
@@ -341,7 +358,7 @@ export class Interpreter {
         outputs = definition.outputs.map((slot) => {
           const variable = definition.variables[slot]!;
           if (variable.kind !== "scalar") throw new Error("Non-scalar output");
-          return typed(variable.dataType, instance.frame.read(slot));
+          return typed(this.base(variable.dataType), instance.frame.read(slot));
         });
       } finally {
         instance.frame.unbind(definition.inOuts ?? []);
@@ -354,7 +371,7 @@ export class Interpreter {
     }
     for (const binding of call.outputs ?? []) {
       const value = outputs[outputSlots.indexOf(binding.output)]!;
-      const to = binding.target.dataType;
+      const to = this.base(binding.target.dataType);
       this.memory.assign(
         binding.target,
         isLongType(to) && value.dataType !== to
@@ -396,12 +413,12 @@ export class Interpreter {
     }
     for (const output of call.outputs) {
       const variable = definition.variables[output.variable]!;
-      const to = output.target.dataType;
+      const to = this.base(output.target.dataType);
       const value = locals.read(output.variable);
       caller.assign(
         output.target,
-        isLongType(to) && variable.dataType !== to
-          ? convertValue(`${variable.dataType}_TO_${to}` as ConversionFunction, value)
+        isLongType(to) && this.base(variable.dataType) !== to
+          ? convertValue(`${this.base(variable.dataType)}_TO_${to}` as ConversionFunction, value)
           : value,
       );
     }

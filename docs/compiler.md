@@ -1,8 +1,9 @@
 # Compiling Structured Text
 
 `@benchtop-plc/compiler` exports `compile(source): CompileResult` for existing
-single-program callers and `compileProject(sources: readonly string[]): CompileResult`
-for an ordered list of POU texts, each containing exactly one declaration. It runs the
+single-program callers and `compileProject(sources: readonly string[], dataTypeSources?: readonly string[]): CompileResult`
+for an ordered list of POU texts and a separate ordered list of data type texts.
+Each source contains exactly one declaration. Data types are resolved before POUs. It runs the
 [parser](compiler-parser.md), [semantic checker](type-checking.md) and IR lowering
 in order. Success returns `{ ir: ProgramIR, diagnostics }`, with any portability warnings. Failure returns
 `{ diagnostics: CompileDiagnostic[] }` with the `ir` property omitted; no partially valid
@@ -24,6 +25,31 @@ successful `check(ast)` result. It expects the AST and its semantic side tables
 to remain intact. It produces a fresh plain-data tree without mutating or sharing
 mutable objects with the AST. Maps, source identifier objects and unneeded parser
 fields never appear in the IR.
+
+## Data type sources
+
+```ts
+const result = compileProject(
+  ["PROGRAM Main VAR phase : State; END_VAR phase := Running; END_PROGRAM"],
+  ["TYPE State : (Idle, Running, Done); END_TYPE"],
+);
+```
+
+The second list defaults to empty, preserving existing callers. Each source uses
+`TYPE Name : ... ; END_TYPE`. Supported definitions are aliases of elementary or
+other supported named types, enumerations, and integer subranges. Forward type
+references resolve case-insensitively; cycles, duplicate names, unknown types and
+clashes with POUs or standard names are errors. Type declarations cannot appear
+inside a POU. `ProgramIR.types` preserves declaration order; inline subranges do
+not add entries. POU signatures resolve bounds in their own constant scope before
+call sites are checked.
+
+A diagnostic from this list uses `pou` for the type source's name,
+`sourceKind: "dataType"` and `sourceIndex` into the data type list. POU diagnostics
+keep their existing identity and indexing. The web app and XML model still manage
+POUs only; the data type editor/list and TC6 mapping belong to #122 and #121.
+Until TC6 mapping is available, XML export explicitly rejects inline subranges,
+so their limits cannot be silently discarded.
 
 ## Representation
 
@@ -59,7 +85,7 @@ evaluation order and use resolved local variable indices. Outputs likewise bind 
 callee local index to a writable caller target. Each definition has its own local
 variable table, input/output indices and optional result variable index. A result
 variable is appended after declared locals and starts at the result type's default.
-An expression call has an elementary `dataType`; a no-result statement call has
+An expression call has a type descriptor in `dataType`; a no-result statement call has
 `dataType: null`. Standard functions retain their opcode representation; formal
 calls include `evaluationOrder` when signature order differs from source order.
 

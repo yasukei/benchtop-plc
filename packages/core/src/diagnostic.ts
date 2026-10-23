@@ -1,6 +1,6 @@
 import type { SourceSpan } from "./source.js";
 import type { BinaryOperator, UnaryOperator } from "./ir.js";
-import type { DataType } from "./values.js";
+import type { TypeDescriptor } from "./types.js";
 
 /** An empty object with no argument keys (unlike TypeScript's permissive `{}`). */
 type NoArguments = Record<string, never>;
@@ -52,25 +52,26 @@ export interface DiagnosticArgs {
   "pou.function-block-in-function": NoArguments;
   "pou.recursion": { name: string };
 
+  "type.ambiguous-enumeration": { name: string };
   "name.undeclared": { name: string };
-  "type.invalid-bit-access": { type: DataType; bit: number };
+  "type.invalid-bit-access": { type: TypeDescriptor; bit: number };
   "type.portability": { function: string };
   "type.invalid-constant": NoArguments;
   "type.case-label-not-constant": NoArguments;
   "fb.invalid-instance-section": { name: string };
   "fb.duplicate-input": { name: string; member: string };
-  "fb.no-matching-variant": { name: string; types: readonly DataType[] };
-  "type.assign-mismatch": { from: DataType; to: DataType; hint?: AssignmentHint };
+  "fb.no-matching-variant": { name: string; types: readonly TypeDescriptor[] };
+  "type.assign-mismatch": { from: TypeDescriptor; to: TypeDescriptor; hint?: AssignmentHint };
   "type.operand-mismatch": {
     operator: UnaryOperator | BinaryOperator;
-    left: DataType;
-    right: DataType | null;
+    left: TypeDescriptor;
+    right: TypeDescriptor | null;
   };
   "type.condition-not-bool": { statement: "IF" | "ELSIF" | "WHILE" | "REPEAT" };
-  "type.case-selector-not-integer": { type: DataType };
-  "type.case-label-not-integer": { type: DataType };
-  "type.for-variable-not-integer": { name: string; type: DataType };
-  "type.for-bound-not-integer": { bound: "from" | "to" | "step"; type: DataType };
+  "type.case-selector-not-integer": { type: TypeDescriptor };
+  "type.case-label-not-integer": { type: TypeDescriptor };
+  "type.for-variable-not-integer": { name: string; type: TypeDescriptor };
+  "type.for-bound-not-integer": { bound: "from" | "to" | "step"; type: TypeDescriptor };
   "flow.exit-outside-loop": NoArguments;
   "fb.not-function-block": { name: string };
   "fb.unknown-member": { name: string; member: string };
@@ -82,7 +83,7 @@ export interface DiagnosticArgs {
   "call.program": { name: string };
   "call.no-result": { name: string };
   "call.in-out-variable": NoArguments;
-  "call.in-out-type": { from: DataType; to: DataType };
+  "call.in-out-type": { from: TypeDescriptor; to: TypeDescriptor };
   "call.missing-in-out": { name: string; parameter: string };
   "call.formal-required": { name: string };
   "call.invalid-parameter": { name: string; parameter: string };
@@ -90,16 +91,21 @@ export interface DiagnosticArgs {
   "call.argument-type": {
     name: string;
     index: number;
-    expected: readonly [DataType, ...DataType[]];
-    found: DataType;
+    expected: readonly [TypeDescriptor, ...TypeDescriptor[]];
+    found: TypeDescriptor;
   };
 
+  "runtime.subrange-violation": {
+    value: number | string;
+    lower: number | string;
+    upper: number | string;
+  };
   "runtime.invalid-value": NoArguments;
   "runtime.division-by-zero": NoArguments;
   "runtime.watchdog": { limit: number };
   "runtime.for-by-zero": NoArguments;
   "runtime.debug-target": NoArguments;
-  "runtime.debug-type-mismatch": { from: DataType; to: DataType };
+  "runtime.debug-type-mismatch": { from: TypeDescriptor; to: TypeDescriptor };
   "runtime.debug-value": NoArguments;
   "runtime.write-input-mapped": { name: string };
 }

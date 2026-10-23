@@ -146,3 +146,50 @@ it("accepts unpadded calendar fields and nanosecond digit separators in monitor 
     value: "1",
   });
 });
+
+it("maps integer enum snapshots to declared names and resolves write and force names in any case", () => {
+  const types: import("@benchtop-plc/core").TypeTable = [
+    {
+      name: "State",
+      definition: {
+        kind: "enumeration",
+        base: "INT",
+        values: [
+          { name: "Idle", value: 0 },
+          { name: "Running", value: 10 },
+        ],
+      },
+      initialValue: 0,
+    },
+  ];
+  const variable: import("@benchtop-plc/core").ScalarVariable = {
+    kind: "scalar",
+    name: "phase",
+    key: "PHASE",
+    dataType: { kind: "named", name: "State" },
+    initialValue: 0,
+    span: { line: 1, column: 1, endLine: 1, endColumn: 2 },
+  };
+  expect(variableValue(variable, { kind: "scalar", dataType: "INT", value: 10 }, types)).toBe(
+    "Running",
+  );
+  expect(parseWrittenValue(variable.dataType, "rUnNiNg", types)).toEqual({
+    dataType: "INT",
+    value: 10,
+  });
+  expect(parseWrittenValue(variable.dataType, "Missing", types)).toBeNull();
+  expect(parseWrittenValue(variable.dataType, "3", types)).toBeNull();
+});
+
+it("checks named and anonymous subrange writes before sending a command", () => {
+  const type = { kind: "subrange", base: "INT", lower: -10, upper: 10 } as const;
+  const types: import("@benchtop-plc/core").TypeTable = [
+    { name: "Offset", definition: type, initialValue: -10 },
+  ];
+  for (const descriptor of [type, { kind: "named", name: "Offset" } as const]) {
+    expect(parseWrittenValue(descriptor, "-10", types)).toEqual({ dataType: "INT", value: -10 });
+    expect(parseWrittenValue(descriptor, "10", types)).toEqual({ dataType: "INT", value: 10 });
+    expect(parseWrittenValue(descriptor, "11", types)).toBeNull();
+    expect(parseWrittenValue(descriptor, "-11", types)).toBeNull();
+  }
+});

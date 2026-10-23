@@ -1,5 +1,7 @@
 import {
   coerceValue,
+  scalarBase,
+  enumerationType,
   isCalendarType,
   getStandardFunctionSignature,
   isLongType,
@@ -39,7 +41,7 @@ class Lowerer {
                   name: ast.name.name,
                   key: ast.name.key,
                   span: span(ast.name),
-                  dataType: this.checked.result.type,
+                  dataType: this.checked.result.descriptor ?? this.checked.result.type,
                   initialValue: this.checked.result.initialValue,
                 } as IR.ScalarVariable,
               ]
@@ -53,7 +55,7 @@ class Lowerer {
     return {
       kind: "userFunctionCall",
       function: call.function,
-      dataType: call.result,
+      dataType: call.resultDescriptor ?? call.result,
       span: span(node),
       inputs: call.inputs.map((input) => ({
         variable: input.variable,
@@ -99,7 +101,7 @@ class Lowerer {
     return {
       ...base,
       kind: "scalar",
-      dataType: symbol.type as IR.DataType,
+      dataType: symbol.descriptor ?? (symbol.type as IR.DataType),
       initialValue: coerceValue(
         symbol.type as IR.DataType,
         required(symbol.initialValue ?? undefined),
@@ -114,7 +116,8 @@ class Lowerer {
     | IR.BitReference
     | IR.FunctionBlockMemberReference
     | IR.UserFunctionBlockMemberReference {
-    const dataType = required(this.checked.expressions.get(node)).dataType;
+    const info = required(this.checked.expressions.get(node));
+    const dataType = info.descriptor ?? info.dataType;
     if (node.kind === "name")
       return {
         kind: "variable",
@@ -150,11 +153,13 @@ class Lowerer {
     return { ...reference, port: "input" };
   }
 
-  private widen(expression: IR.Expression, to: IR.DataType): IR.Expression {
-    if (!isLongType(to) || expression.dataType === to) return expression;
+  private widen(expression: IR.Expression, target: IR.TypeDescriptor): IR.Expression {
+    const to = scalarBase(target, this.checked.types);
+    const from = scalarBase(expression.dataType, this.checked.types);
+    if (!isLongType(to) || from === to) return expression;
     return {
       kind: "functionCall",
-      function: `${expression.dataType}_TO_${to}` as IR.ConversionFunction,
+      function: `${from}_TO_${to}` as IR.ConversionFunction,
       args: [expression],
       dataType: to,
       span: { ...expression.span },
@@ -174,6 +179,8 @@ class Lowerer {
         return this.usesNamedConstant(node.expression);
       case "functionCall":
         return node.args.some((arg) => this.usesNamedConstant(arg));
+      case "enumeration":
+        return true;
       case "literal":
         return false;
     }
@@ -181,16 +188,22 @@ class Lowerer {
 
   private expression(node: AST.Expression): IR.Expression {
     const info = required(this.checked.expressions.get(node));
-    const base = { dataType: info.dataType, span: span(node) };
+    const base = { dataType: info.descriptor ?? info.dataType, span: span(node) };
     const literal = (): IR.LiteralExpression =>
       ({
         ...base,
         kind: "literal",
         value: coerceValue(info.dataType, required(info.constant)),
       }) as IR.LiteralExpression;
-    if (info.untyped || (info.constant !== undefined && this.usesNamedConstant(node)))
+    if (
+      info.untyped ||
+      (info.constant !== undefined &&
+        (this.usesNamedConstant(node) ||
+          enumerationType(info.descriptor ?? info.dataType, this.checked.types)))
+    )
       return literal();
     switch (node.kind) {
+      case "enumeration":
       case "literal":
         return literal();
       case "name":
@@ -209,13 +222,15 @@ class Lowerer {
       case "binary": {
         const left = this.expression(node.left),
           right = this.expression(node.right);
+        const leftType = scalarBase(left.dataType, this.checked.types),
+          rightType = scalarBase(right.dataType, this.checked.types);
         const scaling =
           (node.operator === "*" || node.operator === "/") &&
           (left.dataType === "TIME" || left.dataType === "LTIME");
         const common =
-          node.operator === "**" || scaling || isCalendarType(left.dataType)
+          node.operator === "**" || scaling || isCalendarType(leftType)
             ? null
-            : commonType([left.dataType, right.dataType]);
+            : commonType([leftType, rightType]);
         return {
           ...base,
           kind: "binary",
@@ -322,8 +337,9 @@ class Lowerer {
     };
   }
 
-  private integerConstant(node: AST.Expression, to: IR.DataType): number | string {
+  private integerConstant(node: AST.Expression, target: IR.TypeDescriptor): number | string {
     const info = required(this.checked.expressions.get(node));
+    const to = scalarBase(target, this.checked.types);
     return isLongType(to)
       ? coerceValue(to, required(info.constant))
       : Number(required(info.constant));
@@ -512,6 +528,9 @@ export function lower(
     kind: "program",
     name: layout.name,
     span: layout.span,
+    ...(checked.types.length
+      ? { types: JSON.parse(JSON.stringify(checked.types)) as IR.TypeTable }
+      : {}),
     variables,
     body: layout.body,
     ...(blocks.length ? { functionBlocks: blocks } : {}),

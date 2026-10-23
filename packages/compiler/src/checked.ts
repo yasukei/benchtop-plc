@@ -1,4 +1,10 @@
-import type { DataType, ScalarValue, StandardFunction } from "@benchtop-plc/core";
+import type {
+  DataType,
+  TypeDescriptor,
+  TypeTable,
+  ScalarValue,
+  StandardFunction,
+} from "@benchtop-plc/core";
 import type {
   Expression,
   FunctionCall,
@@ -14,6 +20,7 @@ export interface UserCallInfo {
   outputs: { variable: number; target: AssignmentTarget }[];
   inOuts: { variable: number; actual: import("./ast.js").NameReference }[];
   result: DataType | null;
+  resultDescriptor?: TypeDescriptor;
 }
 
 export interface VariableSymbol {
@@ -21,12 +28,14 @@ export interface VariableSymbol {
   id: number;
   name: Identifier;
   type: string;
+  descriptor?: TypeDescriptor;
   userBlock?: number;
   initialValue: ScalarValue | null;
 }
 
 export interface ExpressionInfo {
   dataType: DataType;
+  descriptor?: TypeDescriptor;
   /** Untyped arithmetic is folded exactly before materialization at its typed position. */
   untyped?: boolean;
   constant?: ScalarValue;
@@ -43,6 +52,7 @@ export interface ResolvedReference {
 /** Semantic side tables use AST object identity; they are compiler-local, not wire IR. */
 export interface CheckedProgram {
   ast: Program;
+  types: TypeTable;
   symbols: readonly VariableSymbol[];
   expressions: ReadonlyMap<Expression, ExpressionInfo>;
   references: ReadonlyMap<Identifier, ResolvedReference>;

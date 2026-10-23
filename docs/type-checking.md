@@ -9,7 +9,7 @@ combines parsing, checking and IR lowering.
 The checked result retains the original AST without modifying it, plus:
 
 - `symbols`: `VariableSymbol` entries in declaration order, with the original
-  identifier, type and coerced initial value (scalar defaults are FALSE/zero;
+  identifier, type and coerced initial value (elementary defaults are FALSE/zero; derived defaults come from their descriptors;
   FB initialization is null).
 - `expressions`: AST expression object to result type and optional constant value.
 - `references`: AST identifier object to variable index and optional FB port/index or bit index.
@@ -80,7 +80,7 @@ the runtime's wrap, floor and fault semantics.
 
 ### Literals and constants
 
-`VAR CONSTANT` declares elementary typed constants in PROGRAM, FUNCTION and
+`VAR CONSTANT` declares elementary, alias, enumeration and subrange typed constants in PROGRAM, FUNCTION and
 FUNCTION_BLOCK. It is allowed only on `VAR`, cannot be combined with `AT`, and
 cannot declare FB instances. Without an initializer the type's default applies.
 Initializers may refer only to constants declared earlier in the same POU;
@@ -313,7 +313,7 @@ is reported on the later declaration. Variables cannot reuse any POU name;
 or function block. The function's implicit result variable is the sole exception:
 inside its body the function name can be assigned and read.
 
-A FUNCTION supports elementary `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` declarations.
+A FUNCTION supports scalar `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` declarations.
 Initializers are optional except on `VAR_IN_OUT`, where they are forbidden. `FUNCTION F : REAL` returns its result variable;
 `FUNCTION F` has no result and is callable only as a statement. Functions cannot
 declare `VAR_TEMP`, FB instances, or direct addresses.
@@ -336,7 +336,7 @@ its standard-dependent choices await verification against the 4th edition.
 
 ## User function blocks
 
-A FUNCTION_BLOCK supports elementary VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR and VAR_TEMP.
+A FUNCTION_BLOCK supports scalar VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR and VAR_TEMP.
 Persistent standard or user FB instances may appear only in VAR of PROGRAM or
 FUNCTION_BLOCK; other sections report `fb.invalid-instance-section`, and functions
 cannot declare instances. Blocks cannot contain themselves directly or through
@@ -361,7 +361,7 @@ In-out declarations cannot have initializers (`decl.in-out-initializer`): the va
 always belongs to the caller's actual variable. This is a project restriction;
 verification against the 4th edition remains pending with the other ADR 0014 rules.
 The actual must be a writable scalar variable of the caller, with exactly the
-parameter's elementary type; there is no contextual literal typing or widening.
+parameter's exact scalar type; there is no contextual literal typing or widening.
 Expressions, literals, parenthesized expressions, bit access and `inst.X` members
 report `call.in-out-variable`; a different scalar type reports `call.in-out-type`.
 Named constants cannot supply actuals (`decl.constant-not-writable`), and
@@ -374,3 +374,36 @@ same actual, and an input may read that actual in the same call. Inputs are
 copied in source order before the body runs; aliases then expose writes
 immediately. The runtime does not copy in-outs back at return. They cannot be
 accessed as public block members and have no separate monitoring VariableId.
+
+## Enumerations, aliases and subranges
+
+The rules follow [ADR 0015](adr/0015-derived-types-strings-and-references.md), based
+on the 3rd edition and secondary sources, pending 4th edition verification.
+
+An alias is the same type as its base, with an optional different default.
+`TYPE Speed : INT := 100; END_TYPE` allows `VAR CONSTANT MaxSpeed : Speed` and
+ordinary INT arithmetic. Enumerations use name equivalence: two declarations with
+identical members are different types; an alias of an enum remains that enum.
+The integer base defaults to INT. Implicit values start at 0 and follow the
+previous value by 1; explicit values and implicit increments must fit the base,
+and both member names (case-insensitive) and values must be distinct. The first
+member is the default unless a declared member is selected with `:=`.
+
+`Color#Red` is qualified. An unqualified member needs an expected enum from an
+initializer/assignment, comparison neighbor, CASE selector, or parameter, including
+nested MOVE/SEL/MUX values. A same-named local variable or constant makes it
+ambiguous (`type.ambiguous-enumeration`); qualify the member. Enum values support
+assignment, `=`, `<>`, single-value CASE labels, MOVE, SEL and MUX. Every value
+operand must have exactly that enum type. Arithmetic, ordering, conversion functions,
+other generic functions, integer labels and enum ranges are errors. Enum variables
+work in all scalar POU sections, in-out parameters and function results.
+
+Named and inline subranges use any integer base, with constant, representable
+limits and `lower <= upper`. Inline bounds may use earlier constants in the
+declaring POU. The default is always the lower limit, including -10 for
+`INT (-10..10)`, unless an explicit initializer is given. Constants stored outside
+the limits report `type.invalid-constant`; dynamic stores are checked by the runtime.
+Subrange operands use their base for arithmetic and elementary generic functions.
+Exact-type positions (in-outs) compare base and limits, whether named or anonymous;
+a subrange never exactly matches its base. A subrange or enum cannot control a
+FOR loop (`type.for-variable-not-integer`).

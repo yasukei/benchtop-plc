@@ -20,6 +20,7 @@ export function readsInferredMember(node: Expression, instances: ReadonlySet<str
       );
     case "functionCall":
       return node.args.some((arg) => readsInferredMember(arg, instances));
+    case "enumeration":
     case "literal":
     case "name":
       return false;

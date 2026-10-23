@@ -1,7 +1,18 @@
-import { coerceValue, validateValue, isLongType, isCalendarType } from "@benchtop-plc/core";
+import {
+  coerceValue,
+  validateValue,
+  isLongType,
+  isCalendarType,
+  scalarBase,
+  validateDeclaredValue,
+  validateScalar,
+  type TypeDescriptor,
+  type TypeTable,
+} from "@benchtop-plc/core";
 import type {
   AssignmentTarget,
   CaseStatement,
+  LiteralExpression,
   LongType,
   BitReference,
   FunctionBlockMemberReference,
@@ -32,8 +43,9 @@ export interface ScanMemory {
   write(variable: number, value: ScalarValue): void;
 }
 
-type ScalarCell =
-  { kind: "scalar"; value: TypedValue } | { kind: "long"; dataType: LongType; value: bigint };
+type ScalarCell = (
+  { kind: "scalar"; value: TypedValue } | { kind: "long"; dataType: LongType; value: bigint }
+) & { descriptor: TypeDescriptor };
 interface UserBlockCell {
   kind: "userFunctionBlock";
   frame: MemoryFrame;
@@ -47,16 +59,30 @@ type Cell =
   | { kind: "functionBlock"; instance: FunctionBlockInstance }
   | UserBlockCell;
 
-function initialCell(variable: ScalarVariable): ScalarCell {
-  validateValue(variable.dataType, variable.initialValue);
-  return isLongType(variable.dataType)
-    ? { kind: "long", dataType: variable.dataType, value: BigInt(variable.initialValue) }
-    : { kind: "scalar", value: typed(variable.dataType, variable.initialValue) };
+function initialCell(variable: ScalarVariable, types: TypeTable): ScalarCell {
+  const dataType = scalarBase(variable.dataType, types);
+  validateValue(dataType, variable.initialValue);
+  validateDeclaredValue(variable.dataType, variable.initialValue, types);
+  return isLongType(dataType)
+    ? {
+        kind: "long",
+        dataType,
+        value: BigInt(variable.initialValue),
+        descriptor: variable.dataType,
+      }
+    : {
+        kind: "scalar",
+        value: typed(dataType, variable.initialValue),
+        descriptor: variable.dataType,
+      };
 }
 
 /** Mutable scalar/FB cells; function frames never perform load-time validation. */
 export class MemoryFrame implements ScanMemory {
-  constructor(protected readonly cells: Cell[]) {}
+  constructor(
+    protected readonly cells: Cell[],
+    protected readonly types: TypeTable = [],
+  ) {}
 
   /** Share the actual cell, including when it is already an in-out alias. */
   bind(variable: number, caller: MemoryFrame, actual: number): void {
@@ -91,7 +117,7 @@ export class MemoryFrame implements ScanMemory {
 
   resetTemporaries(storage: readonly InstanceStorage[]): void {
     storage.forEach((slot, index) => {
-      if (slot.kind === "temporary") this.cells[index] = initialCell(slot.variable);
+      if (slot.kind === "temporary") this.cells[index] = initialCell(slot.variable, this.types);
     });
   }
 
@@ -102,6 +128,8 @@ export class MemoryFrame implements ScanMemory {
 
   write(variable: number, value: ScalarValue): void {
     const cell = this.cells[variable];
+    if (cell?.kind === "long" || cell?.kind === "scalar")
+      validateDeclaredValue(cell.descriptor, value, this.types);
     if (cell?.kind === "long") {
       cell.value = BigInt(coerceValue(cell.dataType, value));
       return;
@@ -124,7 +152,10 @@ export class MemoryFrame implements ScanMemory {
       };
     if (ref.kind === "variable") return { ...this.scalar(ref.variable) };
     if (ref.kind === "userFbMember")
-      return typed(ref.dataType, this.userBlock(ref.variable).frame.read(ref.member));
+      return typed(
+        scalarBase(ref.dataType, this.types),
+        this.userBlock(ref.variable).frame.read(ref.member),
+      );
     const instance = this.block(ref.variable);
     const value = (ref.port === "input" ? instance.inputs : instance.outputs)[ref.member];
     if (!value) throw new Error("Expected function block port");
@@ -172,10 +203,19 @@ export class Memory extends MemoryFrame {
         (isLongType(node.dataType) || isCalendarType(node.dataType))
       )
         validateValue(node.dataType, node.value);
+      if (
+        "kind" in node &&
+        node.kind === "literal" &&
+        "dataType" in node &&
+        typeof node.dataType === "object"
+      ) {
+        const literal = node as LiteralExpression;
+        validateScalar(literal.dataType, literal.value, ir.types);
+      }
       if ("kind" in node && node.kind === "case") {
         // The IR shape is compiler-checked; value validation also covers label payloads.
         const statement = node as CaseStatement;
-        const type = statement.selector.dataType;
+        const type = scalarBase(statement.selector.dataType, ir.types);
         if (isLongType(type)) {
           for (const branch of statement.branches) {
             for (const label of branch.labels) {
@@ -193,14 +233,15 @@ export class Memory extends MemoryFrame {
     validateLiterals(ir.body);
     const functionInitialCells = (ir.functions ?? []).map((fn) => {
       validateLiterals(fn.body);
-      return fn.variables.map(initialCell);
+      return fn.variables.map((variable) => initialCell(variable, ir.types ?? []));
     });
     super(
       ir.variables.map((variable): Cell => {
-        if (variable.kind === "scalar") return initialCell(variable);
+        if (variable.kind === "scalar") return initialCell(variable, ir.types ?? []);
         if (!library) throw new Error("A runtime library is required for function blocks");
         return { kind: "functionBlock", instance: library.createFunctionBlock(variable.fbType) };
       }),
+      ir.types ?? [],
     );
     for (const block of ir.functionBlocks ?? []) validateLiterals(block.body);
     this.functionInitialCells = functionInitialCells;
@@ -211,7 +252,7 @@ export class Memory extends MemoryFrame {
       storage.map((slot) => {
         if (slot.kind === "inOut") return { kind: "unbound" };
         if (slot.kind === "variable") return this.cells[slot.variable]!;
-        if (slot.kind === "temporary") return initialCell(slot.variable);
+        if (slot.kind === "temporary") return initialCell(slot.variable, this.types);
         let cell = this.instanceCells.get(slot.instance);
         if (!cell) {
           const instance = this.ir.instances![slot.instance]!;
@@ -227,6 +268,7 @@ export class Memory extends MemoryFrame {
         }
         return cell;
       }),
+      this.types,
     );
   }
 
@@ -241,8 +283,11 @@ export class Memory extends MemoryFrame {
     if (!initial) throw new Error("Missing function locals");
     return new MemoryFrame(
       initial.map((cell) =>
-        cell.kind === "long" ? { ...cell } : { kind: "scalar", value: { ...cell.value } },
+        cell.kind === "long"
+          ? { ...cell }
+          : { kind: "scalar", value: { ...cell.value }, descriptor: cell.descriptor },
       ),
+      this.types,
     );
   }
 

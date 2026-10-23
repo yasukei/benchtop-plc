@@ -1,4 +1,4 @@
-import type { Diagnostic, RuntimeSnapshot, SourceSpan } from "@benchtop-plc/core";
+import type { Diagnostic, ProgramIR, RuntimeSnapshot, SourceSpan } from "@benchtop-plc/core";
 import { defaultKeymap, history, historyKeymap, indentLess } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { setDiagnostics } from "@codemirror/lint";
@@ -27,6 +27,7 @@ export interface EditorProps {
   online: boolean;
   fault: Diagnostic | null;
   language: Language;
+  ir?: ProgramIR;
   sources?: readonly string[];
   sourceIndex?: number;
 }
@@ -143,7 +144,7 @@ export function createStEditor(
       if (view.state.doc.toString() !== props.source) {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: props.source } });
       }
-      const decorations = mapAnnotations(props.source, props.snapshot, props.online).map(
+      const decorations = mapAnnotations(props.source, props.snapshot, props.online, props.ir).map(
         (annotation) =>
           Decoration.widget({ widget: new ValuesWidget(annotation), side: 1 }).range(
             annotation.position,

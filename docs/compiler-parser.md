@@ -93,3 +93,19 @@ unsupported. In particular, an address such as `%IX12.9` is syntactically valid 
 remains available for a later `decl.address-out-of-range` diagnostic. `parsePou` also accepts FUNCTION and FUNCTION_BLOCK, their input/output/temporary
 sections and formal `=>` call outputs. Arrays, structs, strings and unsupported
 extended VAR forms remain outside this parser's scope.
+
+## Data type declarations and derived scalar syntax
+
+`parseDataType(source)` parses exactly one `TYPE Name : definition; END_TYPE`
+source and reports lexical/syntax errors with that source name in `pou`.
+A definition can be an alias with an optional initializer, `(Red, Green, Blue)`,
+`INT (Off := 0, Auto := 10)`, or `INT (-10..10)`. Members keep their spelling,
+spans and optional value expressions; subranges retain their bound expressions.
+The parser distinguishes enumeration lists from range bounds; semantic checks
+validate integer bases, constant bounds, distinct member names and values.
+
+POU declarations and function result types accept inline subranges. A qualified
+literal such as `Color#Red` is an `enumeration` AST expression with separate type
+and member identifiers. Unqualified values remain ordinary `name` nodes until
+contextual resolution. The lexer recognizes the separating `#` without changing
+existing elementary typed numeric, duration or calendar literal tokens.

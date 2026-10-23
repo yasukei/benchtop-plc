@@ -1,3 +1,4 @@
+import { formatType, type TypeDescriptor } from "@benchtop-plc/core";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode } from "@benchtop-plc/core";
 import type { Language } from "./catalog.js";
 
@@ -5,6 +6,9 @@ import type { Language } from "./catalog.js";
 export type DiagnosticCatalog = {
   [C in DiagnosticCode]: (args: DiagnosticArgs[C]) => string;
 };
+
+const typeText = (value: TypeDescriptor | string | number | null): string =>
+  typeof value === "object" && value !== null ? formatType(value) : String(value);
 
 const enTokens: Record<string, string> = {
   identifier: "identifier",
@@ -39,8 +43,8 @@ export const diagnosticEn = {
   "lex.malformed-direct-address": ({ address }) => `Malformed direct address: ${address}.`,
   "lex.malformed-number": ({ literal }) => `Malformed numeric literal: ${literal}.`,
   "syntax.expected-token": ({ expected, found }) =>
-    `Expected ${enTokens[expected] ?? expected}; found ${found}.`,
-  "syntax.expected-identifier": ({ found }) => `Expected an identifier; found ${found}.`,
+    `Expected ${enTokens[expected] ?? expected}; found ${typeText(found)}.`,
+  "syntax.expected-identifier": ({ found }) => `Expected an identifier; found ${typeText(found)}.`,
   "syntax.reserved-identifier": ({ name }) =>
     `Reserved word ${name} cannot be used as an identifier.`,
   "syntax.assignment-operator": () => "Assignment requires := instead of =.",
@@ -51,7 +55,7 @@ export const diagnosticEn = {
   "decl.name-collision": ({ name, kind }) =>
     `${name} conflicts with a ${kind === "type" ? "type" : "function"} name.`,
   "decl.direct-address-type": ({ name, type }) =>
-    `Direct address on ${name} requires BOOL; found ${type}.`,
+    `Direct address on ${name} requires BOOL; found ${typeText(type)}.`,
   "decl.temp-address": () => "Temporary variables cannot have direct addresses.",
   "decl.at-multiple-names": () => "AT cannot apply to multiple declared names.",
   "decl.address-out-of-range": ({ address }) => `Address is outside supported I/O: ${address}.`,
@@ -69,7 +73,8 @@ export const diagnosticEn = {
     `In-out parameter ${name} cannot have an initializer; its value comes from the caller's variable.`,
   "pou.duplicate": ({ name }) => `Duplicate POU: ${name}.`,
   "pou.name-collision": ({ name }) => `POU ${name} conflicts with a standard name.`,
-  "pou.program-count": ({ found }) => `A project requires exactly one PROGRAM; found ${found}.`,
+  "pou.program-count": ({ found }) =>
+    `A project requires exactly one PROGRAM; found ${typeText(found)}.`,
   "pou.unsupported-kind": ({ name }) => `User function block ${name} is not supported yet.`,
   "pou.invalid-section": ({ section, kind }) =>
     `${section} is not supported in a ${pouKinds[kind] ?? kind} POU.`,
@@ -82,14 +87,14 @@ export const diagnosticEn = {
   "call.in-out-variable": () =>
     "An in-out argument must be a writable scalar variable of the caller.",
   "call.in-out-type": ({ from, to }) =>
-    `An in-out argument must have exactly type ${to}, received ${from}.`,
+    `An in-out argument must have exactly type ${typeText(to)}, received ${typeText(from)}.`,
   "call.missing-in-out": ({ name, parameter }) =>
     `${name} requires in-out parameter ${parameter} on every call.`,
   "call.formal-required": ({ name }) =>
     `Function ${name} requires named parameters because it has outputs or in-outs.`,
   "name.undeclared": ({ name }) => `Undeclared identifier: ${name}.`,
   "type.invalid-bit-access": ({ type, bit }) =>
-    `Bit ${bit} is outside the width of ${type}, or the type does not support bit access.`,
+    `Bit ${bit} is outside the width of ${typeText(type)}, or the type does not support bit access.`,
   "type.portability": ({ function: name }) =>
     name.endsWith("_TO_BOOL")
       ? `${name} returns the rightmost bit; some vendor runtimes return TRUE for any non-zero value.`
@@ -100,23 +105,24 @@ export const diagnosticEn = {
     `Function block instance ${name} must be declared in VAR.`,
   "fb.duplicate-input": ({ name, member }) => `Input ${name}.${member} is supplied more than once.`,
   "type.assign-mismatch": ({ from, to, hint }) =>
-    `Cannot assign ${from} to ${to}.${hint === "explicit-conversion" ? " Use an explicit conversion." : ""}`,
+    `Cannot assign ${typeText(from)} to ${typeText(to)}.${hint === "explicit-conversion" ? " Use an explicit conversion." : ""}`,
   "type.operand-mismatch": ({ operator, left, right }) =>
     right === null
-      ? `Operator ${operator} does not accept ${left}.`
-      : `Operator ${operator} does not accept ${left} and ${right}.`,
+      ? `Operator ${operator} does not accept ${typeText(left)}.`
+      : `Operator ${operator} does not accept ${typeText(left)} and ${typeText(right)}.`,
   "type.condition-not-bool": ({ statement }) => `${statement} condition must be BOOL.`,
   "type.case-selector-not-integer": ({ type }) =>
-    `CASE selector must be an integer; found ${type}.`,
-  "type.case-label-not-integer": ({ type }) => `CASE label must be an integer; found ${type}.`,
+    `CASE selector must be an integer; found ${typeText(type)}.`,
+  "type.case-label-not-integer": ({ type }) =>
+    `CASE label must be an integer; found ${typeText(type)}.`,
   "type.for-variable-not-integer": ({ name, type }) =>
-    `FOR variable ${name} must be an integer; found ${type}.`,
+    `FOR variable ${name} must be an integer; found ${typeText(type)}.`,
   "type.for-bound-not-integer": ({ bound, type }) =>
-    `FOR ${enBounds[bound]} must be an integer; found ${type}.`,
+    `FOR ${enBounds[bound]} must be an integer; found ${typeText(type)}.`,
   "flow.exit-outside-loop": () => "EXIT must be inside a loop.",
   "fb.not-function-block": ({ name }) => `${name} is not a function block instance.`,
   "fb.no-matching-variant": ({ name, types }) =>
-    `No timer or counter variant for ${name} accepts these preset types: ${types.join(", ")}.`,
+    `No timer or counter variant for ${name} accepts these preset types: ${types.map(formatType).join(", ")}.`,
   "fb.unknown-member": ({ name, member }) => `Unknown function block member: ${name}.${member}.`,
   "fb.output-not-writable": ({ name, member }) =>
     `Function block output ${name}.${member} is not writable.`,
@@ -131,10 +137,14 @@ export const diagnosticEn = {
     `${name}: unknown, duplicate or incorrectly directed parameter ${parameter}.`,
   "call.argument-count": ({ name, min, max, found }) =>
     max === null
-      ? `${name} requires at least ${min} arguments; found ${found}.`
-      : `${name} requires ${min === max ? min : `${min}–${max}`} arguments; found ${found}.`,
+      ? `${name} requires at least ${min} arguments; found ${typeText(found)}.`
+      : `${name} requires ${min === max ? min : `${min}–${max}`} arguments; found ${typeText(found)}.`,
   "call.argument-type": ({ name, index, expected, found }) =>
-    `Argument ${index + 1} of ${name} requires ${expected.join(" / ")}; found ${found}.`,
+    `Argument ${index + 1} of ${name} requires ${expected.map(formatType).join(" / ")}; found ${typeText(found)}.`,
+  "runtime.subrange-violation": ({ value, lower, upper }) =>
+    `Value ${value} is outside subrange ${lower}..${upper}.`,
+  "type.ambiguous-enumeration": ({ name }) =>
+    `Enumeration value ${name} must be qualified because a variable has the same name.`,
   "runtime.invalid-value": () => "Non-finite result or REAL overflow.",
   "runtime.division-by-zero": () => "Division by zero.",
   "runtime.watchdog": ({ limit }) => `Loop iteration limit (${limit}) exceeded.`,
@@ -142,7 +152,7 @@ export const diagnosticEn = {
   "runtime.debug-target": () =>
     "Command rejected: select a scalar variable from the loaded program.",
   "runtime.debug-type-mismatch": ({ from, to }) =>
-    `Command rejected: cannot write a value of type ${from} to a variable of type ${to}.`,
+    `Command rejected: cannot write a value of type ${typeText(from)} to a variable of type ${typeText(to)}.`,
   "runtime.debug-value": () => "Command rejected: the value is invalid or out of range.",
   "runtime.write-input-mapped": ({ name }) =>
     `Command rejected: cannot write input-mapped variable ${name}. Use force instead.`,
@@ -161,8 +171,9 @@ export const diagnosticJa = {
   "lex.malformed-direct-address": ({ address }) => `直接アドレスの構文が不正です: ${address}。`,
   "lex.malformed-number": ({ literal }) => `数値リテラルの構文が不正です: ${literal}。`,
   "syntax.expected-token": ({ expected, found }) =>
-    `${jaTokens[expected] ?? expected}が必要ですが、${found}が見つかりました。`,
-  "syntax.expected-identifier": ({ found }) => `識別子が必要ですが、${found}が見つかりました。`,
+    `${jaTokens[expected] ?? expected}が必要ですが、${typeText(found)}が見つかりました。`,
+  "syntax.expected-identifier": ({ found }) =>
+    `識別子が必要ですが、${typeText(found)}が見つかりました。`,
   "syntax.reserved-identifier": ({ name }) => `予約語${name}は識別子に使用できません。`,
   "syntax.assignment-operator": () => "代入には=ではなく:=が必要です。",
   "syntax.unexpected-eof": () => "入力が途中で終了しています。",
@@ -172,7 +183,7 @@ export const diagnosticJa = {
   "decl.name-collision": ({ name, kind }) =>
     `${name}は${kind === "type" ? "型" : "関数"}の名前と衝突しています。`,
   "decl.direct-address-type": ({ name, type }) =>
-    `${name}の直接アドレスにはBOOLが必要ですが、${type}です。`,
+    `${name}の直接アドレスにはBOOLが必要ですが、${typeText(type)}です。`,
   "decl.temp-address": () => "一時変数に直接アドレスは指定できません。",
   "decl.at-multiple-names": () => "ATを複数の宣言名に適用することはできません。",
   "decl.address-out-of-range": ({ address }) => `対応するI/Oの範囲外のアドレスです: ${address}。`,
@@ -189,7 +200,8 @@ export const diagnosticJa = {
     `入出力パラメーター${name}には初期値を指定できません。値は呼び出し元の変数から取得します。`,
   "pou.duplicate": ({ name }) => `POUが重複しています: ${name}。`,
   "pou.name-collision": ({ name }) => `POU ${name}は標準の名前と衝突しています。`,
-  "pou.program-count": ({ found }) => `プロジェクトにはPROGRAMが1つ必要ですが、${found}個です。`,
+  "pou.program-count": ({ found }) =>
+    `プロジェクトにはPROGRAMが1つ必要ですが、${typeText(found)}個です。`,
   "pou.unsupported-kind": ({ name }) => `ユーザー定義ファンクションブロック${name}は未対応です。`,
   "pou.invalid-section": ({ section, kind }) =>
     `${pouKinds[kind] ?? kind}のPOUでは${section}は未対応です。`,
@@ -201,14 +213,14 @@ export const diagnosticJa = {
   "call.no-result": ({ name }) => `関数${name}には戻り値がないため、式の中で使用できません。`,
   "call.in-out-variable": () => "入出力引数には呼び出し元の書き込み可能なスカラー変数が必要です。",
   "call.in-out-type": ({ from, to }) =>
-    `入出力引数の型は厳密に ${to} でなければなりません（実際の型: ${from}）。`,
+    `入出力引数の型は厳密に ${typeText(to)} でなければなりません（実際の型: ${typeText(from)}）。`,
   "call.missing-in-out": ({ name, parameter }) =>
     `${name} の呼び出しには毎回入出力パラメーター ${parameter} が必要です。`,
   "call.formal-required": ({ name }) =>
     `関数${name}には出力または入出力があるため、名前付きパラメーターが必要です。`,
   "name.undeclared": ({ name }) => `宣言されていない識別子です: ${name}。`,
   "type.invalid-bit-access": ({ type, bit }) =>
-    `${type}のビット${bit}は範囲外、またはビットアクセス非対応の型です。`,
+    `${typeText(type)}のビット${bit}は範囲外、またはビットアクセス非対応の型です。`,
   "type.portability": ({ function: name }) =>
     name.endsWith("_TO_BOOL")
       ? `${name}は最下位ビットを返します。一部のベンダーの実行環境では、ゼロ以外のすべての値に対してTRUEを返します。`
@@ -219,23 +231,25 @@ export const diagnosticJa = {
     `ファンクションブロックのインスタンス${name}はVARで宣言してください。`,
   "fb.duplicate-input": ({ name, member }) => `入力${name}.${member}が複数回指定されています。`,
   "type.assign-mismatch": ({ from, to, hint }) =>
-    `${from}を${to}に代入することはできません。${hint === "explicit-conversion" ? "明示的な型変換を使用してください。" : ""}`,
+    `${typeText(from)}を${typeText(to)}に代入することはできません。${hint === "explicit-conversion" ? "明示的な型変換を使用してください。" : ""}`,
   "type.operand-mismatch": ({ operator, left, right }) =>
     right === null
-      ? `演算子${operator}は${left}を受け付けません。`
-      : `演算子${operator}は${left}と${right}を受け付けません。`,
+      ? `演算子${operator}は${typeText(left)}を受け付けません。`
+      : `演算子${operator}は${typeText(left)}と${typeText(right)}を受け付けません。`,
   "type.condition-not-bool": ({ statement }) => `${statement}の条件にはBOOLが必要です。`,
-  "type.case-selector-not-integer": ({ type }) => `CASEの選択式には整数が必要ですが、${type}です。`,
-  "type.case-label-not-integer": ({ type }) => `CASEラベルには整数が必要ですが、${type}です。`,
+  "type.case-selector-not-integer": ({ type }) =>
+    `CASEの選択式には整数が必要ですが、${typeText(type)}です。`,
+  "type.case-label-not-integer": ({ type }) =>
+    `CASEラベルには整数が必要ですが、${typeText(type)}です。`,
   "type.for-variable-not-integer": ({ name, type }) =>
-    `FOR変数${name}には整数が必要ですが、${type}です。`,
+    `FOR変数${name}には整数が必要ですが、${typeText(type)}です。`,
   "type.for-bound-not-integer": ({ bound, type }) =>
-    `FORの${jaBounds[bound]}には整数が必要ですが、${type}です。`,
+    `FORの${jaBounds[bound]}には整数が必要ですが、${typeText(type)}です。`,
   "flow.exit-outside-loop": () => "EXITはループ内で使用してください。",
   "fb.not-function-block": ({ name }) =>
     `${name}はファンクションブロックのインスタンスではありません。`,
   "fb.no-matching-variant": ({ name, types }) =>
-    `${name}のプリセット型に適合するタイマーまたはカウンターがありません: ${types.join(", ")}。`,
+    `${name}のプリセット型に適合するタイマーまたはカウンターがありません: ${types.map(formatType).join(", ")}。`,
   "fb.unknown-member": ({ name, member }) =>
     `不明なファンクションブロックのメンバーです: ${name}.${member}。`,
   "fb.output-not-writable": ({ name, member }) =>
@@ -251,10 +265,14 @@ export const diagnosticJa = {
     `${name}: パラメーター ${parameter} が不明、重複、または方向が正しくありません。`,
   "call.argument-count": ({ name, min, max, found }) =>
     max === null
-      ? `${name}には${min}個以上の引数が必要ですが、${found}個です。`
-      : `${name}には${min === max ? min : `${min}～${max}`}個の引数が必要ですが、${found}個です。`,
+      ? `${name}には${min}個以上の引数が必要ですが、${typeText(found)}個です。`
+      : `${name}には${min === max ? min : `${min}～${max}`}個の引数が必要ですが、${typeText(found)}個です。`,
   "call.argument-type": ({ name, index, expected, found }) =>
-    `${name}の${index + 1}番目の引数には${expected.join(" / ")}が必要ですが、${found}です。`,
+    `${name}の${index + 1}番目の引数には${expected.map(formatType).join(" / ")}が必要ですが、${typeText(found)}です。`,
+  "runtime.subrange-violation": ({ value, lower, upper }) =>
+    `値 ${value} は部分範囲 ${lower}..${upper} の範囲外です。`,
+  "type.ambiguous-enumeration": ({ name }) =>
+    `同名の変数があるため、列挙値 ${name} には型名の修飾が必要です。`,
   "runtime.invalid-value": () => "非有限の計算結果、またはREALのオーバーフローが発生しました。",
   "runtime.division-by-zero": () => "ゼロによる除算が発生しました。",
   "runtime.watchdog": ({ limit }) => `ループの反復回数の上限（${limit}回）を超えました。`,
@@ -262,7 +280,7 @@ export const diagnosticJa = {
   "runtime.debug-target": () =>
     "操作を拒否しました。読み込み済みプログラムのスカラー変数を選択してください。",
   "runtime.debug-type-mismatch": ({ from, to }) =>
-    `操作を拒否しました。${to}型の変数に${from}型の値は書き込めません。`,
+    `操作を拒否しました。${typeText(to)}型の変数に${typeText(from)}型の値は書き込めません。`,
   "runtime.debug-value": () => "操作を拒否しました。値が無効か範囲外です。",
   "runtime.write-input-mapped": ({ name }) =>
     `操作を拒否しました。入力変数${name}には書き込めません。強制設定を使用してください。`,

@@ -385,3 +385,23 @@ An in-out is an ordinary alias under the existing force stages (ADR 0014).
 Forces apply before and after execution, without read-level forcing. With `x`
 forced to 10, incrementing it through an in-out and then executing `seen := x`
 produces `seen = 11` while the end-of-scan snapshot has `x = 10`.
+
+## Enumeration and subrange storage
+
+Scalar cells retain their declared descriptor alongside the elementary value;
+the program's type table resolves named types. Enumeration and subrange variables
+still have one monitored `VariableId`. Enumeration snapshots and annotations carry
+the base-type integer, and the monitor maps it to the declared member spelling.
+The same representation is used for writes and forces. Enumeration integers not
+present in the declaration and values outside subrange limits are rejected with
+`runtime.debug-value`, leaving the variable and any existing force unchanged.
+
+Every write to a subrange cell checks the limits before mutating storage: ordinary
+assignment, function/FB inputs, outputs, result variables and aliased in-outs all
+use the cell's own constraint. An invalid dynamic store raises
+`runtime.subrange-violation` with `{ value, lower, upper }`, at the active statement
+or expression span, preserving POU/instance context. It follows the existing FAULT
+and output de-energization rules. Values and limits use decimal strings for 64-bit
+bases to preserve precision in diagnostics. Arithmetic itself uses the base type;
+only storage applies the range. Cold reset and fresh function/temporary frames
+restore declared defaults, including the lower-bound default of a subrange.

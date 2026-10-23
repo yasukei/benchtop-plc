@@ -8,7 +8,7 @@ import type {
   TypedValue,
   VariableId,
 } from "@benchtop-plc/core";
-import { validateValue, isLongType } from "@benchtop-plc/core";
+import { isLongType, scalarBase, validateScalar } from "@benchtop-plc/core";
 import { checkInterval } from "./clock.js";
 import type { Clock, Ticker } from "./clock.js";
 import { Interpreter, RuntimeFault } from "./interpreter.js";
@@ -178,7 +178,7 @@ class PlcRuntime implements Runtime {
 
   private debugValue(variable: VariableId, value: TypedValue): TypedValue {
     const declaration = this.debugVariable(variable);
-    if (declaration.dataType !== value.dataType)
+    if (scalarBase(declaration.dataType, this.memory?.ir.types) !== value.dataType)
       throw new RuntimeCommandRejected({
         code: "runtime.debug-type-mismatch",
         severity: "error",
@@ -194,8 +194,8 @@ class PlcRuntime implements Runtime {
         args: {},
       });
     try {
-      validateValue(value.dataType, value.value);
-      return typed(declaration.dataType, value.value);
+      validateScalar(declaration.dataType, value.value, this.memory?.ir.types);
+      return typed(value.dataType, value.value);
     } catch (error) {
       if (!(error instanceof RangeError)) throw error;
       throw new RuntimeCommandRejected({

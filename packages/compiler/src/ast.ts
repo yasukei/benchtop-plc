@@ -18,6 +18,7 @@ export interface Program extends SourceNode {
   kind: "program" | "function" | "functionBlock";
   name: Identifier;
   resultType?: Identifier;
+  resultSubrange?: Subrange;
   sections?: { name: string; constant?: boolean; span: import("@benchtop-plc/core").SourceSpan }[];
   declarations: Declaration[];
   body: Statement[];
@@ -28,6 +29,7 @@ export interface Declaration extends SourceNode {
   names: [Identifier, ...Identifier[]];
   address?: Address;
   typeName: Identifier;
+  subrange?: Subrange;
   initializer?: Expression;
   constant?: boolean;
   /** Absent means VAR, preserving the original single-program AST. */
@@ -80,8 +82,31 @@ export interface FunctionCall extends SourceNode {
   outputs?: NamedOutput[];
 }
 
+export interface EnumerationLiteral extends SourceNode {
+  kind: "enumeration";
+  typeName: Identifier;
+  member: Identifier;
+}
+export interface Subrange extends SourceNode {
+  lower: Expression;
+  upper: Expression;
+}
+export interface DataTypeDeclaration extends SourceNode {
+  name: Identifier;
+  typeName?: Identifier;
+  subrange?: Subrange;
+  values?: { name: Identifier; value?: Expression }[];
+  initializer?: Expression;
+}
+
 export type Expression =
-  Literal | AssignmentTarget | UnaryExpression | BinaryExpression | GroupExpression | FunctionCall;
+  | EnumerationLiteral
+  | Literal
+  | AssignmentTarget
+  | UnaryExpression
+  | BinaryExpression
+  | GroupExpression
+  | FunctionCall;
 
 export interface Assignment extends SourceNode {
   kind: "assignment";

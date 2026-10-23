@@ -1,3 +1,4 @@
+import type { TypeDescriptor, TypeTable } from "./types.js";
 import type { SourceNode } from "./source.js";
 import type {
   BitType,
@@ -163,14 +164,22 @@ interface VariableBase extends SourceNode {
 }
 
 export type ScalarVariable = VariableBase &
-  {
-    [K in DataType]: {
-      kind: "scalar";
-      dataType: K;
-      initialValue: ValueByType[K];
-      address?: K extends "BOOL" ? DirectAddress : never;
-    };
-  }[DataType];
+  (
+    | {
+        [K in DataType]: {
+          kind: "scalar";
+          dataType: K;
+          initialValue: ValueByType[K];
+          address?: K extends "BOOL" ? DirectAddress : never;
+        };
+      }[DataType]
+    | {
+        kind: "scalar";
+        dataType: Exclude<TypeDescriptor, DataType>;
+        initialValue: TypedValue["value"];
+        address?: never;
+      }
+  );
 
 export interface FunctionBlockVariable extends VariableBase {
   kind: "functionBlock";
@@ -187,6 +196,8 @@ export interface ProgramIR extends SourceNode {
   name: string;
   variables: Variable[];
   body: Statement[];
+  /** Ordered data type declarations; absent for elementary-only projects. */
+  types?: TypeTable;
   /** Shared bodies; call indices address this array. Absent in a single-program IR. */
   functions?: UserFunctionIR[];
   functionBlocks?: UserFunctionBlockIR[];
@@ -248,17 +259,19 @@ export interface UserFunctionCall extends SourceNode {
   inputs: { variable: FrameSlot; value: Expression }[];
   outputs: { variable: FrameSlot; target: AssignmentTarget }[];
   inOuts?: InOutBinding[];
-  dataType: DataType | null;
+  dataType: TypeDescriptor | null;
 }
 
-export type UserFunctionCallExpression = UserFunctionCall & { dataType: DataType };
+export type UserFunctionCallExpression = UserFunctionCall & { dataType: TypeDescriptor };
 
-export type LiteralExpression = SourceNode & TypedValue & { kind: "literal" };
+export type LiteralExpression = SourceNode & { kind: "literal" } & (
+    TypedValue | { dataType: Exclude<TypeDescriptor, DataType>; value: TypedValue["value"] }
+  );
 
 export interface VariableReference extends SourceNode {
   kind: "variable";
   variable: FrameSlot;
-  dataType: DataType;
+  dataType: TypeDescriptor;
 }
 
 /** Port indices address the standard FB descriptor's input or output array. */
@@ -267,7 +280,7 @@ export interface FunctionBlockMemberReference extends SourceNode {
   variable: FrameSlot;
   port: "input" | "output";
   member: number;
-  dataType: DataType;
+  dataType: TypeDescriptor;
 }
 
 /** A public scalar member; member is a slot in the shared block definition. */
@@ -276,7 +289,7 @@ export interface UserFunctionBlockMemberReference extends SourceNode {
   variable: FrameSlot;
   port: "input" | "output";
   member: number;
-  dataType: DataType;
+  dataType: TypeDescriptor;
 }
 
 /** A bit of a scalar bit-string variable; assignment preserves all other bits. */
@@ -313,7 +326,7 @@ export interface UnaryExpression extends SourceNode {
   kind: "unary";
   operator: UnaryOperator;
   operand: Expression;
-  dataType: DataType;
+  dataType: TypeDescriptor;
 }
 
 export interface BinaryExpression extends SourceNode {
@@ -321,7 +334,7 @@ export interface BinaryExpression extends SourceNode {
   operator: BinaryOperator;
   left: Expression;
   right: Expression;
-  dataType: DataType;
+  dataType: TypeDescriptor;
 }
 
 export interface FunctionCallExpression extends SourceNode {
@@ -333,7 +346,7 @@ export interface FunctionCallExpression extends SourceNode {
   evaluationOrder?: number[];
   /** Resolved output port indices; arguments are evaluated before outputs are assigned. */
   outputs?: FunctionOutputAssignment[];
-  dataType: DataType;
+  dataType: TypeDescriptor;
 }
 
 export interface FunctionOutputAssignment extends SourceNode {

@@ -7,6 +7,8 @@ import type {
   CaseLabel,
   ConditionalBranch,
   Declaration,
+  DataTypeDeclaration,
+  Subrange,
   Expression,
   Identifier,
   FunctionCall,
@@ -154,6 +156,7 @@ class Parser {
     const name = this.identifier(pou);
     const resultType =
       header.key === "FUNCTION" && this.accept(":") ? this.identifier(true) : undefined;
+    const resultSubrange = resultType && this.at("(") ? this.subrange() : undefined;
     const declarations: Declaration[] = [];
     const sections: NonNullable<Program["sections"]> = [];
     while (
@@ -198,7 +201,56 @@ class Parser {
       body,
       span,
       ...(resultType ? { resultType } : {}),
+      ...(resultSubrange ? { resultSubrange } : {}),
       ...(sections.length ? { sections } : {}),
+    };
+  }
+
+  private subrange(): Subrange {
+    const start = this.expect("(").span;
+    const lower = this.expression();
+    this.expect("..");
+    const upper = this.expression();
+    this.expect(")");
+    return { lower, upper, span: this.spanFrom(start) };
+  }
+
+  dataType(): DataTypeDeclaration {
+    const start = this.expect("TYPE").span;
+    const name = this.identifier(true);
+    this.expect(":");
+    const typeName = this.at("(") ? undefined : this.identifier(true);
+    let subrange: Subrange | undefined;
+    let values: DataTypeDeclaration["values"];
+    if (this.at("(")) {
+      // Enum members end at a delimiter; identifier-led expressions can also be bounds.
+      if (
+        this.tokens[this.cursor + 1]?.kind === "identifier" &&
+        [":=", ",", ")"].includes(this.tokens[this.cursor + 2]?.key ?? "")
+      ) {
+        this.take();
+        values = [];
+        do {
+          const member = this.identifier();
+          const value = this.accept(":=") ? this.expression() : undefined;
+          values.push({ name: member, ...(value ? { value } : {}) });
+        } while (this.accept(","));
+        this.expect(")");
+      } else subrange = this.subrange();
+    }
+    const initializer = this.accept(":=") ? this.expression() : undefined;
+    this.expect(";");
+    this.expect("END_TYPE");
+    const span = this.spanFrom(start);
+    this.accept(";");
+    if (this.current.kind !== "eof") this.expected("eof");
+    return {
+      name,
+      span,
+      ...(typeName ? { typeName } : {}),
+      ...(subrange ? { subrange } : {}),
+      ...(values ? { values } : {}),
+      ...(initializer ? { initializer } : {}),
     };
   }
 
@@ -222,6 +274,7 @@ class Parser {
     }
     this.expect(":");
     const typeName = this.identifier(true);
+    const subrange = this.at("(") ? this.subrange() : undefined;
     let initializer: Expression | undefined;
     if (this.at(":=") || this.at("=")) {
       this.assignmentOperator();
@@ -232,6 +285,7 @@ class Parser {
       kind: "declaration",
       names,
       typeName,
+      ...(subrange ? { subrange } : {}),
       ...(address ? { address } : {}),
       ...(initializer ? { initializer } : {}),
       span: this.spanFrom(names[0].span),
@@ -492,6 +546,15 @@ class Parser {
     const name = keywordCall
       ? (this.take(), { name: token.text, key: token.key, span: token.span })
       : this.identifier();
+    if (this.accept("#")) {
+      const member = this.identifier();
+      return {
+        kind: "enumeration",
+        typeName: name,
+        member,
+        span: joinedSpan(name.span, member.span),
+      };
+    }
     if (this.accept("(")) {
       return this.functionArguments(name);
     }
@@ -563,5 +626,24 @@ function parseSource(source: string, pou: boolean): ParseResult {
       return { ast: null, diagnostics: [diagnostic] };
     }
     throw error;
+  }
+}
+
+/** Parse exactly one data type source, separately from the POU list. */
+export function parseDataType(source: string): {
+  ast: DataTypeDeclaration | null;
+  diagnostics: Diagnostic[];
+} {
+  const result = lex(source);
+  if (!result.tokens) return { ast: null, diagnostics: result.diagnostics };
+  try {
+    return { ast: new Parser(result.tokens).dataType(), diagnostics: [] };
+  } catch (error) {
+    if (!(error instanceof FrontendError)) throw error;
+    const name = result.tokens[1];
+    return {
+      ast: null,
+      diagnostics: [{ ...error.diagnostic, ...(name ? { pou: name.text } : {}) }],
+    };
   }
 }
