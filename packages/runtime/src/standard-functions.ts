@@ -1,5 +1,6 @@
 import {
   timeArithmeticFunctions,
+  internalValue,
   calendarFunctions,
   binaryValue,
   bitWidths,
@@ -24,14 +25,26 @@ import { callCalendarFunction, callTimeArithmetic } from "./time-date-functions.
 /** Arguments are compiler-checked. Width-dependent operations require the IR result type. */
 export function callStandardFunction(
   name: StandardFunction,
-  args: readonly ScalarValue[],
+  values: readonly ScalarValue[],
   dataType?: DataType,
   context?: FunctionCallContext,
 ): ScalarValue {
   const signature = getStandardFunctionSignature(name);
+  const args = values.map((value, index) => {
+    const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+    const type =
+      context?.argumentTypes?.[index] ??
+      (accepted.length === 1
+        ? accepted[0]
+        : (signature.genericStart !== undefined && index >= signature.genericStart) ||
+            signature.resultArgument === index
+          ? dataType
+          : undefined);
+    return type ? internalValue(type, value) : value;
+  });
   if (args.length < signature.min || (signature.max !== null && args.length > signature.max))
     throw new Error(`Invalid argument count for ${name}`);
-  if (args.some((value) => !Number.isFinite(Number(value))))
+  if (args.some((value) => typeof value !== "string" && !Number.isFinite(Number(value))))
     throw new RangeError("PLC values must be finite");
   if (Object.hasOwn(timeArithmeticFunctions, name))
     return callTimeArithmetic(
@@ -42,9 +55,13 @@ export function callStandardFunction(
   if (Object.hasOwn(calendarFunctions, name))
     return callCalendarFunction(name as keyof typeof calendarFunctions, args, context);
   const first = Number(args[0]);
-  const long = args.some((value) => typeof value === "string" || typeof value === "bigint");
+  const long = args.some((value) => typeof value === "bigint");
   const compare = (a: ScalarValue, b: ScalarValue) =>
-    long ? BigInt(a) < BigInt(b) : Number(a) < Number(b);
+    typeof a === "string" && typeof b === "string"
+      ? a < b
+      : long
+        ? BigInt(a) < BigInt(b)
+        : Number(a) < Number(b);
   const quantize = (value: ScalarValue): ScalarValue =>
     dataType ? coerceValue(dataType, value) : value;
   const numeric = (operation: (value: number) => number): ScalarValue => {

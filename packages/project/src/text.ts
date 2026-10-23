@@ -1,5 +1,10 @@
 import { check, lex, parsePou } from "@benchtop-plc/compiler";
-import type { Diagnostic, SourceSpan, TypeTable } from "@benchtop-plc/core";
+import {
+  MAX_STRING_LENGTH,
+  type Diagnostic,
+  type SourceSpan,
+  type TypeTable,
+} from "@benchtop-plc/core";
 import type { ProjectResult, SplitProgram, VariableDeclaration } from "./model.js";
 
 /** Convert a compiler span to an offset, including the lexer's CRLF handling. */
@@ -14,6 +19,23 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
   const result = parsePou(source);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
+  const invalidCapacity = (name: string, length: number | undefined): boolean =>
+    length !== undefined &&
+    (!["STRING", "WSTRING"].includes(name) ||
+      !Number.isInteger(length) ||
+      length < 1 ||
+      length > MAX_STRING_LENGTH);
+  if (
+    ast.declarations.some((declaration) =>
+      invalidCapacity(declaration.typeName.key, declaration.stringLength),
+    ) ||
+    (ast.resultType && invalidCapacity(ast.resultType.key, ast.resultStringLength))
+  )
+    return {
+      value: null,
+      diagnostics: [{ code: "type.invalid-constant", severity: "error", span: ast.span, args: {} }],
+    };
+
   const unsupported = ast.sections?.find(
     (section) =>
       !["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP", "VAR_IN_OUT"].includes(section.name),
@@ -29,7 +51,13 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
   const { tokens } = lex(source);
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
   const start =
-    endVars.at(-1)?.span ?? ast.resultSubrange?.span ?? ast.resultType?.span ?? ast.name.span;
+    endVars.at(-1)?.span ??
+    ast.resultSubrange?.span ??
+    (ast.resultStringLength !== undefined
+      ? tokens!.find((token) => token.key === "]")?.span
+      : undefined) ??
+    ast.resultType?.span ??
+    ast.name.span;
   const end = tokens!.find(
     (token) =>
       token.key ===
@@ -62,7 +90,9 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
                   : "localVars",
         ...(declaration.constant ? { constant: true } : {}),
         name: name.name,
-        type: normalizeType(declaration.typeName.key),
+        type:
+          normalizeType(declaration.typeName.key) +
+          (declaration.stringLength === undefined ? "" : `[${declaration.stringLength}]`),
         ...(declaration.address ? { address: declaration.address.text } : {}),
         ...(declaration.initializer
           ? {
@@ -153,7 +183,8 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
     ast.resultType &&
     (ast.resultSubrange
       ? rangeType(ast.resultType, ast.resultSubrange, ast.declarations.length)
-      : normalizeType(ast.resultType.key));
+      : normalizeType(ast.resultType.key) +
+        (ast.resultStringLength === undefined ? "" : `[${ast.resultStringLength}]`));
   if (ast.resultSubrange && !returnType)
     return {
       value: null,

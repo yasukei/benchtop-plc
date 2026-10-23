@@ -1,5 +1,11 @@
+import { isReservedStandardName } from "./reserved-names.js";
 import {
   coerceValue,
+  isCharacterType,
+  isWideCharacterType,
+  internalValue,
+  DEFAULT_STRING_LENGTH,
+  MAX_STRING_LENGTH,
   scalarBase,
   enumerationType,
   subrangeType,
@@ -150,7 +156,11 @@ class Checker {
     // Collect all declarations first so forward references receive ordinary type diagnostics.
     for (const declaration of ast.declarations) this.declare(declaration);
     if (ast.resultType) {
-      const descriptor = this.descriptor(ast.resultType, ast.resultSubrange);
+      const descriptor = this.descriptor(
+        ast.resultType,
+        ast.resultSubrange,
+        ast.resultStringLength,
+      );
       const type = descriptor
         ? scalarBase(descriptor, this.types)
         : declarationType(ast.resultType.key);
@@ -177,7 +187,11 @@ class Checker {
       }
     }
     if (this.result && ast.resultType) {
-      const descriptor = this.descriptor(ast.resultType, ast.resultSubrange);
+      const descriptor = this.descriptor(
+        ast.resultType,
+        ast.resultSubrange,
+        ast.resultStringLength,
+      );
       if (descriptor) {
         this.result.descriptor = descriptor;
         this.result.initialValue = this.defaultValue(descriptor);
@@ -255,7 +269,11 @@ class Checker {
     );
   }
 
-  private descriptor(name: AST.Identifier, range?: AST.Subrange): TypeDescriptor | undefined {
+  private descriptor(
+    name: AST.Identifier,
+    range?: AST.Subrange,
+    stringLength?: number,
+  ): TypeDescriptor | undefined {
     const key = declarationType(name.key);
     let type: TypeDescriptor;
     if (isScalar(key)) type = key;
@@ -264,6 +282,17 @@ class Checker {
       if (!entry) return undefined;
       type = { kind: "named", name: entry.name };
     }
+    if (key === "STRING" || key === "WSTRING") {
+      const length = stringLength ?? DEFAULT_STRING_LENGTH;
+      if (!Number.isInteger(length) || length < 1 || length > MAX_STRING_LENGTH) {
+        this.report("type.invalid-constant", {}, name.span);
+        return type;
+      }
+      type = { kind: "string", base: key, length };
+    } else if (stringLength !== undefined) {
+      this.report("type.invalid-constant", {}, name.span);
+      return type;
+    } else if (key === "CHAR" || key === "WCHAR") type = { kind: "character", base: key };
     if (!range || this.collectingDeclarations) return type;
     const base = scalarBase(type, this.types);
     const lower = this.expression(range.lower, base),
@@ -299,7 +328,15 @@ class Checker {
     const range = subrangeType(type, this.types);
     if (range) return range.lower;
     const base = scalarBase(type, this.types);
-    return isLongType(base) ? "0" : base === "BOOL" ? false : 0;
+    return isCharacterType(base)
+      ? base === "CHAR" || base === "WCHAR"
+        ? "\0"
+        : ""
+      : isLongType(base)
+        ? "0"
+        : base === "BOOL"
+          ? false
+          : 0;
   }
 
   private enum(info: ExpressionInfo): boolean {
@@ -321,7 +358,11 @@ class Checker {
   }
 
   private declare(declaration: AST.Declaration): void {
-    const descriptor = this.descriptor(declaration.typeName, declaration.subrange);
+    const descriptor = this.descriptor(
+      declaration.typeName,
+      declaration.subrange,
+      declaration.stringLength,
+    );
     const type = descriptor
       ? scalarBase(descriptor, this.types)
       : declarationType(declaration.typeName.key);
@@ -382,7 +423,7 @@ class Checker {
         this.types.some((entry) => entry.name.toUpperCase() === name.key)
       ) {
         this.report("decl.name-collision", { name: name.name, kind: "type" }, name.span);
-      } else if (isFunction(name.key)) {
+      } else if (isFunction(name.key) || isReservedStandardName(name.key)) {
         this.report("decl.name-collision", { name: name.name, kind: "function" }, name.span);
       } else if (duplicate) {
         this.report("decl.duplicate", { name: name.name }, name.span);
@@ -405,7 +446,11 @@ class Checker {
   }
 
   private initializer(declaration: AST.Declaration): void {
-    const descriptor = this.descriptor(declaration.typeName, declaration.subrange);
+    const descriptor = this.descriptor(
+      declaration.typeName,
+      declaration.subrange,
+      declaration.stringLength,
+    );
     for (const name of declaration.names) {
       const symbol = this.names.get(name.key),
         constant = this.constants.get(name.key);
@@ -496,7 +541,7 @@ class Checker {
     const checked = this.interfaces.get(pou);
     const reference = checked?.references.get(declaration.names[0]);
     if (reference) return checked!.symbols[reference.variable]?.descriptor;
-    return this.descriptor(declaration.typeName, declaration.subrange);
+    return this.descriptor(declaration.typeName, declaration.subrange, declaration.stringLength);
   }
 
   private reference(node: AST.AssignmentTarget, write = false): ExpressionInfo | null {
@@ -630,6 +675,28 @@ class Checker {
     }
     switch (node.kind) {
       case "literal": {
+        if (node.literalKind === "string") {
+          const quote = node.text[node.dataType ? node.text.indexOf("#") + 1 : 0];
+          const wide = quote === '"';
+          const contextual =
+            expectedBase &&
+            isCharacterType(expectedBase) &&
+            isWideCharacterType(expectedBase) === wide
+              ? expectedBase
+              : undefined;
+          const dataType = node.dataType ?? contextual ?? (wide ? "WSTRING" : "STRING");
+          try {
+            if (!isCharacterType(dataType) || isWideCharacterType(dataType) !== wide)
+              throw new RangeError("Mismatched literal delimiter");
+            validateValue(dataType, node.value);
+            info = { dataType, constant: node.value, untyped: !node.dataType };
+          } catch (error) {
+            if (!(error instanceof RangeError)) throw error;
+            this.report("type.invalid-constant", {}, node.span);
+            return null;
+          }
+          break;
+        }
         const dataType = node.dataType ?? (node.literalKind === "boolean" ? "BOOL" : "TIME");
         try {
           const constant =
@@ -697,7 +764,8 @@ class Checker {
           node,
           operand.constant === undefined
             ? undefined
-            : () => unaryConstant(node.operator, operand.constant!),
+            : () =>
+                unaryConstant(node.operator, internalValue(operand.dataType, operand.constant!)),
         );
         break;
       }
@@ -738,11 +806,14 @@ class Checker {
         const common = node.operator === "**" ? null : commonType([left.dataType, right.dataType]);
         const constantOperand = (operand: ExpressionInfo): ScalarValue =>
           common && isLongType(common) && operand.dataType !== common
-            ? convertValue(
-                `${operand.dataType}_TO_${common}` as ConversionFunction,
-                operand.constant!,
+            ? internalValue(
+                common,
+                convertValue(
+                  `${operand.dataType}_TO_${common}` as ConversionFunction,
+                  operand.constant!,
+                ),
               )
-            : operand.constant!;
+            : internalValue(operand.dataType, operand.constant!);
         info = this.constant(
           { dataType },
           node,
@@ -815,6 +886,8 @@ class Checker {
   ): (ExpressionInfo | null)[] {
     const deferred = (node: AST.Expression): boolean =>
       isUntyped(node) ||
+      (node.kind === "literal" && node.literalKind === "string" && !node.dataType) ||
+      (node.kind === "group" && deferred(node.expression)) ||
       (node.kind === "name" &&
         !this.names.has(node.name.key) &&
         !this.constants.has(node.name.key));
@@ -857,6 +930,15 @@ class Checker {
     const common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
     for (const index of pending) {
       const node = nodes[index]!;
+      const characterLiteral = (value: AST.Expression): boolean =>
+        value.kind === "group"
+          ? characterLiteral(value.expression)
+          : value.kind === "literal" && value.literalKind === "string" && !value.dataType;
+      if (characterLiteral(node)) {
+        infos[index] = this.expression(node, common ?? defaultExpected);
+        pending.delete(index);
+        continue;
+      }
       let useDefault = independent || !common || !isUntyped(node);
       try {
         if (!useDefault) useDefault = !acceptsKind(common!, exactConstant(node));
@@ -1126,7 +1208,7 @@ class Checker {
     const inOuts = parameters.filter((parameter) => parameter.section === "VAR_IN_OUT");
     const result = pou.resultType
       ? (this.interfaces.get(pou)?.result?.descriptor ??
-        this.descriptor(pou.resultType, pou.resultSubrange) ??
+        this.descriptor(pou.resultType, pou.resultSubrange, pou.resultStringLength) ??
         null)
       : null;
     if (!statement && result === null)

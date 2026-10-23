@@ -161,3 +161,17 @@ URL that ignores the sub-path fails CI.
 
 Client and store unit tests use a fake Worker. Host tests use the real runtime
 with its virtual clock and ticker, without React or a browser.
+
+## Monitoring character data
+
+The monitor and PROGRAM inline values show STRING/CHAR with single quotes and
+WSTRING/WCHAR with double quotes, using ST dollar escapes. LINT 123 displays as
+`123`; STRING `'123'` retains its quotes. String rows show their declared capacity
+or alias name. Writes and forces require one complete quoted literal of the
+matching width and accept `$` escapes. Unquoted text, trailing statements or
+comments, malformed escapes, values beyond capacity and non-single-byte units in
+STRING/CHAR are rejected without changing the value or an existing force.
+
+The editor highlights each quoted literal as one token, including typed prefixes.
+`(*` and `//` inside literals never start comments, and incomplete literals do not
+put later lines into comment state.

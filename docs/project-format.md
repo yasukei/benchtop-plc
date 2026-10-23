@@ -172,3 +172,17 @@ saves and reopens with its initializer expression intact. Invalid initializer
 values still block exchange on both paths. Representable constant modifiers on
 input, output, in-out or temporary sections are preserved as semantic errors;
 compilation rejects them with `decl.constant-section`.
+
+## Strings and characters
+
+STRING and WSTRING declarations, TYPE aliases and function results use TC6
+`string` and `wstring`. An explicit `[n]` is stored in `length="n"`; an omitted
+length remains omitted and means 80. Lengths outside 1–1,024 are rejected.
+TC6 v2.01 has no character type elements: CHAR and WCHAR use
+`<derived name="CHAR"/>` and `<derived name="WCHAR"/>`, recognized on import as
+benchtop-plc elementary types (ADR 0015). Other tools may not recognize this convention.
+
+Initializers remain quoted ST text in `simpleValue/@value`, with XML escaping
+applied separately from ST dollar escapes. The compiler validates width, character
+count and capacity on save and open. Source extensions preserve exact declarations;
+imports without extensions reconstruct equivalent types, capacities and defaults.

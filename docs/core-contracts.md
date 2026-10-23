@@ -102,8 +102,9 @@ short/long operands. Implicit assignment and selection widening uses conversion 
 are the existing `DataType` strings. `{ kind: "named", name: "State" }` refers to
 an entry of the optional, ordered `ProgramIR.types` table. An inline subrange is
 `{ kind: "subrange", base: "INT", lower: 0, upper: 100 }`; it has no table entry.
-The descriptor union also reserves plain-data forms for bounded strings,
-characters, arrays and references; their language and storage support is deferred.
+Bounded strings use `{ kind: "string", base: "STRING" | "WSTRING", length }`;
+characters use `{ kind: "character", base: "CHAR" | "WCHAR" }`. Arrays and
+references remain reserved descriptor shapes for later storage support.
 Type table entries contain `name`, `definition` and a scalar `initialValue`.
 Definitions currently compiled are enumerations (integer base and ordered named
 values), subranges, and aliases (target descriptor). A structure definition shape
@@ -260,3 +261,23 @@ memory, forces, pending writes and the Worker connection. They are separate from
 PLC `fault` events and never replace a latched fault's diagnostic. The host also
 publishes its current state and snapshot after a rejection. `step` outside STOP
 remains ignored as specified in #10.
+
+## Character values
+
+`DataType` and `TypedValue` include STRING, WSTRING, CHAR and WCHAR, all encoded
+as JavaScript strings. Their discriminator distinguishes text from canonical
+64-bit decimal strings: `{ dataType: "STRING", value: "123" }` and
+`{ dataType: "LINT", value: "123" }` retain different types in JSON, snapshots,
+annotations and write/force commands. Runtime computations use `bigint` for long
+numbers and `string` for text; `internalValue(type, value)` performs that boundary
+conversion before the shared operators run.
+
+A STRING or CHAR code unit is 0–255 (ISO/IEC 8859-1); WSTRING and WCHAR preserve
+UTF-16 code units, including isolated surrogates. A character holds exactly one
+code unit. A string's descriptor supplies its capacity (default 80, allowed
+1–1,024); a `TypedValue` carries no length. `sameScalarType` ignores capacities,
+including through aliases. `validateScalar` rejects external values exceeding
+storage capacity, and `truncateString` applies capacity to runtime stores.
+`coerceValue` validates text representation without interpreting numeric-looking
+text. `formatValue` emits quoted ST literals, escaping dollars, delimiters,
+controls and surrogate units; `readStringLiteral` decodes the same syntax.

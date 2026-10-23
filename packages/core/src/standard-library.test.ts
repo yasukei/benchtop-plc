@@ -152,6 +152,10 @@ describe("shared standard-library descriptors", () => {
         "LDATE",
         "LTOD",
         "LDT",
+        "STRING",
+        "WSTRING",
+        "CHAR",
+        "WCHAR",
       ],
     ]);
   });

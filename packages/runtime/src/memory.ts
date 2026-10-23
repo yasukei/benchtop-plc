@@ -1,5 +1,7 @@
 import {
   coerceValue,
+  truncateString,
+  isCharacterType,
   validateValue,
   isLongType,
   isCalendarType,
@@ -128,8 +130,10 @@ export class MemoryFrame implements ScanMemory {
 
   write(variable: number, value: ScalarValue): void {
     const cell = this.cells[variable];
-    if (cell?.kind === "long" || cell?.kind === "scalar")
+    if (cell?.kind === "long" || cell?.kind === "scalar") {
+      value = truncateString(cell.descriptor, value, this.types);
       validateDeclaredValue(cell.descriptor, value, this.types);
+    }
     if (cell?.kind === "long") {
       cell.value = BigInt(coerceValue(cell.dataType, value));
       return;
@@ -200,7 +204,9 @@ export class Memory extends MemoryFrame {
         "dataType" in node &&
         "value" in node &&
         typeof node.dataType === "string" &&
-        (isLongType(node.dataType) || isCalendarType(node.dataType))
+        (isLongType(node.dataType) ||
+          isCalendarType(node.dataType) ||
+          isCharacterType(node.dataType))
       )
         validateValue(node.dataType, node.value);
       if (

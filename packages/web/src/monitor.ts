@@ -1,6 +1,9 @@
 import { compile, lex } from "@benchtop-plc/compiler";
 import {
   coerceValue,
+  isCharacterType,
+  isWideCharacterType,
+  readStringLiteral,
   scalarBase,
   enumerationType,
   validateScalar,
@@ -42,6 +45,17 @@ function decimalInteger(text: string): number | null {
 /** Reuse ST literal syntax without compiling user-supplied statements. */
 function parseElementaryWrittenValue(dataType: DataType, source: string): TypedValue | null {
   const text = source.trim();
+  if (isCharacterType(dataType)) {
+    try {
+      const literal = readStringLiteral(text);
+      if (literal.length !== text.length || literal.wide !== isWideCharacterType(dataType))
+        return null;
+      validateValue(dataType, literal.value);
+      return { dataType, value: literal.value } as TypedValue;
+    } catch {
+      return null;
+    }
+  }
   if (dataType === "BOOL")
     return /^(TRUE|FALSE)$/i.test(text) ? { dataType, value: text.toUpperCase() === "TRUE" } : null;
   if (isLongType(dataType) || isCalendarType(dataType)) {

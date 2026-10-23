@@ -9,6 +9,7 @@ export type TokenStyle =
   | "typeName"
   | "className"
   | "number"
+  | "string"
   | "bool"
   | "variableName.special"
   | "comment"
@@ -39,6 +40,18 @@ export function readStToken(
   if (whitespace) return { length: whitespace[0].length, style: null };
   const address = /^%[A-Za-z0-9_.]*/.exec(source);
   if (address) return { length: address[0].length, style: "variableName.special" };
+  const stringStart = /^(?:(?:STRING|WSTRING|CHAR|WCHAR)#)?(['"])/i.exec(source);
+  if (stringStart) {
+    const quote = stringStart[1]!;
+    let length = stringStart[0].length;
+    while (length < source.length) {
+      const char = source[length++];
+      if (char === "$") {
+        if (length < source.length) length++;
+      } else if (char === quote) break;
+    }
+    return { length, style: "string" };
+  }
   const calendar =
     /^(?:DATE_AND_TIME|LDATE_AND_TIME|TIME_OF_DAY|LTIME_OF_DAY|LDATE|DATE|LTOD|TOD|LDT|DT|LD|D)#(?:\d+(?:_\d+)*-\d+(?:_\d+)*-\d+(?:_\d+)*(?:-\d+(?:_\d+)*:\d+(?:_\d+)*:\d+(?:_\d+)*(?:\.\d+(?:_\d+)*)?)?|\d+(?:_\d+)*:\d+(?:_\d+)*:\d+(?:_\d+)*(?:\.\d+(?:_\d+)*)?)/i.exec(
       source,
@@ -77,7 +90,8 @@ export function nextIndent(previous: string, after: string, unit = 2): number {
   let code = "";
   for (let pos = 0; pos < previous.length;) {
     const token = readStToken(previous.slice(pos), state);
-    if (token.style !== "comment") code += previous.slice(pos, pos + token.length);
+    if (token.style !== "comment" && token.style !== "string")
+      code += previous.slice(pos, pos + token.length);
     pos += token.length;
   }
   const base = /^\s*/.exec(previous)![0].length;

@@ -35,7 +35,7 @@ export const stLanguage = (typeNames: readonly string[] = []) => [
       { tag: tags.keyword, class: "st-keyword" },
       { tag: tags.typeName, class: "st-type" },
       { tag: tags.className, class: "st-fb" },
-      { tag: [tags.number, tags.bool], class: "st-literal" },
+      { tag: [tags.number, tags.bool, tags.string], class: "st-literal" },
       { tag: tags.special(tags.variableName), class: "st-address" },
       { tag: tags.comment, class: "st-comment" },
     ]),

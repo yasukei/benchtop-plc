@@ -17,6 +17,9 @@ export interface DiagnosticArgs {
   "project.dropped-data": { name: string };
   "project.stale-source": NoArguments;
   "lex.unterminated-comment": NoArguments;
+  "lex.unterminated-string": NoArguments;
+  "lex.invalid-string-escape": NoArguments;
+  "lex.invalid-string-character": NoArguments;
   "lex.invalid-character": { character: string };
   "lex.malformed-direct-address": { address: string };
   "lex.malformed-number": { literal: string };

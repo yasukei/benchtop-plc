@@ -156,6 +156,7 @@ class Parser {
     const name = this.identifier(pou);
     const resultType =
       header.key === "FUNCTION" && this.accept(":") ? this.identifier(true) : undefined;
+    const resultStringLength = resultType && this.at("[") ? this.stringLength() : undefined;
     const resultSubrange = resultType && this.at("(") ? this.subrange() : undefined;
     const declarations: Declaration[] = [];
     const sections: NonNullable<Program["sections"]> = [];
@@ -202,8 +203,18 @@ class Parser {
       span,
       ...(resultType ? { resultType } : {}),
       ...(resultSubrange ? { resultSubrange } : {}),
+      ...(resultStringLength === undefined ? {} : { resultStringLength }),
       ...(sections.length ? { sections } : {}),
     };
+  }
+
+  private stringLength(): number {
+    this.expect("[");
+    const token = this.current;
+    if (token.kind !== "integer" || token.dataType) this.expected("integer");
+    this.take();
+    this.expect("]");
+    return Number(token.value);
   }
 
   private subrange(): Subrange {
@@ -220,6 +231,7 @@ class Parser {
     const name = this.identifier(true);
     this.expect(":");
     const typeName = this.at("(") ? undefined : this.identifier(true);
+    const stringLength = this.at("[") ? this.stringLength() : undefined;
     let subrange: Subrange | undefined;
     let values: DataTypeDeclaration["values"];
     if (this.at("(")) {
@@ -249,6 +261,7 @@ class Parser {
       span,
       ...(typeName ? { typeName } : {}),
       ...(subrange ? { subrange } : {}),
+      ...(stringLength === undefined ? {} : { stringLength }),
       ...(values ? { values } : {}),
       ...(initializer ? { initializer } : {}),
     };
@@ -274,6 +287,7 @@ class Parser {
     }
     this.expect(":");
     const typeName = this.identifier(true);
+    const stringLength = this.at("[") ? this.stringLength() : undefined;
     const subrange = this.at("(") ? this.subrange() : undefined;
     let initializer: Expression | undefined;
     if (this.at(":=") || this.at("=")) {
@@ -286,6 +300,7 @@ class Parser {
       names,
       typeName,
       ...(subrange ? { subrange } : {}),
+      ...(stringLength === undefined ? {} : { stringLength }),
       ...(address ? { address } : {}),
       ...(initializer ? { initializer } : {}),
       span: this.spanFrom(names[0].span),
@@ -526,6 +541,17 @@ class Parser {
         text: token.text,
         ...(token.dataType ? { dataType: token.dataType } : {}),
         value: token.value as number,
+        span: token.span,
+      };
+    }
+    if (token.kind === "string") {
+      this.take();
+      return {
+        kind: "literal",
+        literalKind: "string",
+        text: token.text,
+        ...(token.dataType ? { dataType: token.dataType } : {}),
+        value: token.value as string,
         span: token.span,
       };
     }

@@ -15,7 +15,17 @@ import type { DataType } from "./values.js";
 const numericTypes = [...integers, "REAL", "LREAL"] as const;
 const bits = ["BOOL", "BYTE", "WORD", "DWORD", "LWORD"] as const;
 const bitStrings = ["BYTE", "WORD", "DWORD", "LWORD"] as const;
-const scalarTypes = [...bits, ...numericTypes, "TIME", "LTIME", ...calendarTypes] as const;
+const scalarTypes = [
+  ...bits,
+  ...numericTypes,
+  "TIME",
+  "LTIME",
+  ...calendarTypes,
+  "STRING",
+  "WSTRING",
+  "CHAR",
+  "WCHAR",
+] as const;
 
 export type FunctionBlockPort = readonly [name: string, type: DataType];
 export interface FunctionBlockDescriptor {

@@ -216,3 +216,16 @@ describe("numeric and elementary function families", () => {
     expect(() => call(name, args)).toThrow(RangeError);
   });
 });
+
+it.each([
+  ["REAL_TO_LINT", "2"],
+  ["LREAL_TO_LINT", "2"],
+  ["TRUNC_LINT", "1"],
+  ["REAL_TRUNC_LINT", "1"],
+  ["LREAL_TRUNC_LINT", "1"],
+] as const)(
+  "keeps real inputs intact for %s without optional argument context",
+  (name, expected) => {
+    expect(call(name, [1.5], "LINT")).toBe(expected);
+  },
+);

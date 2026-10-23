@@ -1,3 +1,4 @@
+import { isReservedStandardName } from "./reserved-names.js";
 import { isFunctionBlockType, isStandardFunction } from "@benchtop-plc/core";
 import type { Diagnostic, ProgramIR } from "@benchtop-plc/core";
 import type { Program } from "./ast.js";
@@ -94,6 +95,7 @@ export function compileProject(
     if (
       isElementaryTypeName(name.key) ||
       isStandardFunction(name.key) ||
+      isReservedStandardName(name.key) ||
       isFunctionBlockType(name.key)
     )
       diagnostics.push({
@@ -110,6 +112,7 @@ export function compileProject(
       pous.has(ast.name.key) ||
       isElementaryTypeName(ast.name.key) ||
       isStandardFunction(ast.name.key) ||
+      isReservedStandardName(ast.name.key) ||
       isFunctionBlockType(ast.name.key)
     )
       diagnostics.push({

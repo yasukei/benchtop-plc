@@ -1,7 +1,12 @@
+import { isCharacterType, validateCharacters, formatCharacters } from "./strings.js";
 import type { ScalarValue } from "./scalar.js";
 import { isCalendarType, validateCalendar, coerceCalendar, formatCalendar } from "./calendar.js";
 /** JSON representations of elementary values; 64-bit values use canonical decimal strings. */
 export interface ValueByType {
+  STRING: string;
+  WSTRING: string;
+  CHAR: string;
+  WCHAR: string;
   DATE: number;
   TOD: number;
   DT: number;
@@ -125,6 +130,10 @@ export function formatLtime(value: string): string {
 
 /** External values are checked, never wrapped. Computed results use coerceValue. */
 export function validateValue(dataType: DataType, value: unknown): void {
+  if (isCharacterType(dataType)) {
+    validateCharacters(dataType, value);
+    return;
+  }
   if (isLongType(dataType)) {
     parseLong(dataType, value);
     return;
@@ -207,6 +216,10 @@ const coercers = {
 };
 
 export function coerceValue<T extends DataType>(dataType: T, value: ScalarValue): ValueByType[T] {
+  if (isCharacterType(dataType)) {
+    validateCharacters(dataType, value);
+    return value as ValueByType[T];
+  }
   if (isCalendarType(dataType)) return coerceCalendar(dataType, value) as ValueByType[T];
   if (dataType === "BOOL" && (typeof value === "bigint" || typeof value === "string"))
     return (BigInt(value) !== 0n) as ValueByType[T];
@@ -264,6 +277,7 @@ function shortestReal(value: number): string {
 /** IEC value syntax, independent of the UI's language or locale. */
 export function formatValue<T extends DataType>(dataType: T, value: ValueByType[T]): string {
   const coerced = coerceValue(dataType, value);
+  if (isCharacterType(dataType)) return formatCharacters(dataType, String(coerced));
   if (isCalendarType(dataType)) return formatCalendar(dataType, coerced as number | string);
   if (dataType === "BOOL") return coerced ? "TRUE" : "FALSE";
   if (dataType === "TIME") return formatTime(Number(coerced));

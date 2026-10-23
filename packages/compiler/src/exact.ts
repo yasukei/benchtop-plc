@@ -1,4 +1,4 @@
-import { isCalendarType } from "@benchtop-plc/core";
+import { isCalendarType, isCharacterType } from "@benchtop-plc/core";
 import { integerRanges, isLongType, roundRational } from "@benchtop-plc/core";
 import type { DataType, ScalarValue } from "@benchtop-plc/core";
 import type { Expression } from "./ast.js";
@@ -118,7 +118,7 @@ export function roundReal(value: Exact, type: "REAL" | "LREAL"): number {
 export function acceptsKind(type: DataType, value: Exact): boolean {
   return value.real
     ? type === "REAL" || type === "LREAL"
-    : type !== "TIME" && type !== "LTIME" && !isCalendarType(type);
+    : !isCharacterType(type) && type !== "TIME" && type !== "LTIME" && !isCalendarType(type);
 }
 export function materialize(value: Exact, type: DataType): ScalarValue {
   if (!acceptsKind(type, value)) throw new RangeError("Constant kind mismatch");
@@ -127,7 +127,7 @@ export function materialize(value: Exact, type: DataType): ScalarValue {
     if (value.n !== 0n && value.n !== value.d) throw new RangeError("BOOL constant out of range");
     return value.n !== 0n;
   }
-  if (type === "TIME" || type === "LTIME" || isCalendarType(type))
+  if (isCharacterType(type) || type === "TIME" || type === "LTIME" || isCalendarType(type))
     throw new RangeError("Numeric constant is not TIME");
   const [min, max] = integerRanges[type].map(BigInt) as [bigint, bigint];
   if (value.d !== 1n || value.n < min || value.n > max)

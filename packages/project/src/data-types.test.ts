@@ -182,8 +182,8 @@ describe("PLCopen data types", () => {
     "<array/>",
     "<struct/>",
     "<pointer/>",
-    '<string length="20"/>',
-    '<wstring length="20"/>',
+    '<string length="20" encoding="UTF-8"/>',
+    '<wstring length="20" encoding="UTF-8"/>',
   ])("rejects unsupported TC6 types %s", (type) => {
     const xml = save(project(["TYPE T : INT; END_TYPE"])).replace(
       '<dataType name="T"><baseType><INT/>',
@@ -288,3 +288,50 @@ it("folds transitive constant dependencies while ignoring unrelated unresolved d
   expect(xml).toContain('upper="12"');
   expect(readProject(xml).value).toEqual(value);
 });
+
+it("round-trips string capacities, character conventions, constants and POU interfaces", () => {
+  const value = project(
+    [
+      "TYPE Message : STRING[20] := 'Ready'; END_TYPE",
+      "TYPE WideMessage : WSTRING; END_TYPE",
+      "TYPE Code : CHAR := 'X'; END_TYPE",
+    ],
+    [
+      `PROGRAM Main VAR s : STRING[20] := '(* // $'quoted$')'; wide : WSTRING := "$00C4"; ch : CHAR; wch : WCHAR; alias : Message; END_VAR END_PROGRAM`,
+      `FUNCTION Echo : STRING[20] VAR_INPUT s : STRING[20]; END_VAR VAR_OUTPUT result : WSTRING; END_VAR VAR_IN_OUT codeValue : CHAR; END_VAR Echo := s; END_FUNCTION`,
+    ],
+  );
+  const xml = save(value);
+  expect(xml).toContain('<string length="20"/>');
+  expect(xml).toContain("<wstring/>");
+  expect(xml).toContain('<derived name="CHAR"/>');
+  expect(xml).toContain('<derived name="WCHAR"/>');
+  expect(readProject(xml)).toEqual({ value, diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  const compiled = compileProject(value.pous, value.dataTypes);
+  expect(compiled.diagnostics).toEqual([]);
+  expect(executable(compileProject(canonical.value!.pous, canonical.value!.dataTypes).ir)).toEqual(
+    executable(compiled.ir),
+  );
+});
+
+it.each(["0", "1025", "-1", "1.5", "x"])("rejects an invalid XML string length %s", (length) => {
+  const xml = save(project(["TYPE T : INT; END_TYPE"])).replace(
+    '<dataType name="T"><baseType><INT/>',
+    `<dataType name="T"><baseType><string length="${length}"/>`,
+  );
+  expect(readProject(xml).value).toBeNull();
+});
+
+it.each(["STRING[0]", "WSTRING[1025]", "CHAR[2]"])(
+  "rejects invalid string source capacity %s on export",
+  (type) => {
+    expect(
+      writeProject(project([], [`PROGRAM Main VAR text : ${type}; END_VAR END_PROGRAM`])).value,
+    ).toBeNull();
+    expect(
+      writeProject(project([`TYPE Text : ${type}; END_TYPE`], ["PROGRAM Main END_PROGRAM"])).value,
+    ).toBeNull();
+  },
+);
