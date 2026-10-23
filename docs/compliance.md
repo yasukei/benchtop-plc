@@ -59,8 +59,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Duration literals `T#`, `TIME#`, `LT#`, `LTIME#` | Yes     | Units d/h/m/s/ms, plus us/ns for LTIME; exact range checks precede TIME truncation                                    |
 | Typed literals `<type>#<value>`                  | Partial | All supported elementary types; based integer and bit-string forms included                                           |
 | Date and time-of-day literals                    | Yes     | All short and full prefixes; unpadded fields and underscore separators; Gregorian dates, precision and ranges checked |
-
-| String and character literals | Yes | Single/double quotes, typed prefixes, dollar escapes; CHAR/WCHAR require one code unit (ADR 0015) |
+| String and character literals                    | Yes     | Single/double quotes, typed prefixes, dollar escapes; CHAR/WCHAR require one code unit (ADR 0015)                     |
 
 ## Derived types and variables
 
