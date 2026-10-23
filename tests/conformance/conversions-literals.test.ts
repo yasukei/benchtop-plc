@@ -1,4 +1,4 @@
-import { isCalendarType } from "@benchtop-plc/core";
+import { isCalendarType, isCharacterType } from "@benchtop-plc/core";
 import { describe, expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
 import { conversionFunctions, formatValue, isLongType } from "@benchtop-plc/core";
@@ -217,7 +217,7 @@ describe("ADR 0013 conversions and constants", () => {
   it("compiles and executes every conversion opcode with its declared source and destination", () => {
     for (const [name, signature] of Object.entries(conversionFunctions)) {
       for (const from of signature.arguments[0]!) {
-        const input = isCalendarType(from)
+        let input = isCalendarType(from)
           ? formatValue(from, from.startsWith("L") ? "0" : 0)
           : from === "BOOL"
             ? "TRUE"
@@ -226,6 +226,25 @@ describe("ADR 0013 conversions and constants", () => {
               : from === "TIME"
                 ? "T#3ms"
                 : `${from}#3`;
+        const to = signature.result!;
+        if (from === "CHAR" || from === "WCHAR") input = formatValue(from, "A");
+        else if (from === "STRING" || from === "WSTRING") {
+          const raw = isCharacterType(to)
+            ? "3"
+            : formatValue(
+                to,
+                to === "BOOL"
+                  ? true
+                  : isLongType(to)
+                    ? isCalendarType(to)
+                      ? "0"
+                      : "3"
+                    : isCalendarType(to)
+                      ? 0
+                      : 3,
+              );
+          input = formatValue(from, raw);
+        }
         const { values } = execute(
           `source: ${from} := ${input}; result: ${signature.result};`,
           `result := ${name}(source);`,
@@ -246,6 +265,33 @@ describe("ADR 0013 conversions and constants", () => {
         if (from === "LWORD" && signature.result === "LREAL") expected = 3 * Number.MIN_VALUE;
         if (isCalendarType(from)) expected = 0;
         if (isLongType(signature.result!)) expected = String(expected);
+        if (from === "CHAR" || from === "WCHAR") expected = isCharacterType(to) ? "A" : 65;
+        else if (from === "STRING" || from === "WSTRING")
+          expected = isCharacterType(to)
+            ? "3"
+            : to === "BOOL"
+              ? true
+              : isCalendarType(to)
+                ? isLongType(to)
+                  ? "0"
+                  : 0
+                : isLongType(to)
+                  ? "3"
+                  : 3;
+        else if (to === "CHAR" || to === "WCHAR") expected = String.fromCharCode(3);
+        else if (to === "STRING" || to === "WSTRING")
+          expected = formatValue(
+            from,
+            from === "BOOL"
+              ? true
+              : isLongType(from)
+                ? isCalendarType(from)
+                  ? "0"
+                  : "3"
+                : isCalendarType(from)
+                  ? 0
+                  : 3,
+          );
         expect(values.result, `${name}(${from})`).toBe(expected);
       }
     }

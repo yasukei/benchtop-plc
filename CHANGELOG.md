@@ -10,6 +10,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Standard STRING/WSTRING functions LEN, LEFT, RIGHT, MID, extensible CONCAT,
+  INSERT, DELETE, REPLACE and FIND, with checked positions, clamped lengths and
+  results up to 1,024 code units. CHAR/WCHAR inputs widen to their string types.
+  Elementary values convert to and from text using
+  the monitor format and literal syntax; character/code-unit conversions and
+  overloaded TO_ forms are supported. Invalid conversions fault without wrapping.
+
 - STRING, STRING[n], WSTRING, WSTRING[n], CHAR and WCHAR variables, aliases,
   constants and POU parameters/results, with quoted literals and dollar escapes.
   Comparisons, selection and ordering functions support character data; dynamic
@@ -42,11 +49,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - Breaking: CHAR, WCHAR, REF_TO, REF and NULL are now reserved keywords (ADR 0015).
   The standard namespace also reserves LEN, LEFT, RIGHT, MID, CONCAT, INSERT,
-  DELETE, REPLACE, FIND, LOWER_BOUND, UPPER_BOUND, TO_STRING, TO_WSTRING and the
+  DELETE, REPLACE, FIND, LOWER_BOUND, UPPER_BOUND, TO_STRING, TO_WSTRING, TO_CHAR, TO_WCHAR and the
   ADR 0015 character/string conversion names, including `<type>_TO_STRING`,
   `<type>_TO_WSTRING`, `STRING_TO_<type>` and `WSTRING_TO_<type>`. Existing identifiers
   using these names must be renamed. STRING and WSTRING remain reserved; string
-  function/conversion and reference implementations follow in separate issues.
+  functions/conversions are available; reference implementations follow separately.
 
 ## [0.4.0] - 2026-10-23
 

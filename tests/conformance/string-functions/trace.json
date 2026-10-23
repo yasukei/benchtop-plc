@@ -1,0 +1,35 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Build and parse text with standard string functions",
+      "scans": 1,
+      "expect": {
+        "LengthValue": 8,
+        "LeftText": "AB",
+        "RightText": "DE",
+        "MidText": "enc",
+        "ConcatText": "ABCDE",
+        "InsertText": "ABXC",
+        "DeleteText": "ABE",
+        "ReplaceText": "ABXE",
+        "PositionValue": 6,
+        "ClampedLeft": "ABC",
+        "ClampedMid": "BC",
+        "WideLength": 2,
+        "Message": "Count=-42, next=-41",
+        "Parsed": 123,
+        "Duration": 1500,
+        "Joined": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "ShortText": "AAAAA"
+      }
+    },
+    {
+      "label": "Rebuild the message on the next scan",
+      "set": { "Count": 7 },
+      "scans": 1,
+      "expect": { "Message": "Count=7, next=8" }
+    }
+  ]
+}

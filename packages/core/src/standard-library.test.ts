@@ -230,6 +230,43 @@ it("registers exactly the current conversion families and no unrelated conversio
     "TIME_TO_LTIME",
     "LTIME_TO_TIME",
   );
+  const plain = [
+    ...numbers,
+    "BOOL",
+    "BYTE",
+    "WORD",
+    "DWORD",
+    "LWORD",
+    "TIME",
+    "LTIME",
+    "DATE",
+    "TOD",
+    "DT",
+    "LDATE",
+    "LTOD",
+    "LDT",
+  ];
+  names.push(
+    ...["STRING", "WSTRING"].flatMap((text) =>
+      plain.flatMap((type) => [`${type}_TO_${text}`, `${text}_TO_${type}`]),
+    ),
+    "TO_STRING",
+    "TO_WSTRING",
+    "TO_CHAR",
+    "TO_WCHAR",
+    "STRING_TO_WSTRING",
+    "WSTRING_TO_STRING",
+    "CHAR_TO_STRING",
+    "WCHAR_TO_WSTRING",
+    "STRING_TO_CHAR",
+    "WSTRING_TO_WCHAR",
+    "CHAR_TO_WCHAR",
+    "WCHAR_TO_CHAR",
+    "CHAR_TO_BYTE",
+    "BYTE_TO_CHAR",
+    "WCHAR_TO_WORD",
+    "WORD_TO_WCHAR",
+  );
   expect(Object.keys(conversionFunctions).sort()).toEqual(names.sort());
 });
 

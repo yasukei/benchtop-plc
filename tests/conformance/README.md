@@ -42,7 +42,8 @@ Steps execute in array order:
    Mapped inputs stay at their assigned levels until changed. Scalar writes apply
    once, before program execution on the next scan, and remain pending if no scan
    occurs. Output-mapped variables and FB ports cannot be set. BOOL values must be
-   JSON booleans; all other scalar values must be finite JSON numbers. Scalar
+   JSON booleans; character values and 64-bit values use JSON strings, and other
+   scalar values use finite JSON numbers. Scalar
    writes use the runtime's normal assignment coercion.
 2. `scans: N` advances virtual time by `N * cycleMs`; N must be a nonnegative safe
    integer. Alternatively, `advanceMs` advances by a nonnegative finite duration,
@@ -50,7 +51,7 @@ Steps execute in array order:
    With neither field, time does not advance (useful for initial expectations).
 3. `expect` checks the snapshot after the advance. It must be nonempty. Keys are
    case-insensitive scalar names or FB members such as `Timer.Q`, `Timer.ET`,
-   `Up.CV` or `Timer.IN`. Booleans and numbers compare exactly; TIME uses integer
+   `Up.CV` or `Timer.IN`. Booleans, strings and numbers compare exactly; TIME uses integer
    milliseconds. Expectations only inspect values and never execute a scan.
 
 Every step needs a nonempty `label`. Unknown fields, names, FB members, invalid

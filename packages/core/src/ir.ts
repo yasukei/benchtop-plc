@@ -50,7 +50,25 @@ export type CalendarConversion =
   | "DATE_TO_LDATE"
   | "LDATE_TO_DATE"
   | "LDT_TO_LDATE";
+export type StringFunction =
+  "LEN" | "LEFT" | "RIGHT" | "MID" | "CONCAT" | "INSERT" | "DELETE" | "REPLACE" | "FIND";
+export type StringConversion =
+  | `${Exclude<DataType, "STRING" | "WSTRING" | "CHAR" | "WCHAR">}_TO_${"STRING" | "WSTRING"}`
+  | `${"STRING" | "WSTRING"}_TO_${Exclude<DataType, "STRING" | "WSTRING" | "CHAR" | "WCHAR">}`
+  | "STRING_TO_WSTRING"
+  | "WSTRING_TO_STRING"
+  | "CHAR_TO_STRING"
+  | "WCHAR_TO_WSTRING"
+  | "STRING_TO_CHAR"
+  | "WSTRING_TO_WCHAR"
+  | "CHAR_TO_WCHAR"
+  | "WCHAR_TO_CHAR"
+  | "CHAR_TO_BYTE"
+  | "BYTE_TO_CHAR"
+  | "WCHAR_TO_WORD"
+  | "WORD_TO_WCHAR";
 export type ConversionFunction =
+  | StringConversion
   | CalendarConversion
   | {
       [A in NumericType]: `${A}_TO_${Exclude<NumericType, A>}`;
@@ -112,6 +130,7 @@ export type CalendarFunction =
   | "SPLIT_LDT"
   | "DAY_OF_WEEK";
 export type StandardFunction =
+  | StringFunction
   | TimeArithmeticFunction
   | CalendarFunction
   | "ABS"

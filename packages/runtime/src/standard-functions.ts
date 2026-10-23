@@ -1,5 +1,6 @@
 import {
   timeArithmeticFunctions,
+  stringFunctions,
   internalValue,
   calendarFunctions,
   binaryValue,
@@ -20,6 +21,7 @@ import type {
 } from "@benchtop-plc/core";
 
 import type { FunctionCallContext } from "./library.js";
+import { callStringFunction } from "./string-functions.js";
 import { callCalendarFunction, callTimeArithmetic } from "./time-date-functions.js";
 
 /** Arguments are compiler-checked. Width-dependent operations require the IR result type. */
@@ -36,7 +38,9 @@ export function callStandardFunction(
       context?.argumentTypes?.[index] ??
       (accepted.length === 1
         ? accepted[0]
-        : (signature.genericStart !== undefined && index >= signature.genericStart) ||
+        : (signature.genericStart !== undefined &&
+              index >= signature.genericStart &&
+              index < (signature.genericEnd ?? values.length)) ||
             signature.resultArgument === index
           ? dataType
           : undefined);
@@ -46,6 +50,8 @@ export function callStandardFunction(
     throw new Error(`Invalid argument count for ${name}`);
   if (args.some((value) => typeof value !== "string" && !Number.isFinite(Number(value))))
     throw new RangeError("PLC values must be finite");
+  if (Object.hasOwn(stringFunctions, name))
+    return callStringFunction(name as keyof typeof stringFunctions, args);
   if (Object.hasOwn(timeArithmeticFunctions, name))
     return callTimeArithmetic(
       name as keyof typeof timeArithmeticFunctions,
@@ -217,6 +223,6 @@ export function callStandardFunction(
         }
       });
     default:
-      return convertValue(name as ConversionFunction, args[0]!);
+      return convertValue(name as ConversionFunction, args[0]!, context?.argumentTypes?.[0]);
   }
 }

@@ -426,3 +426,36 @@ Monitor writes and forces validate the complete value before queueing or changin
 storage. A wrong scalar type, invalid character representation or value exceeding
 capacity is rejected without truncation, changing a prior force or latching a
 runtime fault. Cold reset and fresh POU storage restore their declared defaults.
+
+## String functions and conversions
+
+LEN and FIND return INT. LEN counts code units, so a WSTRING surrogate pair has
+length two. LEFT/RIGHT take L characters, MID takes L starting at 1-based P,
+DELETE removes L starting at P, and REPLACE replaces that range with IN2. INSERT
+inserts after P characters (0 inserts at the front). CONCAT joins two or more
+inputs. CHAR/WCHAR inputs implicitly widen to STRING/WSTRING; string-producing
+functions return strings, including empty results, even with only character inputs.
+FIND returns the first 1-based match, or zero for no match or an empty
+needle. String functions preserve STRING/WSTRING and keep the first 1,024 code
+units of their result before the destination's storage capacity applies.
+
+Negative L faults with `runtime.invalid-value`. MID/DELETE/REPLACE require
+1 ≤ P ≤ LEN(IN), including when L is zero; every position faults on empty input.
+INSERT requires 0 ≤ P ≤ LEN(IN1). Lengths reaching past the end are clamped;
+full-width integer lengths and positions are checked without precision loss.
+
+Elementary-to-string conversions use `formatValue` without added quotes:
+INT -42 becomes '-42', BOOL TRUE becomes 'TRUE', and TIME 1500 becomes 'T#1s500ms'.
+String-to-elementary conversions accept surrounding whitespace and the target's
+literal body, optionally prefixed with any of its long or short literal prefixes,
+case-insensitively. Integers and bit strings accept decimal, binary and hexadecimal
+literal forms with digit separators. Parsing checks the target range without
+wrapping, with exact decimal rounding for REAL/LREAL and exact 64-bit values.
+
+STRING ↔ WSTRING preserves code units; conversion to single-byte text or CHAR
+faults if a code unit is above 16#FF. STRING_TO_CHAR and WSTRING_TO_WCHAR take the
+first unit and fault on empty input. CHAR ↔ WCHAR preserves the unit, and
+CHAR ↔ BYTE / WCHAR ↔ WORD converts between the unit and its numeric code.
+Overloaded TO_ forms use the same operations. Invalid syntax, a wrong prefix,
+out-of-range values and invalid character narrowing fault with
+`runtime.invalid-value` at the function call span, preserving POU/instance context.

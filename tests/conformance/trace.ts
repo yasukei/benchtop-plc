@@ -27,8 +27,12 @@ function object(value: unknown, keys?: string[]): Record<string, unknown> {
 function values(value: unknown): Record<string, ScalarValue> {
   const record = object(value);
   for (const [key, item] of Object.entries(record)) {
-    if (typeof item !== "boolean" && (typeof item !== "number" || !Number.isFinite(item)))
-      throw new Error(`Expected a boolean or finite number for ${key}`);
+    if (
+      typeof item !== "boolean" &&
+      typeof item !== "string" &&
+      (typeof item !== "number" || !Number.isFinite(item))
+    )
+      throw new Error(`Expected a boolean, string or finite number for ${key}`);
   }
   return record as Record<string, ScalarValue>;
 }

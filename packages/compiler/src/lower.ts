@@ -8,7 +8,7 @@ import {
   isIntegerType,
   isFunctionBlockType as isBlock,
 } from "@benchtop-plc/core";
-import { commonType } from "./type-rules.js";
+import { commonType, stringArgumentType } from "./type-rules.js";
 import type * as IR from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
 import type { CheckedProgram, UserCallInfo } from "./checked.js";
@@ -250,14 +250,14 @@ class Lowerer {
         const inputs = required(this.checked.functionArguments.get(node));
         const signature = getStandardFunctionSignature(name);
         const start = signature.genericStart;
+        const argumentTypes = inputs.map((arg, index) =>
+          stringArgumentType(
+            required(this.checked.expressions.get(arg)).dataType,
+            signature.arguments[Math.min(index, signature.arguments.length - 1)]!,
+          ),
+        );
         const common =
-          start === undefined
-            ? null
-            : commonType(
-                inputs
-                  .slice(start)
-                  .map((arg) => required(this.checked.expressions.get(arg)).dataType),
-              );
+          start === undefined ? null : commonType(argumentTypes.slice(start, signature.genericEnd));
         return {
           ...base,
           kind: "functionCall",
@@ -279,10 +279,15 @@ class Lowerer {
           args: inputs.map((arg, index) => {
             const expression = this.expression(arg);
             const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)];
-            if (start !== undefined && index >= start && common)
+            if (
+              start !== undefined &&
+              index >= start &&
+              index < (signature.genericEnd ?? inputs.length) &&
+              common
+            )
               return this.widen(expression, common);
             if (accepted?.length === 1) return this.widen(expression, accepted[0]!);
-            return expression;
+            return this.widen(expression, argumentTypes[index]!);
           }),
         };
       }
