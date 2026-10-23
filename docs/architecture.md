@@ -31,6 +31,12 @@ memory, project exchange and monitoring is recorded in
 [ADR 0014](adr/0014-user-defined-pous.md). Its implementation is tracked by the
 sub-issues of [#93](https://github.com/yasukei/benchtop-plc/issues/93).
 
+Milestone 5's accepted model for data type declarations, enumerations, subranges,
+arrays, structures, strings and references, including their run-time errors,
+monitoring and PLCopen XML mapping, is recorded in
+[ADR 0015](adr/0015-derived-types-strings-and-references.md). Its implementation is
+tracked by the sub-issues of [#118](https://github.com/yasukei/benchtop-plc/issues/118).
+
 ## Data flow
 
 ```

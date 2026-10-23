@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- ADR 0015 documents the accepted design for data type declarations, enumerations,
+  subranges, arrays, structures, strings and references for Milestone 5.
+
 ## [0.4.0] - 2026-10-23
 
 User-defined functions and function blocks in projects with several POUs, with `VAR_IN_OUT`, `VAR_TEMP`, `CONSTANT` and timers and counters that adapt to their preset type. Contains breaking changes to accepted Structured Text; see Changed.

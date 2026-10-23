@@ -24,3 +24,4 @@ An ADR records one design decision: its context, the decision, and its consequen
 - [0012. Elementary data types, ranges and overflow](0012-elementary-data-types.md)
 - [0013. Conversions, literal typing and operators](0013-conversions-literals-and-operators.md)
 - [0014. User-defined POUs, calls and instances](0014-user-defined-pous.md)
+- [0015. Derived data types, strings and references](0015-derived-types-strings-and-references.md)
