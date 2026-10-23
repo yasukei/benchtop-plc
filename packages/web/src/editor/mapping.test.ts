@@ -120,3 +120,16 @@ describe("source span mapping", () => {
     });
   });
 });
+
+it("formats enum inline values through the assignment target descriptor and type table", async () => {
+  const { compileProject } = await import("@benchtop-plc/compiler");
+  const { createRuntime, VirtualClock, VirtualTicker } = await import("@benchtop-plc/runtime");
+  const source = "PROGRAM Main VAR phase : State; END_VAR phase := Running; END_PROGRAM";
+  const ir = compileProject([source], ["TYPE State : (Idle, Running, Done); END_TYPE"]).ir!;
+  const clock = new VirtualClock();
+  const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
+  runtime.load(ir);
+  expect(mapAnnotations(source, runtime.step(), true, ir)[0]?.values).toEqual([
+    { text: "Running", dataType: "INT" },
+  ]);
+});

@@ -96,6 +96,36 @@ conversions floor to the coarser destination unit before checking its range.
 Calendar arithmetic nodes retain operand types to identify units, including mixed
 short/long operands. Implicit assignment and selection widening uses conversion nodes.
 
+## Type descriptors and scalar derived types
+
+`TypeDescriptor` describes a declared or expression type. Elementary descriptors
+are the existing `DataType` strings. `{ kind: "named", name: "State" }` refers to
+an entry of the optional, ordered `ProgramIR.types` table. An inline subrange is
+`{ kind: "subrange", base: "INT", lower: 0, upper: 100 }`; it has no table entry.
+The descriptor union also reserves plain-data forms for bounded strings,
+characters, arrays and references; their language and storage support is deferred.
+Type table entries contain `name`, `definition` and a scalar `initialValue`.
+Definitions currently compiled are enumerations (integer base and ordered named
+values), subranges, and aliases (target descriptor). A structure definition shape
+is reserved for the later implementation.
+
+IR expression and scalar variable `dataType` fields carry descriptors. Elementary
+literal/value correlations remain discriminated unions. Derived literal and
+initializer values use the underlying scalar representation. Diagnostic type
+arguments carry descriptors too; `formatType` prints source-like text without
+localization (`State`, `INT (0..100)`). `scalarBase` resolves the leaf type through
+the table; `sameScalarType` unwraps aliases, compares enumerations by identity and
+subranges by base and limits. `validateDeclaredValue` checks storage constraints
+before coercion; `validateScalar` additionally checks the elementary representation.
+
+`DataType` and `TypedValue` remain elementary scalar contracts. Enumeration and
+subrange snapshots, annotations, writes and forces use the integer base type,
+including decimal strings for 64-bit bases. Each persistent variable keeps one
+`VariableId`. The UI uses its descriptor and the type table to show an enumeration
+name and resolve case-insensitive names for writes and forces. Inline enum values
+use the assignment target descriptor. Invalid monitor integers are rejected without
+changing storage or latching a PLC fault (ADR 0015).
+
 ## Tree IR
 
 All nodes, including declarations, branch arms, labels and named FB inputs, carry

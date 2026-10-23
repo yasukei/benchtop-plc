@@ -344,7 +344,7 @@ class Lexer {
       this.advance();
       return this.token("symbol", start, span);
     }
-    if (";:,().+-*/=<>&".includes(this.char)) {
+    if (";:,().+-*/=<>&#".includes(this.char)) {
       this.advance();
       return this.token("symbol", start, span);
     }
@@ -365,7 +365,7 @@ class Lexer {
       } catch (error) {
         if (
           error instanceof FrontendError &&
-          ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(tokens[0]?.key ?? "") &&
+          ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "TYPE"].includes(tokens[0]?.key ?? "") &&
           tokens[1]?.kind === "identifier"
         )
           throw new FrontendError({ ...error.diagnostic, pou: tokens[1].text });

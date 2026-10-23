@@ -1,11 +1,12 @@
 import { useState } from "react";
-import type { Variable } from "@benchtop-plc/core";
+import { formatType, type TypeTable, type Variable } from "@benchtop-plc/core";
 import type { ShellCatalog } from "./catalog.js";
 import { parseWrittenValue, variableValue } from "./monitor.js";
 import type { AppState, AppStore } from "./store.js";
 
 function WriteValue({
   variable,
+  types,
   id,
   store,
   disabled,
@@ -13,6 +14,7 @@ function WriteValue({
   text,
 }: {
   variable: Variable;
+  types: TypeTable;
   id: number;
   store: AppStore;
   disabled: boolean;
@@ -22,7 +24,8 @@ function WriteValue({
   const [value, setValue] = useState("");
   const [invalid, setInvalid] = useState(false);
   function send(type: "write" | "force") {
-    const parsed = variable.kind === "scalar" ? parseWrittenValue(variable.dataType, value) : null;
+    const parsed =
+      variable.kind === "scalar" ? parseWrittenValue(variable.dataType, value, types) : null;
     setInvalid(!parsed);
     if (parsed)
       store.send(
@@ -68,11 +71,13 @@ export function VariableMonitor({
   store,
   text,
   variables,
+  types = [],
 }: {
   state: AppState;
   store: AppStore;
   text: ShellCatalog;
   variables: Variable[];
+  types?: TypeTable;
 }) {
   const disabled = state.connection !== "connected" || !state.snapshot;
   return (
@@ -106,8 +111,10 @@ export function VariableMonitor({
                         ? `%${variable.address.area}X0.${variable.address.bit}`
                         : null}
                     </td>
-                    <td>{variable.kind === "scalar" ? variable.dataType : variable.fbType}</td>
-                    <td>{variableValue(variable, state.snapshot?.variables[id])}</td>
+                    <td>
+                      {variable.kind === "scalar" ? formatType(variable.dataType) : variable.fbType}
+                    </td>
+                    <td>{variableValue(variable, state.snapshot?.variables[id], types)}</td>
                     <td>
                       {variable.kind === "scalar" &&
                         (variable.dataType === "BOOL" ? (
@@ -148,6 +155,7 @@ export function VariableMonitor({
                         ) : (
                           <WriteValue
                             variable={variable}
+                            types={types}
                             id={id}
                             store={store}
                             disabled={disabled}

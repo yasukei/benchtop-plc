@@ -62,28 +62,30 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Derived types and variables
 
-| Feature                                      | Status  | Notes                                                                                                                                                           |
-| -------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VAR` with initial values                    | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected                                                            |
-| Directly represented variables `%IX`, `%QX`  | Partial | PROGRAM VAR only (restriction; no AT on VAR_TEMP); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                                                        |
-| `VAR_INPUT`, `VAR_OUTPUT`                    | Partial | Elementary function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                                                        |
-| `VAR_TEMP`                                   | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                            |
-| `VAR_IN_OUT`                                 | Partial | Elementary FUNCTION/FUNCTION_BLOCK aliases; exact-type caller variable required every call; formal only, no initializers or instance/bit actuals (restrictions) |
-| `VAR_GLOBAL`, `VAR_EXTERNAL`                 | No      | Deferred                                                                                                                                                        |
-| `CONSTANT`                                   | Partial | Elementary typed constants, only on `VAR`; no `AT` or FB instances. POU-local, earlier constants only; folded without runtime storage (ADR 0014)                |
-| `RETAIN`, `NON_RETAIN`                       | No      |                                                                                                                                                                 |
-| `TYPE` declarations, enumerations, subranges | No      |                                                                                                                                                                 |
-| Arrays, structures, references               | No      |                                                                                                                                                                 |
+| Feature                                     | Status  | Notes                                                                                                                                                                                                                            |
+| ------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VAR` with initial values                   | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected                                                                                                                             |
+| Directly represented variables `%IX`, `%QX` | Partial | PROGRAM VAR only (restriction; no AT on VAR_TEMP); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                                                                                                                         |
+| `VAR_INPUT`, `VAR_OUTPUT`                   | Partial | Scalar function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                                                                                                                             |
+| `VAR_TEMP`                                  | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                                                                                             |
+| `VAR_IN_OUT`                                | Partial | Scalar FUNCTION/FUNCTION_BLOCK aliases; exact-type caller variable required every call; formal only, no initializers or instance/bit actuals (restrictions)                                                                      |
+| `VAR_GLOBAL`, `VAR_EXTERNAL`                | No      | Deferred                                                                                                                                                                                                                         |
+| `CONSTANT`                                  | Partial | Elementary, alias, enum and subrange typed constants, only on `VAR`; no `AT` or FB instances. POU-local, earlier constants only; folded without runtime storage (ADR 0014)                                                       |
+| `RETAIN`, `NON_RETAIN`                      | No      |                                                                                                                                                                                                                                  |
+| `TYPE` declarations                         | Partial | One type per separate compiler source, ordered before POUs; case-insensitive shared namespace; elementary aliases and defaults (ADR 0015). XML and web type list deferred.                                                       |
+| Enumerations                                | Partial | Implicit/explicit integer values, qualified/contextual literals, assignment, equality, CASE, MOVE/SEL/MUX, scalar POU parameters/results and CONSTANT; no ordering, conversion or enum ranges (restrictions; 3rd edition basis). |
+| Subranges                                   | Partial | Named/inline integer limits, lower-bound defaults, constant checks and runtime store faults; exact in-outs compare base and limits; forbidden as FOR controls (restriction; 3rd edition basis).                                  |
+| Arrays, structures, references              | No      |                                                                                                                                                                                                                                  |
 
 ## Program organization units
 
-| Feature                      | Status  | Notes                                                                                                                                                                          |
-| ---------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PROGRAM`                    | Partial | Exactly one per project                                                                                                                                                        |
-| `FUNCTION`                   | Partial | Multi-source compilation; elementary inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
-| `FUNCTION_BLOCK`             | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                                  |
-| Classes, methods, interfaces | No      |                                                                                                                                                                                |
-| Namespaces                   | No      |                                                                                                                                                                                |
+| Feature                      | Status  | Notes                                                                                                                                                                      |
+| ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PROGRAM`                    | Partial | Exactly one per project                                                                                                                                                    |
+| `FUNCTION`                   | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
+| `FUNCTION_BLOCK`             | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
+| Classes, methods, interfaces | No      |                                                                                                                                                                            |
+| Namespaces                   | No      |                                                                                                                                                                            |
 
 ## Operators and statements (ST)
 

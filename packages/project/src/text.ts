@@ -25,6 +25,12 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
         { code: "project.unsupported", severity: "error", args: { path: unsupported } },
       ],
     };
+  // Until #121 adds the TC6 subrange mapping, never silently save only its base type.
+  if (ast.resultSubrange || ast.declarations.some((declaration) => declaration.subrange))
+    return {
+      value: null,
+      diagnostics: [{ code: "project.unsupported", severity: "error", args: { path: "subrange" } }],
+    };
   // Lexer tokens supply boundaries without mistaking keywords inside comments for delimiters.
   const { tokens } = lex(source);
   const endVars = tokens!.filter((token) => token.key === "END_VAR");

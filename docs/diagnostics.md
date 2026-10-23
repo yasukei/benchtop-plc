@@ -6,7 +6,7 @@ by `code`: each code has exactly the argument shape listed below. The optional
 type parameter, such as `Diagnostic<"runtime.watchdog">`, selects a subset while
 retaining that correlation. Every diagnostic has `severity: "error" | "warning"`
 and may carry a `SourceSpan` (one-based positions, exclusive end). `pou?: string`
-retains the source POU name and identifies the text to which the span belongs.
+retains the source POU or data type name and identifies the text to which the span belongs.
 Compiler diagnostics carry it once a header is known, including lexical/syntax
 failures after that header; project-level errors omit it. Runtime execution faults
 name the executing POU, preserving the innermost function through nested calls.
@@ -32,7 +32,8 @@ documentation, not message templates. Translation catalogs are outside issue #4.
 
 - `{}` means an object with no keys; `args` itself is always required.
 - Names, members, literals, characters and addresses retain source spelling.
-- `DataType` is `BOOL | INT | DINT | UINT | REAL | LREAL | TIME`.
+- Type arguments use `TypeDescriptor`: elementary `DataType` names, named types or
+  inline descriptors. UI catalogs call `formatType` to show source-like text.
   `FunctionBlockType` is the existing core union of supported standard FB names.
 - `expected` in syntax diagnostics is a raw token spelling, canonical token-kind
   identifier, or stable construct identifier, never a localized description such
@@ -90,61 +91,63 @@ as syntax errors.
 
 ## Milestone 1 codes
 
-| Code                             | Meaning                                              | Arguments                                                                                        |
-| -------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `lex.unterminated-comment`       | Block comment has no closing delimiter               | `{}`                                                                                             |
-| `lex.invalid-character`          | Character cannot begin a token                       | `{ character: string }`                                                                          |
-| `lex.malformed-direct-address`   | Direct address has invalid syntax                    | `{ address: string }`                                                                            |
-| `lex.malformed-number`           | Numeric literal has invalid syntax                   | `{ literal: string }`                                                                            |
-| `syntax.expected-token`          | Expected token differs from the next token           | `{ expected: string; found: string }`                                                            |
-| `syntax.expected-identifier`     | Identifier required at this position                 | `{ found: string }`                                                                              |
-| `syntax.reserved-identifier`     | Reserved word used as an identifier                  | `{ name: string }`                                                                               |
-| `syntax.assignment-operator`     | `=` used where assignment requires `:=`              | `{}`                                                                                             |
-| `syntax.unexpected-eof`          | Input ends before the construct is complete          | `{}`                                                                                             |
-| `syntax.missing-end`             | Required closing `END_*` keyword is absent           | `{ expected: END_* keyword }`                                                                    |
-| `decl.unknown-type`              | Declaration refers to an unknown type                | `{ name: string }`                                                                               |
-| `decl.duplicate`                 | Name is declared more than once                      | `{ name: string }`                                                                               |
-| `decl.name-collision`            | Name collides with a type or function                | `{ name: string; kind: "type" \| "function" }`                                                   |
-| `decl.direct-address-type`       | Direct address applied to a non-BOOL declaration     | `{ name: string; type: string }`                                                                 |
-| `decl.temp-address`              | Direct address on a temporary variable               | `{}`                                                                                             |
-| `decl.at-multiple-names`         | `AT` applied to more than one declared name          | `{}`                                                                                             |
-| `decl.address-out-of-range`      | Valid address syntax refers outside supported I/O    | `{ address: string }`                                                                            |
-| `decl.nonconstant-initializer`   | Initial value is not a constant expression           | `{ name: string }`                                                                               |
-| `decl.fb-initializer`            | Initial value supplied for an FB instance            | `{ name: string }`                                                                               |
-| `decl.in-out-initializer`        | Initial value supplied for an in-out parameter       | `{ name: string }`                                                                               |
-| `name.undeclared`                | Identifier has no declaration                        | `{ name: string }`                                                                               |
-| `type.portability`               | Warning: conversion differs from vendor runtimes     | `{ function: string }`                                                                           |
-| `type.invalid-constant`          | Invalid constant, literal range or REAL overflow     | `{}`                                                                                             |
-| `type.case-label-not-constant`   | Integer CASE label depends on a variable or call     | `{}`                                                                                             |
-| `fb.duplicate-input`             | Named FB input is supplied more than once            | `{ name: string; member: string }`                                                               |
-| `type.assign-mismatch`           | Value cannot be assigned to the destination type     | `{ from: DataType; to: DataType; hint?: AssignmentHint }`                                        |
-| `type.operand-mismatch`          | Operator does not accept the operand types           | `{ operator: UnaryOperator \| BinaryOperator; left: DataType; right: DataType \| null }`         |
-| `type.condition-not-bool`        | Statement condition is not BOOL                      | `{ statement: "IF" \| "ELSIF" \| "WHILE" \| "REPEAT" }`                                          |
-| `type.case-selector-not-integer` | CASE selector is not an integer                      | `{ type: DataType }`                                                                             |
-| `type.case-label-not-integer`    | CASE label or range endpoint is not an integer       | `{ type: DataType }`                                                                             |
-| `type.for-variable-not-integer`  | FOR control variable is not an integer               | `{ name: string; type: DataType }`                                                               |
-| `type.for-bound-not-integer`     | FOR start, end or step is not an integer             | `{ bound: "from" \| "to" \| "step"; type: DataType }`                                            |
-| `flow.exit-outside-loop`         | EXIT occurs outside a loop                           | `{}`                                                                                             |
-| `fb.invalid-instance-section`    | FB instance declared outside VAR                     | `{ name: string }`                                                                               |
-| `fb.no-matching-variant`         | No variant accepts the selecting preset types        | `{ name: string; types: readonly DataType[] }`                                                   |
-| `fb.not-function-block`          | Called instance is not a function block              | `{ name: string }`                                                                               |
-| `fb.unknown-member`              | FB instance has no such member                       | `{ name: string; member: string }`                                                               |
-| `fb.output-not-writable`         | Assignment attempts to write an FB output            | `{ name: string; member: string }`                                                               |
-| `fb.instance-as-value`           | FB instance used as a scalar value                   | `{ name: string }`                                                                               |
-| `fb.unsupported-call`            | FB statement uses positional inputs                  | `{ name: string }`                                                                               |
-| `fb.call-in-expression`          | FB call used within an expression                    | `{ name: string }`                                                                               |
-| `call.unknown-function`          | Function name is unknown                             | `{ name: string }`                                                                               |
-| `call.invalid-parameter`         | Unknown, duplicate or misdirected formal parameter   | `{ name: string; parameter: string }`                                                            |
-| `call.argument-count`            | Function call supplies the wrong number of arguments | `{ name: string; min: number; max: number \| null; found: number }`                              |
-| `call.argument-type`             | Function argument has an unsupported type            | `{ name: string; index: number; expected: readonly [DataType, ...DataType[]]; found: DataType }` |
-| `runtime.invalid-value`          | Non-finite result or REAL overflow                   | `{}`                                                                                             |
-| `runtime.division-by-zero`       | Division has a zero divisor                          | `{}`                                                                                             |
-| `runtime.watchdog`               | Loop iteration limit exceeded                        | `{ limit: number }`                                                                              |
-| `runtime.for-by-zero`            | FOR step evaluates to zero                           | `{}`                                                                                             |
-| `runtime.debug-target`           | Debug command target is not a loaded scalar          | `{}`                                                                                             |
-| `runtime.debug-type-mismatch`    | Debug value type differs from the declaration        | `{ from: DataType; to: DataType }`                                                               |
-| `runtime.debug-value`            | Invalid debug value, non-finite value or overflow    | `{}`                                                                                             |
-| `runtime.write-input-mapped`     | One-shot write targets an input-mapped variable      | `{ name: string }`                                                                               |
+| Code                             | Meaning                                                     | Arguments                                                                                                          |
+| -------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `lex.unterminated-comment`       | Block comment has no closing delimiter                      | `{}`                                                                                                               |
+| `lex.invalid-character`          | Character cannot begin a token                              | `{ character: string }`                                                                                            |
+| `lex.malformed-direct-address`   | Direct address has invalid syntax                           | `{ address: string }`                                                                                              |
+| `lex.malformed-number`           | Numeric literal has invalid syntax                          | `{ literal: string }`                                                                                              |
+| `syntax.expected-token`          | Expected token differs from the next token                  | `{ expected: string; found: string }`                                                                              |
+| `syntax.expected-identifier`     | Identifier required at this position                        | `{ found: string }`                                                                                                |
+| `syntax.reserved-identifier`     | Reserved word used as an identifier                         | `{ name: string }`                                                                                                 |
+| `syntax.assignment-operator`     | `=` used where assignment requires `:=`                     | `{}`                                                                                                               |
+| `syntax.unexpected-eof`          | Input ends before the construct is complete                 | `{}`                                                                                                               |
+| `syntax.missing-end`             | Required closing `END_*` keyword is absent                  | `{ expected: END_* keyword }`                                                                                      |
+| `decl.unknown-type`              | Declaration refers to an unknown type                       | `{ name: string }`                                                                                                 |
+| `decl.duplicate`                 | Name is declared more than once                             | `{ name: string }`                                                                                                 |
+| `decl.name-collision`            | Name collides with a type or function                       | `{ name: string; kind: "type" \| "function" }`                                                                     |
+| `decl.direct-address-type`       | Direct address applied to a non-BOOL declaration            | `{ name: string; type: string }`                                                                                   |
+| `decl.temp-address`              | Direct address on a temporary variable                      | `{}`                                                                                                               |
+| `decl.at-multiple-names`         | `AT` applied to more than one declared name                 | `{}`                                                                                                               |
+| `decl.address-out-of-range`      | Valid address syntax refers outside supported I/O           | `{ address: string }`                                                                                              |
+| `decl.nonconstant-initializer`   | Initial value is not a constant expression                  | `{ name: string }`                                                                                                 |
+| `decl.fb-initializer`            | Initial value supplied for an FB instance                   | `{ name: string }`                                                                                                 |
+| `decl.in-out-initializer`        | Initial value supplied for an in-out parameter              | `{ name: string }`                                                                                                 |
+| `name.undeclared`                | Identifier has no declaration                               | `{ name: string }`                                                                                                 |
+| `type.portability`               | Warning: conversion differs from vendor runtimes            | `{ function: string }`                                                                                             |
+| `type.ambiguous-enumeration`     | Unqualified enum member clashes with a variable or constant | `{ name: string }`                                                                                                 |
+| `type.invalid-constant`          | Invalid constant, literal range or REAL overflow            | `{}`                                                                                                               |
+| `type.case-label-not-constant`   | Integer CASE label depends on a variable or call            | `{}`                                                                                                               |
+| `fb.duplicate-input`             | Named FB input is supplied more than once                   | `{ name: string; member: string }`                                                                                 |
+| `type.assign-mismatch`           | Value cannot be assigned to the destination type            | `{ from: TypeDescriptor; to: TypeDescriptor; hint?: AssignmentHint }`                                              |
+| `type.operand-mismatch`          | Operator does not accept the operand types                  | `{ operator: UnaryOperator \| BinaryOperator; left: TypeDescriptor; right: TypeDescriptor \| null }`               |
+| `type.condition-not-bool`        | Statement condition is not BOOL                             | `{ statement: "IF" \| "ELSIF" \| "WHILE" \| "REPEAT" }`                                                            |
+| `type.case-selector-not-integer` | CASE selector is not an integer                             | `{ type: TypeDescriptor }`                                                                                         |
+| `type.case-label-not-integer`    | CASE label or range endpoint is not an integer              | `{ type: TypeDescriptor }`                                                                                         |
+| `type.for-variable-not-integer`  | FOR control variable is not an integer                      | `{ name: string; type: TypeDescriptor }`                                                                           |
+| `type.for-bound-not-integer`     | FOR start, end or step is not an integer                    | `{ bound: "from" \| "to" \| "step"; type: TypeDescriptor }`                                                        |
+| `flow.exit-outside-loop`         | EXIT occurs outside a loop                                  | `{}`                                                                                                               |
+| `fb.invalid-instance-section`    | FB instance declared outside VAR                            | `{ name: string }`                                                                                                 |
+| `fb.no-matching-variant`         | No variant accepts the selecting preset types               | `{ name: string; types: readonly TypeDescriptor[] }`                                                               |
+| `fb.not-function-block`          | Called instance is not a function block                     | `{ name: string }`                                                                                                 |
+| `fb.unknown-member`              | FB instance has no such member                              | `{ name: string; member: string }`                                                                                 |
+| `fb.output-not-writable`         | Assignment attempts to write an FB output                   | `{ name: string; member: string }`                                                                                 |
+| `fb.instance-as-value`           | FB instance used as a scalar value                          | `{ name: string }`                                                                                                 |
+| `fb.unsupported-call`            | FB statement uses positional inputs                         | `{ name: string }`                                                                                                 |
+| `fb.call-in-expression`          | FB call used within an expression                           | `{ name: string }`                                                                                                 |
+| `call.unknown-function`          | Function name is unknown                                    | `{ name: string }`                                                                                                 |
+| `call.invalid-parameter`         | Unknown, duplicate or misdirected formal parameter          | `{ name: string; parameter: string }`                                                                              |
+| `call.argument-count`            | Function call supplies the wrong number of arguments        | `{ name: string; min: number; max: number \| null; found: number }`                                                |
+| `call.argument-type`             | Function argument has an unsupported type                   | `{ name: string; index: number; expected: readonly [TypeDescriptor, ...TypeDescriptor[]]; found: TypeDescriptor }` |
+| `runtime.subrange-violation`     | Dynamic value stored outside the declared limits            | `{ value: number \| string; lower: number \| string; upper: number \| string }`                                    |
+| `runtime.invalid-value`          | Non-finite result or REAL overflow                          | `{}`                                                                                                               |
+| `runtime.division-by-zero`       | Division has a zero divisor                                 | `{}`                                                                                                               |
+| `runtime.watchdog`               | Loop iteration limit exceeded                               | `{ limit: number }`                                                                                                |
+| `runtime.for-by-zero`            | FOR step evaluates to zero                                  | `{}`                                                                                                               |
+| `runtime.debug-target`           | Debug command target is not a loaded scalar                 | `{}`                                                                                                               |
+| `runtime.debug-type-mismatch`    | Debug value type differs from the declaration               | `{ from: TypeDescriptor; to: TypeDescriptor }`                                                                     |
+| `runtime.debug-value`            | Invalid debug value, non-finite value or overflow           | `{}`                                                                                                               |
+| `runtime.write-input-mapped`     | One-shot write targets an input-mapped variable             | `{ name: string }`                                                                                                 |
 
 `CommandRejectionCode` selects the four debug-command codes above. They are sent
 in non-fatal `rejected` events with the originating `force` or `write` command,
@@ -209,11 +212,11 @@ POUs: `function` for a user function; `type` for a PROGRAM or user FB.
 
 In-out call errors apply to both functions and user function blocks:
 
-| Code                   | Meaning                                                                                                                | Arguments                             |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `call.in-out-variable` | Actual is not a writable scalar variable of the caller (expressions, literals, bits and instance members are rejected) | `{}`                                  |
-| `call.in-out-type`     | Actual type differs from the declared type; implicit widening is forbidden                                             | `{ from: DataType; to: DataType }`    |
-| `call.missing-in-out`  | Required in-out omitted from a call                                                                                    | `{ name: string; parameter: string }` |
+| Code                   | Meaning                                                                                                                | Arguments                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `call.in-out-variable` | Actual is not a writable scalar variable of the caller (expressions, literals, bits and instance members are rejected) | `{}`                                           |
+| `call.in-out-type`     | Actual type differs from the declared type; implicit widening is forbidden                                             | `{ from: TypeDescriptor; to: TypeDescriptor }` |
+| `call.missing-in-out`  | Required in-out omitted from a call                                                                                    | `{ name: string; parameter: string }`          |
 
 `call.in-out-variable` and `call.in-out-type` span the actual argument;
 `call.missing-in-out` spans the call. External reads/writes of `inst.io` report
@@ -255,3 +258,9 @@ variant. This avoids misleading narrowing diagnostics. For successful selection,
 non-selecting bindings are checked after resolution with ordinary assignment diagnostics; an untyped
 `c(PV := 100000)` with no typed binding reports `type.invalid-constant` against
 the default INT. See [type-checking.md](type-checking.md#overloaded-standard-timers-and-counters).
+
+Data type source diagnostics use the type name in `pou`, `sourceKind: "dataType"`
+and `sourceIndex` into the compiler's separate data type source list. Duplicate
+types use `decl.duplicate`; type/POU/standard-name clashes use `decl.name-collision`;
+unknown type references use `decl.unknown-type`. Invalid bounds, duplicate enum
+values and out-of-range subrange constants use `type.invalid-constant`.

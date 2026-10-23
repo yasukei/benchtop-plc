@@ -10,6 +10,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Compiler data type sources with elementary aliases, enumerations and named or
+  inline integer subranges (ADR 0015). Enumerations support contextual literals,
+  CASE, selection functions and scalar POU parameters/results; subrange stores
+  fault outside their limits. Monitor helpers format enum names and validate
+  writes and forces. XML data type storage and the web type list remain deferred;
+  XML export rejects inline subranges until it can preserve their limits.
+
 - ADR 0015 documents the accepted design for data type declarations, enumerations,
   subranges, arrays, structures, strings and references for Milestone 5;
   implementation follows in its sub-issues.

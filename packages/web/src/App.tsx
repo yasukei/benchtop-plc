@@ -18,10 +18,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const language = useSyncExternalStore(i18n.subscribe, i18n.getSnapshot);
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  const variables = useMemo(
-    () => (state.loadedSources ? (compileProject(state.loadedSources).ir?.variables ?? []) : []),
+  const loadedIr = useMemo(
+    () => (state.loadedSources ? compileProject(state.loadedSources).ir : undefined),
     [state.loadedSources],
   );
+  const variables = loadedIr?.variables ?? [];
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
   const banner = bannerFor(state);
@@ -160,6 +161,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             <div className="pou-workspace">
               <PouList state={state} store={store} text={text} />
               <StEditor
+                ir={loadedIr}
                 key={state.editorSession}
                 ref={editor}
                 source={state.source}
@@ -224,6 +226,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
               store={store}
               text={text}
               variables={variables}
+              types={loadedIr?.types}
             />
           </div>
         </div>

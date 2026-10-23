@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
-import { formatValue, type CalendarType, type TypedValue } from "@benchtop-plc/core";
+import { scalarBase, formatValue, type CalendarType, type TypedValue } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
 const program = (declarations: string, body = "") =>
@@ -44,7 +44,7 @@ it.each([
   const { ir, values } = execute(`x: ${type} := ${literal};`);
   const variable = ir.variables[0]!;
   if (variable.kind !== "scalar") throw new Error("Expected scalar");
-  expect(formatValue(variable.dataType, values.x!)).toBe(expected);
+  expect(formatValue(scalarBase(variable.dataType, ir.types), values.x!)).toBe(expected);
 });
 it.each([
   ["DATE", "D#2023-02-29"],

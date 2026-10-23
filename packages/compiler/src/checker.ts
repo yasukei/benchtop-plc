@@ -1,5 +1,12 @@
 import {
   coerceValue,
+  scalarBase,
+  enumerationType,
+  subrangeType,
+  sameScalarType,
+  typeEntry,
+  validateDeclaredValue,
+  validateValue,
   isCalendarType,
   parseCalendar,
   calendarBinary,
@@ -18,6 +25,8 @@ import {
 } from "@benchtop-plc/core";
 import type {
   CalendarType,
+  TypeDescriptor,
+  TypeTable,
   ConversionFunction,
   DataType,
   Diagnostic,
@@ -81,7 +90,13 @@ class Checker {
   private readonly names = new Map<string, VariableSymbol>();
   private readonly constants = new Map<
     string,
-    { name: AST.Identifier; type: DataType; initializerProcessed: boolean; value?: ScalarValue }
+    {
+      name: AST.Identifier;
+      type: DataType;
+      descriptor?: TypeDescriptor;
+      initializerProcessed: boolean;
+      value?: ScalarValue;
+    }
   >();
   private readonly declaredNames = new Set<string>();
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
@@ -96,12 +111,15 @@ class Checker {
   private readonly blockInputTypes = new Map<AST.Identifier, DataType>();
   private readonly failedBlockSelections = new Set<string>();
   private result?: VariableSymbol;
+  private collectingDeclarations = true;
 
   constructor(
     private readonly ast: AST.Program,
     private readonly pous: ReadonlyMap<string, AST.Program>,
     private readonly functionIds: ReadonlyMap<string, number>,
     private readonly blockIds: ReadonlyMap<string, number>,
+    private readonly types: TypeTable,
+    private readonly interfaces: ReadonlyMap<AST.Program, CheckedProgram> = new Map(),
   ) {}
 
   private report<C extends DiagnosticCode>(
@@ -119,7 +137,7 @@ class Checker {
     } as Diagnostic);
   }
 
-  run(ast: AST.Program): CheckResult {
+  run(ast: AST.Program, declarationsOnly = false): CheckResult {
     for (const section of ast.sections ?? []) {
       if (section.constant && section.name !== "VAR")
         this.report("decl.constant-section", { section: section.name }, section.span);
@@ -132,7 +150,10 @@ class Checker {
     // Collect all declarations first so forward references receive ordinary type diagnostics.
     for (const declaration of ast.declarations) this.declare(declaration);
     if (ast.resultType) {
-      const type = declarationType(ast.resultType.key);
+      const descriptor = this.descriptor(ast.resultType, ast.resultSubrange);
+      const type = descriptor
+        ? scalarBase(descriptor, this.types)
+        : declarationType(ast.resultType.key);
       if (!isScalar(type))
         this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
       else {
@@ -140,12 +161,14 @@ class Checker {
           id: this.symbols.length,
           name: ast.name,
           type,
-          initialValue: isLongType(type) ? "0" : type === "BOOL" ? false : 0,
+          descriptor,
+          initialValue: this.defaultValue(descriptor!),
         };
         this.symbols.push(this.result);
         this.names.set(ast.name.key, this.result);
       }
     }
+    this.collectingDeclarations = false;
     for (const declaration of ast.declarations) {
       this.initializer(declaration);
       for (const name of declaration.names) {
@@ -153,13 +176,23 @@ class Checker {
         if (constant?.name === name) constant.initializerProcessed = true;
       }
     }
-    this.selectBlockVariants();
-    this.statements(ast.body, 0);
+    if (this.result && ast.resultType) {
+      const descriptor = this.descriptor(ast.resultType, ast.resultSubrange);
+      if (descriptor) {
+        this.result.descriptor = descriptor;
+        this.result.initialValue = this.defaultValue(descriptor);
+      }
+    }
+    if (!declarationsOnly) {
+      this.selectBlockVariants();
+      this.statements(ast.body, 0);
+    }
     if (this.diagnostics.some((item) => item.severity === "error"))
       return { checked: null, diagnostics: this.diagnostics };
     return {
       checked: {
         ast,
+        types: this.types,
         symbols: this.symbols,
         expressions: this.expressions,
         references: this.references,
@@ -184,7 +217,7 @@ class Checker {
     const inferred = new Set(instances.keys());
     // Isolate speculative expression checking: no cached types, references or diagnostics
     // may leak into the ordinary check against the final variants.
-    const probe = new Checker(this.ast, this.pous, this.functionIds, this.blockIds);
+    const probe = new Checker(this.ast, this.pous, this.functionIds, this.blockIds, this.types);
     for (const [key, symbol] of this.names) probe.names.set(key, symbol);
     for (const [key, constant] of this.constants) probe.constants.set(key, constant);
     const bindings = new Map<VariableSymbol, DataType[]>();
@@ -222,8 +255,76 @@ class Checker {
     );
   }
 
+  private descriptor(name: AST.Identifier, range?: AST.Subrange): TypeDescriptor | undefined {
+    const key = declarationType(name.key);
+    let type: TypeDescriptor;
+    if (isScalar(key)) type = key;
+    else {
+      const entry = this.types.find((entry) => entry.name.toUpperCase() === key);
+      if (!entry) return undefined;
+      type = { kind: "named", name: entry.name };
+    }
+    if (!range || this.collectingDeclarations) return type;
+    const base = scalarBase(type, this.types);
+    const lower = this.expression(range.lower, base),
+      upper = this.expression(range.upper, base);
+    try {
+      if (
+        !isIntegerType(base) ||
+        lower?.constant === undefined ||
+        upper?.constant === undefined ||
+        enumerationType(lower.descriptor ?? lower.dataType, this.types) ||
+        enumerationType(upper.descriptor ?? upper.dataType, this.types)
+      )
+        throw new RangeError("Invalid bounds");
+      validateValue(base, lower.constant);
+      validateValue(base, upper.constant);
+      if (BigInt(lower.constant) > BigInt(upper.constant)) throw new RangeError("Reversed bounds");
+      return {
+        kind: "subrange",
+        base,
+        lower: coerceValue(base, lower.constant),
+        upper: coerceValue(base, upper.constant),
+      };
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      this.report("type.invalid-constant", {}, range.span);
+      return undefined;
+    }
+  }
+
+  private defaultValue(type: TypeDescriptor): ScalarValue {
+    if (typeof type !== "string" && type.kind === "named")
+      return typeEntry(type, this.types).initialValue;
+    const range = subrangeType(type, this.types);
+    if (range) return range.lower;
+    const base = scalarBase(type, this.types);
+    return isLongType(base) ? "0" : base === "BOOL" ? false : 0;
+  }
+
+  private enum(info: ExpressionInfo): boolean {
+    return !!enumerationType(info.descriptor ?? info.dataType, this.types);
+  }
+
+  private enumLiteral(
+    node: AST.Expression,
+    type: TypeDescriptor,
+    name: AST.Identifier,
+  ): ExpressionInfo | null {
+    const enumeration = enumerationType(type, this.types);
+    const member = enumeration?.values.find((member) => member.name.toUpperCase() === name.key);
+    if (!member) {
+      this.report("name.undeclared", { name: name.name }, node.span);
+      return null;
+    }
+    return { dataType: enumeration!.base, descriptor: type, constant: member.value };
+  }
+
   private declare(declaration: AST.Declaration): void {
-    const type = declarationType(declaration.typeName.key);
+    const descriptor = this.descriptor(declaration.typeName, declaration.subrange);
+    const type = descriptor
+      ? scalarBase(descriptor, this.types)
+      : declarationType(declaration.typeName.key);
     const userBlock = this.blockIds.get(type);
     const block = isBlock(type) || userBlock !== undefined;
     const known = isScalar(type) || block;
@@ -275,21 +376,26 @@ class Checker {
           { name: name.name, kind: pou.kind === "function" ? "function" : "type" },
           name.span,
         );
-      } else if (isScalar(name.key) || isBlock(name.key)) {
+      } else if (
+        isScalar(name.key) ||
+        isBlock(name.key) ||
+        this.types.some((entry) => entry.name.toUpperCase() === name.key)
+      ) {
         this.report("decl.name-collision", { name: name.name, kind: "type" }, name.span);
       } else if (isFunction(name.key)) {
         this.report("decl.name-collision", { name: name.name, kind: "function" }, name.span);
       } else if (duplicate) {
         this.report("decl.duplicate", { name: name.name }, name.span);
       } else if (declaration.constant && isScalar(type)) {
-        this.constants.set(name.key, { name, type, initializerProcessed: false });
+        this.constants.set(name.key, { name, type, descriptor, initializerProcessed: false });
       } else if (known) {
         const symbol: VariableSymbol = {
           id: this.symbols.length,
           name,
           type,
+          ...(descriptor ? { descriptor } : {}),
           ...(userBlock !== undefined ? { userBlock } : {}),
-          initialValue: block ? null : isLongType(type) ? "0" : type === "BOOL" ? false : 0,
+          initialValue: block ? null : this.defaultValue(descriptor!),
         };
         this.symbols.push(symbol);
         this.names.set(name.key, symbol);
@@ -299,24 +405,36 @@ class Checker {
   }
 
   private initializer(declaration: AST.Declaration): void {
+    const descriptor = this.descriptor(declaration.typeName, declaration.subrange);
+    for (const name of declaration.names) {
+      const symbol = this.names.get(name.key),
+        constant = this.constants.get(name.key);
+      if (descriptor && symbol?.name === name) {
+        symbol.descriptor = descriptor;
+        symbol.initialValue = this.defaultValue(descriptor);
+      }
+      if (descriptor && constant?.name === name) constant.descriptor = descriptor;
+    }
     const value = declaration.initializer;
     if (!value) {
       for (const name of declaration.names) {
         const constant = this.constants.get(name.key);
         if (constant?.name === name)
-          constant.value = isLongType(constant.type) ? "0" : constant.type === "BOOL" ? false : 0;
+          constant.value = this.defaultValue(constant.descriptor ?? constant.type);
       }
       return;
     }
-    const type = declarationType(declaration.typeName.key);
+    const type = descriptor
+      ? scalarBase(descriptor, this.types)
+      : declarationType(declaration.typeName.key);
     if (isBlock(type) || this.blockIds.has(type)) {
       this.report("decl.fb-initializer", { name: declaration.names[0].name }, value.span);
       return;
     }
     const before = this.diagnostics.length;
-    const info = this.expression(value, isScalar(type) ? type : undefined);
+    const info = this.expression(value, descriptor ?? (isScalar(type) ? type : undefined));
     if (!info || !isScalar(type)) return;
-    if (!this.assignment(type, info, value.span)) return;
+    if (!this.assignment(descriptor ?? type, info, value.span)) return;
     if (info.constant === undefined) {
       if (!this.diagnostics.slice(before).some((item) => item.severity === "error"))
         this.report(
@@ -371,6 +489,16 @@ class Checker {
     return bit;
   }
 
+  private parameterType(
+    pou: AST.Program,
+    declaration: AST.Declaration,
+  ): TypeDescriptor | undefined {
+    const checked = this.interfaces.get(pou);
+    const reference = checked?.references.get(declaration.names[0]);
+    if (reference) return checked!.symbols[reference.variable]?.descriptor;
+    return this.descriptor(declaration.typeName, declaration.subrange);
+  }
+
   private reference(node: AST.AssignmentTarget, write = false): ExpressionInfo | null {
     const name = node.kind === "name" ? node.name : node.instance;
     const constant = this.constants.get(name.key);
@@ -384,7 +512,12 @@ class Checker {
           this.report("decl.constant-order", { name: name.name }, name.span);
         return null;
       }
-      if (node.kind === "name") return { dataType: constant.type, constant: constant.value };
+      if (node.kind === "name")
+        return {
+          dataType: constant.type,
+          descriptor: constant.descriptor,
+          constant: constant.value,
+        };
       const bit = this.bitIndex(constant.type, node.member);
       return bit === null
         ? null
@@ -397,7 +530,7 @@ class Checker {
         this.report("fb.instance-as-value", { name: name.name }, node.span);
         return null;
       }
-      return { dataType: symbol.type };
+      return { dataType: symbol.type, descriptor: symbol.descriptor };
     }
     if (
       isScalar(symbol.type) &&
@@ -415,7 +548,7 @@ class Checker {
         .flatMap((declaration) =>
           declaration.names.map((member) => ({
             name: member,
-            type: declarationType(declaration.typeName.key),
+            type: this.parameterType(pou, declaration),
             section: declaration.section,
           })),
         );
@@ -425,7 +558,7 @@ class Checker {
           ["VAR_INPUT", "VAR_OUTPUT"].includes(parameter.section ?? ""),
       );
       const parameter = parameters[index];
-      if (!parameter || !isScalar(parameter.type)) {
+      if (!parameter?.type) {
         this.report(
           "fb.unknown-member",
           { name: name.name, member: node.member.name },
@@ -445,7 +578,7 @@ class Checker {
         port: parameter.section === "VAR_INPUT" ? "input" : "output",
         userBlock: true,
       });
-      return { dataType: parameter.type };
+      return { dataType: scalarBase(parameter.type, this.types), descriptor: parameter.type };
     }
     if (!isBlock(symbol.type)) {
       this.report("fb.not-function-block", { name: name.name }, name.span);
@@ -476,14 +609,16 @@ class Checker {
     return null;
   }
 
-  private expression(node: AST.Expression, expected?: DataType): ExpressionInfo | null {
+  private expression(node: AST.Expression, expected?: TypeDescriptor): ExpressionInfo | null {
+    const expectedBase = expected ? scalarBase(expected, this.types) : undefined;
     const cached = this.expressions.get(node);
     if (cached) return cached;
     let info: ExpressionInfo | null;
     if (isUntyped(node)) {
       try {
         const exact = exactConstant(node);
-        const dataType = expected && acceptsKind(expected, exact) ? expected : defaultType(exact);
+        const dataType =
+          expectedBase && acceptsKind(expectedBase, exact) ? expectedBase : defaultType(exact);
         info = { dataType, constant: materialize(exact, dataType), untyped: true };
         this.expressions.set(node, info);
         return info;
@@ -513,24 +648,46 @@ class Checker {
         }
         break;
       }
+      case "enumeration": {
+        const type = this.descriptor(node.typeName);
+        if (!type) {
+          this.report("decl.unknown-type", { name: node.typeName.name }, node.typeName.span);
+          return null;
+        }
+        info = this.enumLiteral(node, type, node.member);
+        break;
+      }
       case "name":
+        if (
+          expected &&
+          enumerationType(expected, this.types)?.values.some(
+            (member) => member.name.toUpperCase() === node.name.key,
+          )
+        ) {
+          if (this.names.has(node.name.key) || this.constants.has(node.name.key)) {
+            this.report("type.ambiguous-enumeration", { name: node.name.name }, node.span);
+            return null;
+          }
+          info = this.enumLiteral(node, expected, node.name);
+        } else info = this.reference(node);
+        break;
       case "member":
         info = this.reference(node);
         break;
       case "group":
-        info = this.expression(node.expression);
+        info = this.expression(node.expression, expected);
         break;
       case "functionCall":
-        info = this.functionCall(node);
+        info = this.functionCall(node, false, expected);
         break;
       case "unary": {
         const operand = this.expression(node.operand);
         if (!operand) return null;
-        const dataType = unaryType(node.operator, operand.dataType);
+        const dataType = this.enum(operand) ? null : unaryType(node.operator, operand.dataType);
         if (!dataType) {
           this.report(
             "type.operand-mismatch",
-            { operator: node.operator, left: operand.dataType, right: null },
+            { operator: node.operator, left: operand.descriptor ?? operand.dataType, right: null },
             node.span,
           );
           return null;
@@ -555,11 +712,25 @@ class Checker {
             : this.operands([node.left, node.right], scaling);
         const [left, right] = values;
         if (!left || !right) return null;
-        const dataType = binaryType(node.operator, left.dataType, right.dataType);
+        const enums = this.enum(left) || this.enum(right);
+        const dataType = enums
+          ? ["=", "<>"].includes(node.operator) &&
+            sameScalarType(
+              left.descriptor ?? left.dataType,
+              right.descriptor ?? right.dataType,
+              this.types,
+            )
+            ? "BOOL"
+            : null
+          : binaryType(node.operator, left.dataType, right.dataType);
         if (!dataType) {
           this.report(
             "type.operand-mismatch",
-            { operator: node.operator, left: left.dataType, right: right.dataType },
+            {
+              operator: node.operator,
+              left: left.descriptor ?? left.dataType,
+              right: right.descriptor ?? right.dataType,
+            },
             node.span,
           );
           return null;
@@ -640,17 +811,55 @@ class Checker {
   private operands(
     nodes: AST.Expression[],
     independent = false,
-    defaultExpected?: DataType,
+    defaultExpected?: TypeDescriptor,
   ): (ExpressionInfo | null)[] {
-    const infos = nodes.map((node) => (isUntyped(node) ? null : this.expression(node)));
-    const pending = new Set(nodes.flatMap((node, index) => (isUntyped(node) ? [index] : [])));
+    const deferred = (node: AST.Expression): boolean =>
+      isUntyped(node) ||
+      (node.kind === "name" &&
+        !this.names.has(node.name.key) &&
+        !this.constants.has(node.name.key));
+    const hint = (node: AST.Expression): TypeDescriptor | undefined => {
+      if (node.kind === "group") return hint(node.expression);
+      if (node.kind === "enumeration") return this.descriptor(node.typeName);
+      if (node.kind === "name")
+        return (
+          this.names.get(node.name.key)?.descriptor ?? this.constants.get(node.name.key)?.descriptor
+        );
+      return undefined;
+    };
+    const context =
+      defaultExpected && enumerationType(defaultExpected, this.types)
+        ? defaultExpected
+        : nodes.map(hint).find((type) => type && enumerationType(type, this.types));
+    const infos = nodes.map((node) => (deferred(node) ? null : this.expression(node, context)));
+    const enumeration = infos.find((info) => info && this.enum(info));
+    const enumExpected =
+      enumeration?.descriptor ??
+      (defaultExpected && enumerationType(defaultExpected, this.types)
+        ? defaultExpected
+        : undefined);
+    if (enumExpected)
+      return nodes.map((node, index) => {
+        if (
+          node.kind === "name" &&
+          (this.names.has(node.name.key) || this.constants.has(node.name.key)) &&
+          enumerationType(enumExpected, this.types)?.values.some(
+            (member) => member.name.toUpperCase() === node.name.key,
+          )
+        ) {
+          this.report("type.ambiguous-enumeration", { name: node.name.name }, node.span);
+          return null;
+        }
+        return infos[index] ?? this.expression(node, enumExpected);
+      });
+    const pending = new Set(nodes.flatMap((node, index) => (deferred(node) ? [index] : [])));
     independent = independent && (infos[0]?.dataType === "TIME" || infos[0]?.dataType === "LTIME");
     const common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
     for (const index of pending) {
       const node = nodes[index]!;
-      let useDefault = independent || !common;
+      let useDefault = independent || !common || !isUntyped(node);
       try {
-        useDefault ||= !acceptsKind(common!, exactConstant(node));
+        if (!useDefault) useDefault = !acceptsKind(common!, exactConstant(node));
       } catch (error) {
         if (!(error instanceof RangeError)) throw error;
         useDefault = true;
@@ -664,7 +873,11 @@ class Checker {
     return infos;
   }
 
-  private functionCall(node: AST.FunctionCall, statement = false): ExpressionInfo | null {
+  private functionCall(
+    node: AST.FunctionCall,
+    statement = false,
+    expectedType?: TypeDescriptor,
+  ): ExpressionInfo | null {
     const pou = this.pous.get(node.name.key);
     if (pou?.kind === "program") {
       this.report("call.program", { name: node.name.name }, node.name.span);
@@ -724,7 +937,7 @@ class Checker {
         this.expressions.set(output.target, target);
         if (port >= 0)
           this.assignment(
-            target.dataType,
+            target.descriptor ?? target.dataType,
             { dataType: signature.outputs![port]![1] },
             output.target.span,
           );
@@ -740,15 +953,19 @@ class Checker {
         node.span,
       );
     }
+    const enumContext =
+      expectedType && enumerationType(expectedType, this.types) ? expectedType : undefined;
     const parameter = (arg: AST.Expression, index: number): ExpressionInfo | null => {
       const types = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
       return this.expression(
         arg,
-        types.length === 1
-          ? types[0]
-          : types.every((type) => type === "REAL" || type === "LREAL")
-            ? "LREAL"
-            : undefined,
+        name === "MOVE"
+          ? enumContext
+          : types.length === 1
+            ? types[0]
+            : types.every((type) => type === "REAL" || type === "LREAL")
+              ? "LREAL"
+              : undefined,
       );
     };
     const start = signature.genericStart;
@@ -760,8 +977,34 @@ class Checker {
         ? inputs.map(parameter)
         : [
             ...inputs.slice(0, start).map(parameter),
-            ...this.operands(inputs.slice(start), false, realGroup ? "LREAL" : undefined),
+            ...this.operands(inputs.slice(start), false, realGroup ? "LREAL" : enumContext),
           ];
+    const enumeration = args.find((arg) => arg && this.enum(arg));
+    if (enumeration) {
+      const firstValue = name === "SEL" || name === "MUX" ? 1 : 0;
+      args.forEach((arg, index) => {
+        if (!arg) return;
+        const enumValue = ["MOVE", "SEL", "MUX"].includes(name) && index >= firstValue;
+        const expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+        const accepted = enumValue
+          ? sameScalarType(enumeration.descriptor!, arg.descriptor ?? arg.dataType, this.types)
+          : !this.enum(arg) && expected.includes(arg.dataType);
+        if (!accepted)
+          this.report(
+            "call.argument-type",
+            {
+              name,
+              index,
+              expected: enumValue ? [enumeration.descriptor!] : expected,
+              found: arg.descriptor ?? arg.dataType,
+            },
+            inputs[index]!.span,
+          );
+      });
+      return ["MOVE", "SEL", "MUX"].includes(name)
+        ? { dataType: enumeration.dataType, descriptor: enumeration.descriptor }
+        : null;
+    }
     let validArguments = true;
     args.forEach((arg, index) => {
       if (!arg) {
@@ -873,7 +1116,7 @@ class Checker {
       .flatMap((declaration) =>
         declaration.names.map((name) => ({
           name,
-          type: declarationType(declaration.typeName.key),
+          type: this.parameterType(pou, declaration),
           section: declaration.section,
         })),
       )
@@ -881,7 +1124,11 @@ class Checker {
     const inputs = parameters.filter((parameter) => parameter.section === "VAR_INPUT");
     const outputs = parameters.filter((parameter) => parameter.section === "VAR_OUTPUT");
     const inOuts = parameters.filter((parameter) => parameter.section === "VAR_IN_OUT");
-    const result = pou.resultType ? declarationType(pou.resultType.key) : null;
+    const result = pou.resultType
+      ? (this.interfaces.get(pou)?.result?.descriptor ??
+        this.descriptor(pou.resultType, pou.resultSubrange) ??
+        null)
+      : null;
     if (!statement && result === null)
       this.report("call.no-result", { name: node.name.name }, node.span);
     const call: UserCallInfo = {
@@ -889,7 +1136,8 @@ class Checker {
       inputs: [],
       outputs: [],
       inOuts: [],
-      result: result && isScalar(result) ? result : null,
+      result: result ? scalarBase(result, this.types) : null,
+      ...(result ? { resultDescriptor: result } : {}),
     };
     this.userCalls.set(node, call);
     const invalid = (name: AST.Identifier) =>
@@ -917,7 +1165,7 @@ class Checker {
         : inputs[index];
       if (name && (!parameter || seen.has(name.key))) invalid(name);
       if (name) seen.add(name.key);
-      const type = parameter && isScalar(parameter.type) ? parameter.type : undefined;
+      const type = parameter?.type;
       if (parameter?.section === "VAR_IN_OUT") {
         if (type && this.inOutActual(value, type))
           call.inOuts.push({ variable: parameter.variable, actual: value });
@@ -926,7 +1174,11 @@ class Checker {
       const info = this.expression(value, type);
       if (parameter && type) {
         if (info) this.assignment(type, info, value.span);
-        call.inputs.push({ variable: parameter.variable, value, dataType: type });
+        call.inputs.push({
+          variable: parameter.variable,
+          value,
+          dataType: scalarBase(type, this.types),
+        });
       }
     });
     for (const output of node.outputs ?? []) {
@@ -936,18 +1188,22 @@ class Checker {
       const target = this.reference(output.target, true);
       if (target) {
         this.expressions.set(output.target, target);
-        if (parameter && isScalar(parameter.type)) {
-          this.assignment(target.dataType, { dataType: parameter.type }, output.target.span);
+        if (parameter?.type) {
+          this.assignment(
+            target.descriptor ?? target.dataType,
+            { dataType: scalarBase(parameter.type, this.types), descriptor: parameter.type },
+            output.target.span,
+          );
           call.outputs.push({ variable: parameter.variable, target: output.target });
         }
       }
     }
     this.requireInOuts(inOuts, seen, node);
     if (result === null) return statement ? { dataType: "BOOL" } : null;
-    return isScalar(result) ? { dataType: result } : null;
+    return { dataType: scalarBase(result, this.types), descriptor: result };
   }
 
-  private inOutActual(value: AST.Expression, type: DataType): value is AST.NameReference {
+  private inOutActual(value: AST.Expression, type: TypeDescriptor): value is AST.NameReference {
     if (value.kind !== "name") {
       this.report("call.in-out-variable", {}, value.span);
       return false;
@@ -955,8 +1211,12 @@ class Checker {
     const info = this.reference(value, true);
     if (!info) return false;
     this.expressions.set(value, info);
-    if (info.dataType !== type) {
-      this.report("call.in-out-type", { from: info.dataType, to: type }, value.span);
+    if (!sameScalarType(info.descriptor ?? info.dataType, type, this.types)) {
+      this.report(
+        "call.in-out-type",
+        { from: info.descriptor ?? info.dataType, to: type },
+        value.span,
+      );
       return false;
     }
     return true;
@@ -1007,8 +1267,8 @@ class Checker {
         if (seen.has(name.key))
           this.report("fb.duplicate-input", { name: node.name.name, member: name.name }, name.span);
         seen.add(name.key);
-        const type = declarationType(inOut.declaration.typeName.key);
-        if (isScalar(type) && this.inOutActual(value, type))
+        const type = this.parameterType(this.pous.get(symbol.type)!, inOut.declaration);
+        if (type && this.inOutActual(value, type))
           bindings.push({ variable: inOut.variable, actual: value });
         return;
       }
@@ -1020,12 +1280,16 @@ class Checker {
       };
       const target = this.reference(member, true);
       const failed = this.failedPreset(member);
-      const info = this.expression(value, failed ? undefined : target?.dataType);
+      const info = this.expression(
+        value,
+        failed ? undefined : (target?.descriptor ?? target?.dataType),
+      );
       if (target) this.blockInputTypes.set(name, target.dataType);
       if (seen.has(name.key))
         this.report("fb.duplicate-input", { name: node.name.name, member: name.name }, name.span);
       seen.add(name.key);
-      if (target && info && !failed) this.assignment(target.dataType, info, value.span);
+      if (target && info && !failed)
+        this.assignment(target.descriptor ?? target.dataType, info, value.span);
     });
     this.requireInOuts(inOuts, seen, node);
     for (const output of node.outputs ?? []) {
@@ -1045,19 +1309,24 @@ class Checker {
       seen.add(output.name.key);
       const target = this.reference(output.target, true);
       if (target) this.expressions.set(output.target, target);
-      if (source && target) this.assignment(target.dataType, source, output.target.span);
+      if (source && target)
+        this.assignment(target.descriptor ?? target.dataType, source, output.target.span);
     }
   }
 
-  private assignment(to: DataType, info: ExpressionInfo, span: SourceSpan): boolean {
-    const from = info.dataType;
-    if (!assignable(to, from)) {
+  private assignment(target: TypeDescriptor, info: ExpressionInfo, span: SourceSpan): boolean {
+    const to = scalarBase(target, this.types),
+      from = info.dataType;
+    const enums = this.enum(info) || !!enumerationType(target, this.types);
+    if (
+      enums ? !sameScalarType(target, info.descriptor ?? from, this.types) : !assignable(to, from)
+    ) {
       this.report(
         "type.assign-mismatch",
         {
-          from,
-          to,
-          ...(Object.hasOwn(conversionFunctions, `${from}_TO_${to}`)
+          from: info.descriptor ?? from,
+          to: target,
+          ...(!enums && Object.hasOwn(conversionFunctions, `${from}_TO_${to}`)
             ? { hint: "explicit-conversion" as const }
             : {}),
         },
@@ -1067,6 +1336,7 @@ class Checker {
     }
     if (info.constant !== undefined) {
       try {
+        validateDeclaredValue(target, info.constant, this.types);
         if (isLongType(to) && to !== from)
           convertValue(`${from}_TO_${to}` as ConversionFunction, info.constant);
         else coerceValue(to, info.constant);
@@ -1094,9 +1364,13 @@ class Checker {
         case "assignment": {
           const failed = this.failedPreset(node.target);
           const target = this.reference(node.target, true),
-            value = this.expression(node.value, failed ? undefined : target?.dataType);
+            value = this.expression(
+              node.value,
+              failed ? undefined : (target?.descriptor ?? target?.dataType),
+            );
           if (target) this.expressions.set(node.target, target);
-          if (target && value && !failed) this.assignment(target.dataType, value, node.value.span);
+          if (target && value && !failed)
+            this.assignment(target.descriptor ?? target.dataType, value, node.value.span);
           break;
         }
         case "call": {
@@ -1154,13 +1428,15 @@ class Checker {
               for (const value of label.kind === "value"
                 ? [label.value]
                 : [label.lower, label.upper]) {
-                const info = this.expression(value, selector?.dataType);
+                const info = this.expression(value, selector?.descriptor ?? selector?.dataType);
                 if (!info) continue;
                 if (!isInteger(info.dataType))
                   this.report("type.case-label-not-integer", { type: info.dataType }, value.span);
                 else {
                   if (selector && isInteger(selector.dataType))
-                    this.assignment(selector.dataType, info, value.span);
+                    this.assignment(selector.descriptor ?? selector.dataType, info, value.span);
+                  if (selector && this.enum(selector) && label.kind === "range")
+                    this.report("type.invalid-constant", {}, label.span);
                   if (info.constant === undefined)
                     this.report("type.case-label-not-constant", {}, value.span);
                 }
@@ -1182,10 +1458,15 @@ class Checker {
           if (symbol) {
             if (!isScalar(symbol.type))
               this.report("fb.instance-as-value", { name: node.variable.name }, node.variable.span);
-            else if (!isInteger(symbol.type))
+            else if (
+              !isInteger(symbol.type) ||
+              (symbol.descriptor &&
+                (enumerationType(symbol.descriptor, this.types) ||
+                  subrangeType(symbol.descriptor, this.types)))
+            )
               this.report(
                 "type.for-variable-not-integer",
-                { name: node.variable.name, type: symbol.type },
+                { name: node.variable.name, type: symbol.descriptor ?? symbol.type },
                 node.variable.span,
               );
           }
@@ -1196,7 +1477,7 @@ class Checker {
               symbol && isScalar(symbol.type) && isInteger(symbol.type) ? symbol.type : undefined;
             const info = this.expression(value, type);
             if (info && type && isInteger(info.dataType)) this.assignment(type, info, value.span);
-            if (info && !isInteger(info.dataType))
+            if (info && (!isInteger(info.dataType) || this.enum(info)))
               this.report("type.for-bound-not-integer", { bound, type: info.dataType }, value.span);
           }
           this.statements(node.body, depth + 1);
@@ -1226,6 +1507,18 @@ export function check(
   pous: ReadonlyMap<string, AST.Program> = new Map([[ast.name.key, ast]]),
   functionIds: ReadonlyMap<string, number> = new Map(),
   blockIds: ReadonlyMap<string, number> = new Map(),
+  types: TypeTable = [],
+  interfaces: ReadonlyMap<AST.Program, CheckedProgram> = new Map(),
 ): CheckResult {
-  return new Checker(ast, pous, functionIds, blockIds).run(ast);
+  return new Checker(ast, pous, functionIds, blockIds, types, interfaces).run(ast);
+}
+
+/** Resolve POU signatures in their own constant scope before checking call sites. */
+export function checkDeclarations(
+  ast: AST.Program,
+  types: TypeTable,
+  pous: ReadonlyMap<string, AST.Program>,
+  blockIds: ReadonlyMap<string, number>,
+): CheckResult {
+  return new Checker(ast, pous, new Map(), blockIds, types).run(ast, true);
 }

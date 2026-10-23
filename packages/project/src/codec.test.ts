@@ -446,3 +446,12 @@ it.each([
   project.pous[0] = `PROGRAM Main VAR x: ${type} := ${invalid}; END_VAR END_PROGRAM`;
   expect(writeProject(project).value).toBeNull();
 });
+
+it("rejects inline subranges until TC6 mapping is supported instead of dropping the limits", () => {
+  const source = "PROGRAM Main VAR p : INT (0..100); END_VAR END_PROGRAM";
+  const result = writeProject(sampleProject(source));
+  expect(result.value).toBeNull();
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "project.unsupported", args: { path: "subrange" } }),
+  );
+});

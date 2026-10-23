@@ -1,6 +1,11 @@
 import { compile, lex } from "@benchtop-plc/compiler";
 import {
   coerceValue,
+  scalarBase,
+  enumerationType,
+  validateScalar,
+  type TypeDescriptor,
+  type TypeTable,
   isBitType,
   isLongType,
   isCalendarType,
@@ -35,7 +40,7 @@ function decimalInteger(text: string): number | null {
 }
 
 /** Reuse ST literal syntax without compiling user-supplied statements. */
-export function parseWrittenValue(dataType: DataType, source: string): TypedValue | null {
+function parseElementaryWrittenValue(dataType: DataType, source: string): TypedValue | null {
   const text = source.trim();
   if (dataType === "BOOL")
     return /^(TRUE|FALSE)$/i.test(text) ? { dataType, value: text.toUpperCase() === "TRUE" } : null;
@@ -97,9 +102,51 @@ export function parseWrittenValue(dataType: DataType, source: string): TypedValu
     return null;
   }
 }
-export function variableValue(variable: Variable, value: VariableSnapshot | undefined): string {
+/** Resolve an enumeration name without changing the scalar wire representation. */
+export function parseWrittenValue(
+  type: TypeDescriptor,
+  source: string,
+  types: TypeTable = [],
+): TypedValue | null {
+  try {
+    const enumeration = enumerationType(type, types);
+    if (enumeration) {
+      const member = enumeration.values.find(
+        (member) => member.name.toUpperCase() === source.trim().toUpperCase(),
+      );
+      return member ? ({ dataType: enumeration.base, value: member.value } as TypedValue) : null;
+    }
+    const value = parseElementaryWrittenValue(scalarBase(type, types), source);
+    if (value) validateScalar(type, value.value, types);
+    return value;
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return null;
+  }
+}
+
+export function formatMonitoredValue(
+  type: TypeDescriptor,
+  value: TypedValue,
+  types: TypeTable = [],
+): string {
+  const enumeration = enumerationType(type, types);
+  return (
+    enumeration?.values.find((member) => BigInt(member.value) === BigInt(value.value))?.name ??
+    formatValue(value.dataType, value.value)
+  );
+}
+
+export function variableValue(
+  variable: Variable,
+  value: VariableSnapshot | undefined,
+  types: TypeTable = [],
+): string {
   if (!value) return "—";
-  if (value.kind === "scalar") return formatValue(value.dataType, value.value);
+  if (value.kind === "scalar")
+    return variable.kind === "scalar"
+      ? formatMonitoredValue(variable.dataType, value, types)
+      : formatValue(value.dataType, value.value);
   if (variable.kind !== "functionBlock") return "—";
   return standardFunctionBlocks[variable.fbType].outputs
     .map(([name], index) => {

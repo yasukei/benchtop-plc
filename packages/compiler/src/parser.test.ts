@@ -17,6 +17,8 @@ function expression(source: string): Expression {
 
 function shape(node: Expression): unknown {
   switch (node.kind) {
+    case "enumeration":
+      return `${node.typeName.key}#${node.member.key}`;
     case "literal":
       return node.value;
     case "name":
