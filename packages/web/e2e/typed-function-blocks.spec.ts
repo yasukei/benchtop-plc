@@ -85,3 +85,39 @@ END_PROGRAM`);
     await expect(page.locator(".cm-tooltip-hover")).toHaveText("counter: CTU_DINT");
   });
 }
+
+test("shows local variable hovers without treating formal parameter names as locals", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await editor.fill(`PROGRAM Main
+VAR t : TON; IN : BOOL; END_VAR
+t(IN := IN, PT := T#1s);
+END_PROGRAM`);
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "No diagnostics",
+  );
+  const line = editor.locator(".cm-line").filter({ hasText: /^t\(IN/ });
+  await line.scrollIntoViewIfNeeded();
+  const points = await line.evaluate((element) => {
+    const text = element.firstChild;
+    if (!text || text.nodeType !== Node.TEXT_NODE) throw new Error("Expected call text");
+    return ["t(IN := ".length, "t(".length].map((offset) => {
+      const range = document.createRange();
+      range.setStart(text, offset);
+      range.setEnd(text, offset + "IN".length);
+      const rect = range.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    });
+  });
+  // Advance beyond CodeMirror's hover delay for both the actual and formal name.
+  await page.clock.install();
+  await page.mouse.move(points[0]!.x, points[0]!.y);
+  await page.clock.runFor(1000);
+  await expect(page.locator(".cm-tooltip-hover")).toHaveText("IN: BOOL");
+  await page.mouse.move(points[1]!.x, points[1]!.y);
+  await page.clock.runFor(1000);
+  await expect(page.locator(".cm-tooltip-hover")).toHaveCount(0);
+});

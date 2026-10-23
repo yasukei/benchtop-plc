@@ -18,6 +18,9 @@ export function blockTypeAt(
     }) ?? -1;
   const token = tokens?.[index];
   if (token?.kind !== "identifier" || tokens?.[index - 1]?.key === ".") return null;
+  const previous = tokens?.[index - 1]?.key;
+  const next = tokens?.[index + 1]?.key;
+  if ((previous === "(" || previous === ",") && (next === ":=" || next === "=>")) return null;
   const ast = parsePou(source).ast;
   if (!ast) return null;
   const ir = compileProject(sources, dataTypes).ir;

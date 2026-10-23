@@ -51,3 +51,24 @@ it("shows declared named and inline types on variables in every POU kind", () =>
     "FUNCTION_BLOCK Block VAR_OUTPUT s : State; END_VAR s := State#Idle; END_FUNCTION_BLOCK";
   expect(blockTypeAt([main, block], 1, block.indexOf("s :="), types)?.text).toBe("s: State");
 });
+
+it("distinguishes formal parameter names from same-named local variables", () => {
+  const main = `PROGRAM Main
+VAR t : TON; IN, Q : BOOL; n : DINT; END_VAR
+t(IN := IN, PT := T#1s, Q => Q);
+n := F(n := n);
+END_PROGRAM`;
+  const fn = "FUNCTION F : DINT VAR_INPUT n : LINT; END_VAR F := LINT_TO_DINT(n); END_FUNCTION";
+  const sources = [main, fn];
+  expect(compileProject(sources).diagnostics).toEqual([]);
+  for (const formal of ["IN :=", "Q =>", "n := n)"])
+    expect(blockTypeAt(sources, 0, main.indexOf(formal))).toBeNull();
+  for (const [actual, expected] of [
+    ["IN, PT", "IN: BOOL"],
+    ["Q);", "Q: BOOL"],
+    ["n);", "n: DINT"],
+  ])
+    expect(blockTypeAt(sources, 0, main.indexOf(actual!))?.text).toBe(expected);
+  // A declaration after a comma is still a variable, not a formal argument.
+  expect(blockTypeAt(sources, 0, main.indexOf("Q :"))?.text).toBe("Q: BOOL");
+});
