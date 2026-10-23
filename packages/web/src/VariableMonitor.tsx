@@ -154,7 +154,9 @@ export function VariableMonitor({
                         : null}
                     </td>
                     <td>
-                      {variable.kind === "scalar" ? formatType(variable.dataType) : variable.fbType}
+                      {variable.kind !== "functionBlock"
+                        ? formatType(variable.dataType)
+                        : variable.fbType}
                     </td>
                     <td>{variableValue(variable, values.get(id), types)}</td>
                     <td>

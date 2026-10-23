@@ -104,8 +104,8 @@ an entry of the optional, ordered `ProgramIR.types` table. An inline subrange is
 `{ kind: "subrange", base: "INT", lower: 0, upper: 100 }`; it has no table entry.
 Bounded strings use `{ kind: "string", base: "STRING" | "WSTRING", length }`;
 characters use `{ kind: "character", base: "CHAR" | "WCHAR" }`. Arrays use
-`{ kind: "array", dimensions: [{ lower, upper }], element }`; references remain
-reserved. Type table entries contain `name`, `definition` and an `initialValue`,
+`{ kind: "array", dimensions: [{ lower, upper }], element }`; references use
+`{ kind: "reference", target }`. Type table entries contain `name`, `definition` and an `initialValue`,
 which can be a scalar or recursively nested ordered aggregate list.
 Definitions are enumerations (integer base and ordered named values), subranges,
 aliases (target descriptor), and structures. A structure definition is
@@ -314,3 +314,19 @@ array can themselves be member or index references, allowing arbitrary chains.
 
 Snapshots, watches, writes and forces use scalar leaf IDs, with no aggregate
 payload. Whole-structure copies and selection have no scalar inline annotation.
+
+## Reference values and storage
+
+`{ kind: "reference", target: TypeDescriptor }` describes `REF_TO T`.
+`ReferenceVariable` has `kind: "reference"`, its declared descriptor, and
+`initialValue: null`; aggregate initial-value lists can contain `null` leaves.
+The IR uses `referenceOf` with a storage target, `null`, and `dereference` with a
+reference expression. Dereferences are storage references and assignment targets,
+so member and index nodes can continue the access chain. Reference targets never
+contain runtime objects in IR.
+
+`VariableSnapshot` and `StatementAnnotation.values` carry a reference as
+`{ kind: "reference", target: string | null }`. The target is the referenced
+storage's display path, such as `P1`, `POINTS[2]` or `M1.SPEED`, or `null` for
+`NULL`. `TypedValue` continues to describe elementary values. Reference variables
+cannot be written or forced; dereferenced values retain their target's identity.

@@ -1,5 +1,6 @@
 import {
   coerceValue,
+  referenceType,
   cloneInitialValue,
   isAggregateType,
   leafCount,
@@ -31,7 +32,40 @@ export function resolveDataTypes(
   types: TypeTable;
   diagnostics: Diagnostic[];
 } {
-  const types: TypeTable = [];
+  // Indirection can name aggregate/reference types before their storage defaults resolve.
+  const indirectTarget = (ast: DataTypeDeclaration, seen = new Set<string>()): boolean => {
+    if (ast.members || ast.array || ast.reference) return true;
+    if (
+      !ast.typeName ||
+      ast.reference ||
+      ast.array ||
+      ast.values ||
+      ast.subrange ||
+      ast.stringLength !== undefined ||
+      seen.has(ast.name.key)
+    )
+      return false;
+    seen.add(ast.name.key);
+    const target = declarations.find((other) => other.name.key === ast.typeName!.key);
+    return !!target && indirectTarget(target, seen);
+  };
+  const forwards = declarations.filter((ast) => indirectTarget(ast));
+  const placeholders = new Set(forwards.map((ast) => ast.name.key));
+  const failedCycles = new Set<string>();
+  const types: TypeTable = forwards.map((ast) => ({
+    name: ast.name.name,
+    definition:
+      ast.members || ast.array || ast.reference
+        ? { kind: "structure", members: [] }
+        : { kind: "alias", type: { kind: "named", name: ast.typeName!.name } },
+    initialValue: [],
+  }));
+  const publish = (entry: TypeEntry): void => {
+    const index = types.findIndex((type) => type.name.toUpperCase() === entry.name.toUpperCase());
+    if (index < 0) types.push(entry);
+    else types[index] = entry;
+    placeholders.delete(entry.name.toUpperCase());
+  };
   const diagnostics: Diagnostic[] = [];
   const pending = new Map(declarations.map((ast) => [ast.name.key, ast]));
   const visiting = new Set<string>();
@@ -99,10 +133,12 @@ export function resolveDataTypes(
     );
   };
   const resolve = (ast: DataTypeDeclaration): TypeEntry | undefined => {
+    if (failedCycles.has(ast.name.key)) return undefined;
     const existing = types.find((entry) => entry.name.toUpperCase() === ast.name.key);
-    if (existing) return existing;
+    if (existing && !placeholders.has(ast.name.key)) return existing;
     if (unsupportedBlockArrayTypes.has(ast.name.key)) return undefined;
     if (visiting.has(ast.name.key)) {
+      for (const name of visiting) failedCycles.add(name);
       report(ast, {
         code: "type.invalid-constant",
         severity: "error",
@@ -113,16 +149,19 @@ export function resolveDataTypes(
     }
     visiting.add(ast.name.key);
     if (ast.members) {
-      const dependencies = (
-        declaration: import("./ast.js").Declaration | import("./ast.js").ArrayDeclaration,
-      ): void => {
-        if (declaration.array) dependencies(declaration.array);
+      const dependencies = (syntax: import("./ast.js").TypeSyntax, indirect = false): void => {
+        if (syntax.reference) dependencies(syntax.reference, true);
+        else if (syntax.array) dependencies(syntax.array, indirect);
         else {
-          const other = pending.get(declaration.typeName.key);
-          if (other) resolve(other);
+          const other = pending.get(syntax.typeName.key);
+          if (other && !(indirect && placeholders.has(other.name.key))) resolve(other);
         }
       };
       for (const member of ast.members) dependencies(member);
+      if (failedCycles.has(ast.name.key)) {
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
       const names = ast.members.flatMap((member) => member.names);
       const seen = new Set<string>();
       for (const name of names) {
@@ -200,12 +239,60 @@ export function resolveDataTypes(
         definition: { kind: "structure", members },
         initialValue: members.map((member) => cloneInitialValue(member.initialValue)),
       };
-      types.push(entry);
+      publish(entry);
       if (ast.initializer) {
         const value = evaluate(ast, ast.initializer, { kind: "named", name: entry.name });
         if (value !== undefined) entry.initialValue = value;
       }
       visiting.delete(ast.name.key);
+      return entry;
+    }
+    if (ast.reference) {
+      const resolveTarget = (syntax: import("./ast.js").TypeSyntax): void => {
+        if (syntax.reference) resolveTarget(syntax.reference);
+        else if (syntax.array) resolveTarget(syntax.array);
+        else {
+          const other = pending.get(syntax.typeName.key);
+          if (other && !placeholders.has(other.name.key)) resolve(other);
+        }
+      };
+      resolveTarget(ast.reference);
+      if (failedCycles.has(ast.name.key)) {
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
+      const result = check(
+        {
+          kind: "program",
+          name: ast.name,
+          span: ast.span,
+          body: [],
+          declarations: [
+            {
+              kind: "declaration",
+              names: [{ name: "__REF_VALUE", key: "__REF_VALUE", span: ast.span }],
+              typeName: ast.typeName!,
+              reference: ast.reference,
+              initializer: ast.initializer,
+              span: ast.span,
+            },
+          ],
+        },
+        new Map(),
+        new Map(),
+        blockIds,
+        types,
+      );
+      diagnostics.push(...result.diagnostics.map((d) => ({ ...d, pou: ast.name.name })));
+      const symbol = result.checked?.symbols[0];
+      visiting.delete(ast.name.key);
+      if (!symbol?.descriptor) return undefined;
+      const entry: TypeEntry = {
+        name: ast.name.name,
+        definition: { kind: "alias", type: symbol.descriptor },
+        initialValue: null,
+      };
+      publish(entry);
       return entry;
     }
     let base: TypeDescriptor = "INT";
@@ -238,13 +325,27 @@ export function resolveDataTypes(
     }
     if (ast.array) {
       const resolveElements = (node: import("./ast.js").ArrayDeclaration): void => {
-        if (node.array) resolveElements(node.array);
+        if (node.reference) {
+          const target = (syntax: import("./ast.js").TypeSyntax): void => {
+            if (syntax.reference) target(syntax.reference);
+            else if (syntax.array) target(syntax.array);
+            else {
+              const other = pending.get(syntax.typeName.key);
+              if (other && !placeholders.has(other.name.key)) resolve(other);
+            }
+          };
+          target(node.reference);
+        } else if (node.array) resolveElements(node.array);
         else {
           const other = pending.get(node.typeName.key);
           if (other) resolve(other);
         }
       };
       resolveElements(ast.array);
+      if (failedCycles.has(ast.name.key)) {
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
       const result = check(
         {
           kind: "program",
@@ -288,12 +389,29 @@ export function resolveDataTypes(
           definition: { kind: "alias", type: symbol.descriptor },
           initialValue: symbol.aggregateValues,
         };
-        types.push(entry);
+        publish(entry);
         visiting.delete(ast.name.key);
         return entry;
       }
       visiting.delete(ast.name.key);
       return undefined;
+    }
+    if (referenceType(base, types)) {
+      const entry: TypeEntry = {
+        name: ast.name.name,
+        definition: { kind: "alias", type: base },
+        initialValue: null,
+      };
+      publish(entry);
+      if (ast.initializer && ast.initializer.kind !== "null")
+        report(ast, {
+          code: "type.reference-initializer",
+          severity: "error",
+          span: ast.initializer.span,
+          args: {},
+        });
+      visiting.delete(ast.name.key);
+      return entry;
     }
     if (isAggregateType(base, types)) {
       const entry: TypeEntry = {
@@ -303,7 +421,7 @@ export function resolveDataTypes(
           typeEntry(base as import("@benchtop-plc/core").NamedType, types).initialValue,
         ),
       };
-      types.push(entry);
+      publish(entry);
       if (ast.initializer) {
         const value = evaluate(ast, ast.initializer, { kind: "named", name: entry.name });
         if (value !== undefined) entry.initialValue = value;
@@ -408,7 +526,7 @@ export function resolveDataTypes(
       entry = { name: ast.name.name, definition: { kind: "alias", type: base }, initialValue };
     } else invalid();
     if (entry) {
-      types.push(entry);
+      publish(entry);
       if (ast.initializer) {
         const value = evaluate(ast, ast.initializer, { kind: "named", name: entry.name });
         if (value !== undefined) entry.initialValue = coerceValue(elementary, value as ScalarValue);

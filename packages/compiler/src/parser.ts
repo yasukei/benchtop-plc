@@ -159,12 +159,16 @@ class Parser {
     // Type names are accepted here so namespace clashes receive semantic diagnostics.
     const name = this.identifier(pou);
     const hasResult = header.key === "FUNCTION" && this.accept(":");
-    const resultArray = hasResult && this.at("ARRAY") ? this.arrayDeclaration() : undefined;
-    const resultType = resultArray
-      ? { name: "ARRAY", key: "ARRAY", span: resultArray.span }
-      : hasResult
-        ? this.identifier(true)
-        : undefined;
+    const resultReference = hasResult && this.accept("REF_TO") ? this.typeSyntax() : undefined;
+    const resultArray =
+      !resultReference && hasResult && this.at("ARRAY") ? this.arrayDeclaration() : undefined;
+    const resultType = resultReference
+      ? { name: "REF_TO", key: "REF_TO", span: start }
+      : resultArray
+        ? { name: "ARRAY", key: "ARRAY", span: resultArray.span }
+        : hasResult
+          ? this.identifier(true)
+          : undefined;
     const resultStringLength = resultType && this.at("[") ? this.stringLength() : undefined;
     const resultSubrange = resultType && this.at("(") ? this.subrange() : undefined;
     const declarations: Declaration[] = [];
@@ -211,6 +215,7 @@ class Parser {
       body,
       span,
       ...(resultType ? { resultType } : {}),
+      ...(resultReference ? { resultReference } : {}),
       ...(resultArray ? { resultArray } : {}),
       ...(resultSubrange ? { resultSubrange } : {}),
       ...(resultStringLength === undefined ? {} : { resultStringLength }),
@@ -218,6 +223,30 @@ class Parser {
     };
   }
 
+  private typeSyntax(): import("./ast.js").TypeSyntax {
+    const start = this.current.span;
+    if (this.accept("REF_TO")) {
+      const token = this.previous;
+      return {
+        typeName: { name: token.text, key: token.key, span: token.span },
+        reference: this.typeSyntax(),
+        span: this.spanFrom(start),
+      };
+    }
+    const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
+    const typeName = array
+      ? { name: "ARRAY", key: "ARRAY", span: array.span }
+      : this.identifier(true);
+    const stringLength = this.at("[") ? this.stringLength() : undefined;
+    const subrange = this.at("(") ? this.subrange() : undefined;
+    return {
+      typeName,
+      span: this.spanFrom(start),
+      ...(array ? { array } : {}),
+      ...(stringLength === undefined ? {} : { stringLength }),
+      ...(subrange ? { subrange } : {}),
+    };
+  }
   private stringLength(): number {
     this.expect("[");
     const token = this.current;
@@ -240,15 +269,21 @@ class Parser {
     const start = this.expect("TYPE").span;
     const name = this.identifier(true);
     this.expect(":");
-    const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
+    const reference = this.accept("REF_TO") ? this.typeSyntax() : undefined;
+    const array = !reference && this.at("ARRAY") ? this.arrayDeclaration() : undefined;
     let members: Declaration[] | undefined;
     if (this.accept("STRUCT")) {
       members = [];
       while (!this.at("END_STRUCT")) members.push(this.declaration());
       this.expect("END_STRUCT");
     }
-    const typeName =
-      array || members ? undefined : this.at("(") ? undefined : this.identifier(true);
+    const typeName = reference
+      ? { name: "REF_TO", key: "REF_TO", span: start }
+      : array || members
+        ? undefined
+        : this.at("(")
+          ? undefined
+          : this.identifier(true);
     const stringLength = this.at("[") ? this.stringLength() : undefined;
     let subrange: Subrange | undefined;
     let values: DataTypeDeclaration["values"];
@@ -278,6 +313,7 @@ class Parser {
       name,
       span,
       ...(members ? { members } : {}),
+      ...(reference ? { reference } : {}),
       ...(array ? { array } : {}),
       ...(typeName ? { typeName } : {}),
       ...(subrange ? { subrange } : {}),
@@ -306,12 +342,7 @@ class Parser {
       };
     }
     this.expect(":");
-    const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
-    const typeName = array
-      ? { name: "ARRAY", key: "ARRAY", span: array.span }
-      : this.identifier(true);
-    const stringLength = this.at("[") ? this.stringLength() : undefined;
-    const subrange = this.at("(") ? this.subrange() : undefined;
+    const { typeName, array, stringLength, subrange, reference } = this.typeSyntax();
     let initializer: Expression | undefined;
     if (this.at(":=") || this.at("=")) {
       this.assignmentOperator();
@@ -320,6 +351,7 @@ class Parser {
     this.expect(";");
     return {
       kind: "declaration",
+      ...(reference ? { reference } : {}),
       ...(array ? { array } : {}),
       names,
       typeName,
@@ -347,16 +379,12 @@ class Parser {
     } while (this.accept(","));
     this.expect("]");
     this.expect("OF");
-    const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
-    const typeName = array
-      ? { name: "ARRAY", key: "ARRAY", span: array.span }
-      : this.identifier(true);
-    const stringLength = this.at("[") ? this.stringLength() : undefined;
-    const subrange = this.at("(") ? this.subrange() : undefined;
+    const { typeName, array, stringLength, subrange, reference } = this.typeSyntax();
     return {
       dimensions,
       typeName,
       span: this.spanFrom(start),
+      ...(reference ? { reference } : {}),
       ...(array ? { array } : {}),
       ...(stringLength === undefined ? {} : { stringLength }),
       ...(subrange ? { subrange } : {}),
@@ -591,7 +619,11 @@ class Parser {
 
   private reference(name: Identifier): AssignmentTarget {
     let result: AssignmentTarget = { kind: "name", name, span: name.span };
-    while (this.at("[") || this.at(".")) {
+    while (this.at("[") || this.at(".") || this.at("^")) {
+      if (this.accept("^")) {
+        result = { kind: "dereference", reference: result, span: this.spanFrom(name.span) };
+        continue;
+      }
       if (this.accept("[")) {
         const indices = [this.expression()];
         while (this.accept(",")) indices.push(this.expression());
@@ -687,8 +719,10 @@ class Parser {
         span: token.span,
       };
     }
+    if (this.accept("NULL")) return { kind: "null", span: token.span };
     const keywordCall =
-      ["AND", "OR", "XOR", "MOD"].includes(token.key) && this.tokens[this.cursor + 1]?.key === "(";
+      ["AND", "OR", "XOR", "MOD", "REF"].includes(token.key) &&
+      this.tokens[this.cursor + 1]?.key === "(";
     if (token.kind !== "identifier" && !keywordCall) this.expected("expression");
     const name = keywordCall
       ? (this.take(), { name: token.text, key: token.key, span: token.span })

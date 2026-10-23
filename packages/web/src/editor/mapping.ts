@@ -24,7 +24,7 @@ export function spanRange(source: string, span: SourceSpan): { from: number; to:
 
 export interface InlineValue {
   text: string;
-  dataType: TypedValue["dataType"];
+  dataType: TypedValue["dataType"] | "reference";
 }
 export interface InlineAnnotation {
   line: number;
@@ -79,10 +79,13 @@ export function mapAnnotations(
         .toSorted((a, b) => a.span.column - b.span.column)
         .flatMap((entry) =>
           entry.values.map((value) => ({
-            text: descriptors.has(spanKey(entry.span))
-              ? formatMonitoredValue(descriptors.get(spanKey(entry.span))!, value, ir?.types)
-              : formatValue(value.dataType, value.value),
-            dataType: value.dataType,
+            text:
+              "target" in value
+                ? (value.target ?? "NULL")
+                : descriptors.has(spanKey(entry.span))
+                  ? formatMonitoredValue(descriptors.get(spanKey(entry.span))!, value, ir?.types)
+                  : formatValue(value.dataType, value.value),
+            dataType: "target" in value ? ("reference" as const) : value.dataType,
           })),
         );
       return values.length ? [{ line, position, values }] : [];

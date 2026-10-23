@@ -5,6 +5,7 @@ import {
   isAggregateType,
   arrayIndices,
   scalarBase,
+  referenceType,
   enumerationType,
   isCalendarType,
   getStandardFunctionSignature,
@@ -42,11 +43,13 @@ class Lowerer {
           this.checked.result
             ? [
                 {
-                  kind: this.checked.result.aggregateValues
-                    ? structureType(this.checked.result.descriptor!, this.checked.types)
-                      ? "structure"
-                      : "array"
-                    : "scalar",
+                  kind: referenceType(this.checked.result.descriptor!, this.checked.types)
+                    ? "reference"
+                    : this.checked.result.aggregateValues
+                      ? structureType(this.checked.result.descriptor!, this.checked.types)
+                        ? "structure"
+                        : "array"
+                      : "scalar",
                   name: ast.name.name,
                   key: ast.name.key,
                   span: span(ast.name),
@@ -107,6 +110,8 @@ class Lowerer {
       return { ...base, kind: "userFunctionBlock", block: symbol.userBlock, initialValue: null };
     if (isBlock(symbol.type))
       return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
+    if (symbol.descriptor && referenceType(symbol.descriptor, this.checked.types))
+      return { ...base, kind: "reference", dataType: symbol.descriptor, initialValue: null };
     if (symbol.type === "BOOL") {
       const address = declaration.address;
       return {
@@ -134,6 +139,7 @@ class Lowerer {
   private reference(
     node: AST.AssignmentTarget,
   ):
+    | IR.Dereference
     | IR.StructureMemberReference
     | IR.IndexReference
     | IR.ElementBitReference
@@ -143,13 +149,21 @@ class Lowerer {
     | IR.UserFunctionBlockMemberReference {
     const info = required(this.checked.expressions.get(node));
     const dataType = info.descriptor ?? info.dataType;
+    if (node.kind === "dereference")
+      return {
+        kind: "dereference",
+        reference: this.expression(node.reference),
+        dataType,
+        span: span(node),
+      };
     if (node.kind === "index") {
       const array = this.reference(node.array);
       if (
         array.kind !== "variable" &&
         array.kind !== "index" &&
         array.kind !== "structureMember" &&
-        array.kind !== "userFbMember"
+        array.kind !== "userFbMember" &&
+        array.kind !== "dereference"
       )
         throw new Error("Checked array base");
       return {
@@ -187,7 +201,8 @@ class Lowerer {
         object.kind !== "variable" &&
         object.kind !== "index" &&
         object.kind !== "structureMember" &&
-        object.kind !== "userFbMember"
+        object.kind !== "userFbMember" &&
+        object.kind !== "dereference"
       )
         throw new Error("Checked structure base");
       return selector.bit !== undefined
@@ -255,7 +270,8 @@ class Lowerer {
       reference.kind === "bit" ||
       reference.kind === "index" ||
       reference.kind === "structureMember" ||
-      reference.kind === "elementBit"
+      reference.kind === "elementBit" ||
+      reference.kind === "dereference"
     )
       return reference;
     if (reference.port !== "input") throw new Error("Checked assignment targets an FB output");
@@ -264,6 +280,8 @@ class Lowerer {
 
   private widen(expression: IR.Expression, target: IR.TypeDescriptor): IR.Expression {
     if (
+      referenceType(target, this.checked.types) ||
+      referenceType(expression.dataType, this.checked.types) ||
       isAggregateType(target, this.checked.types) ||
       isAggregateType(expression.dataType, this.checked.types)
     )
@@ -282,6 +300,8 @@ class Lowerer {
 
   private usesNamedConstant(node: AST.Expression): boolean {
     switch (node.kind) {
+      case "null":
+      case "dereference":
       case "structureInitializer":
       case "arrayInitializer":
       case "index":
@@ -323,6 +343,10 @@ class Lowerer {
     )
       return literal();
     switch (node.kind) {
+      case "null":
+        return { ...base, kind: "null" };
+      case "dereference":
+        return this.reference(node);
       case "enumeration":
       case "literal":
         return literal();
@@ -348,6 +372,11 @@ class Lowerer {
       case "binary": {
         const left = this.expression(node.left),
           right = this.expression(node.right);
+        if (
+          referenceType(left.dataType, this.checked.types) ||
+          referenceType(right.dataType, this.checked.types)
+        )
+          return { ...base, kind: "binary", operator: node.operator, left, right };
         const leftType = scalarBase(left.dataType, this.checked.types),
           rightType = scalarBase(right.dataType, this.checked.types);
         const scaling =
@@ -366,6 +395,13 @@ class Lowerer {
         };
       }
       case "functionCall": {
+        if (node.name.key === "REF")
+          return {
+            ...base,
+            kind: "referenceOf",
+            target: this.reference(node.args[0] as AST.AssignmentTarget) as
+              IR.StorageReference | IR.FunctionBlockMemberReference,
+          };
         const bound = this.checked.arrayBounds.get(node);
         if (bound) {
           return {
@@ -650,6 +686,7 @@ export function lower(
       if (inOuts.includes(slot)) return { kind: "inOut" };
       if (temporaries.includes(slot)) {
         if (
+          variable.kind !== "reference" &&
           variable.kind !== "scalar" &&
           variable.kind !== "array" &&
           variable.kind !== "structure"
@@ -718,7 +755,7 @@ export function lower(
             return allocate([{ ...leaf, name, key: name, span: span(variable) }], [], [], "")[0]!;
           }
           variables.push({
-            kind: "scalar",
+            kind: referenceType(type, checked.types) ? "reference" : "scalar",
             name,
             key: name.toUpperCase(),
             path: segments,
@@ -776,7 +813,12 @@ export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
     span: ir.span,
     body: ir.body,
     variables: ir.variables.map((variable) => {
-      if (variable.kind !== "scalar" && variable.kind !== "array" && variable.kind !== "structure")
+      if (
+        variable.kind !== "reference" &&
+        variable.kind !== "scalar" &&
+        variable.kind !== "array" &&
+        variable.kind !== "structure"
+      )
         throw new Error("Checked function contains an FB");
       return variable;
     }),

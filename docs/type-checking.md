@@ -549,3 +549,22 @@ Formal calls use `IN :=` and `DIM :=`. DIM must be a constant integer from 1 thr
 the array's rank (`type.invalid-constant`); a non-array reports `type.not-array`.
 Bounds queries retain argument evaluation and obtain open-array bounds from the
 actual storage. Indexing an open array uses those same bounds at run time.
+
+## References
+
+References follow ADR 0015. `REF_TO T` matches another reference only when its
+target type matches exactly, including subrange base and limits; aliases preserve
+the target identity. `NULL` can be assigned to any reference. Only `=` and `<>`
+compare references of the same type or a reference with `NULL`. Dereference
+expressions have the target type and can be assignment targets. Reference
+initializers, including aggregate leaves, must be `NULL`; omission defaults to
+`NULL`. Structures may contain references back to themselves.
+
+`REF(x)` requires mutable storage that lives for the program instance: PROGRAM
+`VAR`; a block's own `VAR_INPUT`, `VAR_OUTPUT` or `VAR`; or externally accessible
+block inputs/outputs and their elements/members. Temporaries, function variables
+and parameters, in-out parameters, constants, bit selectors and expressions are
+rejected with `type.invalid-reference-target`. Function block instances and open
+arrays cannot be reference target types. `type.reference-initializer` rejects
+non-NULL reference initializers. Reference inputs/outputs are copied as references,
+in-outs alias the reference cell, and functions can return references.

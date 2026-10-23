@@ -304,3 +304,27 @@ it("validates open-array in-outs and aggregate function results against TC6 v2.0
     schema.dispose();
   }
 });
+
+it("validates reference pointers, recursive members and NULL initializers against TC6 v2.01", () => {
+  const references: Project = {
+    ...project,
+    dataTypes: ["TYPE Node : STRUCT value : INT; next : REF_TO Node; END_STRUCT; END_TYPE"],
+    pous: [
+      "PROGRAM Main VAR n : Node; r : REF_TO Node := NULL; a : ARRAY[1..2] OF REF_TO INT := [NULL]; END_VAR r := REF(n); END_PROGRAM",
+      "FUNCTION Identity : REF_TO INT VAR_INPUT r : REF_TO INT; END_VAR Identity := r; END_FUNCTION",
+    ],
+  };
+  const written = writeProject(references);
+  expect(written.diagnostics).toEqual([]);
+  const schema = XmlDocument.fromString(loadSchema());
+  const validator = XsdValidator.fromDoc(schema);
+  const document = XmlDocument.fromString(written.value!);
+  try {
+    expect(() => validator.validate(document)).not.toThrow();
+    expect(readProject(written.value!)).toEqual({ value: references, diagnostics: [] });
+  } finally {
+    document.dispose();
+    validator.dispose();
+    schema.dispose();
+  }
+});

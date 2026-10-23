@@ -106,6 +106,9 @@ export interface DiagnosticArgs {
     found: TypeDescriptor;
   };
 
+  "runtime.null-reference": NoArguments;
+  "type.invalid-reference-target": NoArguments;
+  "type.reference-initializer": NoArguments;
   "runtime.index-out-of-range": { index: number | string; lower: number; upper: number };
   "runtime.subrange-violation": {
     value: number | string;

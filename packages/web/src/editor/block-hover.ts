@@ -44,7 +44,11 @@ export function blockTypeAt(
     };
   }
   const typeRange = spanRange(source, declaration.typeName.span);
-  const end = declaration.subrange ? spanRange(source, declaration.subrange.span).to : typeRange.to;
+  const end = declaration.reference
+    ? spanRange(source, declaration.reference.span).to
+    : declaration.subrange
+      ? spanRange(source, declaration.subrange.span).to
+      : typeRange.to;
   const type =
     variable?.kind === "functionBlock" ? variable.fbType : source.slice(typeRange.from, end);
   return { ...spanRange(source, token.span), text: `${token.text}: ${type}` };

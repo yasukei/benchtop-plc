@@ -181,7 +181,6 @@ describe("PLCopen data types", () => {
   it.each([
     "<array/>",
     "<struct/>",
-    "<pointer/>",
     '<string length="20" encoding="UTF-8"/>',
     '<wstring length="20" encoding="UTF-8"/>',
   ])("rejects unsupported TC6 types %s", (type) => {
@@ -583,4 +582,65 @@ it("round-trips aggregate parameters/results and open dimensions with and withou
     executable(compileProject(value.pous, value.dataTypes).ir),
   );
   expect(readProject(save(canonical.value!)).value).toEqual(canonical.value);
+});
+
+it("round-trips reference aliases, members, elements and POU interfaces as TC6 pointers", () => {
+  const value = project(
+    [
+      "TYPE Node : STRUCT value : INT; next : REF_TO Node; END_STRUCT; END_TYPE",
+      "TYPE IntRef : REF_TO INT := NULL; END_TYPE",
+      "TYPE RefAlias : IntRef; END_TYPE",
+    ],
+    [
+      "PROGRAM Main VAR n : Node; r : REF_TO Node := NULL; a : ARRAY[1..2] OF REF_TO INT := [NULL]; END_VAR r := REF(n); END_PROGRAM",
+      "FUNCTION Identity : REF_TO INT VAR_INPUT r : REF_TO INT; END_VAR Identity := r; END_FUNCTION",
+      "FUNCTION Empty : REF_TO INT Empty := NULL; END_FUNCTION",
+      "FUNCTION_BLOCK Block VAR_INPUT r : RefAlias; END_VAR VAR_OUTPUT q : REF_TO INT; END_VAR q := r; END_FUNCTION_BLOCK",
+    ],
+  );
+  expect(compileProject(value.pous, value.dataTypes).diagnostics).toEqual([]);
+  const xml = save(value);
+  expect(xml).toContain('<pointer><baseType><derived name="NODE"/></baseType></pointer>');
+  expect(xml).toContain("<pointer><baseType><INT/></baseType></pointer>");
+  expect(readProject(xml)).toEqual({ value, diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(compileProject(canonical.value!.pous, canonical.value!.dataTypes).diagnostics).toEqual([]);
+  expect(executable(compileProject(canonical.value!.pous, canonical.value!.dataTypes).ir)).toEqual(
+    executable(compileProject(value.pous, value.dataTypes).ir),
+  );
+  expect(readProject(save(canonical.value!)).value).toEqual(canonical.value);
+});
+
+it("requires a base type inside a TC6 pointer", () => {
+  const xml = save(project(["TYPE T : INT; END_TYPE"])).replace(
+    '<dataType name="T"><baseType><INT/>',
+    '<dataType name="T"><baseType><pointer/>',
+  );
+  expect(readProject(xml).diagnostics).toContainEqual(
+    expect.objectContaining({ code: "project.missing", args: { path: "pointer/baseType" } }),
+  );
+});
+
+it("rejects invalid capacities behind reference types before writing XML", () => {
+  for (const declaration of ["r : REF_TO STRING[0];", "r : REF_TO REF_TO WSTRING[1025];"]) {
+    expect(
+      writeProject(project([], [`PROGRAM Main VAR ${declaration} END_VAR END_PROGRAM`])).value,
+    ).toBeNull();
+  }
+});
+
+it("preserves unresolved reference element names as exchangeable semantic errors", () => {
+  const value = project(
+    [],
+    ["PROGRAM Main VAR refs : ARRAY[1..2] OF REF_TO Missing; END_VAR END_PROGRAM"],
+  );
+  const xml = save(value);
+  expect(xml).toContain('<pointer><baseType><derived name="MISSING"/></baseType></pointer>');
+  expect(readProject(xml)).toEqual({ value, diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(compileProject(canonical.value!.pous).diagnostics).toContainEqual(
+    expect.objectContaining({ code: "decl.unknown-type" }),
+  );
 });

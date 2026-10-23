@@ -88,3 +88,10 @@ it("shows selected array variants inside uninstantiated user blocks", () => {
   for (const position of [block.indexOf("c :"), block.indexOf("c[1]")])
     expect(blockTypeAt([main, block], 1, position)?.text).toBe("c: ARRAY[1..2] OF CTU_DINT");
 });
+
+it("shows a reference's complete target type in variable hovers", () => {
+  const source = "PROGRAM Main VAR r : REF_TO ARRAY[1..2] OF INT; END_VAR END_PROGRAM";
+  expect(blockTypeAt([source], 0, source.indexOf("r :"))?.text).toBe(
+    "r: REF_TO ARRAY[1..2] OF INT",
+  );
+});

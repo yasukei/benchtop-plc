@@ -149,3 +149,12 @@ Subsequent selectors are `field` nodes with an object reference; `index` bases m
 be any reference. This permits `line[2].start.x` and `recipe.steps[i].duration`.
 The checker distinguishes structure members from scalar bit selectors (`w.3` or
 `w.CONSTANT`); the parser retains the selector spelling in either case.
+
+## Reference syntax
+
+`REF_TO T` is accepted in declarations, aliases, structure members, array elements,
+POU parameters and function results. Its recursive `TypeSyntax` retains the target
+name, array bounds, string capacity or subrange, including source spans. `REF(x)`
+is parsed as a reserved call and `NULL` as its own expression. Postfix `^` creates
+a `dereference` node and composes with member/index selectors, for example
+`r^.x`, `r^[i]` and `rr^^.x`. `REF_TO`, `REF` and `NULL` are reserved identifiers.

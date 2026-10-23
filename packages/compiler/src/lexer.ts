@@ -370,7 +370,7 @@ class Lexer {
       this.advance();
       return this.token("symbol", start, span);
     }
-    if (";:,()[].+-*/=<>&#".includes(this.char)) {
+    if (";:,()[].+-*/=<>&#^".includes(this.char)) {
       this.advance();
       return this.token("symbol", start, span);
     }
