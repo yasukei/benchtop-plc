@@ -19,6 +19,7 @@ import {
   type TypedValue,
   type Variable,
   type VariableSnapshot,
+  type RuntimeSnapshot,
 } from "@benchtop-plc/core";
 
 /** Decimal input for integer storage must be exact even at a range boundary.
@@ -205,4 +206,16 @@ export function monitorRows(
 }
 export function watchedLeaves(rows: readonly MonitorRow[], variables: Variable[]): number[] {
   return rows.flatMap((row) => (row.kind === "leaf" && variables[row.id]?.path ? [row.id] : []));
+}
+
+/** Index a received snapshot once so rendering many watched rows stays linear. */
+export function snapshotValues(
+  snapshot: RuntimeSnapshot | null | undefined,
+): ReadonlyMap<number, VariableSnapshot> {
+  const values = new Map<number, VariableSnapshot>();
+  snapshot?.variables.forEach((value, index) => {
+    const id = snapshot.variableIds ? snapshot.variableIds[index] : index;
+    if (id !== undefined) values.set(id, value);
+  });
+  return values;
 }

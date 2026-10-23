@@ -295,5 +295,6 @@ Recursive `array` storage slots group the leaves without copying shared POU bodi
 `watch` supplies a set of leaf IDs. For a program containing arrays, snapshots use
 parallel `variableIds` and `variables` arrays: ordinary variables, watched array
 leaves and forced leaves only. `snapshotVariable(snapshot, id)` handles both this
-compact form and the original scalar-only layout. Writes and forces still use
+compact form and the original scalar-only layout. The monitor indexes each
+snapshot once for constant-time row lookups. Writes and forces still use
 leaf IDs. Whole-array assignments have no inline scalar annotation.

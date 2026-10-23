@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
-import {
-  formatType,
-  snapshotVariable,
-  type ProgramIR,
-  type TypeTable,
-  type Variable,
-} from "@benchtop-plc/core";
+import { useState, useEffect, useMemo } from "react";
+import { formatType, type ProgramIR, type TypeTable, type Variable } from "@benchtop-plc/core";
 import type { ShellCatalog } from "./catalog.js";
-import { parseWrittenValue, variableValue, monitorRows, watchedLeaves } from "./monitor.js";
+import {
+  parseWrittenValue,
+  variableValue,
+  monitorRows,
+  watchedLeaves,
+  snapshotValues,
+} from "./monitor.js";
 import type { AppState, AppStore } from "./store.js";
 
 function WriteValue({
@@ -88,6 +88,7 @@ export function VariableMonitor({
   composites?: ProgramIR["composites"];
 }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const values = useMemo(() => snapshotValues(state.snapshot), [state.snapshot]);
   const rows = monitorRows(variables, composites, expanded, state.snapshot?.forced);
   const watchKey = JSON.stringify(watchedLeaves(rows, variables));
   useEffect(() => {
@@ -155,7 +156,7 @@ export function VariableMonitor({
                     <td>
                       {variable.kind === "scalar" ? formatType(variable.dataType) : variable.fbType}
                     </td>
-                    <td>{variableValue(variable, snapshotVariable(state.snapshot, id), types)}</td>
+                    <td>{variableValue(variable, values.get(id), types)}</td>
                     <td>
                       {variable.kind === "scalar" &&
                         (variable.dataType === "BOOL" ? (
