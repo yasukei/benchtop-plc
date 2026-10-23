@@ -37,6 +37,7 @@ checks and project restrictions below are tracked in
   - `STRING` or `WSTRING` with a maximum length, `CHAR` or `WCHAR`;
   - an array: a list of dimensions, each with constant lower and upper bounds or `*`,
     and an element type;
+  - a subrange: an integer base type with its lower and upper limits;
   - a reference to a type;
   - a named type, referring to an entry of the type table.
 - The IR has a type table with one entry per declared data type: an enumeration (value
@@ -44,6 +45,11 @@ checks and project restrictions below are tracked in
   (members in order, with their types and initial values) or an alias (another type and
   an initial value). Entries refer to each other by name; the table is a plain object
   or array, never a `Map`.
+- An anonymous subrange (`p : INT (0..100);`, or an array element type
+  `ARRAY[1..3] OF INT (0..9)`) is the subrange descriptor itself, written where the
+  type appears; it gets no type table entry. A named subrange's table entry holds the
+  same descriptor and its initial value. So the compiler, the runtime store checks, the
+  monitor and the project codec read the limits from one place for both forms.
 - Expressions, variables and diagnostic arguments carry the descriptor where they now
   carry a `DataType`. A diagnostic names a type by its source text, for example
   `ARRAY[1..10] OF INT`, `STRING[20]`, `Color` or `REF_TO Point`; for elementary types
@@ -138,7 +144,9 @@ checks and project restrictions below are tracked in
 ### Arrays
 
 - `ARRAY[l..u, ...] OF T`, anonymous in a declaration or named in a data type source.
-  Bounds are constant integer expressions with `l <= u`. In a POU they may use the
+  Bounds are constant integer expressions with `l <= u` whose values fit DINT
+  (restriction), so `LOWER_BOUND` and `UPPER_BOUND` return every bound exactly; a bound
+  outside the DINT range is a compile error. In a POU they may use the
   POU's `CONSTANT` variables; in a data type source no constants are in scope, so only
   literals and their arithmetic. At most 3 dimensions, which keeps paths and the
   monitor tree readable; an element type may itself be an array type, accessed as
@@ -381,8 +389,15 @@ A fault names the POU and instance path, as in ADR 0014.
   `WSTRING`) and `ANY_CHARS` (both), all part of `ANY_ELEMENTARY`, as in the 3rd
   edition. `ANY_DERIVED` covers enumerations, arrays, structures and references; a
   subrange or an alias counts as its base type.
-- `MOVE`, `SEL` and `MUX` accept any type, arrays and structures included, when all
-  their value operands have exactly the same type (string lengths aside).
+- `MOVE`, `SEL` and `MUX` accept any type, arrays and structures included:
+  - When every value operand of `SEL` or `MUX` is elementary, strings and characters
+    included, they convert to ADR 0013's common type as today. Existing programs keep
+    compiling (`SEL(TRUE, d, u)` with DINT and UDINT operands returns LINT), and
+    `SEL(c, ch, s)` with a `CHAR` and a `STRING` returns `STRING` through the implicit
+    conversion. `STRING` and `WSTRING` have no common type.
+  - When any value operand is an enumeration, array, structure or reference, every
+    value operand must have exactly that type (string lengths aside), and the result
+    has it. A subrange or alias operand counts as its base type.
 - Comparisons, `MAX`, `MIN` and `LIMIT` accept elementary types, strings and characters
   included, as described under Strings. Enumerations allow only `=` and `<>`.
 - Wherever a standard function takes `ANY_INT` or another elementary family, a subrange
@@ -430,8 +445,8 @@ forbids other behavior:
 - Enumerations allow no ordering and no conversion functions.
 - A run-time store outside a subrange faults; a subrange variable cannot control a
   `FOR` loop.
-- Arrays have at most 3 dimensions and 10,000 elements; a variable has at most 10,000
-  scalar leaves.
+- Array bounds fit DINT; arrays have at most 3 dimensions and 10,000 elements; a
+  variable has at most 10,000 scalar leaves.
 - Aggregate initializers appear only in declarations; constant arrays and structures
   are not provided.
 - The default string length is 80; declared lengths are at most 1,024; `STRING(n)` is
