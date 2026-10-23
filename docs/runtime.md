@@ -371,8 +371,8 @@ statements. `snapshot()` does not execute the program.
 ## In-out aliases
 
 Function and function block `VAR_IN_OUT` slots bind directly to the caller's
-scalar cells on every invocation. Passing an in-out to a nested call shares the
-same cell again, including exact 64-bit values. Two parameters may share one
+scalar or aggregate cells on every invocation. Passing an in-out to a nested call
+shares the same storage again, including exact 64-bit values and string capacities. Two parameters may share one
 actual: a write through either is immediately visible through the other and to
 the caller. Ordinary inputs are evaluated left to right and copied before the
 body runs, including an input sharing its actual with an in-out. Expression
@@ -509,3 +509,29 @@ nested timer/counter private state. STOP/RUN transitions, single scans and FAULT
 preserve it. Monitored scalar leaves and standard block snapshots alias the same
 cells used by execution, so writes and the existing pre/post-scan force stages
 apply to element members by VariableId.
+
+## Aggregate parameters and bounds
+
+Function and user block inputs copy array and structure values recursively before
+execution; omitted function inputs use their declared initial value, while omitted
+block inputs retain their value. Function outputs/results reset on every invocation;
+block outputs persist. `=>` and aggregate function results copy whole values,
+applying each target leaf's string capacity and subrange check. Public aggregate
+block inputs and outputs can be read as whole values; inputs can be assigned.
+Whole aggregate results and ports do not create scalar inline annotations.
+
+An aggregate cell carries its concrete type descriptor as well as its children.
+An open-array in-out binds to that cell, preserving the actual bounds even when
+forwarded to another open-array parameter. The `arrayBound` expression reads a
+checked, zero-based dimension and returns its lower or upper bound as DINT.
+Detached aggregate values retain their concrete descriptor. A whole copy between
+open in-outs checks actual bounds and element types before writing; incompatible
+actuals fault with `runtime.invalid-value`, including through MOVE/SEL/MUX.
+Index references calculate row-major offsets from the actual cell's dimensions;
+an index outside them faults with `runtime.index-out-of-range` in the executing POU.
+
+Element and member in-out actuals resolve to existing child cells. Argument values
+and alias locations are evaluated together in source order, with each index
+evaluated once before entering the callee. Aliases add no monitoring identities.
+A forced element follows the ordinary before/after scan force stages through an
+alias, so a write is visible during execution and the force is restored afterward.

@@ -360,13 +360,16 @@ call (`call.missing-in-out`), including repeated calls to a block instance.
 In-out declarations cannot have initializers (`decl.in-out-initializer`): the value
 always belongs to the caller's actual variable. This is a project restriction;
 verification against the 4th edition remains pending with the other ADR 0014 rules.
-The actual must be a writable scalar variable of the caller, with exactly the
-parameter's exact scalar type; there is no contextual literal typing or widening.
+The actual must be a writable variable, array element or structure member of the
+caller with exactly the parameter's declared type; there is no contextual literal
+typing or widening. An element index is evaluated once, in source argument order.
 Expressions, literals, parenthesized expressions, bit access and `inst.X` members
-report `call.in-out-variable`; a different scalar type reports `call.in-out-type`.
+report `call.in-out-variable`; a different type reports `call.in-out-type`.
 Named constants cannot supply actuals (`decl.constant-not-writable`), and
-`VAR_IN_OUT CONSTANT` is rejected with `decl.constant-section`. FB instances,
-arrays and structures are not in-out parameters in this milestone.
+`VAR_IN_OUT CONSTANT` is rejected with `decl.constant-section`. FB instances
+cannot be parameters. Arrays compare bounds and exact element types; structures
+compare named identity. Subranges match only the same base and limits. String
+capacities do not participate in equivalence; stores use the actual storage's capacity.
 
 Caller VAR_INPUT, VAR_OUTPUT and VAR_IN_OUT variables can be passed on, as can
 locals, temporaries and a function's result variable. Two in-outs may alias the
@@ -467,7 +470,7 @@ indices use `type.not-array`, `type.array-index-count` and
 Element types include elementary, string, enumeration, subrange, array and structure types.
 Initializers enumerate elements in row-major order, support repeated values or
 groups and default missing trailing elements. Every supplied leaf is checked
-against its destination. Array constants and array parameters/results are rejected.
+against its destination. Array constants are rejected. Arrays can be input, output and in-out parameters and function results.
 Arrays are allowed in PROGRAM/FB VAR, VAR_TEMP, and function locals.
 
 Arrays match structurally by bounds and recursively by element type. Subranges
@@ -498,8 +501,8 @@ Whole-structure assignment, MOVE, SEL and MUX require the same named structure
 through aliases. Identically shaped independent declarations are incompatible;
 arrays of structures compare element types by this identity. Whole-structure
 comparisons/arithmetic and aggregate constants are rejected. Structures can be
-PROGRAM/FB VAR or VAR_TEMP and function locals; parameters/results remain
-unsupported until #128.
+PROGRAM/FB VAR or VAR_TEMP, function locals, input/output/in-out parameters and
+function results.
 
 ## Function block array checks
 
@@ -523,3 +526,26 @@ The POU-wide selection pass gathers eligible PT/PV arguments and assignments fro
 any element. Reads of inferred PT/PV/ET/CV ports exclude the containing binding,
 including indexed reads. Untyped bindings do not select a variant; absent an
 eligible binding, the TIME/INT defaults apply (ADR 0014/0015).
+
+## Aggregate parameters and variable-length arrays
+
+Array and structure VAR_INPUTs copy whole values into independent parameter
+storage; VAR_OUTPUTs copy whole values through `=>`. Function results may be a
+named aggregate or an inline fixed array. They start with the type's default and
+return a detached value; assigning a result copies every leaf. String truncation
+and subrange validation apply at every destination leaf.
+
+`ARRAY[*, ...] OF T` is allowed only directly in VAR_IN_OUT, with every dimension
+open (`decl.open-array-section`); mixed fixed/open dimensions and more than three
+dimensions report `type.invalid-constant`. The actual must have the same rank and
+exact element type, with any fixed bounds, or be another compatible open in-out.
+Whole copies between open in-outs check actual type equivalence before storing;
+incompatible actual bounds fault with `runtime.invalid-value`.
+Open dimensions are forbidden in local, input, output, result and named data types,
+and inside nested array element types.
+
+`LOWER_BOUND(IN, DIM)` and `UPPER_BOUND(IN, DIM)` accept any array and return DINT.
+Formal calls use `IN :=` and `DIM :=`. DIM must be a constant integer from 1 through
+the array's rank (`type.invalid-constant`); a non-array reports `type.not-array`.
+Bounds queries retain argument evaluation and obtain open-array bounds from the
+actual storage. Indexing an open array uses those same bounds at run time.

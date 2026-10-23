@@ -36,7 +36,13 @@ import type {
   UserFunctionBlockCallStatement,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
-import { typed, type Memory, type MemoryFrame, type AggregateValue } from "./memory.js";
+import {
+  typed,
+  isAggregateValue,
+  type Memory,
+  type MemoryFrame,
+  type AggregateValue,
+} from "./memory.js";
 
 export const WATCHDOG_LIMIT = 200_000;
 export class RuntimeFault extends Error {
@@ -126,17 +132,29 @@ export class Interpreter {
     }
   }
 
-  private location(ref: VariableReference | IndexReference | StructureMemberReference): {
+  private location(
+    ref:
+      | VariableReference
+      | IndexReference
+      | StructureMemberReference
+      | import("@benchtop-plc/core").UserFunctionBlockMemberReference,
+  ): {
     frame: MemoryFrame;
     variable: number;
   } {
     if (ref.kind === "variable") return { frame: this.memory, variable: ref.variable };
+    if (ref.kind === "userFbMember") {
+      const parent = ref.instance
+        ? this.location(ref.instance)
+        : { frame: this.memory, variable: ref.variable };
+      return { frame: parent.frame.userBlock(parent.variable).frame, variable: ref.member };
+    }
     if (ref.kind === "structureMember") {
       const parent = this.location(ref.object);
       return { frame: parent.frame.element(parent.variable, ref.member), variable: 0 };
     }
     const parent = this.location(ref.array);
-    const array = arrayType(ref.array.dataType, this.programMemory.ir.types)!;
+    const array = arrayType(parent.frame.descriptor(parent.variable), this.programMemory.ir.types)!;
     let offset = 0;
     const indices: string[] = [];
     ref.indices.forEach((index, i) => {
@@ -165,9 +183,19 @@ export class Interpreter {
   }
 
   private aggregateExpression(expr: Expression): AggregateValue {
-    if (expr.kind === "variable" || expr.kind === "index" || expr.kind === "structureMember") {
+    if (
+      expr.kind === "variable" ||
+      expr.kind === "index" ||
+      expr.kind === "structureMember" ||
+      expr.kind === "userFbMember"
+    ) {
       const { frame, variable } = this.location(expr);
       return frame.aggregateValue(variable);
+    }
+    if (expr.kind === "userFunctionCall") {
+      const value = this.userCall(expr);
+      if (!isAggregateValue(value)) throw new Error("Expected aggregate function result");
+      return value;
     }
     if (expr.kind === "functionCall") {
       const args: (AggregateValue | ScalarValue)[] = [];
@@ -218,6 +246,22 @@ export class Interpreter {
 
   private evaluate(expr: Expression): ScalarValue {
     switch (expr.kind) {
+      case "arrayBound": {
+        const array = expr.array;
+        let type: TypeDescriptor;
+        if (
+          array.kind === "variable" ||
+          array.kind === "index" ||
+          array.kind === "structureMember" ||
+          array.kind === "userFbMember"
+        ) {
+          const { frame, variable } = this.location(array);
+          type = frame.descriptor(variable);
+        } else type = this.aggregateExpression(array).dataType;
+        const dimension = arrayType(type, this.programMemory.ir.types)!.dimensions[expr.dimension]!;
+        if (dimension === "*") throw new Error("Unbound open array");
+        return expr.upper ? dimension.upper : dimension.lower;
+      }
       case "structureMember":
       case "index": {
         const { frame, variable } = this.location(expr);
@@ -310,7 +354,8 @@ export class Interpreter {
       }
       case "userFunctionCall": {
         const result = this.userCall(expr);
-        if (result === null) throw new Error("Expression function has no result");
+        if (result === null || isAggregateValue(result))
+          throw new Error("Expected scalar function result");
         return result;
       }
     }
@@ -344,15 +389,7 @@ export class Interpreter {
       case "assignment":
         if (isAggregateType(statement.target.dataType, this.programMemory.ir.types)) {
           const values = this.aggregateExpression(statement.value);
-          const target = statement.target;
-          if (
-            target.kind !== "variable" &&
-            target.kind !== "index" &&
-            target.kind !== "structureMember"
-          )
-            throw new Error("Invalid aggregate target");
-          const { frame, variable } = this.location(target);
-          frame.assignAggregate(variable, values);
+          this.assignAggregate(statement.target, values);
           break;
         }
         this.annotate(statement, [this.assign(statement.target, this.expression(statement.value))]);
@@ -360,7 +397,7 @@ export class Interpreter {
       case "call": {
         if (statement.call.kind === "userFunctionCall") {
           const result = this.userCall(statement.call);
-          if (statement.call.dataType !== null && result !== null)
+          if (statement.call.dataType !== null && result !== null && !isAggregateValue(result))
             this.annotate(statement, [
               { dataType: this.base(statement.call.dataType), value: result } as TypedValue,
             ]);
@@ -446,91 +483,171 @@ export class Interpreter {
     return undefined;
   }
 
+  private assignAggregate(target: AssignmentTarget, values: AggregateValue): void {
+    if (
+      target.kind !== "variable" &&
+      target.kind !== "index" &&
+      target.kind !== "structureMember" &&
+      target.kind !== "userFbMember"
+    )
+      throw new Error("Invalid aggregate target");
+    const { frame, variable } = this.location(target);
+    frame.assignAggregate(variable, values);
+  }
+
+  private argumentValue(expr: Expression): ScalarValue | AggregateValue {
+    return isAggregateType(expr.dataType, this.programMemory.ir.types)
+      ? this.aggregateExpression(expr)
+      : this.expression(expr);
+  }
+
+  private store(frame: MemoryFrame, variable: number, value: ScalarValue | AggregateValue): void {
+    if (isAggregateValue(value)) frame.assignAggregate(variable, value);
+    else frame.write(variable, value);
+  }
+
+  private arguments(
+    inputs: { variable: number; value: Expression }[],
+    inOuts: readonly import("@benchtop-plc/core").InOutBinding[],
+  ) {
+    const values = new Map<number, ScalarValue | AggregateValue>();
+    const aliases = new Map<number, { frame: MemoryFrame; variable: number }>();
+    const argumentsInOrder = [
+      ...inputs.map((input) => ({
+        span: input.value.span,
+        evaluate: () => {
+          values.set(input.variable, this.argumentValue(input.value));
+        },
+      })),
+      ...inOuts.map((binding) => ({
+        span: binding.actual.span,
+        evaluate: () => {
+          aliases.set(binding.variable, this.location(binding.actual));
+        },
+      })),
+    ].sort((a, b) => a.span.line - b.span.line || a.span.column - b.span.column);
+    for (const arg of argumentsInOrder) arg.evaluate();
+    return { values, aliases };
+  }
+
+  private copyOutput(
+    target: AssignmentTarget,
+    frame: MemoryFrame,
+    slot: number,
+    type: import("@benchtop-plc/core").TypeDescriptor,
+  ): void {
+    if (isAggregateType(type, this.programMemory.ir.types)) {
+      this.assignAggregate(target, frame.aggregateValue(slot));
+      return;
+    }
+    const to = this.base(target.dataType),
+      from = this.base(type),
+      value = frame.read(slot);
+    this.assign(
+      target,
+      isLongType(to) && from !== to
+        ? convertValue(`${from}_TO_${to}` as ConversionFunction, value)
+        : value,
+    );
+  }
+
   private blockCall(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
     const location = call.instance
       ? this.location(call.instance)
       : { frame: this.memory, variable: call.variable };
-    const inputs = call.inputs.map((input) => ({
-      input: input.input,
-      value: this.expression(input.value),
-    }));
-    let outputs: TypedValue[];
-    let outputSlots: number[];
     if (call.kind === "fbCall") {
+      const inputs = call.inputs.map((input) => ({
+        ...input,
+        value: this.expression(input.value),
+      }));
       for (const input of inputs) location.frame.input(location.variable, input.input, input.value);
       const instance = location.frame.block(location.variable);
       instance.execute(this.scanStart);
-      outputs = instance.outputs.map((output) => {
+      const outputs = instance.outputs.map((output) => {
         output.value = coerceValue(output.dataType, output.value);
         return { ...output };
       });
-      outputSlots = outputs.map((_, index) => index);
-    } else {
-      const instance = location.frame.userBlock(location.variable);
-      const definition = this.programMemory.ir.functionBlocks![instance.block]!;
-      instance.resetTemporaries();
-      for (const binding of call.inOuts ?? [])
-        instance.frame.bind(binding.variable, this.memory, binding.actual.variable);
-      for (const input of inputs) instance.frame.write(input.input, input.value);
-      const caller = this.memory,
-        callerPou = this.pou,
-        callerPath = this.instancePath;
-      this.memory = instance.frame;
-      this.pou = definition.name;
-      this.instancePath = instance.path;
-      this.callDepth++;
-      try {
-        this.execute(definition.body);
-        outputs = definition.outputs.map((slot) => {
-          const variable = definition.variables[slot]!;
-          if (variable.kind !== "scalar") throw new Error("Non-scalar output");
-          return typed(this.base(variable.dataType), instance.frame.read(slot));
-        });
-      } finally {
-        instance.frame.unbind(definition.inOuts ?? []);
-        this.callDepth--;
-        this.memory = caller;
-        this.pou = callerPou;
-        this.instancePath = callerPath;
+      for (const binding of call.outputs ?? []) {
+        const value = outputs[binding.output]!;
+        const to = this.base(binding.target.dataType);
+        this.assign(
+          binding.target,
+          isLongType(to) && value.dataType !== to
+            ? convertValue(`${value.dataType}_TO_${to}` as ConversionFunction, value.value)
+            : value.value,
+        );
       }
-      outputSlots = definition.outputs;
+      this.annotate(call, outputs);
+      return;
+    }
+    const args = this.arguments(
+      call.inputs.map((input) => ({ variable: input.input, value: input.value })),
+      call.inOuts ?? [],
+    );
+    const instance = location.frame.userBlock(location.variable);
+    const definition = this.programMemory.ir.functionBlocks![instance.block]!;
+    instance.resetTemporaries();
+    for (const [slot, actual] of args.aliases)
+      instance.frame.bind(slot, actual.frame, actual.variable);
+    for (const [slot, value] of args.values) this.store(instance.frame, slot, value);
+    const caller = this.memory,
+      callerPou = this.pou,
+      callerPath = this.instancePath;
+    this.memory = instance.frame;
+    this.pou = definition.name;
+    this.instancePath = instance.path;
+    this.callDepth++;
+    try {
+      this.execute(definition.body);
+    } finally {
+      instance.frame.unbind(definition.inOuts ?? []);
+      this.callDepth--;
+      this.memory = caller;
+      this.pou = callerPou;
+      this.instancePath = callerPath;
     }
     for (const binding of call.outputs ?? []) {
-      const value = outputs[outputSlots.indexOf(binding.output)]!;
-      const to = this.base(binding.target.dataType);
-      this.assign(
-        binding.target,
-        isLongType(to) && value.dataType !== to
-          ? convertValue(`${value.dataType}_TO_${to}` as ConversionFunction, value.value)
-          : value.value,
-      );
+      const variable = definition.variables[binding.output]!;
+      if (!("dataType" in variable)) throw new Error("Invalid output type");
+      this.copyOutput(binding.target, instance.frame, binding.output, variable.dataType);
     }
-    this.annotate(call, outputs);
+    this.annotate(
+      call,
+      definition.outputs.flatMap((slot) => {
+        const variable = definition.variables[slot]!;
+        return variable.kind === "scalar"
+          ? [typed(this.base(variable.dataType), instance.frame.read(slot))]
+          : [];
+      }),
+    );
   }
 
-  private userCall(call: UserFunctionCall): ScalarValue | null {
+  private userCall(call: UserFunctionCall): ScalarValue | AggregateValue | null {
     const definition = this.functions[call.function];
     if (!definition) throw new Error("Missing function body");
-    // Evaluate all actual inputs in caller storage and in source order before entering.
-    const inputs = call.inputs.map((input) => ({
-      variable: input.variable,
-      value: this.expression(input.value),
-    }));
+    const args = this.arguments(call.inputs, call.inOuts ?? []);
     const caller = this.memory,
       callerPou = this.pou,
       callerPath = this.instancePath;
     const locals = this.programMemory.functionFrame(call.function);
-    for (const input of inputs) locals.write(input.variable, input.value);
-    for (const binding of call.inOuts ?? [])
-      locals.bind(binding.variable, caller, binding.actual.variable);
-    let result: ScalarValue | null;
+    for (const [slot, value] of args.values) this.store(locals, slot, value);
+    for (const [slot, actual] of args.aliases) locals.bind(slot, actual.frame, actual.variable);
+    let result: ScalarValue | AggregateValue | null;
     this.memory = locals;
     this.pou = definition.name;
     this.instancePath = undefined;
     this.callDepth++;
     try {
       this.execute(definition.body);
-      result = definition.result === undefined ? null : locals.read(definition.result);
+      result =
+        definition.result === undefined
+          ? null
+          : isAggregateType(
+                definition.variables[definition.result]!.dataType,
+                this.programMemory.ir.types,
+              )
+            ? locals.aggregateValue(definition.result)
+            : locals.read(definition.result);
     } finally {
       this.callDepth--;
       this.memory = caller;
@@ -538,14 +655,11 @@ export class Interpreter {
       this.instancePath = callerPath;
     }
     for (const output of call.outputs) {
-      const variable = definition.variables[output.variable]!;
-      const to = this.base(output.target.dataType);
-      const value = locals.read(output.variable);
-      this.assign(
+      this.copyOutput(
         output.target,
-        isLongType(to) && this.base(variable.dataType) !== to
-          ? convertValue(`${this.base(variable.dataType)}_TO_${to}` as ConversionFunction, value)
-          : value,
+        locals,
+        output.variable,
+        definition.variables[output.variable]!.dataType,
       );
     }
     return result;

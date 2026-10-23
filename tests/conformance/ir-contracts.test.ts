@@ -19,6 +19,14 @@ it("represents every milestone IR variant as transportable data", () => {
     span,
   };
   const expressions: Record<Expression["kind"], Expression> = {
+    arrayBound: {
+      kind: "arrayBound",
+      array: variable,
+      dimension: 0,
+      upper: false,
+      dataType: "DINT",
+      span,
+    },
     userFunctionCall: {
       kind: "userFunctionCall",
       function: 0,

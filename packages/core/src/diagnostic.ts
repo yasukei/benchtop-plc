@@ -47,6 +47,7 @@ export interface DiagnosticArgs {
   "decl.constant-address": NoArguments;
   "decl.constant-not-writable": { name: string };
   "decl.constant-order": { name: string };
+  "decl.open-array-section": NoArguments;
   "decl.in-out-initializer": { name: string };
   "pou.duplicate": { name: string };
   "pou.name-collision": { name: string };

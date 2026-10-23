@@ -416,6 +416,7 @@ function readType(type: XmlNode, enumeration = false): string {
         leaf(d, ["lower", "upper"]);
         const lower = attribute(d, "lower"),
           upper = attribute(d, "upper");
+        if (lower === "*" && upper === "*") return "*";
         if (
           !/^[+-]?\d+$/.test(lower) ||
           !/^[+-]?\d+$/.test(upper) ||
@@ -794,7 +795,7 @@ function typeXml(type: string): string {
         .split(",")
         .map((d) => {
           const [lower, upper] = d.trim().split("..");
-          return element("dimension", { lower: lower!, upper: upper! });
+          return element("dimension", { lower: lower!, upper: d.trim() === "*" ? "*" : upper! });
         })
         .join("") + element("baseType", {}, typeXml(array[2]!)),
     );

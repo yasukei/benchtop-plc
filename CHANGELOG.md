@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Arrays and structures as copied input/output parameters, in-out aliases and whole
+  function results. Open `ARRAY[*]` in-outs accept caller arrays with different
+  bounds, with DINT `LOWER_BOUND`/`UPPER_BOUND` queries. Element/member aliases
+  preserve caller storage, string capacities and force behavior; PLCopen XML
+  round-trips aggregate interfaces and open dimensions.
+
 - Diagnostics name the actual block type when a scalar instance is indexed, and
   explain unsupported named/nested function block arrays once per declaration in
   English and Japanese.

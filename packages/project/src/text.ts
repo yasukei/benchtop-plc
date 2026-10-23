@@ -56,6 +56,7 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
   const start =
     endVars.at(-1)?.span ??
+    ast.resultArray?.span ??
     ast.resultSubrange?.span ??
     (ast.resultStringLength !== undefined
       ? tokens!.find((token) => token.key === "]")?.span
@@ -161,8 +162,9 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
     const result = check(
       {
         ...ast,
-        kind: "program",
+        kind: "functionBlock",
         resultType: undefined,
+        resultArray: undefined,
         resultSubrange: undefined,
         sections: [],
         body: [],
@@ -172,6 +174,9 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
             kind: "declaration",
             names: [{ name: key, key, span: name.span }],
             typeName: name,
+            ...("dimensions" in range && range.dimensions.includes("*")
+              ? { section: "VAR_IN_OUT" as const }
+              : {}),
             ...("dimensions" in range ? { array: range } : { subrange: range }),
             span: range.span,
           },
@@ -199,8 +204,9 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
       const folded = check(
         {
           ...ast,
-          kind: "program",
+          kind: "functionBlock",
           resultType: undefined,
+          resultArray: undefined,
           sections: [],
           body: [],
           declarations: [
@@ -209,6 +215,9 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
               kind: "declaration",
               names: [{ name: key, key, span: name.span }],
               typeName: name,
+              ...("dimensions" in range && range.dimensions.includes("*")
+                ? { section: "VAR_IN_OUT" as const }
+                : {}),
               array: eraseElement(range),
               span: range.span,
             },
@@ -256,11 +265,11 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
   }
   const returnType =
     ast.resultType &&
-    (ast.resultSubrange
-      ? rangeType(ast.resultType, ast.resultSubrange, ast.declarations.length)
+    (ast.resultSubrange || ast.resultArray
+      ? rangeType(ast.resultType, (ast.resultArray ?? ast.resultSubrange)!, ast.declarations.length)
       : normalizeType(ast.resultType.key) +
         (ast.resultStringLength === undefined ? "" : `[${ast.resultStringLength}]`));
-  if (ast.resultSubrange && !returnType)
+  if ((ast.resultSubrange || ast.resultArray) && !returnType)
     return {
       value: null,
       diagnostics: [

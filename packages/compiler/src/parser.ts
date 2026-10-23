@@ -43,6 +43,9 @@ const precedence: Partial<Record<string, number>> = {
   "**": 8,
 };
 
+const isFunction = (name: string): boolean =>
+  isStandardFunction(name) || name === "LOWER_BOUND" || name === "UPPER_BOUND";
+
 class Parser {
   private cursor = 0;
 
@@ -155,8 +158,13 @@ class Parser {
     const start = header.span;
     // Type names are accepted here so namespace clashes receive semantic diagnostics.
     const name = this.identifier(pou);
-    const resultType =
-      header.key === "FUNCTION" && this.accept(":") ? this.identifier(true) : undefined;
+    const hasResult = header.key === "FUNCTION" && this.accept(":");
+    const resultArray = hasResult && this.at("ARRAY") ? this.arrayDeclaration() : undefined;
+    const resultType = resultArray
+      ? { name: "ARRAY", key: "ARRAY", span: resultArray.span }
+      : hasResult
+        ? this.identifier(true)
+        : undefined;
     const resultStringLength = resultType && this.at("[") ? this.stringLength() : undefined;
     const resultSubrange = resultType && this.at("(") ? this.subrange() : undefined;
     const declarations: Declaration[] = [];
@@ -203,6 +211,7 @@ class Parser {
       body,
       span,
       ...(resultType ? { resultType } : {}),
+      ...(resultArray ? { resultArray } : {}),
       ...(resultSubrange ? { resultSubrange } : {}),
       ...(resultStringLength === undefined ? {} : { resultStringLength }),
       ...(sections.length ? { sections } : {}),
@@ -325,8 +334,12 @@ class Parser {
   private arrayDeclaration(): ArrayDeclaration {
     const start = this.expect("ARRAY").span;
     this.expect("[");
-    const dimensions: Subrange[] = [];
+    const dimensions: (Subrange | "*")[] = [];
     do {
+      if (this.accept("*")) {
+        dimensions.push("*");
+        continue;
+      }
       const lower = this.expression();
       this.expect("..");
       const upper = this.expression();
@@ -506,11 +519,11 @@ class Parser {
       ? (this.take(), { name: token.text, key: token.key, span: token.span })
       : this.identifier();
     if (this.accept("(")) {
-      const call = this.functionArguments(name, !isStandardFunction(name.key));
+      const call = this.functionArguments(name, !isFunction(name.key));
       this.expect(";");
       // Preserve the FB AST contract for its existing named-input syntax.
       if (
-        !isStandardFunction(name.key) &&
+        !isFunction(name.key) &&
         !call.outputs?.length &&
         (call.inputNames || call.args.length === 0)
       ) {

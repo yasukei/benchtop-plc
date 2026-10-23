@@ -18,7 +18,7 @@ export interface UserCallInfo {
   function: number;
   inputs: { variable: number; value: Expression; dataType: DataType }[];
   outputs: { variable: number; target: AssignmentTarget }[];
-  inOuts: { variable: number; actual: import("./ast.js").NameReference }[];
+  inOuts: { variable: number; actual: AssignmentTarget }[];
   result: DataType | null;
   resultDescriptor?: TypeDescriptor;
 }
@@ -58,6 +58,7 @@ export interface CheckedProgram {
   symbols: readonly VariableSymbol[];
   expressions: ReadonlyMap<Expression, ExpressionInfo>;
   references: ReadonlyMap<Identifier, ResolvedReference>;
+  arrayBounds: ReadonlyMap<FunctionCall, { array: Expression; dimension: number; upper: boolean }>;
   functions: ReadonlyMap<FunctionCall, StandardFunction>;
   functionArguments: ReadonlyMap<FunctionCall, readonly Expression[]>;
   userCalls: ReadonlyMap<FunctionCall | FunctionBlockCall, UserCallInfo>;

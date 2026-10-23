@@ -99,6 +99,10 @@ export const declarationType = (name: string): string =>
   )[name] ?? name;
 const isScalar = (name: string): name is DataType => scalarTypes.some((type) => type === name);
 
+function hasOpenDimensions(node?: AST.ArrayDeclaration): boolean {
+  return !!node && (node.dimensions.includes("*") || hasOpenDimensions(node.array));
+}
+
 class Checker {
   private readonly diagnostics: Diagnostic[] = [];
   private readonly symbols: VariableSymbol[] = [];
@@ -117,6 +121,10 @@ class Checker {
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
   private readonly references = new Map<AST.Identifier, ResolvedReference>();
   private readonly functionArguments = new Map<AST.FunctionCall, readonly AST.Expression[]>();
+  private readonly arrayBounds = new Map<
+    AST.FunctionCall,
+    { array: AST.Expression; dimension: number; upper: boolean }
+  >();
   private readonly functions = new Map<AST.FunctionCall, StandardFunction>();
   private readonly blockInOuts = new Map<
     AST.FunctionCall | AST.FunctionBlockCall,
@@ -165,17 +173,18 @@ class Checker {
     }
     // Collect all declarations first so forward references receive ordinary type diagnostics.
     for (const declaration of ast.declarations) this.declare(declaration);
+    if (hasOpenDimensions(ast.resultArray))
+      this.report("decl.open-array-section", {}, ast.resultArray!.span);
     if (ast.resultType) {
       const descriptor = this.descriptor(
         ast.resultType,
         ast.resultSubrange,
         ast.resultStringLength,
+        ast.resultArray,
       );
       const type = descriptor
         ? this.base(descriptor, this.types)
         : declarationType(ast.resultType.key);
-      if (descriptor && isAggregateType(descriptor, this.types))
-        this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
       if (!isScalar(type))
         this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
       else {
@@ -203,10 +212,13 @@ class Checker {
         ast.resultType,
         ast.resultSubrange,
         ast.resultStringLength,
+        ast.resultArray,
       );
       if (descriptor) {
         this.result.descriptor = descriptor;
         this.result.initialValue = this.defaultValue(descriptor);
+        if (isAggregateType(descriptor, this.types))
+          this.result.aggregateValues = this.aggregateInitial(descriptor);
       }
     }
     if (!declarationsOnly) {
@@ -222,6 +234,7 @@ class Checker {
         symbols: this.symbols,
         expressions: this.expressions,
         references: this.references,
+        arrayBounds: this.arrayBounds,
         functions: this.functions,
         functionArguments: this.functionArguments,
         userCalls: this.userCalls,
@@ -322,7 +335,10 @@ class Checker {
     if (this.collectingDeclarations)
       return { kind: "array", dimensions: [{ lower: 0, upper: 0 }], element };
     try {
+      if (node.dimensions.some((d) => d === "*") && !node.dimensions.every((d) => d === "*"))
+        throw new RangeError("Mixed open and fixed dimensions");
       const dimensions = node.dimensions.map((d) => {
+        if (d === "*") return "*" as const;
         const lower = this.expression(d.lower, "LINT"),
           upper = this.expression(d.upper, "LINT");
         if (
@@ -570,16 +586,10 @@ class Checker {
     const block = isBlock(type) || userBlock !== undefined;
     const known = isScalar(type) || block;
     if (
-      descriptor &&
-      isAggregateType(descriptor, this.types) &&
-      declaration.section &&
-      declaration.section !== "VAR_TEMP"
+      hasOpenDimensions(declaration.array) &&
+      (declaration.section !== "VAR_IN_OUT" || hasOpenDimensions(declaration.array?.array))
     )
-      this.report(
-        "pou.invalid-section",
-        { section: declaration.section, kind: this.ast.kind },
-        declaration.span,
-      );
+      this.report("decl.open-array-section", {}, declaration.span);
     if (descriptor && leafCount(descriptor, this.types) > 10000)
       this.report("type.invalid-constant", {}, declaration.span);
     if (declaration.constant && (block || (descriptor && isAggregateType(descriptor, this.types))))
@@ -775,7 +785,12 @@ class Checker {
     const checked = this.interfaces.get(pou);
     const reference = checked?.references.get(declaration.names[0]);
     if (reference) return checked!.symbols[reference.variable]?.descriptor;
-    return this.descriptor(declaration.typeName, declaration.subrange, declaration.stringLength);
+    return this.descriptor(
+      declaration.typeName,
+      declaration.subrange,
+      declaration.stringLength,
+      declaration.array,
+    );
   }
 
   private field(type: TypeDescriptor, member: AST.Identifier): ExpressionInfo | null {
@@ -806,7 +821,8 @@ class Checker {
       if (!object) return null;
       if (
         (node.object.kind === "member" || node.object.kind === "field") &&
-        this.references.get(node.object.member)?.port
+        this.references.get(node.object.member)?.port &&
+        !this.aggregate(object)
       ) {
         this.report(
           "fb.unknown-member",
@@ -1322,6 +1338,8 @@ class Checker {
     statement = false,
     expectedType?: TypeDescriptor,
   ): ExpressionInfo | null {
+    if (node.name.key === "LOWER_BOUND" || node.name.key === "UPPER_BOUND")
+      return this.arrayBound(node);
     const pou = this.pous.get(node.name.key);
     if (pou?.kind === "program") {
       this.report("call.program", { name: node.name.name }, node.name.span);
@@ -1597,6 +1615,68 @@ class Checker {
     return dataType ? { dataType: signature.result ?? dataType } : null;
   }
 
+  private arrayBound(node: AST.FunctionCall): ExpressionInfo | null {
+    if (node.args.length !== 2) {
+      this.report(
+        "call.argument-count",
+        { name: node.name.name, min: 2, max: 2, found: node.args.length },
+        node.span,
+      );
+      return null;
+    }
+    const args = node.inputNames
+      ? [
+          node.args[node.inputNames.findIndex((n) => n.key === "IN")],
+          node.args[node.inputNames.findIndex((n) => n.key === "DIM")],
+        ]
+      : node.args;
+    for (const parameter of [
+      ...(node.inputNames ?? []),
+      ...(node.outputs ?? []).map((o) => o.name),
+    ])
+      if (!["IN", "DIM"].includes(parameter.key) || node.outputs?.some((o) => o.name === parameter))
+        this.report(
+          "call.invalid-parameter",
+          { name: node.name.name, parameter: parameter.name },
+          parameter.span,
+        );
+    const [value, dim] = args;
+    if (!value || !dim) {
+      this.report(
+        "call.invalid-parameter",
+        { name: node.name.name, parameter: node.name.name },
+        node.span,
+      );
+      return null;
+    }
+    const info = this.expression(value);
+    const dimension = this.expression(dim);
+    const type = info?.descriptor ?? info?.dataType;
+    const array = type && arrayType(type, this.types);
+    if (!array) {
+      if (type) this.report("type.not-array", { type }, value.span);
+      return null;
+    }
+    if (
+      !dimension ||
+      !isIntegerType(dimension.dataType) ||
+      this.enum(dimension) ||
+      this.aggregate(dimension) ||
+      dimension.constant === undefined ||
+      BigInt(dimension.constant) < 1n ||
+      BigInt(dimension.constant) > BigInt(array.dimensions.length)
+    ) {
+      this.report("type.invalid-constant", {}, dim.span);
+      return null;
+    }
+    this.arrayBounds.set(node, {
+      array: value,
+      dimension: Number(dimension.constant) - 1,
+      upper: node.name.key === "UPPER_BOUND",
+    });
+    return { dataType: "DINT" };
+  }
+
   private userFunctionCall(
     node: AST.FunctionCall,
     pou: AST.Program,
@@ -1617,7 +1697,12 @@ class Checker {
     const inOuts = parameters.filter((parameter) => parameter.section === "VAR_IN_OUT");
     const result = pou.resultType
       ? (this.interfaces.get(pou)?.result?.descriptor ??
-        this.descriptor(pou.resultType, pou.resultSubrange, pou.resultStringLength) ??
+        this.descriptor(
+          pou.resultType,
+          pou.resultSubrange,
+          pou.resultStringLength,
+          pou.resultArray,
+        ) ??
         null)
       : null;
     if (!statement && result === null)
@@ -1694,15 +1779,38 @@ class Checker {
     return { dataType: this.base(result, this.types), descriptor: result };
   }
 
-  private inOutActual(value: AST.Expression, type: TypeDescriptor): value is AST.NameReference {
-    if (value.kind !== "name") {
+  private inOutActual(value: AST.Expression, type: TypeDescriptor): value is AST.AssignmentTarget {
+    if (!["name", "member", "field", "index"].includes(value.kind)) {
       this.report("call.in-out-variable", {}, value.span);
       return false;
     }
-    const info = this.reference(value, true);
+    const actual = value as AST.AssignmentTarget;
+    const info = this.reference(actual, true);
     if (!info) return false;
+    const forbiddenSelector = (node: AST.AssignmentTarget): boolean => {
+      if (node.kind === "name") return false;
+      if (node.kind === "index") return forbiddenSelector(node.array);
+      if (node.kind === "elementBit") return true;
+      const selector = this.references.get(node.member);
+      return (
+        !!selector?.port ||
+        selector?.bit !== undefined ||
+        (node.kind === "field" && forbiddenSelector(node.object))
+      );
+    };
+    if (forbiddenSelector(actual)) {
+      this.report("call.in-out-variable", {}, value.span);
+      return false;
+    }
     this.expressions.set(value, info);
-    if (!sameScalarType(info.descriptor ?? info.dataType, type, this.types)) {
+    const formalArray = arrayType(type, this.types);
+    const actualArray = arrayType(info.descriptor ?? info.dataType, this.types);
+    const matches = formalArray?.dimensions.every((d) => d === "*")
+      ? !!actualArray &&
+        actualArray.dimensions.length === formalArray.dimensions.length &&
+        sameScalarType(actualArray.element, formalArray.element, this.types)
+      : sameScalarType(info.descriptor ?? info.dataType, type, this.types);
+    if (!matches) {
       this.report(
         "call.in-out-type",
         { from: info.descriptor ?? info.dataType, to: type },
