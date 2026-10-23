@@ -1,5 +1,11 @@
-import { check, parsePou } from "@benchtop-plc/compiler";
-import type { Diagnostic } from "@benchtop-plc/core";
+import {
+  check,
+  parsePou,
+  parseDataType,
+  resolveDataTypes,
+  type DataTypeDeclaration,
+} from "@benchtop-plc/compiler";
+import { isIntegerType, type TypeTable, type Diagnostic } from "@benchtop-plc/core";
 import type {
   ContentHeader,
   FileHeader,
@@ -9,7 +15,14 @@ import type {
   SplitProgram,
   VariableDeclaration,
 } from "./model.js";
-import { canonicalBody, joinProgram, splitProgram } from "./text.js";
+import {
+  canonicalBody,
+  joinProgram,
+  splitProgram,
+  expressionText,
+  containsSpan,
+  normalizeType,
+} from "./text.js";
 import {
   element,
   escapeXml,
@@ -148,11 +161,11 @@ function validateIdentifier(name: string, path: string): void {
   if (!result.value || result.value.name !== name) fail("project.invalid", path);
 }
 
-function validateInitializers(program: SplitProgram): void {
+function validateInitializers(program: SplitProgram, types: TypeTable): void {
   const ast = parsePou(joinProgram(program)).ast;
   if (!ast) fail("project.invalid", "pou/interface");
   // Check declarations together in their POU context; body/name/section errors do not block exchange.
-  const result = check({ ...ast, body: [] });
+  const result = check({ ...ast, body: [] }, new Map(), new Map(), new Map(), types);
   for (const declaration of ast.declarations) {
     const span = declaration.initializer?.span;
     if (!span) continue;
@@ -174,25 +187,139 @@ function validateInitializers(program: SplitProgram): void {
           item.code !== "decl.unknown-type" &&
           item.code !== "decl.in-out-initializer" &&
           item.span &&
-          (item.span.line > span.line ||
-            (item.span.line === span.line && item.span.column >= span.column)) &&
-          (item.span.endLine < span.endLine ||
-            (item.span.endLine === span.endLine && item.span.endColumn <= span.endColumn)),
+          containsSpan(span, item.span),
       )
     )
       fail("project.invalid", `variable/${declaration.names[0].name}/initialValue`);
   }
 }
 
-function readType(type: XmlNode): string {
-  shape(type, [], [...elementaryTypes, "string", "wstring", "derived"]);
+interface SplitDataType {
+  name: string;
+  type: string;
+  initialValue?: string;
+}
+function parseType(source: string): DataTypeDeclaration {
+  const parsed = parseDataType(source);
+  if (!parsed.ast) throw new ProjectError(parsed.diagnostics[0]!);
+  return parsed.ast;
+}
+function joinDataType(type: SplitDataType): string {
+  return `TYPE ${type.name} : ${type.type}${type.initialValue === undefined ? "" : ` := ${type.initialValue}`}; END_TYPE\n`;
+}
+function splitDataType(source: string, declarations: DataTypeDeclaration[]): SplitDataType {
+  const ast = parseType(source);
+  // Initializers do not change the TC6 base type. Resolve definitions separately
+  // so an unresolved initializer can still be exchanged (ADR 0014/0015).
+  const context = declarations.filter((item) => item.name.key !== ast.name.key);
+  context.push(ast);
+  const resolved = resolveDataTypes(context.map((item) => ({ ...item, initializer: undefined })));
+  const definition = resolved.types.find(
+    (item) => item.name.toUpperCase() === ast.name.key,
+  )?.definition;
+  let type = normalizeType(ast.typeName?.key ?? "INT");
+  if (ast.values || ast.subrange) {
+    if (resolved.diagnostics.some((item) => item.pou === ast.name.name))
+      fail("project.invalid", `dataType/${ast.name.name}/baseType`);
+    if (definition?.kind === "enumeration")
+      type = `${definition.base} (${definition.values.map((item) => `${item.name} := ${item.value}`).join(", ")})`;
+    else if (definition?.kind === "subrange")
+      type = `${definition.base} (${definition.lower}..${definition.upper})`;
+    else fail("project.invalid", `dataType/${ast.name.name}/baseType`);
+  }
+  // Slice initializer text by lexer spans, including CRLF sources.
+  const initialValue = ast.initializer ? expressionText(source, ast.initializer.span) : undefined;
+  return { name: ast.name.name, type, ...(initialValue === undefined ? {} : { initialValue }) };
+}
+function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
+  for (const ast of asts) {
+    const span = ast.initializer?.span;
+    if (!span) continue;
+    // Check each declaration even when duplicate names are preserved as semantic errors.
+    const context = asts.filter((other) => other.name.key !== ast.name.key);
+    const { diagnostics } = resolveDataTypes([...context, ast]);
+    if (
+      diagnostics.some(
+        (item) =>
+          item.pou === ast.name.name &&
+          item.code !== "name.undeclared" &&
+          item.code !== "decl.unknown-type" &&
+          item.span &&
+          containsSpan(span, item.span),
+      )
+    )
+      fail("project.invalid", `dataType/${ast.name.name}/initialValue`);
+  }
+}
+function readInitialValue(node: XmlNode): string | undefined {
+  const initial = one(node, "initialValue", false);
+  if (!initial) return undefined;
+  shape(initial, [], ["simpleValue"]);
+  const simple = required(initial, "simpleValue");
+  leaf(simple, ["value"]);
+  return attribute(simple, "value");
+}
+function initialXml(value: string | undefined): string {
+  return value === undefined ? "" : element("initialValue", {}, element("simpleValue", { value }));
+}
+
+function readType(type: XmlNode, enumeration = false): string {
+  shape(
+    type,
+    [],
+    [
+      ...elementaryTypes,
+      "string",
+      "wstring",
+      "derived",
+      "subrangeSigned",
+      "subrangeUnsigned",
+      ...(enumeration ? ["enum"] : []),
+    ],
+  );
   const choices = type.children.filter((child) => child.name !== "addData");
   if (choices.length !== 1) fail("project.invalid", `${type.name}/type`);
   const choice = choices[0]!;
+  if (choice.name === "subrangeSigned" || choice.name === "subrangeUnsigned") {
+    shape(choice, [], ["range", "baseType"]);
+    const range = required(choice, "range");
+    leaf(range, ["lower", "upper"]);
+    const base = readType(required(choice, "baseType"));
+    if (!isIntegerType(base) || !base.startsWith("U") !== (choice.name === "subrangeSigned"))
+      fail("project.invalid", `${choice.name}/baseType`);
+    for (const key of ["lower", "upper"])
+      if (!/^[+-]?\d+$/.test(attribute(range, key)))
+        fail("project.invalid", `${choice.name}/range/@${key}`);
+    return `${base} (${BigInt(attribute(range, "lower"))}..${BigInt(attribute(range, "upper"))})`;
+  }
+  if (choice.name === "enum") {
+    shape(choice, [], ["values", "baseType"]);
+    const values = required(choice, "values");
+    shape(values, [], ["value"]);
+    const members = values.children
+      .filter((child) => child.name === "value")
+      .map((member) => {
+        leaf(member, ["name", "value"]);
+        const name = attribute(member, "name");
+        validateIdentifier(name, "enum/value/@name");
+        const value = member.attributes.value;
+        if (value !== undefined && !/^[+-]?\d+$/.test(value))
+          fail("project.invalid", "enum/value/@value");
+        return `${name}${value === undefined ? "" : ` := ${value}`}`;
+      });
+    if (!members.length) fail("project.invalid", "enum/values");
+    const baseType = one(choice, "baseType", false);
+    const base = baseType ? readType(baseType) : "INT";
+    if (!isIntegerType(base)) fail("project.invalid", "enum/baseType");
+    return `${base} (${members.join(", ")})`;
+  }
   leaf(choice, choice.name === "derived" ? ["name"] : []);
-  return choice.name === "derived"
-    ? attribute(choice, "name").toUpperCase()
-    : choice.name.toUpperCase();
+  if (choice.name === "derived") {
+    const name = attribute(choice, "name");
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) fail("project.invalid", "derived/@name");
+    return name.toUpperCase();
+  }
+  return choice.name.toUpperCase();
 }
 
 function readVariables(pou: XmlNode): VariableDeclaration[] {
@@ -209,14 +336,7 @@ function readVariables(pou: XmlNode): VariableDeclaration[] {
     for (const variable of group.children.filter((child) => child.name === "variable")) {
       shape(variable, ["name", "address"], ["type", "initialValue"]);
       const type = required(variable, "type");
-      const initial = one(variable, "initialValue", false);
-      let initialValue: string | undefined;
-      if (initial) {
-        shape(initial, [], ["simpleValue"]);
-        const simple = required(initial, "simpleValue");
-        leaf(simple, ["value"]);
-        initialValue = attribute(simple, "value");
-      }
+      const initialValue = readInitialValue(variable);
       variables.push({
         section: group.name as VariableDeclaration["section"],
         ...(["true", "1"].includes(constant ?? "") ? { constant: true } : {}),
@@ -276,7 +396,9 @@ function readExtensions(
           fail("project.invalid", `addData/${name}`);
         const known =
           (node === root && (name === PANEL_NAMESPACE || name === SOURCE_NAMESPACE)) ||
-          (node.uri === TC6_NAMESPACE && node.name === "pou" && name === SOURCE_NAMESPACE);
+          (node.uri === TC6_NAMESPACE &&
+            ["pou", "dataType"].includes(node.name) &&
+            name === SOURCE_NAMESPACE);
         if (!known) {
           diagnostics.push({ code: "project.dropped-data", severity: "warning", args: { name } });
           continue;
@@ -334,11 +456,45 @@ export function readProject(xml: string): ProjectResult<Project> {
     readCoordinates(header);
     const types = required(root, "types");
     shape(types, [], ["dataTypes", "pous"]);
-    const dataTypes = required(types, "dataTypes");
-    shape(dataTypes, [], []);
+    const dataTypesNode = required(types, "dataTypes");
+    shape(dataTypesNode, [], ["dataType"]);
     const pous = required(types, "pous");
     shape(pous, [], ["pou"]);
     const extensions = readExtensions(root, diagnostics);
+    const dataTypeNodes = dataTypesNode.children.filter((child) => child.name === "dataType");
+    const declarations = dataTypeNodes.map((node) => {
+      shape(node, ["name"], ["baseType", "initialValue"]);
+      const name = attribute(node, "name");
+      validateIdentifier(name, "dataType/@name");
+      const initialValue = readInitialValue(node);
+      return {
+        name,
+        type: readType(required(node, "baseType"), true),
+        ...(initialValue === undefined ? {} : { initialValue }),
+      };
+    });
+    const canonicalTypes = declarations.map(joinDataType);
+    const typeAsts = canonicalTypes.map(parseType);
+    const resolved = resolveDataTypes(typeAsts);
+    validateTypeInitializers(typeAsts);
+    const dataTypes = declarations.map((_, index) => {
+      // Normalize folded enum values and bounds before comparing preserved source.
+      const normalized = splitDataType(canonicalTypes[index]!, typeAsts);
+      let source = canonicalTypes[index]!;
+      const preserved = extensions.sources.get(dataTypeNodes[index]!);
+      if (preserved !== undefined) {
+        let matches = false;
+        try {
+          matches =
+            JSON.stringify(splitDataType(preserved, typeAsts)) === JSON.stringify(normalized);
+        } catch {
+          // Damaged or unrepresentable preserved text cannot override standard XML.
+        }
+        if (matches) source = preserved;
+        else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
+      }
+      return source;
+    });
     const pouNodes = pous.children.filter((child) => child.name === "pou");
     const programs = pouNodes.map((pou) => {
       shape(pou, ["name", "pouType"], ["interface", "body"]);
@@ -373,9 +529,9 @@ export function readProject(xml: string): ProjectResult<Project> {
         variables,
         body: text.text,
       };
-      validateInitializers(split);
+      validateInitializers(split, resolved.types);
       let program = joinProgram(split);
-      const parsed = splitProgram(program);
+      const parsed = splitProgram(program, resolved.types);
       if (!parsed.value) fail("project.invalid", "pou/interface");
       if (
         JSON.stringify(parsed.value) !==
@@ -388,7 +544,7 @@ export function readProject(xml: string): ProjectResult<Project> {
         extensions.sources.get(pou) ??
         (pouNodes.length === 1 ? extensions.sources.get(root) : undefined);
       if (source !== undefined) {
-        const preserved = splitProgram(source);
+        const preserved = splitProgram(source, resolved.types);
         if (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(split))
           program = source;
         else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
@@ -437,6 +593,7 @@ export function readProject(xml: string): ProjectResult<Project> {
       value: {
         fileHeader: { ...file.attributes } as unknown as FileHeader,
         contentHeader: { ...header.attributes } as unknown as ContentHeader,
+        dataTypes,
         pous: programs.map(({ source }) => source),
         configuration: attribute(configuration, "name"),
         resource: attribute(resource, "name"),
@@ -460,6 +617,31 @@ export function readProject(xml: string): ProjectResult<Project> {
 }
 
 function typeXml(type: string): string {
+  const range = /^(\w+) \(([+-]?\d+)\.\.([+-]?\d+)\)$/.exec(type);
+  if (range && isIntegerType(range[1]!))
+    return element(
+      !range[1]!.startsWith("U") ? "subrangeSigned" : "subrangeUnsigned",
+      {},
+      element("range", { lower: range[2]!, upper: range[3]! }) +
+        element("baseType", {}, typeXml(range[1]!)),
+    );
+  const enumeration = /^(\w+) \((.*)\)$/.exec(type);
+  if (enumeration)
+    return element(
+      "enum",
+      {},
+      element(
+        "values",
+        {},
+        enumeration[2]!
+          .split(", ")
+          .map((member) => {
+            const [name, value] = member.split(" := ");
+            return element("value", { name: name!, value: value! });
+          })
+          .join(""),
+      ) + element("baseType", {}, typeXml(enumeration[1]!)),
+    );
   return elementaryTypes.has(type)
     ? element(type)
     : xmlTypes[type]
@@ -482,18 +664,43 @@ function variableXml(variable: VariableDeclaration): string {
       name: variable.name,
       ...(variable.address === undefined ? {} : { address: variable.address }),
     },
-    element("type", {}, typeXml(variable.type)) +
-      (variable.initialValue === undefined
-        ? ""
-        : element("initialValue", {}, element("simpleValue", { value: variable.initialValue }))),
+    element("type", {}, typeXml(variable.type)) + initialXml(variable.initialValue),
   );
 }
 
 /** Validate through the same supported-subset reader before returning an XML document. */
 export function writeProject(project: Project): ProjectResult<string> {
+  let dataTypes: string;
+  let resolved: ReturnType<typeof resolveDataTypes>;
+  try {
+    const asts = project.dataTypes.map(parseType);
+    resolved = resolveDataTypes(asts);
+    validateTypeInitializers(asts);
+    dataTypes = project.dataTypes
+      .map((source) => {
+        const split = splitDataType(source, asts);
+        return element(
+          "dataType",
+          { name: split.name },
+          element("baseType", {}, typeXml(split.type)) +
+            initialXml(split.initialValue) +
+            element("addData", {}, sourceXml(source)),
+        );
+      })
+      .join("");
+  } catch (error) {
+    return {
+      value: null,
+      diagnostics: [
+        error instanceof ProjectError
+          ? error.diagnostic
+          : { code: "project.invalid", severity: "error", args: { path: "dataTypes" } },
+      ],
+    };
+  }
   const programs: SplitProgram[] = [];
   for (const source of project.pous) {
-    const parsed = splitProgram(source);
+    const parsed = splitProgram(source, resolved.types);
     if (!parsed.value) return { value: null, diagnostics: parsed.diagnostics };
     programs.push(parsed.value);
   }
@@ -590,7 +797,7 @@ export function writeProject(project: Project): ProjectResult<string> {
       },
       element("fileHeader", project.fileHeader) +
         element("contentHeader", project.contentHeader, coordinateInfo) +
-        element("types", {}, element("dataTypes") + element("pous", {}, pous)) +
+        element("types", {}, element("dataTypes", {}, dataTypes) + element("pous", {}, pous)) +
         element("instances", {}, configurations) +
         extra,
     );

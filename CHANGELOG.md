@@ -10,12 +10,17 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- PLCopen XML saves and opens ordered data type sources, including enumerations,
+  named and inline integer subranges, elementary and derived aliases, and their
+  initial values. Source extensions preserve exact text; imports without them
+  rebuild equivalent TYPE declarations. The web app retains imported types for
+  compilation, monitoring, browser autosave and project save/open.
+
 - Compiler data type sources with elementary aliases, enumerations and named or
   inline integer subranges (ADR 0015). Enumerations support contextual literals,
   CASE, selection functions and scalar POU parameters/results; subrange stores
   fault outside their limits. Monitor helpers format enum names and validate
-  writes and forces. XML data type storage and the web type list remain deferred;
-  XML export rejects inline subranges until it can preserve their limits.
+  writes and forces. The web type list remains deferred.
 
 - ADR 0015 documents the accepted design for data type declarations, enumerations,
   subranges, arrays, structures, strings and references for Milestone 5;

@@ -2,7 +2,12 @@ import { compileProject, lex, parsePou } from "@benchtop-plc/compiler";
 import { spanRange } from "./mapping.js";
 
 /** Resolve on demand from current editor texts, including uninstantiated user blocks. */
-export function blockTypeAt(sources: readonly string[], sourceIndex: number, position: number) {
+export function blockTypeAt(
+  sources: readonly string[],
+  sourceIndex: number,
+  position: number,
+  dataTypes: readonly string[] = [],
+) {
   const source = sources[sourceIndex];
   if (source === undefined) return null;
   const tokens = lex(source).tokens;
@@ -15,7 +20,7 @@ export function blockTypeAt(sources: readonly string[], sourceIndex: number, pos
   if (token?.kind !== "identifier" || tokens?.[index - 1]?.key === ".") return null;
   const ast = parsePou(source).ast;
   if (!ast) return null;
-  const ir = compileProject(sources).ir;
+  const ir = compileProject(sources, dataTypes).ir;
   if (!ir) return null;
   const variables =
     ast.kind === "program"

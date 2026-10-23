@@ -69,8 +69,8 @@ export function deletePou(pous: EditorPou[], index: number): EditorPou[] {
 }
 
 /** Give even a broken header's diagnostics a stable editor location. */
-export function compilePous(pous: readonly EditorPou[]) {
-  return compileProject(pouSources(pous));
+export function compilePous(pous: readonly EditorPou[], dataTypes: readonly string[] = []) {
+  return compileProject(pouSources(pous), dataTypes);
 }
 
 export function diagnosticPouIndex(

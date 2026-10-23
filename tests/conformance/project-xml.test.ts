@@ -42,6 +42,7 @@ const project: Project = {
     creationDateTime: "2026-10-16T00:00:00Z",
   },
   contentHeader: { name: "Reference", language: "en" },
+  dataTypes: [],
   pous: [readFileSync(new URL("./fixtures/reference.st", import.meta.url), "utf8")],
   configuration: "Config",
   resource: "Res",
@@ -64,19 +65,21 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     expect(written.value).not.toBeNull();
     expect(readProject(written.value!)).toEqual({ value: project, diagnostics: [] });
   });
-  it.each(["blink", "running-light"])(
-    "resaves the 0.3.0 %s project without losing text",
+  it.each(["blink", "running-light", "motor-starters"])(
+    "resaves the bundled %s project without losing text",
     (name) => {
       const original = readProject(
         readFileSync(new URL(`../../examples/${name}/project.xml`, import.meta.url), "utf8"),
       );
       expect(original.diagnostics).toEqual([]);
-      expect(original.value!.pous).toEqual([
-        readFileSync(
-          new URL(`./${name === "blink" ? "reference" : name}/program.st`, import.meta.url),
-          "utf8",
-        ),
-      ]);
+      expect(original.value!.dataTypes).toEqual([]);
+      if (name !== "motor-starters")
+        expect(original.value!.pous).toEqual([
+          readFileSync(
+            new URL(`./${name === "blink" ? "reference" : name}/program.st`, import.meta.url),
+            "utf8",
+          ),
+        ]);
       expect(readProject(writeProject(original.value!).value!)).toEqual(original);
     },
   );
@@ -108,6 +111,49 @@ describe("PLCopen TC6 v2.01 conformance", () => {
       schema.dispose();
     }
   }, 40000);
+  it("validates named and inline data types and imports equivalent IR without source extensions", () => {
+    const value: Project = {
+      ...project,
+      dataTypes: [
+        "TYPE State : (Idle, Running, Done) := Running; END_TYPE",
+        "TYPE Percent : INT (0..100) := 25; END_TYPE",
+        "TYPE Count : UINT (0..1000); END_TYPE",
+        "TYPE Speed : INT := 100; END_TYPE",
+        "TYPE Ratio : Percent; END_TYPE",
+        "TYPE Mode : UINT (Off := 0, Auto := 10, Manual := 20); END_TYPE",
+      ],
+      pous: [
+        "PROGRAM Main VAR currentState : State; p : Percent; x : INT (0..100); u : UINT (0..100); END_VAR currentState := Next(currentState); END_PROGRAM",
+        "FUNCTION Next : State VAR_INPUT s : State := Idle; END_VAR VAR p : Percent := 50; END_VAR Next := State#Done; END_FUNCTION",
+      ],
+    };
+    const written = writeProject(value);
+    expect(written.diagnostics).toEqual([]);
+    const schema = XmlDocument.fromString(loadSchema());
+    const validator = XsdValidator.fromDoc(schema);
+    const document = XmlDocument.fromString(written.value!);
+    try {
+      expect(() => validator.validate(document)).not.toThrow();
+      expect(readProject(written.value!).value).toEqual(value);
+      const canonical = readProject(
+        written.value!.replace(
+          new RegExp(`<data name="${SOURCE_NAMESPACE}"[^>]*>[\\s\\S]*?</data>`, "g"),
+          "",
+        ),
+      ).value!;
+      const original = compileProject(value.pous, value.dataTypes);
+      const imported = compileProject(canonical.pous, canonical.dataTypes);
+      expect(original.diagnostics).toEqual([]);
+      expect(imported.diagnostics).toEqual([]);
+      const withoutSpans = (ir: unknown) =>
+        JSON.parse(JSON.stringify(ir, (key, item: unknown) => (key === "span" ? undefined : item)));
+      expect(withoutSpans(imported.ir)).toEqual(withoutSpans(original.ir));
+    } finally {
+      document.dispose();
+      validator.dispose();
+      schema.dispose();
+    }
+  });
   it("validates written and example XML against the official v2.01 XSD and detects an invalid document", () => {
     const schema = XmlDocument.fromString(loadSchema());
     const validator = XsdValidator.fromDoc(schema);

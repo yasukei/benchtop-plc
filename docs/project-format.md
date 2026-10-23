@@ -5,8 +5,10 @@
 Warnings can accompany a successful value. No filesystem, DOM or Node globals are
 used by the package, so its built ESM also runs in a Web Worker.
 
-The model includes file/content header metadata, an ordered `pous: string[]`
-(each text contains exactly one `PROGRAM`, `FUNCTION` or `FUNCTION_BLOCK`), one configuration,
+The model includes file/content header metadata, an ordered `dataTypes: string[]`
+(each text contains exactly one `TYPE Name : ...; END_TYPE`) before the ordered
+`pous: string[]` (each text contains exactly one `PROGRAM`, `FUNCTION` or
+`FUNCTION_BLOCK`), one configuration,
 one resource, one positive fixed-duration cyclic task, an optional program
 instance bound to that task, and a JSON panel layout. Task intervals use ISO 8601
 fixed durations such as `PT0.01S`; task priority is 0–65535. Writing binds the
@@ -29,9 +31,10 @@ types, including nested instances. Derived type names are written in upper case
 and matched case-insensitively on read. ST bodies use an XHTML `p` element as
 required by TC6's `formattedText`.
 
-Saving requires each POU to parse and each initializer to pass the compiler's
-initializer checks in its POU context. The same checks apply to imports. An
-unresolved name or declaration type does not block exchange, while an initializer
+Saving requires each data type and POU to parse and each initializer to pass the
+compiler's initializer checks with the project's data types in scope. POU
+initializers also see earlier constants in their own POU context. The same checks
+apply to imports. An unresolved name or declaration type does not block exchange, while an initializer
 value outside its declared type does. Other semantic errors, including unknown
 calls, duplicate names, name clashes, zero or several programs, and supported
 sections disallowed for a POU kind, are preserved for the compiler to report after
@@ -39,7 +42,10 @@ opening. Run still requires error-free compilation. VAR_TEMP in a FUNCTION and
 AT in a FUNCTION_BLOCK remain exchangeable semantic errors. Variable sections
 without a mapping remain unsupported (ADR 0014).
 
-The web app retains every imported POU and compiles them together. The POU list
+The web app retains every imported data type and POU and compiles them together.
+Imported data type texts remain in project metadata through browser autosave and
+save/open; listing and editing them is deferred to #122. Older browser autosaves
+without `dataTypes` migrate to an empty list. The POU list
 selects the text to edit; saving preserves every text.
 Parseable projects with semantic errors can be saved and opened without loading
 invalid code into the runtime. Existing version 1 browser autosaves with a single
@@ -58,25 +64,57 @@ Our `addData/data` records use `handleUnknown="discard"`:
 - At the project root, `https://github.com/yasukei/benchtop-plc/ns/panel/1` contains
   a `panel` element in that namespace with `version="1"`; its text is the JSON
   layout. Missing panel data imports as `null`.
-- Inside each `<pou>`, `https://github.com/yasukei/benchtop-plc/ns/source/1`
+- Inside each `<pou>` and `<dataType>`, `https://github.com/yasukei/benchtop-plc/ns/source/1`
   contains a `source` element in that namespace with `version="1"`; its text
-  preserves that POU's exact spelling, comments, grouping, whitespace and line
-  endings. Each POU has its own entry, so duplicate names remain unambiguous.
+  preserves that source's exact spelling, comments, grouping, whitespace and line
+  endings. Each source has its own entry, so duplicate names remain unambiguous.
   Files written by 0.3.0 with a project-level source entry for a single program
   remain readable, including `examples/blink/project.xml` and
   `examples/running-light/project.xml`.
 
 The standard interface and ST body remain authoritative: preserved source is
 restored only if parsing it produces the same POU kind, name, result type,
-declarations and exact body as the standard XML. Stale source produces a warning
-and canonical text is used for that POU. Unknown vendor data, including data at
+declarations and exact body as the standard XML. For data types, the name, folded
+base definition and initializer text must match. Stale source produces a warning
+and canonical text is used for that source. Unknown vendor data, including data at
 other nested locations, is warned about and dropped. Unsupported versions of our
-own extensions return an error. A round trip preserves metadata, POU text order,
-exact sources and JSON layout. Other tools may remove source extensions; then
+own extensions return an error. A round trip preserves metadata, data type and
+POU text order, exact sources and JSON layout. Other tools may remove source extensions; then
 declaration formatting is rebuilt. Canonical imports add body separator line
 breaks only when missing, so repeated exchanges do not accumulate blank lines.
 Optional header fields set to `undefined` are omitted, just like absent fields;
 empty strings remain explicit.
+
+## Data type mapping
+
+Each data type source maps to `types/dataTypes/dataType` with its declared `name`,
+`baseType`, optional `initialValue/simpleValue`, and its own source extension
+(ADR 0015). Supported base types are:
+
+- Enumerations: `enum/values/value` entries keep each member's spelling and folded
+  integer value; `enum/baseType` keeps the integer base (INT if omitted on import).
+- Named subranges: `subrangeSigned` or `subrangeUnsigned`, according to the integer
+  base, with `range lower="..." upper="..."` and `baseType`. Bounds are folded
+  numbers, including exact 64-bit decimal bounds.
+- Aliases: an elementary element or `derived name="..."` for another named type.
+
+Anonymous subranges in variable declarations and function result types use the
+same subrange XML inline. Earlier POU constants can supply their bounds. Exact
+source preserves the original bound expressions; canonical imports use folded
+limits and reconstruct TYPE declarations in XML order. Removing source extensions
+preserves compiled IR apart from source spans.
+
+Type and variable defaults keep their initializer text in `simpleValue/@value`.
+Checks see the whole project's type declarations, including forward aliases.
+Out-of-range subrange values and numeric or wrong-type enum initializers block
+save and open. An unresolved enum member, such as `State#Missing`, remains a
+semantic error that can be exchanged, like an undeclared type. Other representable
+semantic errors still belong to compilation.
+
+`array`, `struct`, `pointer`, and `string`/`wstring` with a `length` attribute are
+rejected with an unsupported diagnostic until their implementing issues land.
+Files written by 0.4.0 with an empty `<dataTypes/>` import with `dataTypes: []`;
+the blink, running-light and motor-starters example sources remain unchanged.
 
 ## Writer identity
 
@@ -109,8 +147,10 @@ The cache is `node_modules/.cache/plcopen/tc6_xml_v201.xsd`; it is ignored by Gi
 Set `PLCOPEN_XSD_PATH` to an existing copy with that checksum for offline runs.
 Download failures, hash mismatches and schema violations fail the test; they do
 not skip validation. `libxml2-wasm` is a development-only dependency providing real
-XSD validation without a system libxml2 installation. The test both validates the
-reference program's generated XML and asserts rejection of an invalid priority.
+XSD validation without a system libxml2 installation. The test validates projects
+with enumerations, signed and unsigned subranges, aliases and their use in POUs,
+as well as the reference program's generated XML. It also asserts rejection of
+an invalid priority.
 Run it with `pnpm test tests/conformance/project-xml.test.ts` (also part of the
 normal `pnpm test` and CI). No network access is used by the project package.
 

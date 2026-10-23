@@ -19,8 +19,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const loadedIr = useMemo(
-    () => (state.loadedSources ? compileProject(state.loadedSources).ir : undefined),
-    [state.loadedSources],
+    () =>
+      state.loadedSources
+        ? compileProject(state.loadedSources, state.project?.dataTypes).ir
+        : undefined,
+    [state.loadedSources, state.project?.dataTypes],
   );
   const variables = loadedIr?.variables ?? [];
   const disconnected = state.connection !== "connected";
@@ -166,10 +169,13 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 ref={editor}
                 source={state.source}
                 sources={pouSources(state.pous)}
+                dataTypes={state.project?.dataTypes}
                 sourceIndex={state.selectedPou}
                 onChange={store.setSource}
                 diagnostics={state.diagnostics.filter(
-                  (diagnostic) => diagnostic.sourceIndex === state.selectedPou,
+                  (diagnostic) =>
+                    diagnostic.sourceKind !== "dataType" &&
+                    diagnostic.sourceIndex === state.selectedPou,
                 )}
                 snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
                 online={online}
@@ -186,7 +192,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                   {diagnostics.map((diagnostic, index) => (
                     <li key={index}>
                       <button
-                        disabled={!diagnostic.span || diagnostic.sourceIndex === undefined}
+                        disabled={
+                          diagnostic.sourceKind === "dataType" ||
+                          !diagnostic.span ||
+                          diagnostic.sourceIndex === undefined
+                        }
                         onClick={() => {
                           if (
                             diagnostic.sourceIndex !== undefined &&

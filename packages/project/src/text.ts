@@ -1,5 +1,5 @@
-import { lex, parsePou } from "@benchtop-plc/compiler";
-import type { Diagnostic, SourceSpan } from "@benchtop-plc/core";
+import { check, lex, parsePou } from "@benchtop-plc/compiler";
+import type { Diagnostic, SourceSpan, TypeTable } from "@benchtop-plc/core";
 import type { ProjectResult, SplitProgram, VariableDeclaration } from "./model.js";
 
 /** Convert a compiler span to an offset, including the lexer's CRLF handling. */
@@ -10,7 +10,7 @@ function offset(source: string, span: SourceSpan, end = false): number {
   return lines.slice(0, line - 1).reduce((sum, text) => sum + text.length, 0) + column - 1;
 }
 
-export function splitProgram(source: string): ProjectResult<SplitProgram> {
+export function splitProgram(source: string, types: TypeTable = []): ProjectResult<SplitProgram> {
   const result = parsePou(source);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
@@ -25,16 +25,11 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
         { code: "project.unsupported", severity: "error", args: { path: unsupported } },
       ],
     };
-  // Until #121 adds the TC6 subrange mapping, never silently save only its base type.
-  if (ast.resultSubrange || ast.declarations.some((declaration) => declaration.subrange))
-    return {
-      value: null,
-      diagnostics: [{ code: "project.unsupported", severity: "error", args: { path: "subrange" } }],
-    };
   // Lexer tokens supply boundaries without mistaking keywords inside comments for delimiters.
   const { tokens } = lex(source);
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
-  const start = endVars.at(-1)?.span ?? ast.resultType?.span ?? ast.name.span;
+  const start =
+    endVars.at(-1)?.span ?? ast.resultSubrange?.span ?? ast.resultType?.span ?? ast.name.span;
   const end = tokens!.find(
     (token) =>
       token.key ===
@@ -80,11 +75,97 @@ export function splitProgram(source: string): ProjectResult<SplitProgram> {
       });
     }
   }
+  // Fold inline limits with earlier POU constants in scope. Other semantic errors
+  // must not hide a representable subrange or prevent saving unrelated declarations.
+  const rangeType = (
+    name: import("@benchtop-plc/compiler").Identifier,
+    range: import("@benchtop-plc/compiler").Subrange,
+    before: number,
+  ): string | undefined => {
+    const names = new Set([
+      ast.name.key,
+      ...ast.declarations.flatMap((declaration) => declaration.names.map((item) => item.key)),
+      ...types.map((type) => type.name.toUpperCase()),
+    ]);
+    let key = "__RANGE";
+    while (names.has(key)) key += "_";
+    const needed = new Set<string>();
+    const dependencies = (span: SourceSpan): void => {
+      for (const token of lex(expressionText(source, span)).tokens ?? [])
+        if (token.kind === "identifier") needed.add(token.key);
+    };
+    dependencies(range.span);
+    // Walk backwards to include transitive dependencies in their original order.
+    // Unrelated unresolved constants remain exchangeable semantic errors.
+    const constants = ast.declarations
+      .slice(0, before)
+      .filter((declaration) => declaration.constant);
+    const included: typeof constants = [];
+    for (const declaration of constants.toReversed()) {
+      if (!declaration.names.some((item) => needed.has(item.key))) continue;
+      included.unshift(declaration);
+      if (declaration.initializer) dependencies(declaration.initializer.span);
+      if (declaration.subrange) dependencies(declaration.subrange.span);
+    }
+    const result = check(
+      {
+        ...ast,
+        kind: "program",
+        resultType: undefined,
+        resultSubrange: undefined,
+        sections: [],
+        body: [],
+        declarations: [
+          ...included,
+          {
+            kind: "declaration",
+            names: [{ name: key, key, span: name.span }],
+            typeName: name,
+            subrange: range,
+            span: range.span,
+          },
+        ],
+      },
+      new Map(),
+      new Map(),
+      new Map(),
+      types,
+    );
+    const descriptor = result.checked?.symbols.at(-1)?.descriptor;
+    return descriptor && typeof descriptor !== "string" && descriptor.kind === "subrange"
+      ? `${descriptor.base} (${descriptor.lower}..${descriptor.upper})`
+      : undefined;
+  };
+  let index = 0;
+  for (const [position, declaration] of ast.declarations.entries()) {
+    if (declaration.subrange) {
+      const type = rangeType(declaration.typeName, declaration.subrange, position);
+      if (!type)
+        return {
+          value: null,
+          diagnostics: [{ code: "project.invalid", severity: "error", args: { path: "subrange" } }],
+        };
+      for (let n = 0; n < declaration.names.length; n++) variables[index + n]!.type = type;
+    }
+    index += declaration.names.length;
+  }
+  const returnType =
+    ast.resultType &&
+    (ast.resultSubrange
+      ? rangeType(ast.resultType, ast.resultSubrange, ast.declarations.length)
+      : normalizeType(ast.resultType.key));
+  if (ast.resultSubrange && !returnType)
+    return {
+      value: null,
+      diagnostics: [
+        { code: "project.invalid", severity: "error", args: { path: "returnType/subrange" } },
+      ],
+    };
   return {
     value: {
       kind: ast.kind,
       name: ast.name.name,
-      ...(ast.resultType ? { returnType: normalizeType(ast.resultType.key) } : {}),
+      ...(returnType ? { returnType } : {}),
       variables,
       body: source.slice(offset(source, start, true), offset(source, end)),
     },
@@ -119,7 +200,7 @@ export function joinProgram(program: SplitProgram): string {
   return `${keyword} ${program.name}${program.returnType === undefined ? "" : ` : ${program.returnType}`}${declarations ? `\n${declarations}` : ""}${canonicalBody(program.body)}END_${keyword}\n`;
 }
 
-function normalizeType(type: string): string {
+export function normalizeType(type: string): string {
   return (
     (
       {
@@ -129,5 +210,16 @@ function normalizeType(type: string): string {
         LDATE_AND_TIME: "LDT",
       } as Record<string, string>
     )[type] ?? type
+  );
+}
+
+export function expressionText(source: string, span: SourceSpan): string {
+  return source.slice(offset(source, span), offset(source, span, true));
+}
+export function containsSpan(outer: SourceSpan, inner: SourceSpan): boolean {
+  return (
+    (inner.line > outer.line || (inner.line === outer.line && inner.column >= outer.column)) &&
+    (inner.endLine < outer.endLine ||
+      (inner.endLine === outer.endLine && inner.endColumn <= outer.endColumn))
   );
 }

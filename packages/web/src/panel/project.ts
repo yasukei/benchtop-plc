@@ -25,6 +25,7 @@ export function serializePanelProject(
       companyURL: undefined,
       productRelease: undefined,
     },
+    dataTypes: project?.dataTypes ?? [],
     pous: sources,
     task: {
       ...(project?.task ?? { name: "Cyclic", priority: 1 }),

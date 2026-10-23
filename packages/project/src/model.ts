@@ -21,10 +21,11 @@ export interface ContentHeader {
   language?: string;
 }
 
-/** Ordered POU texts and one configuration, resource and cyclic task. */
+/** Ordered data type and POU texts and one configuration, resource and cyclic task. */
 export interface Project {
   fileHeader: FileHeader;
   contentHeader: ContentHeader;
+  dataTypes: string[];
   pous: string[];
   configuration: string;
   resource: string;

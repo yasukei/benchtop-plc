@@ -18,3 +18,5 @@ export type {
 export { compile, compileProject } from "./compile.js";
 export type { CompileDiagnostic, CompileResult } from "./compile.js";
 export { lower } from "./lower.js";
+
+export { resolveDataTypes } from "./data-types.js";

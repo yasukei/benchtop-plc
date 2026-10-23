@@ -59,7 +59,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     emergencyActive: false,
     emergencyReleased: false,
     loadedSources: null,
-    diagnostics: compilePous(pous).diagnostics,
+    diagnostics: compilePous(pous, typeof initial === "string" ? [] : initial.project?.dataTypes)
+      .diagnostics,
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
@@ -105,7 +106,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   });
   const compileEditor = () => {
     clearTimeout(compileTimer);
-    const result = compilePous(state.pous);
+    const result = compilePous(state.pous, state.project?.dataTypes);
     update({ diagnostics: result.diagnostics });
     return result;
   };
@@ -142,7 +143,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       source: pous[selectedPou]?.source ?? "",
       layout: opened.layout,
       project: opened.project,
-      diagnostics: compilePous(pous).diagnostics,
+      diagnostics: compilePous(pous, opened.project.dataTypes).diagnostics,
       cycleMs: ms as CycleMs,
       // Identical editor text can belong to a different project-wide compilation.
       loadedSources: null,
@@ -204,7 +205,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         saveDiagnostics: [],
         selectedPou: pous.length - 1,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous).diagnostics,
+        diagnostics: compilePous(pous, state.project?.dataTypes).diagnostics,
       });
     },
     addFunctionBlock() {
@@ -216,7 +217,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         saveDiagnostics: [],
         selectedPou: pous.length - 1,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous).diagnostics,
+        diagnostics: compilePous(pous, state.project?.dataTypes).diagnostics,
       });
     },
     deletePou(index: number) {
@@ -233,7 +234,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         saveDiagnostics: [],
         selectedPou,
         source: pous[selectedPou]?.source ?? "",
-        diagnostics: compilePous(pous).diagnostics,
+        diagnostics: compilePous(pous, state.project?.dataTypes).diagnostics,
       });
     },
     loadEditor,

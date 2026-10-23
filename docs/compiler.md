@@ -46,8 +46,14 @@ call sites are checked.
 
 A diagnostic from this list uses `pou` for the type source's name,
 `sourceKind: "dataType"` and `sourceIndex` into the data type list. POU diagnostics
-keep their existing identity and indexing. The web app and XML model still manage
-POUs only; the data type editor/list and TC6 mapping belong to #122 and #121.
+keep their existing identity and indexing. The project model and PLCopen XML retain
+both lists, and the web app compiles imported data types with its POUs. The data
+type editor/list belongs to #122.
+
+`resolveDataTypes(declarations)` also exposes type resolution for parsed data type
+ASTs, returning a type table and diagnostics without requiring a complete program.
+The project codec uses it to fold enum values and subrange bounds and to check
+initializers with project types in scope.
 Until TC6 mapping is available, XML export explicitly rejects inline subranges,
 so their limits cannot be silently discarded.
 
