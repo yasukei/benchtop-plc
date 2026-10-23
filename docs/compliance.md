@@ -131,9 +131,9 @@ benchtop-plc restriction pending IEC edition verification (see #92).
 
 | Feature                              | Status | Notes                                                                                                                                    |
 | ------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `TON`, `TOF`, `TP`                   | Yes    | TIME PT/ET; negative PT is zero                                                                                                          |
+| `TON`, `TOF`, `TP`                   | Yes    | TIME PT/ET unless PT selects LTIME; negative PT is zero                                                                                  |
 | `R_TRIG`, `F_TRIG`                   | Yes    | First call suppresses edges                                                                                                              |
-| `CTU`, `CTD`, `CTUD`                 | Yes    | INT counters; saturation at type limits                                                                                                  |
+| `CTU`, `CTD`, `CTUD`                 | Yes    | INT counters unless PV selects another type; saturation at type limits                                                                   |
 | Typed counters                       | Yes    | CTU/CTD/CTUD with _INT, _DINT, _LINT, _UDINT, _ULINT; exact 64-bit counts                                                                |
 | `SR`, `RS`                           | Yes    | Set dominant / reset dominant; Q1 initially FALSE                                                                                        |
 | `TON_TIME`, `TOF_TIME`, `TP_TIME`    | Yes    | Same behavior as unsuffixed TIME timers                                                                                                  |
