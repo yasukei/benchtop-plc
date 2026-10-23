@@ -88,3 +88,101 @@ it.each([
   expect(result.ir).toBeUndefined();
   expect(result.diagnostics.some((d) => d.severity === "error")).toBe(true);
 });
+
+it.each([
+  {
+    declarations: "x : INT;",
+    body: "x[1] := 2;",
+    code: "type.not-array",
+    args: { type: "INT" },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT;",
+    body: "a[1,2] := 2;",
+    code: "type.array-index-count",
+    args: { expected: 1, found: 2 },
+  },
+  {
+    declarations: "a : ARRAY[1..3,0..1] OF INT;",
+    body: "a[1] := 2;",
+    code: "type.array-index-count",
+    args: { expected: 2, found: 1 },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT; r : REAL;",
+    body: "a[r] := 2;",
+    code: "type.array-index-not-integer",
+    args: { type: "REAL" },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT;",
+    body: "a[TRUE] := 2;",
+    code: "type.array-index-not-integer",
+    args: { type: "BOOL" },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT; stateValue : State;",
+    body: "a[stateValue] := 2;",
+    types: ["TYPE State : (Idle, Running); END_TYPE"],
+    code: "type.array-index-not-integer",
+    args: { type: { kind: "named", name: "State" } },
+  },
+  {
+    declarations: "a, indices : ARRAY[1..3] OF INT;",
+    body: "a[indices] := 2;",
+    code: "type.array-index-not-integer",
+    args: { type: { kind: "array", dimensions: [{ lower: 1, upper: 3 }], element: "INT" } },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF ARRAY[1..2] OF WORD;",
+    body: "a[1].3 := TRUE;",
+    code: "type.invalid-bit-access",
+    args: {
+      type: { kind: "array", dimensions: [{ lower: 1, upper: 2 }], element: "WORD" },
+      bit: 3,
+    },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT;",
+    body: "a[1].3 := TRUE;",
+    code: "type.invalid-bit-access",
+    args: { type: "INT", bit: 3 },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT := 5;",
+    body: "",
+    code: "type.array-initializer-required",
+    args: { type: { kind: "array", dimensions: [{ lower: 1, upper: 3 }], element: "INT" } },
+  },
+  {
+    declarations: "a : Table := 5;",
+    body: "",
+    types: ["TYPE Table : ARRAY[1..3] OF INT; END_TYPE"],
+    code: "type.array-initializer-required",
+    args: { type: { kind: "named", name: "Table" } },
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT;",
+    body: "a[4] := 2;",
+    code: "type.invalid-constant",
+    args: {},
+  },
+  {
+    declarations: "a : ARRAY[1..3] OF INT;",
+    body: "a[missing] := 2;",
+    code: "name.undeclared",
+    args: { name: "missing" },
+  },
+])(
+  "reports $code with specific array error arguments",
+  ({ declarations, body, code, args, ...context }) => {
+    const result = compileProject(
+      [program(declarations, body)],
+      "types" in context ? context.types : [],
+    );
+    expect(result.ir).toBeUndefined();
+    expect(
+      result.diagnostics.map((diagnostic) => ({ code: diagnostic.code, args: diagnostic.args })),
+    ).toEqual([{ code, args }]);
+  },
+);

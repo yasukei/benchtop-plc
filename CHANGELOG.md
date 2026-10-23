@@ -10,6 +10,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Array diagnostics distinguish non-array access, index counts, non-integer
+  indices and missing initializer lists, with the relevant types and counts.
+
 - Arrays with constant DINT bounds, up to three dimensions and 10,000 scalar
   leaves, nested arrays, repeated initializers, checked indexing, element bit
   access and whole-array assignment/MOVE/SEL/MUX. Array elements support strings,

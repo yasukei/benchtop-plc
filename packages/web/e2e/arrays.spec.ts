@@ -39,3 +39,23 @@ END_PROGRAM`);
     page.locator('.inline-values [data-type="INT"]').filter({ hasText: "14" }).first(),
   ).toBeVisible();
 });
+
+test("explains non-integer array indices in English and Japanese", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await editor.click();
+  await editor.press("ControlOrMeta+a");
+  await page.keyboard.insertText(`PROGRAM Main
+VAR a : ARRAY[1..3] OF INT; r : REAL; END_VAR
+a[r] := 2;
+END_PROGRAM`);
+  await expect(
+    page.getByText("Array index must have an integer type; found REAL.", { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(
+    page.getByText("配列の添字は整数型でなければなりません。REAL が指定されています。", {
+      exact: false,
+    }),
+  ).toBeVisible();
+});

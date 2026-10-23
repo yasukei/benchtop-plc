@@ -458,7 +458,11 @@ arithmetic only. There are at most three dimensions, 10,000 elements per array a
 10,000 scalar leaves per variable, including nested arrays. Invalid bounds,
 excessive sizes, initializer counts and constant out-of-bounds indices report
 `type.invalid-constant`. Each index must have an integer type, with exactly one
-index per dimension.
+index per dimension. Non-array access, dimension-count mismatches and non-integer
+indices use `type.not-array`, `type.array-index-count` and
+`type.array-index-not-integer`, respectively. Array initializers require a list
+(`type.array-initializer-required`); bit access on array-valued elements uses
+`type.invalid-bit-access`.
 
 Element types include elementary, string, enumeration, subrange and array types.
 Initializers enumerate elements in row-major order, support repeated values or

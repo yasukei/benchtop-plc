@@ -325,7 +325,8 @@ class Checker {
       return cloneInitialValue(typeEntry(type, this.types).initialValue) as InitialValue[];
     const result: InitialValue[] = [];
     if (node) {
-      if (node.kind !== "arrayInitializer") this.report("type.invalid-constant", {}, node.span);
+      if (node.kind !== "arrayInitializer")
+        this.report("type.array-initializer-required", { type }, node.span);
       else
         for (const item of node.items) {
           const countInfo = item.count ? this.expression(item.count, "DINT") : undefined;
@@ -645,7 +646,7 @@ class Checker {
     return symbol;
   }
 
-  private bitIndex(type: DataType, member: AST.Identifier): number | null {
+  private bitIndex(type: TypeDescriptor, member: AST.Identifier): number | null {
     const index = this.constants.get(member.key);
     if (index && index.value === undefined) {
       if (!index.initializerProcessed)
@@ -661,7 +662,8 @@ class Checker {
       this.report("type.invalid-constant", {}, member.span);
       return null;
     }
-    if (!isBitType(type) || type === "BOOL" || bit < 0 || bit >= bitWidths[type]) {
+    const base = arrayType(type, this.types) ? undefined : scalarBase(type, this.types);
+    if (!base || !isBitType(base) || base === "BOOL" || bit < 0 || bit >= bitWidths[base]) {
       this.report("type.invalid-bit-access", { type, bit }, member.span);
       return null;
     }
@@ -681,23 +683,35 @@ class Checker {
   private reference(node: AST.AssignmentTarget, write = false): ExpressionInfo | null {
     if (node.kind === "index") {
       const parent = this.reference(node.array, write);
-      if (parent) this.expressions.set(node.array, parent);
-      const array = parent && arrayType(parent.descriptor ?? parent.dataType, this.types);
-      if (!array || array.dimensions.length !== node.indices.length) {
-        this.report("type.invalid-constant", {}, node.span);
+      if (!parent) return null;
+      this.expressions.set(node.array, parent);
+      const parentType = parent.descriptor ?? parent.dataType;
+      const array = arrayType(parentType, this.types);
+      if (!array) {
+        this.report("type.not-array", { type: parentType }, node.array.span);
+        return null;
+      }
+      if (array.dimensions.length !== node.indices.length) {
+        this.report(
+          "type.array-index-count",
+          { expected: array.dimensions.length, found: node.indices.length },
+          node.span,
+        );
         return null;
       }
       node.indices.forEach((index, i) => {
         const info = this.expression(index);
+        if (!info) return;
+        const type = info.descriptor ?? info.dataType;
+        if (!isIntegerType(info.dataType) || this.enum(info) || arrayType(type, this.types)) {
+          this.report("type.array-index-not-integer", { type }, index.span);
+          return;
+        }
         const d = array.dimensions[i]!;
         if (
-          !info ||
-          !isIntegerType(info.dataType) ||
-          this.enum(info) ||
-          (info.descriptor && arrayType(info.descriptor, this.types)) ||
-          (info.constant !== undefined &&
-            d !== "*" &&
-            (BigInt(info.constant) < BigInt(d.lower) || BigInt(info.constant) > BigInt(d.upper)))
+          info.constant !== undefined &&
+          d !== "*" &&
+          (BigInt(info.constant) < BigInt(d.lower) || BigInt(info.constant) > BigInt(d.upper))
         )
           this.report("type.invalid-constant", {}, index.span);
       });
@@ -707,14 +721,8 @@ class Checker {
       const element = this.reference(node.element, write);
       if (!element) return null;
       this.expressions.set(node.element, element);
-      const bit =
-        element.descriptor && arrayType(element.descriptor, this.types)
-          ? null
-          : this.bitIndex(element.dataType, node.member);
-      if (bit === null) {
-        this.report("type.invalid-constant", {}, node.span);
-        return null;
-      }
+      const bit = this.bitIndex(element.descriptor ?? element.dataType, node.member);
+      if (bit === null) return null;
       this.references.set(node.member, { variable: 0, bit });
       return { dataType: "BOOL" };
     }
@@ -754,7 +762,7 @@ class Checker {
       isScalar(symbol.type) &&
       (/^\d+$/.test(node.member.key) || this.constants.has(node.member.key))
     ) {
-      const bit = this.bitIndex(symbol.type, node.member);
+      const bit = this.bitIndex(symbol.descriptor ?? symbol.type, node.member);
       if (bit === null) return null;
       this.references.set(node.member, { variable: symbol.id, bit });
       return { dataType: "BOOL" };

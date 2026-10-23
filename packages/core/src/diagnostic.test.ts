@@ -51,6 +51,12 @@ const examples = {
   "call.missing-in-out": { name: "Swap", parameter: "A" },
   "call.formal-required": { name: "Compute" },
   "name.undeclared": { name: "Missing" },
+  "type.not-array": { type: "INT" },
+  "type.array-index-count": { expected: 2, found: 1 },
+  "type.array-index-not-integer": { type: "REAL" },
+  "type.array-initializer-required": {
+    type: { kind: "array", dimensions: [{ lower: 1, upper: 3 }], element: "INT" },
+  },
   "type.invalid-bit-access": { type: "WORD", bit: 16 },
   "type.portability": { function: "DWORD_TO_REAL" },
   "type.invalid-constant": {},
