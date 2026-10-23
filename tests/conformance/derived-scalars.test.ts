@@ -23,6 +23,24 @@ function setup(pous: string[], types = [state, percent]) {
   return { ir, runtime, clock, id, value };
 }
 
+it.each([
+  ["LREAL", "DIV(7, 2)", 3],
+  ["LINT", "MUL(100000, 100000)", "1410065408"],
+  ["LREAL", "MOVE(DIV(7, 2))", 3],
+  ["LREAL", "SEL(TRUE, DIV(7, 2), DIV(9, 2))", 4],
+  ["LREAL", "MUX(0, DIV(7, 2), DIV(9, 2))", 3],
+] as const)(
+  "preserves elementary argument semantics for %s := %s without data type sources",
+  (dataType, expression, expected) => {
+    const { runtime, value } = setup(
+      [`PROGRAM Main VAR target : ${dataType}; END_VAR target := ${expression}; END_PROGRAM`],
+      [],
+    );
+    expect(value(runtime.step(), "target")).toEqual({ kind: "scalar", dataType, value: expected });
+    expect(runtime.diagnostic).toBeNull();
+  },
+);
+
 it("traces an enumerated state machine over scans with one integer cell per variable", () => {
   const { runtime, value, ir } = setup([
     `PROGRAM Main VAR phase : State; END_VAR

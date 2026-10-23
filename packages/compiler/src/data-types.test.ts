@@ -10,6 +10,17 @@ const compile = (declarations: string, body = "", types = [color, percent], pous
 const codes = (result: ReturnType<typeof compile>) =>
   result.diagnostics.map((diagnostic) => diagnostic.code);
 
+it.each(["DIV(7, 2)", "MOVE(7)", "SEL(TRUE, 7, 2)", "MUX(0, 7, 2)"])(
+  "keeps elementary generic arguments independent of a narrowing assignment target: %s",
+  (expression) => {
+    for (const type of ["REAL", "SINT"]) {
+      const result = compile(`target : ${type};`, `target := ${expression};`, []);
+      expect(codes(result)).toContain("type.assign-mismatch");
+      expect(result.ir).toBeUndefined();
+    }
+  },
+);
+
 describe("data type sources", () => {
   it("parses one declaration and rejects trailing declarations and malformed headers", () => {
     expect(parseDataType(color).ast).toMatchObject({

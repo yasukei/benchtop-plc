@@ -953,12 +953,14 @@ class Checker {
         node.span,
       );
     }
+    const enumContext =
+      expectedType && enumerationType(expectedType, this.types) ? expectedType : undefined;
     const parameter = (arg: AST.Expression, index: number): ExpressionInfo | null => {
       const types = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
       return this.expression(
         arg,
         name === "MOVE"
-          ? expectedType
+          ? enumContext
           : types.length === 1
             ? types[0]
             : types.every((type) => type === "REAL" || type === "LREAL")
@@ -975,7 +977,7 @@ class Checker {
         ? inputs.map(parameter)
         : [
             ...inputs.slice(0, start).map(parameter),
-            ...this.operands(inputs.slice(start), false, realGroup ? "LREAL" : expectedType),
+            ...this.operands(inputs.slice(start), false, realGroup ? "LREAL" : enumContext),
           ];
     const enumeration = args.find((arg) => arg && this.enum(arg));
     if (enumeration) {
