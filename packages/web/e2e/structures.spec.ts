@@ -39,3 +39,22 @@ END_PROGRAM`);
   await row("PTS[2].Y").getByRole("button", { name: "Write", exact: true }).click();
   await expect(value("PTS[2].Y")).toHaveText("7.0");
 });
+
+test("explains unsupported function block members in English and Japanese", async ({ page }) => {
+  await page.goto("/");
+  await page
+    .getByRole("region", { name: "POUs", exact: true })
+    .getByRole("button", { name: "Add data type", exact: true })
+    .click();
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await editor.fill("TYPE Settings : STRUCT timerValue : TON; END_STRUCT; END_TYPE");
+  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+  await expect(diagnostics).toContainText(
+    "Function block type TON is not supported in a structure.",
+  );
+  await expect(editor.locator(".cm-lintRange-error")).toHaveText("TON");
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(
+    "TON はファンクションブロック型のため、構造体のメンバーには使用できません。",
+  );
+});

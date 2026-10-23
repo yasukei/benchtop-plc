@@ -161,3 +161,25 @@ it("names the original member when its default is not constant", () => {
     expect.objectContaining({ code: "call.unknown-function", args: { name: "GetValue" } }),
   );
 });
+
+it.each(["TON", "ton", "CTU_LINT"])(
+  "explains the function block member restriction at the type name: %s",
+  (type) => {
+    const result = compileProject(
+      [program("")],
+      [`TYPE S : STRUCT\n  timerValue : ${type};\nEND_STRUCT; END_TYPE`],
+    );
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toEqual([
+      {
+        code: "decl.structure-member-type",
+        severity: "error",
+        pou: "S",
+        sourceKind: "dataType",
+        sourceIndex: 0,
+        span: { line: 2, column: 16, endLine: 2, endColumn: 16 + type.length },
+        args: { name: type },
+      },
+    ]);
+  },
+);

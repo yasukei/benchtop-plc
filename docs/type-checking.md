@@ -481,7 +481,8 @@ follow their ordinary scalar rules.
 Structures have ordered named members of elementary, string, enumeration,
 subrange, array or structure type. Forward dependencies and aliases are resolved
 before POU checking. Direct and indirect containment cycles, including through
-arrays, fail with `type.invalid-constant`; function block members are unsupported.
+arrays, fail with `type.invalid-constant`. Function block members are unsupported;
+`decl.structure-member-type` identifies the function block type at its type-name span.
 Member names are case-insensitive and unique within their structure. Each
 variable may contain at most 10,000 scalar leaves, including nested members.
 

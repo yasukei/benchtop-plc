@@ -3,6 +3,7 @@ import {
   cloneInitialValue,
   isAggregateType,
   leafCount,
+  isFunctionBlockType,
   type InitialValue,
   isCharacterType,
   DEFAULT_STRING_LENGTH,
@@ -128,6 +129,20 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
             args: { name: name.name },
           });
         seen.add(name.key);
+      }
+      const functionBlockMembers = ast.members.filter((member) =>
+        isFunctionBlockType(member.typeName.key),
+      );
+      for (const member of functionBlockMembers)
+        report(ast, {
+          code: "decl.structure-member-type",
+          severity: "error",
+          span: member.typeName.span,
+          args: { name: member.typeName.name },
+        });
+      if (functionBlockMembers.length) {
+        visiting.delete(ast.name.key);
+        return undefined;
       }
       // Members have their own namespace. Reuse declaration checking with private
       // synthetic names so a member may have the same spelling as a data type.

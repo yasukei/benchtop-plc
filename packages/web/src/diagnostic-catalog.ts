@@ -55,6 +55,8 @@ export const diagnosticEn = {
   "syntax.unexpected-eof": () => "Unexpected end of input.",
   "syntax.missing-end": ({ expected }) => `Missing ${expected}.`,
   "decl.unknown-type": ({ name }) => `Unknown type: ${name}.`,
+  "decl.structure-member-type": ({ name }) =>
+    `Function block type ${name} is not supported in a structure.`,
   "decl.duplicate": ({ name }) => `Duplicate declaration: ${name}.`,
   "decl.name-collision": ({ name, kind }) =>
     `${name} conflicts with a ${kind === "type" ? "type" : "function"} name.`,
@@ -197,6 +199,8 @@ export const diagnosticJa = {
   "syntax.unexpected-eof": () => "入力が途中で終了しています。",
   "syntax.missing-end": ({ expected }) => `${expected}がありません。`,
   "decl.unknown-type": ({ name }) => `不明な型です: ${name}。`,
+  "decl.structure-member-type": ({ name }) =>
+    `${name} はファンクションブロック型のため、構造体のメンバーには使用できません。`,
   "decl.duplicate": ({ name }) => `宣言が重複しています: ${name}。`,
   "decl.name-collision": ({ name, kind }) =>
     `${name}は${kind === "type" ? "型" : "関数"}の名前と衝突しています。`,
