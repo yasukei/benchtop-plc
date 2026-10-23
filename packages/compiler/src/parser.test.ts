@@ -19,6 +19,10 @@ function shape(node: Expression): unknown {
   switch (node.kind) {
     case "index":
       return [shape(node.array), ...node.indices.map(shape)];
+    case "field":
+      return [shape(node.object), node.member.key];
+    case "structureInitializer":
+      return node.members.map((member) => [member.name.key, shape(member.value)]);
     case "elementBit":
       return [shape(node.element), node.member.key];
     case "arrayInitializer":
@@ -439,7 +443,6 @@ describe("syntax diagnostics", () => {
     "FUNCTION_BLOCK F END_FUNCTION_BLOCK",
     "PROGRAM P VAR_INPUT x : INT; END_VAR END_PROGRAM",
     "PROGRAM P VAR x : ARRAY[*] OF INT; END_VAR END_PROGRAM",
-    "PROGRAM P x := a.b.c; END_PROGRAM",
   ])("does not accept unsupported syntax %s", (source) => {
     expect(parse(source).ast).toBeNull();
     expect(parse(source).diagnostics).toHaveLength(1);
@@ -478,4 +481,8 @@ it.each([
   "SPLIT_DATE(IN := d, YEAR => y + 1);",
 ])("rejects mixed call syntax and non-reference output targets: %s", (body) => {
   expect(parse(`PROGRAM P ${body} END_PROGRAM`).ast).toBeNull();
+});
+
+it("parses chained member access for later type checking", () => {
+  expect(shape(expression("a.b.c"))).toEqual(["A.B", "C"]);
 });

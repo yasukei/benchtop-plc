@@ -234,6 +234,15 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
   let type =
     normalizeType(ast.typeName?.key ?? "INT") +
     (ast.stringLength === undefined ? "" : `[${ast.stringLength}]`);
+  if (ast.members) {
+    const split = splitProgram(
+      `PROGRAM __STRUCT_SOURCE VAR ${ast.members.map((member) => expressionText(source, member.span)).join(" ")} END_VAR END_PROGRAM`,
+      resolved.types,
+    );
+    if (!split.value || !ast.members.length || ast.members.some((member) => member.address))
+      fail("project.invalid", `dataType/${ast.name.name}/struct`);
+    type = `STRUCT ${split.value.variables.map((variable) => `${variable.name} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};`).join(" ")} END_STRUCT`;
+  }
   if (ast.array) {
     if (definition?.kind === "alias") type = formatType(definition.type);
     else {
@@ -260,8 +269,11 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
 }
 function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
   for (const ast of asts) {
-    const span = ast.initializer?.span;
-    if (!span) continue;
+    const spans = [
+      ast.initializer,
+      ...(ast.members ?? []).map((member) => member.initializer),
+    ].flatMap((initializer) => (initializer ? [initializer.span] : []));
+    if (!spans.length) continue;
     // Check each declaration even when duplicate names are preserved as semantic errors.
     const context = asts.filter((other) => other.name.key !== ast.name.key);
     const { diagnostics } = resolveDataTypes([...context, ast]);
@@ -272,7 +284,7 @@ function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
           item.code !== "name.undeclared" &&
           item.code !== "decl.unknown-type" &&
           item.span &&
-          containsSpan(span, item.span),
+          spans.some((span) => containsSpan(span, item.span!)),
       )
     )
       fail("project.invalid", `dataType/${ast.name.name}/initialValue`);
@@ -281,14 +293,29 @@ function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
 function readInitialValue(node: XmlNode): string | undefined {
   const initial = one(node, "initialValue", false);
   if (!initial) return undefined;
-  const read = (value: XmlNode): string => {
-    shape(value, value.name === "value" ? ["repetitionValue"] : [], ["simpleValue", "arrayValue"]);
+  const read = (value: XmlNode, member = false): string => {
+    shape(value, value.name === "value" ? (member ? ["member"] : ["repetitionValue"]) : [], [
+      "simpleValue",
+      "arrayValue",
+      "structValue",
+    ]);
     const children = value.children.filter((child) => child.name !== "addData");
     if (children.length !== 1) fail("project.invalid", `${value.name}/value`);
     const child = children[0]!;
     if (child.name === "simpleValue") {
       leaf(child, ["value"]);
       return attribute(child, "value");
+    }
+    if (child.name === "structValue") {
+      shape(child, [], ["value"]);
+      const members = child.children
+        .filter((item) => item.name === "value")
+        .map((item) => {
+          const name = attribute(item, "member");
+          validateIdentifier(name, "structValue/value/@member");
+          return `${name} := ${read(item, true)}`;
+        });
+      return `(${members.join(", ")})`;
     }
     shape(child, [], ["value"]);
     return `[${child.children
@@ -309,12 +336,19 @@ function readInitialValue(node: XmlNode): string | undefined {
 }
 function initialXml(value: string | undefined): string {
   if (value === undefined) return "";
-  if (!value.trimStart().startsWith("["))
-    return element("initialValue", {}, element("simpleValue", { value }));
+
   const source = `PROGRAM Initial VAR a : INT := ${value}; END_VAR END_PROGRAM`;
   const initializer = parsePou(source).ast?.declarations[0]?.initializer;
   if (!initializer) fail("project.invalid", "arrayValue");
   const encode = (node: import("@benchtop-plc/compiler").Expression): string => {
+    if (node.kind === "structureInitializer")
+      return element(
+        "structValue",
+        {},
+        node.members
+          .map((member) => element("value", { member: member.name.name }, encode(member.value)))
+          .join(""),
+      );
     if (node.kind !== "arrayInitializer")
       return element("simpleValue", { value: expressionText(source, node.span) });
     return element(
@@ -354,12 +388,26 @@ function readType(type: XmlNode, enumeration = false): string {
       "array",
       "subrangeSigned",
       "subrangeUnsigned",
-      ...(enumeration ? ["enum"] : []),
+      ...(enumeration ? ["enum", "struct"] : []),
     ],
   );
   const choices = type.children.filter((child) => child.name !== "addData");
   if (choices.length !== 1) fail("project.invalid", `${type.name}/type`);
   const choice = choices[0]!;
+  if (choice.name === "struct") {
+    shape(choice, [], ["variable"]);
+    const members = choice.children
+      .filter((child) => child.name === "variable")
+      .map((member) => {
+        shape(member, ["name"], ["type", "initialValue"]);
+        const name = attribute(member, "name");
+        validateIdentifier(name, "struct/variable/@name");
+        const initial = readInitialValue(member);
+        return `${name} : ${readType(required(member, "type"))}${initial === undefined ? "" : ` := ${initial}`};`;
+      });
+    if (!members.length) fail("project.invalid", "struct");
+    return `STRUCT ${members.join(" ")} END_STRUCT`;
+  }
   if (choice.name === "array") {
     shape(choice, [], ["dimension", "baseType"]);
     const dimensions = choice.children
@@ -728,6 +776,15 @@ export function readProject(xml: string): ProjectResult<Project> {
 }
 
 function typeXml(type: string): string {
+  if (type.startsWith("STRUCT ")) {
+    const ast = parseType(`TYPE __STRUCT_XML : ${type}; END_TYPE`);
+    const source = `TYPE __STRUCT_XML : ${type}; END_TYPE`;
+    const split = splitProgram(
+      `PROGRAM __STRUCT_SOURCE VAR ${ast.members!.map((member) => expressionText(source, member.span)).join(" ")} END_VAR END_PROGRAM`,
+    );
+    if (!split.value) fail("project.invalid", "struct");
+    return element("struct", {}, split.value.variables.map(variableXml).join(""));
+  }
   const array = /^ARRAY\[([^\]]+)\] OF (.+)$/.exec(type);
   if (array)
     return element(

@@ -297,3 +297,10 @@ Array access uses `type.not-array`, `type.array-index-count` or
 declaration initialized without `[...]` uses `type.array-initializer-required`.
 Bit access on an array-valued element uses `type.invalid-bit-access` with that
 array descriptor. These errors do not also report `type.invalid-constant`.
+
+## Structure member declarations
+
+`decl.structure-member-type` (`{ name: string }`) reports a function block type
+used directly as a structure member. `name` retains the source type spelling;
+the diagnostic span covers that member's type name. Function block instances
+cannot be structure members under ADR 0015.

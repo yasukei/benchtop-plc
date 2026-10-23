@@ -464,7 +464,7 @@ indices use `type.not-array`, `type.array-index-count` and
 (`type.array-initializer-required`); bit access on array-valued elements uses
 `type.invalid-bit-access`.
 
-Element types include elementary, string, enumeration, subrange and array types.
+Element types include elementary, string, enumeration, subrange, array and structure types.
 Initializers enumerate elements in row-major order, support repeated values or
 groups and default missing trailing elements. Every supplied leaf is checked
 against its destination. Array constants and array parameters/results are rejected.
@@ -475,3 +475,28 @@ must have the same base and limits; string capacities do not participate in type
 identity. Whole-array assignment, MOVE, SEL and MUX require equivalent array types.
 Arithmetic and whole-array comparisons are rejected. Scalar element operations
 follow their ordinary scalar rules.
+
+## Structures
+
+Structures have ordered named members of elementary, string, enumeration,
+subrange, array or structure type. Forward dependencies and aliases are resolved
+before POU checking. Direct and indirect containment cycles, including through
+arrays, fail with `type.invalid-constant`. Function block members are unsupported;
+`decl.structure-member-type` identifies the function block type at its type-name span.
+Member names are case-insensitive and unique within their structure. Each
+variable may contain at most 10,000 scalar leaves, including nested members.
+
+Member initializers supply defaults. Partial structure initializers override only
+named members; missing members keep their declared defaults. Nested aggregate
+initializers are checked recursively; unknown or repeated initializer members,
+nonconstant values and incompatible values are compile errors. A missing access
+member uses `type.unknown-structure-member` with the structure type and member name.
+On structures, dotted identifiers always select members, even if a constant has
+the same name; on bit-string leaves a numeric or constant selector selects a bit.
+
+Whole-structure assignment, MOVE, SEL and MUX require the same named structure
+through aliases. Identically shaped independent declarations are incompatible;
+arrays of structures compare element types by this identity. Whole-structure
+comparisons/arithmetic and aggregate constants are rejected. Structures can be
+PROGRAM/FB VAR or VAR_TEMP and function locals; parameters/results remain
+unsupported until #128.

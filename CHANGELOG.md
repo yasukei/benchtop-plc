@@ -10,6 +10,14 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Structure declarations report unsupported function block member types on the
+  type name, with an explanation of the restriction in English and Japanese.
+
+- Named structures with member defaults, nested array/member access, partial
+  initializers, and whole-structure assignment/MOVE/SEL/MUX. The monitor expands
+  structures and arrays of structures and supports scalar member writes and
+  forces. PLCopen XML preserves nested structure declarations and initial values.
+
 - Array diagnostics distinguish non-array access, index counts, non-integer
   indices and missing initializer lists, with the relevant types and counts.
 

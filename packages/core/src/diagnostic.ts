@@ -32,6 +32,7 @@ export interface DiagnosticArgs {
   "syntax.missing-end": { expected: `END_${string}` };
 
   "decl.unknown-type": { name: string };
+  "decl.structure-member-type": { name: string };
   "decl.duplicate": { name: string };
   "decl.name-collision": { name: string; kind: "type" | "function" };
   "decl.direct-address-type": { name: string; type: string };
@@ -57,6 +58,7 @@ export interface DiagnosticArgs {
 
   "type.ambiguous-enumeration": { name: string };
   "name.undeclared": { name: string };
+  "type.unknown-structure-member": { type: TypeDescriptor; member: string };
   "type.not-array": { type: TypeDescriptor };
   "type.array-index-count": { expected: number; found: number };
   "type.array-index-not-integer": { type: TypeDescriptor };

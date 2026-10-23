@@ -1,6 +1,8 @@
 import {
   coerceValue,
   arrayType,
+  structureType,
+  type StructureVariable,
   type ArrayVariable,
   type InitialValue,
   truncateString,
@@ -58,23 +60,29 @@ interface UserBlockCell {
   path: string;
   resetTemporaries(): void;
 }
-export type ArrayValue = (ScalarValue | ArrayValue)[];
-type ValueCell = ScalarCell | { kind: "array"; elements: Cell[] };
+export type AggregateValue = (ScalarValue | AggregateValue)[];
+type ValueCell = ScalarCell | { kind: "aggregate"; elements: Cell[] };
 type Cell =
-  | { kind: "array"; elements: Cell[] }
+  | { kind: "aggregate"; elements: Cell[] }
   | { kind: "unbound" }
   | ScalarCell
   | { kind: "functionBlock"; instance: FunctionBlockInstance }
   | UserBlockCell;
 
-function initialCell(variable: ScalarVariable | ArrayVariable, types: TypeTable): ValueCell {
-  if (variable.kind === "array") {
+function initialCell(
+  variable: ScalarVariable | ArrayVariable | StructureVariable,
+  types: TypeTable,
+): ValueCell {
+  if (variable.kind === "array" || variable.kind === "structure") {
     const create = (type: TypeDescriptor, value: InitialValue): ValueCell => {
       const array = arrayType(type, types);
-      if (array)
+      const structure = structureType(type, types);
+      if (array || structure)
         return {
-          kind: "array",
-          elements: (value as InitialValue[]).map((v) => create(array.element, v)),
+          kind: "aggregate",
+          elements: (value as InitialValue[]).map((v, i) =>
+            create(structure ? structure.members[i]!.dataType : array!.element, v),
+          ),
         };
       return initialCell(
         { ...variable, kind: "scalar", dataType: type, initialValue: value } as ScalarVariable,
@@ -107,30 +115,30 @@ export class MemoryFrame implements ScanMemory {
     protected readonly types: TypeTable = [],
   ) {}
 
-  asArrayCell(): Cell {
-    return { kind: "array", elements: this.cells };
+  asAggregateCell(): Cell {
+    return { kind: "aggregate", elements: this.cells };
   }
 
   element(variable: number, offset: number): MemoryFrame {
     const cell = this.cells[variable];
-    if (cell?.kind !== "array" || !cell.elements[offset])
-      throw new RangeError("Invalid array storage");
+    if (cell?.kind !== "aggregate" || !cell.elements[offset])
+      throw new RangeError("Invalid aggregate storage");
     return new MemoryFrame([cell.elements[offset]!], this.types);
   }
 
-  arrayValue(variable: number): ArrayValue {
+  aggregateValue(variable: number): AggregateValue {
     const cell = this.cells[variable];
-    if (cell?.kind !== "array") throw new Error("Expected array");
+    if (cell?.kind !== "aggregate") throw new Error("Expected aggregate");
     return cell.elements.map((child, i) => {
       const frame = this.element(variable, i);
-      return child.kind === "array" ? frame.arrayValue(0) : frame.read(0);
+      return child.kind === "aggregate" ? frame.aggregateValue(0) : frame.read(0);
     });
   }
 
-  assignArray(variable: number, values: ArrayValue): void {
+  assignAggregate(variable: number, values: AggregateValue): void {
     values.forEach((value, i) => {
       const frame = this.element(variable, i);
-      if (Array.isArray(value)) frame.assignArray(0, value);
+      if (Array.isArray(value)) frame.assignAggregate(0, value);
       else frame.write(0, value);
     });
   }
@@ -216,7 +224,7 @@ export class MemoryFrame implements ScanMemory {
   }
 
   assign(
-    target: Exclude<AssignmentTarget, { kind: "index" | "elementBit" }>,
+    target: Exclude<AssignmentTarget, { kind: "index" | "elementBit" | "structureMember" }>,
     value: ScalarValue,
   ): TypedValue {
     if (target.kind === "bit") {
@@ -311,7 +319,8 @@ export class Memory extends MemoryFrame {
         if (slot.kind === "inOut") return { kind: "unbound" };
         if (slot.kind === "variable") return this.cells[slot.variable]!;
         if (slot.kind === "temporary") return initialCell(slot.variable, this.types);
-        if (slot.kind === "array") return this.frame(slot.elements).asArrayCell();
+        if (slot.kind === "array" || slot.kind === "structure")
+          return this.frame(slot.elements).asAggregateCell();
         let cell = this.instanceCells.get(slot.instance);
         if (!cell) {
           const instance = this.ir.instances![slot.instance]!;
@@ -342,7 +351,8 @@ export class Memory extends MemoryFrame {
     if (!initial) throw new Error("Missing function locals");
     return new MemoryFrame(
       initial.map(function clone(cell: Cell): ValueCell {
-        if (cell.kind === "array") return { kind: "array", elements: cell.elements.map(clone) };
+        if (cell.kind === "aggregate")
+          return { kind: "aggregate", elements: cell.elements.map(clone) };
         if (cell.kind === "long") return { ...cell };
         if (cell.kind === "scalar") return { ...cell, value: { ...cell.value } };
         throw new Error("Instance in function initial storage");

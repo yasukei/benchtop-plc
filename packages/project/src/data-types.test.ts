@@ -191,7 +191,8 @@ describe("PLCopen data types", () => {
     );
     expect(readProject(xml).diagnostics).toContainEqual(
       expect.objectContaining({
-        code: type === "<array/>" ? "project.invalid" : "project.unsupported",
+        code:
+          type === "<array/>" || type === "<struct/>" ? "project.invalid" : "project.unsupported",
       }),
     );
   });
@@ -433,3 +434,95 @@ it.each(["State", "Percent", "Table", "Alias"])(
     );
   },
 );
+
+it("round trips nested structures, arrays and partial member initializers through standard XML", () => {
+  const value = project(
+    [
+      "TYPE Point : STRUCT x : REAL; y : REAL := 1.0; END_STRUCT; END_TYPE",
+      "TYPE Recipe : STRUCT origin : Point := (x := 4.0); steps : ARRAY[1..2] OF Point := [(x := 2.0), (y := 3.0)]; labelText : STRING[5] := 'A'; END_STRUCT := (origin := (y := 5.0)); END_TYPE",
+      "TYPE Recipes : ARRAY[1..2] OF Recipe := [(steps := [(x := 7.0)])]; END_TYPE",
+    ],
+    [
+      "PROGRAM Main VAR r : Recipe := (steps := [(x := 10.0)]); tableValue : Recipes; END_VAR r.origin.x := tableValue[2].steps[1].y; END_PROGRAM",
+    ],
+  );
+  const xml = save(value);
+  expect(xml).toContain('<struct><variable name="x"><type><REAL/>');
+  expect(xml).toContain('<structValue><value member="steps"><arrayValue>');
+  expect(xml).toContain('<arrayValue><value><structValue><value member="x">');
+  expect(readProject(xml)).toEqual({ value, diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  const compiled = compileProject(value.pous, value.dataTypes);
+  const imported = compileProject(canonical.value!.pous, canonical.value!.dataTypes);
+  expect(compiled.diagnostics).toEqual([]);
+  expect(imported.diagnostics).toEqual([]);
+  expect(executable(imported.ir)).toEqual(executable(compiled.ir));
+  expect(readProject(save(canonical.value!)).value).toEqual(canonical.value);
+});
+
+it.each(["(missing := 1.0)", "(x := 1.0, X := 2.0)", "(x := TRUE)"])(
+  "rejects invalid structure initial values on save and open: %s",
+  (initial) => {
+    const types = ["TYPE Point : STRUCT x : REAL; END_STRUCT; END_TYPE"];
+    const good = project(types, ["PROGRAM Main VAR p : Point := (x := 1.0); END_VAR END_PROGRAM"]);
+    expect(
+      writeProject({
+        ...good,
+        pous: [`PROGRAM Main VAR p : Point := ${initial}; END_VAR END_PROGRAM`],
+      }).value,
+    ).toBeNull();
+    const initialXml = initial.includes("missing")
+      ? '<value member="missing"><simpleValue value="1.0"/></value>'
+      : initial.includes("TRUE")
+        ? '<value member="x"><simpleValue value="TRUE"/></value>'
+        : '<value member="x"><simpleValue value="1.0"/></value><value member="X"><simpleValue value="2.0"/></value>';
+    expect(
+      readProject(
+        save(good).replace(
+          /<structValue>.*?<\/structValue>/,
+          `<structValue>${initialXml}</structValue>`,
+        ),
+      ).value,
+    ).toBeNull();
+  },
+);
+
+it("detects external edits to member defaults and nested initial values", () => {
+  const value = project(
+    ["TYPE Point : STRUCT x : REAL := 1.0; END_STRUCT; END_TYPE"],
+    ["PROGRAM Main VAR p : Point := (x := 2.0); END_VAR END_PROGRAM"],
+  );
+  const xml = save(value)
+    .replace('value="1.0"', 'value="3.0"')
+    .replace('value="2.0"', 'value="4.0"');
+  const imported = readProject(xml);
+  expect(imported.diagnostics).toContainEqual({
+    code: "project.stale-source",
+    severity: "warning",
+    args: {},
+  });
+  const compiled = compileProject(imported.value!.pous, imported.value!.dataTypes);
+  expect(compiled.diagnostics).toEqual([]);
+  expect(compiled.ir?.variables[0]?.initialValue).toBe(4);
+});
+
+it.each([
+  ["n : INT (0..10) := 11;", "n : INT (0..10) := 1;", 'value="1"', 'value="11"'],
+  ["s : STRING[2] := 'long';", "s : STRING[2] := 'ok';", "value=\"'ok'\"", "value=\"'long'\""],
+  ["p : Point := (missing := 1.0);", "p : Point := (x := 1.0);", 'member="x"', 'member="missing"'],
+  [
+    "points : ARRAY[1..2] OF Point := [(x := TRUE)];",
+    "points : ARRAY[1..2] OF Point := [(x := 1.0)];",
+    'value="1.0"',
+    'value="TRUE"',
+  ],
+])("rejects invalid member defaults on save and open: %s", (invalid, valid, before, after) => {
+  const point = "TYPE Point : STRUCT x : REAL; END_STRUCT; END_TYPE";
+  expect(
+    writeProject(project([point, `TYPE RecordType : STRUCT ${invalid} END_STRUCT; END_TYPE`]))
+      .value,
+  ).toBeNull();
+  const xml = save(project([point, `TYPE RecordType : STRUCT ${valid} END_STRUCT; END_TYPE`]));
+  expect(readProject(xml.replace(before, after)).value).toBeNull();
+});

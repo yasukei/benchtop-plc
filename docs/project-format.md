@@ -56,7 +56,7 @@ parser. A small plain-data tree supports the scoped TC6 reader. XML is emitted
 with escaped text/attributes, including character references for CR and whitespace
 that XML otherwise normalizes. DTDs are rejected, and XML nesting is limited to
 128 elements. Unknown standard elements or attributes produce errors rather than
-silently changing program behavior. Multiple resources/tasks/configurations and structured types/initial values are
+silently changing program behavior. Multiple resources/tasks/configurations are
 unsupported.
 
 Our `addData/data` records use `handleUnknown="discard"`:
@@ -111,8 +111,7 @@ save and open. An unresolved enum member, such as `State#Missing`, remains a
 semantic error that can be exchanged, like an undeclared type. Other representable
 semantic errors still belong to compilation.
 
-`struct` and `pointer` are rejected with an unsupported diagnostic until their
-implementing issues land.
+`pointer` remains unsupported; structures are described below.
 Files written by 0.4.0 with an empty `<dataTypes/>` import with `dataTypes: []`;
 the blink, running-light and motor-starters example sources remain unchanged.
 
@@ -199,3 +198,18 @@ POU constants used in bounds are folded before XML emission. Source extensions
 preserve exact declaration spelling and initializer grouping; imports without
 extensions rebuild equivalent canonical ST. Scalar element types, including
 bounded strings, enumerations and subranges, keep their existing mappings.
+
+## Structures
+
+A data type's TC6 `baseType/struct` contains ordered `variable` members with their
+own `type` and optional `initialValue`. Named nested structures use `derived`;
+arrays in members use `array`. Structure initializers use `structValue/value`,
+where each value has a `member` attribute and a nested `simpleValue`, `arrayValue`
+or `structValue`. Thus structures in arrays and arrays in structures preserve
+partial initializers and member defaults without flattening the XML layout.
+
+The source extension preserves exact text. Without it, imports reconstruct
+canonical STRUCT declarations and named initializers with equivalent executable
+IR. Unknown/repeated initializer members and invalid leaf values block save/open.
+External changes to member declarations, defaults or nested initializers invalidate
+stale preserved source. Conformance tests validate nested examples against TC6 v2.01.

@@ -178,7 +178,7 @@ export type StandardFunction =
 interface VariableBase extends SourceNode {
   /** Original spelling for display. */
   name: string;
-  /** Display path segments; array leaves are sent only when watched or forced. */
+  /** Display path segments; aggregate leaves are sent only when watched or forced. */
   path?: string[];
   /** Upper-case ST identifier, for compilation and display lookup only. */
   key: string;
@@ -234,7 +234,11 @@ export interface ArrayVariable extends VariableBase {
   dataType: TypeDescriptor;
   initialValue: InitialValue[];
 }
+export interface StructureVariable extends Omit<ArrayVariable, "kind"> {
+  kind: "structure";
+}
 export type LocalVariable =
+  | StructureVariable
   | ArrayVariable
   | Variable
   | (VariableBase & {
@@ -244,8 +248,9 @@ export type LocalVariable =
     });
 export type InstanceStorage =
   | { kind: "variable"; variable: VariableId }
-  | { kind: "temporary"; variable: ScalarVariable | ArrayVariable }
+  | { kind: "temporary"; variable: ScalarVariable | ArrayVariable | StructureVariable }
   | { kind: "array"; dataType: TypeDescriptor; elements: InstanceStorage[] }
+  | { kind: "structure"; dataType: TypeDescriptor; elements: InstanceStorage[] }
   | { kind: "instance"; instance: number }
   | { kind: "inOut" };
 export interface UserFunctionBlockStorage {
@@ -266,7 +271,7 @@ export interface UserFunctionBlockIR extends SourceNode {
 
 export interface UserFunctionIR extends SourceNode {
   name: string;
-  variables: (ScalarVariable | ArrayVariable)[];
+  variables: (ScalarVariable | ArrayVariable | StructureVariable)[];
   inputs: FrameSlot[];
   outputs: FrameSlot[];
   /** Alias slots, bound to caller scalar cells on every invocation. */
@@ -330,17 +335,24 @@ export interface BitReference extends SourceNode {
 }
 export interface IndexReference extends SourceNode {
   kind: "index";
-  array: VariableReference | IndexReference;
+  array: VariableReference | IndexReference | StructureMemberReference;
   indices: Expression[];
+  dataType: TypeDescriptor;
+}
+export interface StructureMemberReference extends SourceNode {
+  kind: "structureMember";
+  object: VariableReference | IndexReference | StructureMemberReference;
+  member: number;
   dataType: TypeDescriptor;
 }
 export interface ElementBitReference extends SourceNode {
   kind: "elementBit";
-  element: IndexReference;
+  element: IndexReference | StructureMemberReference;
   bit: number;
   dataType: "BOOL";
 }
 export type AssignmentTarget =
+  | StructureMemberReference
   | IndexReference
   | ElementBitReference
   | VariableReference
@@ -403,6 +415,7 @@ export interface FunctionCallStatement extends SourceNode {
 }
 
 export type Expression =
+  | StructureMemberReference
   | IndexReference
   | ElementBitReference
   | LiteralExpression

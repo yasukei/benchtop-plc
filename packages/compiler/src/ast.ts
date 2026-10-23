@@ -58,12 +58,12 @@ export interface MemberReference extends SourceNode {
 
 export interface ArrayAccess extends SourceNode {
   kind: "index";
-  array: NameReference | ArrayAccess;
+  array: AssignmentTarget;
   indices: Expression[];
 }
 export interface ElementBit extends SourceNode {
   kind: "elementBit";
-  element: ArrayAccess;
+  element: AssignmentTarget;
   member: Identifier;
 }
 export interface ArrayInitializer extends SourceNode {
@@ -77,7 +77,17 @@ export interface ArrayDeclaration extends SourceNode {
   stringLength?: number;
   array?: ArrayDeclaration;
 }
-export type AssignmentTarget = NameReference | MemberReference | ArrayAccess | ElementBit;
+export interface FieldReference extends SourceNode {
+  kind: "field";
+  object: AssignmentTarget;
+  member: Identifier;
+}
+export interface StructureInitializer extends SourceNode {
+  kind: "structureInitializer";
+  members: { name: Identifier; value: Expression }[];
+}
+export type AssignmentTarget =
+  NameReference | MemberReference | ArrayAccess | ElementBit | FieldReference;
 
 export interface UnaryExpression extends SourceNode {
   kind: "unary";
@@ -117,6 +127,7 @@ export interface Subrange extends SourceNode {
   upper: Expression;
 }
 export interface DataTypeDeclaration extends SourceNode {
+  members?: Declaration[];
   array?: ArrayDeclaration;
   name: Identifier;
   typeName?: Identifier;
@@ -127,6 +138,7 @@ export interface DataTypeDeclaration extends SourceNode {
 }
 
 export type Expression =
+  | StructureInitializer
   | ArrayInitializer
   | EnumerationLiteral
   | Literal

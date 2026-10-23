@@ -91,8 +91,8 @@ in identifier positions. Declarations, aliases and function results accept
 optional capacity in `stringLength` or `resultStringLength`; the checker enforces
 1–1,024 and supplies the default 80. `CHAR` and `WCHAR` have no capacity suffix. In particular, an address such as `%IX12.9` is syntactically valid and
 remains available for a later `decl.address-out-of-range` diagnostic. `parsePou` also accepts FUNCTION and FUNCTION_BLOCK, their input/output/temporary
-sections and formal `=>` call outputs. Structures and unsupported extended VAR
-forms remain outside this parser's scope.
+sections and formal `=>` call outputs. Unsupported extended VAR forms remain
+outside this parser's scope.
 
 ## Data type declarations and derived scalar syntax
 
@@ -135,3 +135,17 @@ targets and expressions, including in FOR bounds and call arguments.
 Declaration initializers accept lists (`[1, 2, 3(0)]`), repeated groups
 (`[2(1, 2)]`) and nested lists. `arrayInitializer` retains repetitions without
 expanding them during parsing. Lists are not body expressions.
+
+## Structure syntax
+
+`parseDataType` accepts `TYPE Point : STRUCT x : REAL; y : REAL := 1.0;
+END_STRUCT; END_TYPE`. The AST retains ordered member declarations and defaults.
+Declaration initializers accept `(x := 1.0, y := 2.0)` and `()` for all defaults;
+`structureInitializer` retains named values and nests inside array or structure
+initializers. Initializers remain declaration-only syntax.
+
+A first dotted selector is a `member` node, keeping existing FB/bit syntax.
+Subsequent selectors are `field` nodes with an object reference; `index` bases may
+be any reference. This permits `line[2].start.x` and `recipe.steps[i].duration`.
+The checker distinguishes structure members from scalar bit selectors (`w.3` or
+`w.CONSTANT`); the parser retains the selector spelling in either case.

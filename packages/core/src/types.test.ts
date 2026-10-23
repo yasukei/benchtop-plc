@@ -1,6 +1,9 @@
 import { expect, it } from "vitest";
 import {
   formatType,
+  leafCount,
+  structureType,
+  cloneInitialValue,
   sameScalarType,
   scalarBase,
   validateScalar,
@@ -75,4 +78,78 @@ it.each([
   [{ kind: "character", base: "WCHAR" }, "WCHAR"],
 ] satisfies [TypeDescriptor, string][])("prints source-like descriptor %j", (type, expected) => {
   expect(formatType(type)).toBe(expected);
+});
+
+it("uses structure name equivalence through aliases and counts nested scalar leaves", () => {
+  const types: TypeTable = [
+    {
+      name: "Point",
+      definition: {
+        kind: "structure",
+        members: [
+          { name: "x", dataType: "REAL", initialValue: 0 },
+          { name: "y", dataType: "REAL", initialValue: 1 },
+        ],
+      },
+      initialValue: [0, 1],
+    },
+    {
+      name: "Other",
+      definition: {
+        kind: "structure",
+        members: [
+          { name: "x", dataType: "REAL", initialValue: 0 },
+          { name: "y", dataType: "REAL", initialValue: 1 },
+        ],
+      },
+      initialValue: [0, 1],
+    },
+    {
+      name: "AliasPoint",
+      definition: { kind: "alias", type: named("Point") },
+      initialValue: [0, 1],
+    },
+    {
+      name: "LineType",
+      definition: {
+        kind: "structure",
+        members: [
+          {
+            name: "points",
+            dataType: {
+              kind: "array",
+              dimensions: [{ lower: 1, upper: 3 }],
+              element: named("Point"),
+            },
+            initialValue: [
+              [0, 1],
+              [0, 1],
+              [0, 1],
+            ],
+          },
+        ],
+      },
+      initialValue: [
+        [
+          [0, 1],
+          [0, 1],
+          [0, 1],
+        ],
+      ],
+    },
+  ];
+  expect(sameScalarType(named("Point"), named("AliasPoint"), types)).toBe(true);
+  expect(sameScalarType(named("Point"), named("Other"), types)).toBe(false);
+  expect(sameScalarType(named("Point"), "INT", types)).toBe(false);
+  expect(leafCount(named("LineType"), types)).toBe(6);
+  expect(structureType(named("AliasPoint"), types)?.members.map((m) => m.name)).toEqual(["x", "y"]);
+  const cloned = cloneInitialValue(types[3]!.initialValue) as number[][][];
+  cloned[0]![0]![0] = 99;
+  expect(types[3]!.initialValue).toEqual([
+    [
+      [0, 1],
+      [0, 1],
+      [0, 1],
+    ],
+  ]);
 });

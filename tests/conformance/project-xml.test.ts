@@ -252,3 +252,31 @@ it("validates array dimensions and repeated initial values against TC6 v2.01", (
     schema.dispose();
   }
 });
+
+it("validates nested structures and their initial values against TC6 v2.01", () => {
+  const structures: Project = {
+    ...project,
+    dataTypes: [
+      "TYPE Point : STRUCT x : REAL; y : REAL := 1.0; END_STRUCT; END_TYPE",
+      "TYPE Recipe : STRUCT start : Point := (x := 2.0); steps : ARRAY[1..2] OF Point := [(x := 1.0), (x := 2.0)]; END_STRUCT := (start := (y := 4.0)); END_TYPE",
+      "TYPE Recipes : ARRAY[1..2] OF Recipe := [(steps := [(x := 3.0)])]; END_TYPE",
+    ],
+    pous: [
+      "PROGRAM Main VAR recipesValue : Recipes := [(start := (x := 5.0))]; END_VAR recipesValue[2].start := recipesValue[1].steps[2]; END_PROGRAM",
+    ],
+  };
+  const written = writeProject(structures);
+  expect(written.diagnostics).toEqual([]);
+  expect(compileProject(structures.pous, structures.dataTypes).diagnostics).toEqual([]);
+  const schema = XmlDocument.fromString(loadSchema());
+  const validator = XsdValidator.fromDoc(schema);
+  const document = XmlDocument.fromString(written.value!);
+  try {
+    expect(() => validator.validate(document)).not.toThrow();
+    expect(readProject(written.value!)).toEqual({ value: structures, diagnostics: [] });
+  } finally {
+    document.dispose();
+    validator.dispose();
+    schema.dispose();
+  }
+});

@@ -3,6 +3,8 @@ import {
   coerceValue,
   cloneInitialValue,
   arrayType,
+  structureType,
+  isAggregateType,
   arraySize,
   leafCount,
   type InitialValue,
@@ -170,7 +172,7 @@ class Checker {
       const type = descriptor
         ? this.base(descriptor, this.types)
         : declarationType(ast.resultType.key);
-      if (descriptor && arrayType(descriptor, this.types))
+      if (descriptor && isAggregateType(descriptor, this.types))
         this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
       if (!isScalar(type))
         this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
@@ -279,7 +281,7 @@ class Checker {
 
   /** Composite descriptors remain authoritative; scalar-only side tables use an unused INT tag. */
   private base(type: TypeDescriptor, table = this.types): DataType {
-    return arrayType(type, table) ? "INT" : scalarBase(type, table);
+    return isAggregateType(type, table) ? "INT" : scalarBase(type, table);
   }
 
   private arrayDeclaration(node: AST.ArrayDeclaration): TypeDescriptor | undefined {
@@ -319,6 +321,50 @@ class Checker {
     }
   }
 
+  private aggregateInitial(type: TypeDescriptor, node?: AST.Expression): InitialValue[] {
+    const structure = structureType(type, this.types);
+    if (!structure) return this.arrayInitial(type, node);
+    if (!node && typeof type !== "string" && type.kind === "named")
+      return cloneInitialValue(typeEntry(type, this.types).initialValue) as InitialValue[];
+    const result = structure.members.map((member) => cloneInitialValue(member.initialValue));
+    if (node) {
+      if (node.kind !== "structureInitializer") this.report("type.invalid-constant", {}, node.span);
+      else {
+        const seen = new Set<string>();
+        for (const member of node.members) {
+          const index = structure.members.findIndex(
+            (item) => item.name.toUpperCase() === member.name.key,
+          );
+          if (index < 0 || seen.has(member.name.key)) {
+            this.report("type.invalid-constant", {}, member.name.span);
+            continue;
+          }
+          seen.add(member.name.key);
+          const target = structure.members[index]!.dataType;
+          if (isAggregateType(target, this.types))
+            result[index] = this.aggregateInitial(target, member.value);
+          else {
+            const info = this.expression(member.value, target);
+            if (!info || !this.assignment(target, info, member.value.span)) continue;
+            if (info.constant === undefined) {
+              this.report("type.invalid-constant", {}, member.value.span);
+              continue;
+            }
+            const base = this.base(target);
+            result[index] =
+              isLongType(base) && info.dataType !== base
+                ? (convertValue(
+                    `${info.dataType}_TO_${base}` as ConversionFunction,
+                    info.constant,
+                  ) as InitialValue)
+                : coerceValue(base, info.constant);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   private arrayInitial(type: TypeDescriptor, node?: AST.Expression): InitialValue[] {
     const array = arrayType(type, this.types)!;
     if (!node && typeof type !== "string" && type.kind === "named")
@@ -341,8 +387,8 @@ class Checker {
             continue;
           }
           const values = item.values.map((value) => {
-            if (arrayType(array.element, this.types))
-              return this.arrayInitial(array.element, value);
+            if (isAggregateType(array.element, this.types))
+              return this.aggregateInitial(array.element, value);
             const info = this.expression(value, array.element);
             if (!info) return this.defaultValue(array.element);
             if (!this.assignment(array.element, info, value.span) || info.constant === undefined) {
@@ -351,7 +397,10 @@ class Checker {
             }
             const base = this.base(array.element);
             return isLongType(base) && info.dataType !== base
-              ? convertValue(`${info.dataType}_TO_${base}` as ConversionFunction, info.constant)
+              ? (convertValue(
+                  `${info.dataType}_TO_${base}` as ConversionFunction,
+                  info.constant,
+                ) as InitialValue)
               : coerceValue(base, info.constant);
           });
           if (result.length + count * values.length > arraySize(array)) {
@@ -364,8 +413,8 @@ class Checker {
     }
     while (result.length < arraySize(array))
       result.push(
-        arrayType(array.element, this.types)
-          ? this.arrayInitial(array.element)
+        isAggregateType(array.element, this.types)
+          ? this.aggregateInitial(array.element)
           : (this.defaultValue(array.element) as InitialValue),
       );
     return result;
@@ -397,7 +446,7 @@ class Checker {
       this.report("type.invalid-constant", {}, name.span);
       return type;
     } else if (key === "CHAR" || key === "WCHAR") type = { kind: "character", base: key };
-    if (range && arrayType(type, this.types)) {
+    if (range && isAggregateType(type, this.types)) {
       this.report("type.invalid-constant", {}, range.span);
       return undefined;
     }
@@ -431,7 +480,7 @@ class Checker {
   }
 
   private defaultValue(type: TypeDescriptor): ScalarValue {
-    if (arrayType(type, this.types)) return 0;
+    if (isAggregateType(type, this.types)) return 0;
     if (typeof type !== "string" && type.kind === "named")
       return typeEntry(type, this.types).initialValue as ScalarValue;
     const range = subrangeType(type, this.types);
@@ -449,7 +498,7 @@ class Checker {
   }
 
   private aggregate(info: ExpressionInfo): boolean {
-    return !!arrayType(info.descriptor ?? info.dataType, this.types);
+    return isAggregateType(info.descriptor ?? info.dataType, this.types);
   }
 
   private enum(info: ExpressionInfo): boolean {
@@ -485,7 +534,7 @@ class Checker {
     const known = isScalar(type) || block;
     if (
       descriptor &&
-      arrayType(descriptor, this.types) &&
+      isAggregateType(descriptor, this.types) &&
       declaration.section &&
       declaration.section !== "VAR_TEMP"
     )
@@ -494,7 +543,9 @@ class Checker {
         { section: declaration.section, kind: this.ast.kind },
         declaration.span,
       );
-    if (declaration.constant && (block || (descriptor && arrayType(descriptor, this.types))))
+    if (descriptor && leafCount(descriptor, this.types) > 10000)
+      this.report("type.invalid-constant", {}, declaration.span);
+    if (declaration.constant && (block || (descriptor && isAggregateType(descriptor, this.types))))
       this.report("decl.constant-type", {}, declaration.typeName.span);
     if (declaration.constant && declaration.address)
       this.report("decl.constant-address", {}, declaration.address.span);
@@ -525,7 +576,7 @@ class Checker {
       if (declaration.names.length > 1) this.report("decl.at-multiple-names", {}, address.span);
       if (address.byte !== 0 || address.bit < 0 || address.bit > 7)
         this.report("decl.address-out-of-range", { address: address.text }, address.span);
-      if (known && (type !== "BOOL" || (descriptor && arrayType(descriptor, this.types))))
+      if (known && (type !== "BOOL" || (descriptor && isAggregateType(descriptor, this.types))))
         this.report(
           "decl.direct-address-type",
           { name: declaration.names[0].name, type },
@@ -587,11 +638,11 @@ class Checker {
       }
       if (descriptor && constant?.name === name) constant.descriptor = descriptor;
     }
-    if (descriptor && arrayType(descriptor, this.types)) {
-      const values = this.arrayInitial(descriptor, declaration.initializer);
+    if (descriptor && isAggregateType(descriptor, this.types)) {
+      const values = this.aggregateInitial(descriptor, declaration.initializer);
       for (const name of declaration.names) {
         const symbol = this.names.get(name.key);
-        if (symbol?.name === name) symbol.arrayValues = cloneInitialValue(values);
+        if (symbol?.name === name) symbol.aggregateValues = cloneInitialValue(values);
       }
       return;
     }
@@ -662,7 +713,7 @@ class Checker {
       this.report("type.invalid-constant", {}, member.span);
       return null;
     }
-    const base = arrayType(type, this.types) ? undefined : scalarBase(type, this.types);
+    const base = isAggregateType(type, this.types) ? undefined : scalarBase(type, this.types);
     if (!base || !isBitType(base) || base === "BOOL" || bit < 0 || bit >= bitWidths[base]) {
       this.report("type.invalid-bit-access", { type, bit }, member.span);
       return null;
@@ -680,7 +731,42 @@ class Checker {
     return this.descriptor(declaration.typeName, declaration.subrange, declaration.stringLength);
   }
 
+  private field(type: TypeDescriptor, member: AST.Identifier): ExpressionInfo | null {
+    const structure = structureType(type, this.types);
+    if (structure) {
+      const index = structure.members.findIndex((item) => item.name.toUpperCase() === member.key);
+      if (index < 0) {
+        this.report("type.unknown-structure-member", { type, member: member.name }, member.span);
+        return null;
+      }
+      this.references.set(member, { variable: 0, member: index, structure: true });
+      const descriptor = structure.members[index]!.dataType;
+      return { dataType: this.base(descriptor), descriptor };
+    }
+    const bit = this.bitIndex(type, member);
+    if (bit === null) return null;
+    this.references.set(member, { variable: 0, bit });
+    return { dataType: "BOOL" };
+  }
+
   private reference(node: AST.AssignmentTarget, write = false): ExpressionInfo | null {
+    if (node.kind === "field") {
+      const object = this.reference(node.object, write);
+      if (!object) return null;
+      if (node.object.kind === "member" && this.references.get(node.object.member)?.port) {
+        this.report(
+          "fb.unknown-member",
+          {
+            name: node.object.instance.name,
+            member: `${node.object.member.name}.${node.member.name}`,
+          },
+          node.member.span,
+        );
+        return null;
+      }
+      this.expressions.set(node.object, object);
+      return this.field(object.descriptor ?? object.dataType, node.member);
+    }
     if (node.kind === "index") {
       const parent = this.reference(node.array, write);
       if (!parent) return null;
@@ -703,7 +789,7 @@ class Checker {
         const info = this.expression(index);
         if (!info) return;
         const type = info.descriptor ?? info.dataType;
-        if (!isIntegerType(info.dataType) || this.enum(info) || arrayType(type, this.types)) {
+        if (!isIntegerType(info.dataType) || this.enum(info) || isAggregateType(type, this.types)) {
           this.report("type.array-index-not-integer", { type }, index.span);
           return;
         }
@@ -757,6 +843,9 @@ class Checker {
         return null;
       }
       return { dataType: symbol.type, descriptor: symbol.descriptor };
+    }
+    if (symbol.descriptor && structureType(symbol.descriptor, this.types)) {
+      return this.field(symbol.descriptor, node.member);
     }
     if (
       isScalar(symbol.type) &&
@@ -855,6 +944,7 @@ class Checker {
       }
     }
     switch (node.kind) {
+      case "structureInitializer":
       case "arrayInitializer":
         this.report("type.invalid-constant", {}, node.span);
         return null;
@@ -924,6 +1014,7 @@ class Checker {
         break;
       case "index":
       case "elementBit":
+      case "field":
       case "member":
         info = this.reference(node);
         break;
@@ -937,7 +1028,8 @@ class Checker {
         const operand = this.expression(node.operand);
         if (!operand) return null;
         const dataType =
-          this.enum(operand) || (operand.descriptor && arrayType(operand.descriptor, this.types))
+          this.enum(operand) ||
+          (operand.descriptor && isAggregateType(operand.descriptor, this.types))
             ? null
             : unaryType(node.operator, operand.dataType);
         if (!dataType) {
@@ -971,8 +1063,8 @@ class Checker {
         if (!left || !right) return null;
         const enums = this.enum(left) || this.enum(right);
         const dataType =
-          (left.descriptor && arrayType(left.descriptor, this.types)) ||
-          (right.descriptor && arrayType(right.descriptor, this.types))
+          (left.descriptor && isAggregateType(left.descriptor, this.types)) ||
+          (right.descriptor && isAggregateType(right.descriptor, this.types))
             ? null
             : enums
               ? ["=", "<>"].includes(node.operator) &&
@@ -1267,7 +1359,9 @@ class Checker {
       const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
       return { ...arg, dataType: stringArgumentType(arg.dataType, accepted) };
     });
-    const aggregate = args.find((arg) => arg?.descriptor && arrayType(arg.descriptor, this.types));
+    const aggregate = args.find(
+      (arg) => arg?.descriptor && isAggregateType(arg.descriptor, this.types),
+    );
     if (aggregate) {
       const firstValue = name === "SEL" || name === "MUX" ? 1 : 0;
       args.forEach((arg, index) => {
@@ -1275,7 +1369,7 @@ class Checker {
         const accepted =
           ["MOVE", "SEL", "MUX"].includes(name) && index >= firstValue
             ? sameScalarType(aggregate.descriptor!, arg.descriptor ?? arg.dataType, this.types)
-            : !arrayType(arg.descriptor ?? arg.dataType, this.types) &&
+            : !isAggregateType(arg.descriptor ?? arg.dataType, this.types) &&
               !this.enum(arg) &&
               signature.arguments[Math.min(index, signature.arguments.length - 1)]!.includes(
                 arg.dataType,
@@ -1637,7 +1731,7 @@ class Checker {
 
   private assignment(target: TypeDescriptor, info: ExpressionInfo, span: SourceSpan): boolean {
     const source = info.descriptor ?? info.dataType;
-    if (arrayType(target, this.types) || arrayType(source, this.types)) {
+    if (isAggregateType(target, this.types) || isAggregateType(source, this.types)) {
       if (sameScalarType(target, source, this.types)) return true;
       this.report("type.assign-mismatch", { from: source, to: target }, span);
       return false;
@@ -1790,7 +1884,7 @@ class Checker {
               (symbol.descriptor &&
                 (enumerationType(symbol.descriptor, this.types) ||
                   subrangeType(symbol.descriptor, this.types) ||
-                  arrayType(symbol.descriptor, this.types)))
+                  isAggregateType(symbol.descriptor, this.types)))
             )
               this.report(
                 "type.for-variable-not-integer",

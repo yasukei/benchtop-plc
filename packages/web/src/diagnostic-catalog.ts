@@ -55,6 +55,8 @@ export const diagnosticEn = {
   "syntax.unexpected-eof": () => "Unexpected end of input.",
   "syntax.missing-end": ({ expected }) => `Missing ${expected}.`,
   "decl.unknown-type": ({ name }) => `Unknown type: ${name}.`,
+  "decl.structure-member-type": ({ name }) =>
+    `Function block type ${name} is not supported in a structure.`,
   "decl.duplicate": ({ name }) => `Duplicate declaration: ${name}.`,
   "decl.name-collision": ({ name, kind }) =>
     `${name} conflicts with a ${kind === "type" ? "type" : "function"} name.`,
@@ -97,6 +99,8 @@ export const diagnosticEn = {
   "call.formal-required": ({ name }) =>
     `Function ${name} requires named parameters because it has outputs or in-outs.`,
   "name.undeclared": ({ name }) => `Undeclared identifier: ${name}.`,
+  "type.unknown-structure-member": ({ type, member }) =>
+    `${typeText(type)} has no member ${member}.`,
   "type.not-array": ({ type }) => `Cannot index ${typeText(type)}; an array is required.`,
   "type.array-index-count": ({ expected, found }) =>
     `Array access requires ${expected} indices; found ${found}.`,
@@ -195,6 +199,8 @@ export const diagnosticJa = {
   "syntax.unexpected-eof": () => "入力が途中で終了しています。",
   "syntax.missing-end": ({ expected }) => `${expected}がありません。`,
   "decl.unknown-type": ({ name }) => `不明な型です: ${name}。`,
+  "decl.structure-member-type": ({ name }) =>
+    `${name} はファンクションブロック型のため、構造体のメンバーには使用できません。`,
   "decl.duplicate": ({ name }) => `宣言が重複しています: ${name}。`,
   "decl.name-collision": ({ name, kind }) =>
     `${name}は${kind === "type" ? "型" : "関数"}の名前と衝突しています。`,
@@ -235,6 +241,8 @@ export const diagnosticJa = {
   "call.formal-required": ({ name }) =>
     `関数${name}には出力または入出力があるため、名前付きパラメーターが必要です。`,
   "name.undeclared": ({ name }) => `宣言されていない識別子です: ${name}。`,
+  "type.unknown-structure-member": ({ type, member }) =>
+    `${typeText(type)} にメンバー ${member} はありません。`,
   "type.not-array": ({ type }) => `${typeText(type)} に添字は使えません。配列が必要です。`,
   "type.array-index-count": ({ expected, found }) =>
     `配列の添字は ${expected} 個必要です。${found} 個指定されています。`,

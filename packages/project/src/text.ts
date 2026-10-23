@@ -337,6 +337,8 @@ export function canonicalInitializer(
   declarations: Declaration[] = [],
   types: TypeTable = [],
 ): string {
+  if (node.kind === "structureInitializer")
+    return `(${node.members.map((member) => `${member.name.name} := ${canonicalInitializer(source, member.value, declarations, types)}`).join(", ")})`;
   if (node.kind !== "arrayInitializer") return expressionText(source, node.span);
   const items: string[] = [];
   for (const item of node.items) {

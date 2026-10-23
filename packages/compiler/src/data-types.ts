@@ -1,7 +1,9 @@
 import {
   coerceValue,
   cloneInitialValue,
-  arrayType,
+  isAggregateType,
+  leafCount,
+  isFunctionBlockType,
   type InitialValue,
   isCharacterType,
   DEFAULT_STRING_LENGTH,
@@ -88,7 +90,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       ...result.diagnostics.map((diagnostic) => ({ ...diagnostic, pou: ast.name.name })),
     );
     return (
-      result.checked?.symbols[0]?.arrayValues ??
+      result.checked?.symbols[0]?.aggregateValues ??
       (result.checked?.symbols[0]?.initialValue as InitialValue | undefined)
     );
   };
@@ -105,6 +107,102 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       return undefined;
     }
     visiting.add(ast.name.key);
+    if (ast.members) {
+      const dependencies = (
+        declaration: import("./ast.js").Declaration | import("./ast.js").ArrayDeclaration,
+      ): void => {
+        if (declaration.array) dependencies(declaration.array);
+        else {
+          const other = pending.get(declaration.typeName.key);
+          if (other) resolve(other);
+        }
+      };
+      for (const member of ast.members) dependencies(member);
+      const names = ast.members.flatMap((member) => member.names);
+      const seen = new Set<string>();
+      for (const name of names) {
+        if (seen.has(name.key))
+          report(ast, {
+            code: "decl.duplicate",
+            severity: "error",
+            span: name.span,
+            args: { name: name.name },
+          });
+        seen.add(name.key);
+      }
+      const functionBlockMembers = ast.members.filter((member) =>
+        isFunctionBlockType(member.typeName.key),
+      );
+      for (const member of functionBlockMembers)
+        report(ast, {
+          code: "decl.structure-member-type",
+          severity: "error",
+          span: member.typeName.span,
+          args: { name: member.typeName.name },
+        });
+      if (functionBlockMembers.length) {
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
+      // Members have their own namespace. Reuse declaration checking with private
+      // synthetic names so a member may have the same spelling as a data type.
+      let prefix = "__STRUCT_MEMBER_";
+      while (types.some((entry) => entry.name.toUpperCase().startsWith(prefix))) prefix += "_";
+      let slot = 0;
+      const declarations = ast.members.map((member) => ({
+        ...member,
+        names: member.names.map((name) => ({
+          ...name,
+          key: `${prefix}${slot++}`,
+        })) as [Identifier, ...Identifier[]],
+      }));
+      const result = check(
+        { kind: "program", name: ast.name, span: ast.span, body: [], declarations },
+        new Map(),
+        new Map(),
+        new Map(),
+        types,
+      );
+      diagnostics.push(...result.diagnostics.map((d) => ({ ...d, pou: ast.name.name })));
+      if (
+        !result.checked ||
+        !ast.members.length ||
+        ast.members.some((d) => d.address || d.constant) ||
+        result.checked.symbols.some((symbol) => !symbol.descriptor)
+      ) {
+        if (result.checked)
+          report(ast, {
+            code: "type.invalid-constant",
+            severity: "error",
+            span: ast.span,
+            args: {},
+          });
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
+      const members = result.checked.symbols.map((symbol, index) => ({
+        name: names[index]!.name,
+        dataType: symbol.descriptor!,
+        initialValue: (symbol.aggregateValues ?? symbol.initialValue) as InitialValue,
+      }));
+      if (members.reduce((count, member) => count + leafCount(member.dataType, types), 0) > 10000) {
+        report(ast, { code: "type.invalid-constant", severity: "error", span: ast.span, args: {} });
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
+      const entry: TypeEntry = {
+        name: ast.name.name,
+        definition: { kind: "structure", members },
+        initialValue: members.map((member) => cloneInitialValue(member.initialValue)),
+      };
+      types.push(entry);
+      if (ast.initializer) {
+        const value = evaluate(ast, ast.initializer, { kind: "named", name: entry.name });
+        if (value !== undefined) entry.initialValue = value;
+      }
+      visiting.delete(ast.name.key);
+      return entry;
+    }
     let base: TypeDescriptor = "INT";
     if (ast.typeName) {
       const key = declarationType(ast.typeName.key);
@@ -166,11 +264,11 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       );
       diagnostics.push(...result.diagnostics.map((d) => ({ ...d, pou: ast.name.name })));
       const symbol = result.checked?.symbols[0];
-      if (symbol?.descriptor && symbol.arrayValues) {
+      if (symbol?.descriptor && symbol.aggregateValues) {
         const entry: TypeEntry = {
           name: ast.name.name,
           definition: { kind: "alias", type: symbol.descriptor },
-          initialValue: symbol.arrayValues,
+          initialValue: symbol.aggregateValues,
         };
         types.push(entry);
         visiting.delete(ast.name.key);
@@ -179,7 +277,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       visiting.delete(ast.name.key);
       return undefined;
     }
-    if (arrayType(base, types)) {
+    if (isAggregateType(base, types)) {
       const entry: TypeEntry = {
         name: ast.name.name,
         definition: { kind: "alias", type: base },

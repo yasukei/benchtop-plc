@@ -31,7 +31,7 @@ export interface VariableSymbol {
   descriptor?: TypeDescriptor;
   userBlock?: number;
   initialValue: ScalarValue | null;
-  arrayValues?: import("@benchtop-plc/core").InitialValue[];
+  aggregateValues?: import("@benchtop-plc/core").InitialValue[];
 }
 
 export interface ExpressionInfo {
@@ -48,6 +48,7 @@ export interface ResolvedReference {
   member?: number;
   bit?: number;
   userBlock?: boolean;
+  structure?: boolean;
 }
 
 /** Semantic side tables use AST object identity; they are compiler-local, not wire IR. */
