@@ -140,6 +140,20 @@ describe("enumerations", () => {
       "type.assign-mismatch",
     );
   });
+  it("reports the signature types when a conversion rejects an enum argument", () => {
+    const result = compile("x : Color; i : DINT;", "i := INT_TO_DINT(x);");
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "call.argument-type",
+        args: {
+          name: "INT_TO_DINT",
+          index: 0,
+          expected: ["INT"],
+          found: { kind: "named", name: "Color" },
+        },
+      }),
+    );
+  });
   it("rejects elementary standard-function outputs assigned to an enumeration", () => {
     const result = compile("x : Color;", "SPLIT_DATE(IN := D#2026-10-23, YEAR => x);");
     expect(codes(result)).toContain("type.assign-mismatch");

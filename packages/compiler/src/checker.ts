@@ -984,20 +984,18 @@ class Checker {
       const firstValue = name === "SEL" || name === "MUX" ? 1 : 0;
       args.forEach((arg, index) => {
         if (!arg) return;
-        const accepted =
-          ["MOVE", "SEL", "MUX"].includes(name) && index >= firstValue
-            ? sameScalarType(enumeration.descriptor!, arg.descriptor ?? arg.dataType, this.types)
-            : !this.enum(arg) &&
-              signature.arguments[Math.min(index, signature.arguments.length - 1)]!.includes(
-                arg.dataType,
-              );
+        const enumValue = ["MOVE", "SEL", "MUX"].includes(name) && index >= firstValue;
+        const expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+        const accepted = enumValue
+          ? sameScalarType(enumeration.descriptor!, arg.descriptor ?? arg.dataType, this.types)
+          : !this.enum(arg) && expected.includes(arg.dataType);
         if (!accepted)
           this.report(
             "call.argument-type",
             {
               name,
               index,
-              expected: [enumeration.descriptor!],
+              expected: enumValue ? [enumeration.descriptor!] : expected,
               found: arg.descriptor ?? arg.dataType,
             },
             inputs[index]!.span,
