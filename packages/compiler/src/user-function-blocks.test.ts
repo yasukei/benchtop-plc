@@ -43,7 +43,7 @@ it.each([
   ["m1(TRUE);", "fb.unsupported-call"],
   ["x := m1();", "fb.call-in-expression"],
   ["x := m1;", "fb.instance-as-value"],
-  ["x := m1.delay.Q;", "syntax.expected-token"],
+  ["x := m1.delay.Q;", "fb.unknown-member"],
 ])("checks block access and calls: %s", (body, code) => {
   const result = compileProject([main(body), block]);
   expect(result.ir).toBeUndefined();
@@ -128,3 +128,17 @@ it("rejects direct addresses on PROGRAM temporaries instead of silently ignoring
     expect.objectContaining({ code: "decl.temp-address", pou: "Main" }),
   );
 });
+
+it.each(["b.o.3 := TRUE;", "x := b.o.3;"])(
+  "diagnoses unsupported chained FB bit access without crashing: %s",
+  (body) => {
+    const result = compileProject([
+      `PROGRAM Main VAR b : Block; x : BOOL; END_VAR ${body} END_PROGRAM`,
+      "FUNCTION_BLOCK Block VAR_INPUT o : WORD; END_VAR END_FUNCTION_BLOCK",
+    ]);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "fb.unknown-member", args: { name: "b", member: "o.3" } }),
+    );
+  },
+);

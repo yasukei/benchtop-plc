@@ -187,3 +187,14 @@ and Unforce act on individual leaves with the usual type/range checks.
 PROGRAM inline values show scalar element stores; whole-array copies show no
 scalar value. The tokenizer recognizes brackets and variable hovers show complete
 array types, including nested dimensions.
+
+## Structure monitoring
+
+Structure variables appear as collapsible rows, including inside arrays and as
+nested members. Expanding `PTS`, then `PTS[2]`, reveals scalar rows `PTS[2].X`
+and `PTS[2].Y`. Paths are case-insensitive ST identities displayed in uppercase
+for aggregate leaves. Each scalar member has its own write/force controls using
+its declared type; invalid enum/subrange/string values are rejected as for other
+scalars. A forced member stays visible when its parents collapse. Only visible
+or forced aggregate leaves are watched. Whole-structure copies have no inline
+scalar annotation; scalar member assignments retain normal inline values.

@@ -57,6 +57,7 @@ export interface DiagnosticArgs {
 
   "type.ambiguous-enumeration": { name: string };
   "name.undeclared": { name: string };
+  "type.unknown-structure-member": { type: TypeDescriptor; member: string };
   "type.not-array": { type: TypeDescriptor };
   "type.array-index-count": { expected: number; found: number };
   "type.array-index-not-integer": { type: TypeDescriptor };

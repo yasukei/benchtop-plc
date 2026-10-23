@@ -17,7 +17,7 @@ export interface SubrangeType {
   lower: number | string;
   upper: number | string;
 }
-/** Plain-data descriptors; structures and references are reserved for later milestones. */
+/** Plain-data descriptors; named structures are defined in the type table. */
 export type TypeDescriptor =
   | DataType
   | NamedType
@@ -41,7 +41,7 @@ export type TypeDefinition =
   | { kind: "alias"; type: TypeDescriptor }
   | {
       kind: "structure";
-      members: { name: string; dataType: TypeDescriptor; initialValue: unknown }[];
+      members: { name: string; dataType: TypeDescriptor; initialValue: InitialValue }[];
     };
 export type InitialValue = TypedValue["value"] | InitialValue[];
 export function cloneInitialValue<T>(value: T): T {
@@ -55,12 +55,28 @@ export function arrayType(
   const resolved = resolveType(type, table);
   return typeof resolved !== "string" && resolved.kind === "array" ? resolved : undefined;
 }
+export type StructureType = Extract<TypeDefinition, { kind: "structure" }>;
+export function structureType(
+  type: TypeDescriptor,
+  table: readonly TypeEntry[] = [],
+): StructureType | undefined {
+  const resolved = resolveType(type, table);
+  return typeof resolved !== "string" && resolved.kind === "structure" ? resolved : undefined;
+}
+export function isAggregateType(type: TypeDescriptor, table: readonly TypeEntry[] = []): boolean {
+  return !!arrayType(type, table) || !!structureType(type, table);
+}
 export function arraySize(type: ArrayType): number {
   return type.dimensions.reduce((size, d) => size * (d === "*" ? 0 : d.upper - d.lower + 1), 1);
 }
 export function leafCount(type: TypeDescriptor, table: readonly TypeEntry[] = []): number {
   const array = arrayType(type, table);
-  return array ? arraySize(array) * leafCount(array.element, table) : 1;
+  const structure = structureType(type, table);
+  return array
+    ? arraySize(array) * leafCount(array.element, table)
+    : structure
+      ? structure.members.reduce((count, member) => count + leafCount(member.dataType, table), 0)
+      : 1;
 }
 export function arrayIndices(type: ArrayType, offset: number): number[] {
   const result: number[] = [];
@@ -129,7 +145,7 @@ export function subrangeType(
   const resolved = resolveType(type, table);
   return typeof resolved !== "string" && resolved.kind === "subrange" ? resolved : undefined;
 }
-/** Name equivalence for enumerations; structural equivalence for subranges. */
+/** Name equivalence for enumerations/structures; structural equivalence for arrays/subranges. */
 export function sameScalarType(
   a: TypeDescriptor,
   b: TypeDescriptor,
@@ -146,6 +162,7 @@ export function sameScalarType(
       JSON.stringify(la.dimensions) === JSON.stringify(ra.dimensions) &&
       sameScalarType(la.element, ra.element, table)
     );
+  if (structureType(a, table) || structureType(b, table)) return left === right;
   const leftBase = scalarBase(a, table),
     rightBase = scalarBase(b, table);
   if (isCharacterType(leftBase) || isCharacterType(rightBase)) return leftBase === rightBase;

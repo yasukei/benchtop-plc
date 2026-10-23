@@ -1,6 +1,8 @@
 import {
   coerceValue,
   arrayType,
+  isAggregateType,
+  type StructureMemberReference,
   type AssignmentTarget,
   type IndexReference,
   type VariableReference,
@@ -34,7 +36,7 @@ import type {
   UserFunctionBlockCallStatement,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
-import { typed, type Memory, type MemoryFrame, type ArrayValue } from "./memory.js";
+import { typed, type Memory, type MemoryFrame, type AggregateValue } from "./memory.js";
 
 export const WATCHDOG_LIMIT = 200_000;
 export class RuntimeFault extends Error {
@@ -124,11 +126,15 @@ export class Interpreter {
     }
   }
 
-  private location(ref: VariableReference | IndexReference): {
+  private location(ref: VariableReference | IndexReference | StructureMemberReference): {
     frame: MemoryFrame;
     variable: number;
   } {
     if (ref.kind === "variable") return { frame: this.memory, variable: ref.variable };
+    if (ref.kind === "structureMember") {
+      const parent = this.location(ref.object);
+      return { frame: parent.frame.element(parent.variable, ref.member), variable: 0 };
+    }
     const parent = this.location(ref.array);
     const array = arrayType(ref.array.dataType, this.programMemory.ir.types)!;
     let offset = 0;
@@ -150,34 +156,40 @@ export class Interpreter {
     return { frame: parent.frame.element(parent.variable, offset), variable: 0 };
   }
 
-  private arrayExpression(expr: Expression): ArrayValue {
-    if (expr.kind === "variable" || expr.kind === "index") {
+  private aggregateExpression(expr: Expression): AggregateValue {
+    if (expr.kind === "variable" || expr.kind === "index" || expr.kind === "structureMember") {
       const { frame, variable } = this.location(expr);
-      return frame.arrayValue(variable);
+      return frame.aggregateValue(variable);
     }
     if (expr.kind === "functionCall") {
-      const args: (ArrayValue | ScalarValue)[] = [];
+      const args: (AggregateValue | ScalarValue)[] = [];
       for (const i of expr.evaluationOrder ?? expr.args.map((_, i) => i)) {
         const arg = expr.args[i]!;
-        args[i] = arrayType(arg.dataType, this.programMemory.ir.types)
-          ? this.arrayExpression(arg)
+        args[i] = isAggregateType(arg.dataType, this.programMemory.ir.types)
+          ? this.aggregateExpression(arg)
           : this.expression(arg);
       }
-      if (expr.function === "MOVE") return args[0] as ArrayValue;
-      if (expr.function === "SEL") return args[args[0] ? 2 : 1] as ArrayValue;
+      if (expr.function === "MOVE") return args[0] as AggregateValue;
+      if (expr.function === "SEL") return args[args[0] ? 2 : 1] as AggregateValue;
       const selector = BigInt(args[0] as ScalarValue);
       if (selector < 0n || selector >= BigInt(args.length - 1))
         throw new RangeError("MUX selector");
-      return args[Number(selector) + 1] as ArrayValue;
+      return args[Number(selector) + 1] as AggregateValue;
     }
-    throw new Error("Unsupported array expression");
+    throw new Error("Unsupported aggregate expression");
   }
 
   private assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
-    if (target.kind === "index" || target.kind === "elementBit") {
-      const { frame, variable } = this.location(target.kind === "index" ? target : target.element);
+    if (
+      target.kind === "index" ||
+      target.kind === "structureMember" ||
+      target.kind === "elementBit"
+    ) {
+      const { frame, variable } = this.location(
+        target.kind !== "elementBit" ? target : target.element,
+      );
       return frame.assign(
-        target.kind === "index"
+        target.kind !== "elementBit"
           ? { ...target, kind: "variable", variable }
           : {
               kind: "bit",
@@ -194,6 +206,7 @@ export class Interpreter {
 
   private evaluate(expr: Expression): ScalarValue {
     switch (expr.kind) {
+      case "structureMember":
       case "index": {
         const { frame, variable } = this.location(expr);
         return frame.read(variable);
@@ -313,13 +326,17 @@ export class Interpreter {
   private statement(statement: Statement): Flow {
     switch (statement.kind) {
       case "assignment":
-        if (arrayType(statement.target.dataType, this.programMemory.ir.types)) {
-          const values = this.arrayExpression(statement.value);
+        if (isAggregateType(statement.target.dataType, this.programMemory.ir.types)) {
+          const values = this.aggregateExpression(statement.value);
           const target = statement.target;
-          if (target.kind !== "variable" && target.kind !== "index")
-            throw new Error("Invalid array target");
+          if (
+            target.kind !== "variable" &&
+            target.kind !== "index" &&
+            target.kind !== "structureMember"
+          )
+            throw new Error("Invalid aggregate target");
           const { frame, variable } = this.location(target);
-          frame.assignArray(variable, values);
+          frame.assignAggregate(variable, values);
           break;
         }
         this.annotate(statement, [this.assign(statement.target, this.expression(statement.value))]);
@@ -333,8 +350,8 @@ export class Interpreter {
             ]);
           break;
         }
-        if (arrayType(statement.call.dataType, this.programMemory.ir.types)) {
-          this.arrayExpression(statement.call);
+        if (isAggregateType(statement.call.dataType, this.programMemory.ir.types)) {
+          this.aggregateExpression(statement.call);
           break;
         }
         this.annotate(statement, [

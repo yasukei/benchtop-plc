@@ -27,6 +27,13 @@ it("represents every milestone IR variant as transportable data", () => {
       dataType: "INT",
       span,
     },
+    structureMember: {
+      kind: "structureMember",
+      object: { ...variable, dataType: { kind: "named", name: "Point" } },
+      member: 0,
+      dataType: "INT",
+      span,
+    },
     index: {
       kind: "index",
       array: {

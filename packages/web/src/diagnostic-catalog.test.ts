@@ -64,6 +64,7 @@ const examples = {
   "call.missing-in-out": { name: "Swap", parameter: "A" },
   "call.formal-required": { name: "Compute" },
   "name.undeclared": { name: "Missing" },
+  "type.unknown-structure-member": { type: { kind: "named", name: "Point" }, member: "z" },
   "type.not-array": { type: "INT" },
   "type.array-index-count": { expected: 2, found: 1 },
   "type.array-index-not-integer": { type: "REAL" },

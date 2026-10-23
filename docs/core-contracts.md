@@ -106,10 +106,12 @@ Bounded strings use `{ kind: "string", base: "STRING" | "WSTRING", length }`;
 characters use `{ kind: "character", base: "CHAR" | "WCHAR" }`. Arrays use
 `{ kind: "array", dimensions: [{ lower, upper }], element }`; references remain
 reserved. Type table entries contain `name`, `definition` and an `initialValue`,
-which can be a scalar or recursively nested array.
-Definitions currently compiled are enumerations (integer base and ordered named
-values), subranges, and aliases (target descriptor). A structure definition shape
-is reserved for the later implementation.
+which can be a scalar or recursively nested ordered aggregate list.
+Definitions are enumerations (integer base and ordered named values), subranges,
+aliases (target descriptor), and structures. A structure definition is
+`{ kind: "structure", members: [{ name, dataType, initialValue }] }`; its
+`initialValue` is a list in member order. Descriptors distinguish that list from
+an array initializer. Structure names use name equivalence, including through aliases.
 
 IR expression and scalar variable `dataType` fields carry descriptors. Elementary
 literal/value correlations remain discriminated unions. Derived literal and
@@ -172,7 +174,7 @@ in snapshots. Standard formal calls may carry an `evaluationOrder` permutation o
 `args` indices so source order is preserved independently of descriptor order.
 
 `ProgramIR.functionBlocks` holds shared `UserFunctionBlockIR` bodies with local
-`variables` (scalar, array, standard FB or user FB declaration), input/output slot arrays
+`variables` (scalar, array, structure, standard FB or user FB declaration), input/output slot arrays
 and temporary slots, plus optional in-out slots. `userFbCall` and `userFbMember` reference a caller frame slot;
 member/input/output indices are slots in the callee definition. Standard `fbCall`
 now also accepts `outputs` with descriptor output indices and writable targets.
@@ -298,3 +300,17 @@ leaves and forced leaves only. `snapshotVariable(snapshot, id)` handles both thi
 compact form and the original scalar-only layout. The monitor indexes each
 snapshot once for constant-time row lookups. Writes and forces still use
 leaf IDs. Whole-array assignments have no inline scalar annotation.
+
+## Structure storage and snapshots
+
+`StructureVariable` holds local/temporary structure descriptors and ordered initial
+values. Persistent members expand to scalar `variables` with stable IDs and paths
+such as `["LINE", "[2]", "START", "X"]` (`LINE[2].START.X`). Every structure
+and array has a `composites` entry; recursive `structure`/`array` storage slots
+share their scalar cells with monitoring. `structureMember` IR references retain
+an object reference and a member index. Their object and an `index` reference's
+array can themselves be member or index references, allowing arbitrary chains.
+`elementBit` can select a bit of an indexed element or structure member.
+
+Snapshots, watches, writes and forces use scalar leaf IDs, with no aggregate
+payload. Whole-structure copies and selection have no scalar inline annotation.

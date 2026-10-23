@@ -232,7 +232,14 @@ class Parser {
     const name = this.identifier(true);
     this.expect(":");
     const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
-    const typeName = array ? undefined : this.at("(") ? undefined : this.identifier(true);
+    let members: Declaration[] | undefined;
+    if (this.accept("STRUCT")) {
+      members = [];
+      while (!this.at("END_STRUCT")) members.push(this.declaration());
+      this.expect("END_STRUCT");
+    }
+    const typeName =
+      array || members ? undefined : this.at("(") ? undefined : this.identifier(true);
     const stringLength = this.at("[") ? this.stringLength() : undefined;
     let subrange: Subrange | undefined;
     let values: DataTypeDeclaration["values"];
@@ -261,6 +268,7 @@ class Parser {
     return {
       name,
       span,
+      ...(members ? { members } : {}),
       ...(array ? { array } : {}),
       ...(typeName ? { typeName } : {}),
       ...(subrange ? { subrange } : {}),
@@ -343,6 +351,23 @@ class Parser {
   }
 
   private initialValue(): Expression {
+    if (
+      this.at("(") &&
+      (this.tokens[this.cursor + 1]?.key === ")" ||
+        (this.tokens[this.cursor + 1]?.kind === "identifier" &&
+          this.tokens[this.cursor + 2]?.key === ":="))
+    ) {
+      const start = this.take().span;
+      const members: import("./ast.js").StructureInitializer["members"] = [];
+      if (!this.at(")"))
+        do {
+          const name = this.identifier();
+          this.expect(":=");
+          members.push({ name, value: this.initialValue() });
+        } while (this.accept(","));
+      this.expect(")");
+      return { kind: "structureInitializer", members, span: this.spanFrom(start) };
+    }
     if (!this.at("[")) return this.expression();
     const start = this.take().span;
     const items: import("./ast.js").ArrayInitializer["items"] = [];
@@ -546,43 +571,27 @@ class Parser {
   }
 
   private reference(name: Identifier): AssignmentTarget {
-    if (this.at("[")) {
-      let array: import("./ast.js").NameReference | import("./ast.js").ArrayAccess = {
-        kind: "name",
-        name,
-        span: name.span,
-      };
-      while (this.accept("[")) {
+    let result: AssignmentTarget = { kind: "name", name, span: name.span };
+    while (this.at("[") || this.at(".")) {
+      if (this.accept("[")) {
         const indices = [this.expression()];
         while (this.accept(",")) indices.push(this.expression());
         this.expect("]");
-        array = { kind: "index", array, indices, span: this.spanFrom(name.span) };
-      }
-      if (this.accept(".")) {
+        result = { kind: "index", array: result, indices, span: this.spanFrom(name.span) };
+      } else {
+        this.expect(".");
         const token = this.current;
         const member =
           token.kind === "integer" && !token.dataType && /^\d+$/.test(token.text)
             ? (this.take(), { name: token.text, key: token.key, span: token.span })
             : this.identifier();
-        return {
-          kind: "elementBit",
-          element: array as import("./ast.js").ArrayAccess,
-          member,
-          span: this.spanFrom(name.span),
-        };
+        result =
+          result.kind === "name"
+            ? { kind: "member", instance: name, member, span: this.spanFrom(name.span) }
+            : { kind: "field", object: result, member, span: this.spanFrom(name.span) };
       }
-      return array;
     }
-    if (this.accept(".")) {
-      const token = this.current;
-      // A numeric selector is checked against the variable's bit width in the semantic pass.
-      const member =
-        token.kind === "integer" && !token.dataType && /^\d+$/.test(token.text)
-          ? (this.take(), { name: token.text, key: token.key, span: token.span })
-          : this.identifier();
-      return { kind: "member", instance: name, member, span: joinedSpan(name.span, member.span) };
-    }
-    return { kind: "name", name, span: name.span };
+    return result;
   }
 
   private expression(minimum = 1): Expression {

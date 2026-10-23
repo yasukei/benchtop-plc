@@ -1,6 +1,8 @@
 import {
   coerceValue,
   arrayType,
+  structureType,
+  isAggregateType,
   arrayIndices,
   scalarBase,
   enumerationType,
@@ -87,13 +89,13 @@ class Lowerer {
       return { ...base, kind: "userFunctionBlock", block: symbol.userBlock, initialValue: null };
     if (isBlock(symbol.type))
       return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
-    if (symbol.descriptor && arrayType(symbol.descriptor, this.checked.types))
+    if (symbol.descriptor && isAggregateType(symbol.descriptor, this.checked.types))
       return {
         ...base,
-        kind: "array",
+        kind: structureType(symbol.descriptor, this.checked.types) ? "structure" : "array",
         dataType: symbol.descriptor,
-        initialValue: required(symbol.arrayValues),
-      };
+        initialValue: required(symbol.aggregateValues),
+      } as IR.ArrayVariable | IR.StructureVariable;
     if (symbol.type === "BOOL") {
       const address = declaration.address;
       return {
@@ -121,6 +123,7 @@ class Lowerer {
   private reference(
     node: AST.AssignmentTarget,
   ):
+    | IR.StructureMemberReference
     | IR.IndexReference
     | IR.ElementBitReference
     | IR.VariableReference
@@ -131,7 +134,7 @@ class Lowerer {
     const dataType = info.descriptor ?? info.dataType;
     if (node.kind === "index") {
       const array = this.reference(node.array);
-      if (array.kind !== "variable" && array.kind !== "index")
+      if (array.kind !== "variable" && array.kind !== "index" && array.kind !== "structureMember")
         throw new Error("Checked array base");
       return {
         kind: "index",
@@ -140,6 +143,44 @@ class Lowerer {
         dataType,
         span: span(node),
       };
+    }
+    if (
+      node.kind === "field" ||
+      (node.kind === "member" && this.checked.references.get(node.member)?.structure)
+    ) {
+      const selector = required(this.checked.references.get(node.member));
+      const object =
+        node.kind === "field"
+          ? this.reference(node.object)
+          : {
+              kind: "variable" as const,
+              variable: required(this.checked.references.get(node.instance)).variable,
+              dataType: required(
+                this.checked.symbols[required(this.checked.references.get(node.instance)).variable],
+              ).descriptor!,
+              span: span(node.instance),
+            };
+      if (
+        object.kind !== "variable" &&
+        object.kind !== "index" &&
+        object.kind !== "structureMember"
+      )
+        throw new Error("Checked structure base");
+      return selector.bit !== undefined
+        ? {
+            kind: "elementBit",
+            element: object as IR.IndexReference | IR.StructureMemberReference,
+            bit: selector.bit,
+            dataType: "BOOL",
+            span: span(node),
+          }
+        : {
+            kind: "structureMember",
+            object,
+            member: required(selector.member),
+            dataType,
+            span: span(node),
+          };
     }
     if (node.kind === "elementBit") {
       const element = this.reference(node.element);
@@ -186,6 +227,7 @@ class Lowerer {
       reference.kind === "variable" ||
       reference.kind === "bit" ||
       reference.kind === "index" ||
+      reference.kind === "structureMember" ||
       reference.kind === "elementBit"
     )
       return reference;
@@ -194,7 +236,10 @@ class Lowerer {
   }
 
   private widen(expression: IR.Expression, target: IR.TypeDescriptor): IR.Expression {
-    if (arrayType(target, this.checked.types) || arrayType(expression.dataType, this.checked.types))
+    if (
+      isAggregateType(target, this.checked.types) ||
+      isAggregateType(expression.dataType, this.checked.types)
+    )
       return expression;
     const to = scalarBase(target, this.checked.types);
     const from = scalarBase(expression.dataType, this.checked.types);
@@ -210,8 +255,10 @@ class Lowerer {
 
   private usesNamedConstant(node: AST.Expression): boolean {
     switch (node.kind) {
+      case "structureInitializer":
       case "arrayInitializer":
       case "index":
+      case "field":
       case "elementBit":
         return false;
       case "name":
@@ -252,9 +299,11 @@ class Lowerer {
       case "enumeration":
       case "literal":
         return literal();
+      case "structureInitializer":
       case "arrayInitializer":
         throw new Error("Initializer is not a body expression");
       case "index":
+      case "field":
       case "elementBit":
       case "name":
       case "member":
@@ -555,7 +604,11 @@ export function lower(
     locals.map((variable, slot) => {
       if (inOuts.includes(slot)) return { kind: "inOut" };
       if (temporaries.includes(slot)) {
-        if (variable.kind !== "scalar" && variable.kind !== "array")
+        if (
+          variable.kind !== "scalar" &&
+          variable.kind !== "array" &&
+          variable.kind !== "structure"
+        )
           throw new Error("Checked temporary is an instance");
         return { kind: "temporary", variable };
       }
@@ -573,14 +626,15 @@ export function lower(
         );
         return { kind: "instance", instance };
       }
-      if (variable.kind === "array") {
+      if (variable.kind === "array" || variable.kind === "structure") {
         const expand = (
           type: IR.TypeDescriptor,
           initial: IR.InitialValue,
           segments: string[],
         ): IR.InstanceStorage => {
           const array = arrayType(type, checked.types);
-          if (array) {
+          const structure = structureType(type, checked.types);
+          if (array || structure) {
             composites.push({
               name: segments.reduce(
                 (path, segment) => path + (segment.startsWith("[") || !path ? "" : ".") + segment,
@@ -590,12 +644,14 @@ export function lower(
               dataType: type,
             });
             return {
-              kind: "array",
+              kind: structure ? "structure" : "array",
               dataType: type,
               elements: (initial as IR.InitialValue[]).map((value, index) =>
-                expand(array.element, value, [
+                expand(structure ? structure.members[index]!.dataType : array!.element, value, [
                   ...segments,
-                  `[${arrayIndices(array, index).join(",")}]`,
+                  structure
+                    ? structure.members[index]!.name.toUpperCase()
+                    : `[${arrayIndices(array!, index).join(",")}]`,
                 ]),
               ),
             };
@@ -639,7 +695,7 @@ export function lower(
     ...(blocks.length ? { functionBlocks: blocks } : {}),
     ...(instances.length ||
     temporarySlots.length ||
-    layout.variables.some((v) => v.kind === "array")
+    layout.variables.some((v) => v.kind === "array" || v.kind === "structure")
       ? { storage, instances }
       : {}),
   };
@@ -653,7 +709,7 @@ export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
     span: ir.span,
     body: ir.body,
     variables: ir.variables.map((variable) => {
-      if (variable.kind !== "scalar" && variable.kind !== "array")
+      if (variable.kind !== "scalar" && variable.kind !== "array" && variable.kind !== "structure")
         throw new Error("Checked function contains an FB");
       return variable;
     }),

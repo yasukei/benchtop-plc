@@ -479,3 +479,18 @@ The runtime's `watch(ids)` selects array leaves for snapshots. Ordinary leaves
 and forced array leaves are always included. Compact snapshots carry parallel
 `variableIds` and `variables`; use `snapshotVariable` to look up a leaf. Whole-array
 stores do not produce inline annotations; scalar element stores do.
+
+## Structures
+
+Structures use ordered aggregate cells and the same scalar leaf storage as arrays.
+`structureMember` selects a member by its declaration index; member and array
+locations compose recursively. Whole-structure assignment and MOVE/SEL/MUX read
+independent values before copying each destination leaf, so modifying a copy
+never aliases its source. Scalar stores retain each destination's subrange checks
+and string capacity. A default can include recursively nested arrays and structures.
+
+PROGRAM/FB VAR members persist across scans and STOP/RUN; function locals,
+PROGRAM VAR_TEMP and FB VAR_TEMP receive fresh defaults at their normal invocation
+boundaries. Cold reset restores declared defaults. Monitoring watches and forces
+scalar member IDs under paths such as `LINE[2].START.X`; ordinary leaves and forced
+members are always sent, and watched members use the compact snapshot ID mapping.
