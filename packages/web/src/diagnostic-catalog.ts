@@ -97,6 +97,13 @@ export const diagnosticEn = {
   "call.formal-required": ({ name }) =>
     `Function ${name} requires named parameters because it has outputs or in-outs.`,
   "name.undeclared": ({ name }) => `Undeclared identifier: ${name}.`,
+  "type.not-array": ({ type }) => `Cannot index ${typeText(type)}; an array is required.`,
+  "type.array-index-count": ({ expected, found }) =>
+    `Array access requires ${expected} indices; found ${found}.`,
+  "type.array-index-not-integer": ({ type }) =>
+    `Array index must have an integer type; found ${typeText(type)}.`,
+  "type.array-initializer-required": ({ type }) =>
+    `Use an array initializer list [...] for ${typeText(type)}.`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `Bit ${bit} is outside the width of ${typeText(type)}, or the type does not support bit access.`,
   "type.portability": ({ function: name }) =>
@@ -145,6 +152,8 @@ export const diagnosticEn = {
       : `${name} requires ${min === max ? min : `${min}–${max}`} arguments; found ${typeText(found)}.`,
   "call.argument-type": ({ name, index, expected, found }) =>
     `Argument ${index + 1} of ${name} requires ${expected.map(formatType).join(" / ")}; found ${typeText(found)}.`,
+  "runtime.index-out-of-range": ({ index, lower, upper }) =>
+    `Array index ${index} is outside ${lower}..${upper}.`,
   "runtime.subrange-violation": ({ value, lower, upper }) =>
     `Value ${value} is outside subrange ${lower}..${upper}.`,
   "type.ambiguous-enumeration": ({ name }) =>
@@ -226,6 +235,13 @@ export const diagnosticJa = {
   "call.formal-required": ({ name }) =>
     `関数${name}には出力または入出力があるため、名前付きパラメーターが必要です。`,
   "name.undeclared": ({ name }) => `宣言されていない識別子です: ${name}。`,
+  "type.not-array": ({ type }) => `${typeText(type)} に添字は使えません。配列が必要です。`,
+  "type.array-index-count": ({ expected, found }) =>
+    `配列の添字は ${expected} 個必要です。${found} 個指定されています。`,
+  "type.array-index-not-integer": ({ type }) =>
+    `配列の添字は整数型でなければなりません。${typeText(type)} が指定されています。`,
+  "type.array-initializer-required": ({ type }) =>
+    `${typeText(type)} の初期値には配列の初期化リスト [...] を指定してください。`,
   "type.invalid-bit-access": ({ type, bit }) =>
     `${typeText(type)}のビット${bit}は範囲外、またはビットアクセス非対応の型です。`,
   "type.portability": ({ function: name }) =>
@@ -276,6 +292,8 @@ export const diagnosticJa = {
       : `${name}には${min === max ? min : `${min}～${max}`}個の引数が必要ですが、${typeText(found)}個です。`,
   "call.argument-type": ({ name, index, expected, found }) =>
     `${name}の${index + 1}番目の引数には${expected.map(formatType).join(" / ")}が必要ですが、${typeText(found)}です。`,
+  "runtime.index-out-of-range": ({ index, lower, upper }) =>
+    `配列の添字 ${index} は範囲 ${lower}..${upper} の外です。`,
   "runtime.subrange-violation": ({ value, lower, upper }) =>
     `値 ${value} は部分範囲 ${lower}..${upper} の範囲外です。`,
   "type.ambiguous-enumeration": ({ name }) =>

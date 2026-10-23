@@ -32,6 +32,7 @@ export interface Declaration extends SourceNode {
   typeName: Identifier;
   subrange?: Subrange;
   stringLength?: number;
+  array?: ArrayDeclaration;
   initializer?: Expression;
   constant?: boolean;
   /** Absent means VAR, preserving the original single-program AST. */
@@ -55,7 +56,28 @@ export interface MemberReference extends SourceNode {
   member: Identifier;
 }
 
-export type AssignmentTarget = NameReference | MemberReference;
+export interface ArrayAccess extends SourceNode {
+  kind: "index";
+  array: NameReference | ArrayAccess;
+  indices: Expression[];
+}
+export interface ElementBit extends SourceNode {
+  kind: "elementBit";
+  element: ArrayAccess;
+  member: Identifier;
+}
+export interface ArrayInitializer extends SourceNode {
+  kind: "arrayInitializer";
+  items: { count?: Expression; values: Expression[] }[];
+}
+export interface ArrayDeclaration extends SourceNode {
+  dimensions: Subrange[];
+  typeName: Identifier;
+  subrange?: Subrange;
+  stringLength?: number;
+  array?: ArrayDeclaration;
+}
+export type AssignmentTarget = NameReference | MemberReference | ArrayAccess | ElementBit;
 
 export interface UnaryExpression extends SourceNode {
   kind: "unary";
@@ -95,6 +117,7 @@ export interface Subrange extends SourceNode {
   upper: Expression;
 }
 export interface DataTypeDeclaration extends SourceNode {
+  array?: ArrayDeclaration;
   name: Identifier;
   typeName?: Identifier;
   subrange?: Subrange;
@@ -104,6 +127,7 @@ export interface DataTypeDeclaration extends SourceNode {
 }
 
 export type Expression =
+  | ArrayInitializer
   | EnumerationLiteral
   | Literal
   | AssignmentTarget

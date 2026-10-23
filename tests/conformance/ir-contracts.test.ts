@@ -27,6 +27,23 @@ it("represents every milestone IR variant as transportable data", () => {
       dataType: "INT",
       span,
     },
+    index: {
+      kind: "index",
+      array: {
+        ...variable,
+        dataType: { kind: "array", dimensions: [{ lower: 1, upper: 2 }], element: "INT" },
+      },
+      indices: [int],
+      dataType: "INT",
+      span,
+    },
+    elementBit: {
+      kind: "elementBit",
+      element: { kind: "index", array: variable, indices: [int], dataType: "WORD", span },
+      bit: 3,
+      dataType: "BOOL",
+      span,
+    },
     literal: int,
     bit: { kind: "bit", variable: 2, bit: 15, dataType: "BOOL", span },
     variable,

@@ -1,5 +1,10 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { DiagnosticArgs, DiagnosticCode } from "@benchtop-plc/core";
+import {
+  formatType,
+  type TypeDescriptor,
+  type DiagnosticArgs,
+  type DiagnosticCode,
+} from "@benchtop-plc/core";
 import { compile } from "@benchtop-plc/compiler";
 import { en, ja } from "./catalog.js";
 import {
@@ -59,6 +64,12 @@ const examples = {
   "call.missing-in-out": { name: "Swap", parameter: "A" },
   "call.formal-required": { name: "Compute" },
   "name.undeclared": { name: "Missing" },
+  "type.not-array": { type: "INT" },
+  "type.array-index-count": { expected: 2, found: 1 },
+  "type.array-index-not-integer": { type: "REAL" },
+  "type.array-initializer-required": {
+    type: { kind: "array", dimensions: [{ lower: 1, upper: 3 }], element: "INT" },
+  },
   "type.invalid-bit-access": { type: "WORD", bit: 16 },
   "type.portability": { function: "DWORD_TO_REAL" },
   "type.invalid-constant": {},
@@ -84,6 +95,7 @@ const examples = {
   "call.invalid-parameter": { name: "SPLIT_DATE", parameter: "YEAR" },
   "call.argument-count": { name: "LIMIT", min: 3, max: 3, found: 2 },
   "call.argument-type": { name: "ABS", index: 0, expected: ["INT", "REAL"], found: "BOOL" },
+  "runtime.index-out-of-range": { index: 6, lower: 1, upper: 5 },
   "runtime.subrange-violation": { value: 120, lower: 0, upper: 100 },
   "type.ambiguous-enumeration": { name: "Red" },
   "runtime.invalid-value": {},
@@ -127,7 +139,9 @@ describe("translation catalogs", () => {
       for (const [key, value] of Object.entries(args)) {
         if (value === null || ["hint", "kind", "bound", "index"].includes(key)) continue;
         for (const part of Array.isArray(value) ? value : [value]) {
-          expect(message).toContain(String(part));
+          expect(message).toContain(
+            typeof part === "object" ? formatType(part as TypeDescriptor) : String(part),
+          );
         }
       }
     }

@@ -459,3 +459,23 @@ CHAR ↔ BYTE / WCHAR ↔ WORD converts between the unit and its numeric code.
 Overloaded TO_ forms use the same operations. Invalid syntax, a wrong prefix,
 out-of-range values and invalid character narrowing fault with
 `runtime.invalid-value` at the function call span, preserving POU/instance context.
+
+## Arrays
+
+Persistent array leaves share monitored scalar cells through recursive array
+storage. Index expressions evaluate left to right; every dimension is checked
+before selecting storage. An out-of-bounds index faults with
+`runtime.index-out-of-range` and `{ index, lower, upper }`, plus POU and instance
+path. Multidimensional arrays use row-major offsets; nested arrays use chained
+indices. Indexed elements support scalar assignment and bit access.
+
+Whole-array assignment and selection copy values before storing them, including
+self/overlapping copies. Stores apply each destination leaf's subrange check and
+string capacity. PROGRAM/FB temporaries reset per scan/call and function local
+arrays reset on each invocation. Cold reset restores initial values; STOP/RUN
+preserves persistent leaves.
+
+The runtime's `watch(ids)` selects array leaves for snapshots. Ordinary leaves
+and forced array leaves are always included. Compact snapshots carry parallel
+`variableIds` and `variables`; use `snapshotVariable` to look up a leaf. Whole-array
+stores do not produce inline annotations; scalar element stores do.

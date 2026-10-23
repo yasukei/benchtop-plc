@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
-import { parseWrittenValue, variableValue } from "./monitor.js";
+import { parseWrittenValue, variableValue, snapshotValues } from "./monitor.js";
 
 describe("monitor values", () => {
   it("accepts finite typed values and TIME literals or milliseconds", () => {
@@ -192,4 +192,49 @@ it("checks named and anonymous subrange writes before sending a command", () => 
     expect(parseWrittenValue(descriptor, "11", types)).toBeNull();
     expect(parseWrittenValue(descriptor, "-11", types)).toBeNull();
   }
+});
+
+it("builds nested array rows, watches expanded leaves, and retains collapsed forces", async () => {
+  const { monitorRows, watchedLeaves } = await import("./monitor.js");
+  const ir = compile(
+    "PROGRAM Main VAR n : ARRAY[1..2] OF ARRAY[1..2] OF INT; sum : INT; END_VAR END_PROGRAM",
+  ).ir!;
+  const rows = (expanded: string[], forced: number[] = []) =>
+    monitorRows(ir.variables, ir.composites!, new Set(expanded), forced);
+  expect(
+    rows([]).map((row) => (row.kind === "group" ? row.name : ir.variables[row.id]!.name)),
+  ).toEqual(["N", "sum"]);
+  expect(watchedLeaves(rows(["N", "N[1]"]), ir.variables)).toEqual([0, 1]);
+  expect(watchedLeaves(rows([], [2]), ir.variables)).toEqual([2]);
+});
+
+it("indexes dense and compact snapshots by variable ID and refreshes changed watches", () => {
+  const snapshot: import("@benchtop-plc/core").RuntimeSnapshot = {
+    scanCount: 1,
+    lastExecutionTimeMs: 0,
+    inputs: [false, false, false, false, false, false, false, false],
+    outputs: [false, false, false, false, false, false, false, false],
+    variables: [
+      { kind: "scalar", dataType: "INT", value: 10 },
+      { kind: "scalar", dataType: "INT", value: 20 },
+    ],
+    forced: [],
+    annotations: {},
+  };
+  expect(snapshotValues(null).size).toBe(0);
+  const dense = snapshotValues(snapshot);
+  expect(dense.get(0)).toMatchObject({ value: 10 });
+  expect(dense.get(1)).toMatchObject({ value: 20 });
+  const compact = snapshotValues({ ...snapshot, variableIds: [10000, 2] });
+  expect(compact.get(10000)).toMatchObject({ value: 10 });
+  expect(compact.get(2)).toMatchObject({ value: 20 });
+  expect(compact.has(0)).toBe(false);
+  const next = snapshotValues({
+    ...snapshot,
+    variableIds: [2],
+    variables: [{ kind: "scalar", dataType: "INT", value: 30 }],
+  });
+  expect(next.has(10000)).toBe(false);
+  expect(next.get(2)).toMatchObject({ value: 30 });
+  expect(compact.get(2)).toMatchObject({ value: 20 });
 });

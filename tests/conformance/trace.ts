@@ -1,3 +1,4 @@
+import { snapshotVariable } from "@benchtop-plc/core";
 import { compile, compileProject } from "@benchtop-plc/compiler";
 import { standardFunctionBlocks } from "@benchtop-plc/core";
 import type { IoImage, ProgramIR, RuntimeSnapshot, ScalarValue } from "@benchtop-plc/core";
@@ -92,14 +93,14 @@ export function parseTrace(value: unknown): Trace {
 function readValue(ir: ProgramIR, snapshot: RuntimeSnapshot, path: string): ScalarValue {
   const key = path.toUpperCase();
   const scalarIndex = ir.variables.findIndex((variable) => variable.key === key);
-  const scalar = snapshot.variables[scalarIndex];
+  const scalar = snapshotVariable(snapshot, scalarIndex);
   if (scalar?.kind === "scalar") return scalar.value;
   const separator = key.lastIndexOf(".");
   const name = key.slice(0, separator),
     member = key.slice(separator + 1);
   const index = ir.variables.findIndex((variable) => variable.key === name);
   const variable = ir.variables[index],
-    cell = snapshot.variables[index];
+    cell = snapshotVariable(snapshot, index);
   if (variable?.kind === "functionBlock" && cell?.kind === "functionBlock") {
     const descriptor = standardFunctionBlocks[variable.fbType];
     for (const port of ["inputs", "outputs"] as const) {
@@ -142,6 +143,7 @@ export function runTrace(name: string, source: string | readonly string[], trace
     },
   });
   runtime.load(ir);
+  runtime.watch(ir.variables.map((_, id) => id));
   runtime.run();
   try {
     for (const [index, step] of trace.steps.entries()) {

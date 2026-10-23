@@ -1,3 +1,4 @@
+import { formatType } from "@benchtop-plc/core";
 import { compileProject, lex, parsePou } from "@benchtop-plc/compiler";
 import { spanRange } from "./mapping.js";
 
@@ -34,6 +35,13 @@ export function blockTypeAt(
     declaration.names.some((name) => name.key === token.key),
   );
   if (!declaration) return null;
+  if (declaration.array) {
+    const composite = ir.composites?.find((item) => item.name === token.key);
+    return {
+      ...spanRange(source, token.span),
+      text: `${token.text}: ${composite ? formatType(composite.dataType) : source.slice(spanRange(source, declaration.array.span).from, spanRange(source, declaration.array.span).to)}`,
+    };
+  }
   const typeRange = spanRange(source, declaration.typeName.span);
   const end = declaration.subrange ? spanRange(source, declaration.subrange.span).to : typeRange.to;
   const type =

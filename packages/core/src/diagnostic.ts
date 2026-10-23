@@ -57,6 +57,10 @@ export interface DiagnosticArgs {
 
   "type.ambiguous-enumeration": { name: string };
   "name.undeclared": { name: string };
+  "type.not-array": { type: TypeDescriptor };
+  "type.array-index-count": { expected: number; found: number };
+  "type.array-index-not-integer": { type: TypeDescriptor };
+  "type.array-initializer-required": { type: TypeDescriptor };
   "type.invalid-bit-access": { type: TypeDescriptor; bit: number };
   "type.portability": { function: string };
   "type.invalid-constant": NoArguments;
@@ -98,6 +102,7 @@ export interface DiagnosticArgs {
     found: TypeDescriptor;
   };
 
+  "runtime.index-out-of-range": { index: number | string; lower: number; upper: number };
   "runtime.subrange-violation": {
     value: number | string;
     lower: number | string;

@@ -150,3 +150,8 @@ it("highlights declared type names case insensitively without changing comments"
   expect(readStToken("// State", { commentDepth: 0 }, types).style).toBe("comment");
   expect(readStToken("Other", { commentDepth: 0 }, types).style).toBe("variableName");
 });
+
+it("tokenizes array brackets as operators", () => {
+  for (const bracket of ["[", "]"])
+    expect(readStToken(bracket, { commentDepth: 0 })).toEqual({ length: 1, style: "operator" });
+});

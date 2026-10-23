@@ -1,0 +1,17 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Sum initialized elements, access two dimensions and nested arrays, and copy independently",
+      "scans": 1,
+      "expect": { "Sum": 3, "V[4]": 0, "M[1,2]": 2.5, "N[2][3]": 3, "Copy[1]": 99, "V[1]": 1 }
+    },
+    {
+      "label": "Persistent leaves survive into the next scan",
+      "set": { "V[2]": 4 },
+      "scans": 1,
+      "expect": { "Sum": 5, "N[2][3]": 5, "Copy[2]": 4, "V[1]": 1 }
+    }
+  ]
+}

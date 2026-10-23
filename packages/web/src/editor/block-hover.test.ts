@@ -72,3 +72,11 @@ END_PROGRAM`;
   // A declaration after a comma is still a variable, not a formal argument.
   expect(blockTypeAt(sources, 0, main.indexOf("Q :"))?.text).toBe("Q: BOOL");
 });
+
+it("shows full array types including nested dimensions", () => {
+  const source =
+    "PROGRAM Main VAR a : ARRAY[-1..2,0..1] OF ARRAY[1..3] OF INT; END_VAR a[0,1][2] := 3; END_PROGRAM";
+  expect(blockTypeAt([source], 0, source.indexOf("a :"))?.text).toBe(
+    "a: ARRAY[-1..2, 0..1] OF ARRAY[1..3] OF INT",
+  );
+});

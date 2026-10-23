@@ -226,3 +226,29 @@ it.each(["FUNCTION", "FUNCTION_BLOCK"])(
     ).toBeNull();
   },
 );
+
+it("validates array dimensions and repeated initial values against TC6 v2.01", () => {
+  const arrays: Project = {
+    ...project,
+    dataTypes: [
+      "TYPE Table : ARRAY[1..5] OF INT := [1, 2, 3(0)]; END_TYPE",
+      "TYPE Nested : ARRAY[1..2] OF ARRAY[1..2] OF REAL := [2([1.5, 2.5])]; END_TYPE",
+    ],
+    pous: [
+      "PROGRAM Main VAR a : Table; b : ARRAY[0..1,0..2] OF INT := [2(1, 2), 2(0)]; n : Nested; END_VAR END_PROGRAM",
+    ],
+  };
+  const written = writeProject(arrays);
+  expect(written.diagnostics).toEqual([]);
+  const schema = XmlDocument.fromString(loadSchema());
+  const validator = XsdValidator.fromDoc(schema);
+  const document = XmlDocument.fromString(written.value!);
+  try {
+    expect(() => validator.validate(document)).not.toThrow();
+    expect(readProject(written.value!).value).toEqual(arrays);
+  } finally {
+    document.dispose();
+    validator.dispose();
+    schema.dispose();
+  }
+});

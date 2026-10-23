@@ -104,15 +104,15 @@ source preserves the original bound expressions; canonical imports use folded
 limits and reconstruct TYPE declarations in XML order. Removing source extensions
 preserves compiled IR apart from source spans.
 
-Type and variable defaults keep their initializer text in `simpleValue/@value`.
+Scalar type and variable defaults keep their initializer text in `simpleValue/@value`.
 Checks see the whole project's type declarations, including forward aliases.
 Out-of-range subrange values and numeric or wrong-type enum initializers block
 save and open. An unresolved enum member, such as `State#Missing`, remains a
 semantic error that can be exchanged, like an undeclared type. Other representable
 semantic errors still belong to compilation.
 
-`array`, `struct`, `pointer`, and `string`/`wstring` with a `length` attribute are
-rejected with an unsupported diagnostic until their implementing issues land.
+`struct` and `pointer` are rejected with an unsupported diagnostic until their
+implementing issues land.
 Files written by 0.4.0 with an empty `<dataTypes/>` import with `dataTypes: []`;
 the blink, running-light and motor-starters example sources remain unchanged.
 
@@ -186,3 +186,16 @@ Initializers remain quoted ST text in `simpleValue/@value`, with XML escaping
 applied separately from ST dollar escapes. The compiler validates width, character
 count and capacity on save and open. Source extensions preserve exact declarations;
 imports without extensions reconstruct equivalent types, capacities and defaults.
+
+## Arrays
+
+Anonymous and named arrays use TC6 `array`, one `dimension` with folded `lower`
+and `upper` bounds per dimension, and recursive `baseType`. Initial values use
+`arrayValue/value`, with `repetitionValue` for repeated single values and nested
+`arrayValue` for nested arrays. Repeated groups expand in source order. Missing
+trailing values remain omitted and take element defaults on compilation.
+
+POU constants used in bounds are folded before XML emission. Source extensions
+preserve exact declaration spelling and initializer grouping; imports without
+extensions rebuild equivalent canonical ST. Scalar element types, including
+bounded strings, enumerations and subranges, keep their existing mappings.

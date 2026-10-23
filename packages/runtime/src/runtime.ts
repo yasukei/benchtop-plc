@@ -40,6 +40,7 @@ export interface Runtime {
   stop(): void;
   setEmergencyStop(active: boolean): void;
   coldReset(): void;
+  watch(variables: readonly VariableId[]): void;
   force(variable: VariableId, value: TypedValue | null): void;
   write(variable: VariableId, value: TypedValue): void;
   step(): RuntimeSnapshot;
@@ -75,6 +76,7 @@ class PlcRuntime implements Runtime {
   private outputs = emptyImage();
   private annotations: RuntimeSnapshot["annotations"] = {};
   private readonly forces = new Map<VariableId, TypedValue>();
+  private watched = new Set<VariableId>();
   private pendingWrites = new Map<VariableId, TypedValue>();
   private readonly interval: number;
   private readonly library: RuntimeLibrary;
@@ -114,6 +116,7 @@ class PlcRuntime implements Runtime {
     const memory = new Memory(ir, this.library);
     this.halt("STOP");
     this.memory = memory;
+    this.watched.clear();
     this.initialize();
   }
 
@@ -210,6 +213,12 @@ class PlcRuntime implements Runtime {
     }
   }
 
+  watch(variables: readonly VariableId[]): void {
+    this.watched = new Set(
+      variables.filter((id) => Number.isInteger(id) && this.memory?.ir.variables[id]),
+    );
+  }
+
   force(variable: VariableId, value: TypedValue | null): void {
     this.debugVariable(variable);
     if (value === null) this.forces.delete(variable);
@@ -302,12 +311,19 @@ class PlcRuntime implements Runtime {
         values: entry.values.map((value) => ({ ...value })),
       }));
     }
+    const compact = this.memory?.ir.variables.some((variable) => variable.path);
+    const ids = compact
+      ? this.memory!.ir.variables.flatMap((variable, id) =>
+          !variable.path || this.watched.has(id) || this.forces.has(id) ? [id] : [],
+        )
+      : undefined;
     return {
+      ...(ids ? { variableIds: ids } : {}),
       scanCount: this.count,
       lastExecutionTimeMs: this.duration,
       inputs: [...this.inputs],
       outputs: [...this.outputs],
-      variables: this.memory?.snapshot() ?? [],
+      variables: this.memory?.snapshot(ids) ?? [],
       forced: [...this.forces.keys()].sort((left, right) => left - right),
       annotations,
     };

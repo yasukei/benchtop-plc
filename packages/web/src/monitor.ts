@@ -19,6 +19,7 @@ import {
   type TypedValue,
   type Variable,
   type VariableSnapshot,
+  type RuntimeSnapshot,
 } from "@benchtop-plc/core";
 
 /** Decimal input for integer storage must be exact even at a range boundary.
@@ -168,4 +169,53 @@ export function variableValue(
       return output ? `${name}=${formatValue(output.dataType, output.value)}` : `${name}=—`;
     })
     .join(", ");
+}
+
+export type MonitorRow =
+  | { kind: "group"; name: string; depth: number; dataType: TypeDescriptor }
+  | { kind: "leaf"; id: number; depth: number };
+
+/** Build visible rows and the watch list from the IR paths, independent of React. */
+export function monitorRows(
+  variables: Variable[],
+  composites: { name: string; path: string[]; dataType: TypeDescriptor }[],
+  expanded: ReadonlySet<string>,
+  forced: readonly number[] = [],
+): MonitorRow[] {
+  const rows: MonitorRow[] = [];
+  const emitted = new Set<string>();
+  const groups = new Map(composites.map((group) => [JSON.stringify(group.path), group]));
+  for (const [id, variable] of variables.entries()) {
+    const parents = (variable.path ?? []).flatMap((_, i) => {
+      const group = groups.get(JSON.stringify(variable.path!.slice(0, i)));
+      return group ? [group] : [];
+    });
+    let visible = true;
+    for (const [depth, parent] of parents.entries()) {
+      if (!visible) break;
+      if (!emitted.has(parent.name)) {
+        rows.push({ kind: "group", name: parent.name, depth, dataType: parent.dataType });
+        emitted.add(parent.name);
+      }
+      visible = expanded.has(parent.name);
+    }
+    if (visible || forced.includes(id))
+      rows.push({ kind: "leaf", id, depth: visible ? parents.length : 0 });
+  }
+  return rows;
+}
+export function watchedLeaves(rows: readonly MonitorRow[], variables: Variable[]): number[] {
+  return rows.flatMap((row) => (row.kind === "leaf" && variables[row.id]?.path ? [row.id] : []));
+}
+
+/** Index a received snapshot once so rendering many watched rows stays linear. */
+export function snapshotValues(
+  snapshot: RuntimeSnapshot | null | undefined,
+): ReadonlyMap<number, VariableSnapshot> {
+  const values = new Map<number, VariableSnapshot>();
+  snapshot?.variables.forEach((value, index) => {
+    const id = snapshot.variableIds ? snapshot.variableIds[index] : index;
+    if (id !== undefined) values.set(id, value);
+  });
+  return values;
 }

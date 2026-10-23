@@ -91,8 +91,8 @@ in identifier positions. Declarations, aliases and function results accept
 optional capacity in `stringLength` or `resultStringLength`; the checker enforces
 1–1,024 and supplies the default 80. `CHAR` and `WCHAR` have no capacity suffix. In particular, an address such as `%IX12.9` is syntactically valid and
 remains available for a later `decl.address-out-of-range` diagnostic. `parsePou` also accepts FUNCTION and FUNCTION_BLOCK, their input/output/temporary
-sections and formal `=>` call outputs. Arrays, structs and unsupported
-extended VAR forms remain outside this parser's scope.
+sections and formal `=>` call outputs. Structures and unsupported extended VAR
+forms remain outside this parser's scope.
 
 ## Data type declarations and derived scalar syntax
 
@@ -122,3 +122,16 @@ quotes need no escape. Missing terminators or physical line breaks report
 `lex.invalid-string-escape`; a single-byte code unit above 16#FF reports
 `lex.invalid-string-character`. Character counts and typed delimiter matching
 are checked semantically.
+
+## Array syntax
+
+Declarations and data type sources accept `ARRAY[l..u, ...] OF T`, including nested
+array element declarations. The AST retains bound expressions and element type
+syntax in `ArrayDeclaration`. An `index` node retains one array reference and its
+ordered index expressions; repeated brackets form a chain (`n[i][j]`). Indexed
+bit selectors (`flags[i].3`) use `elementBit`. These references are assignment
+targets and expressions, including in FOR bounds and call arguments.
+
+Declaration initializers accept lists (`[1, 2, 3(0)]`), repeated groups
+(`[2(1, 2)]`) and nested lists. `arrayInitializer` retains repetitions without
+expanding them during parsing. Lists are not body expressions.

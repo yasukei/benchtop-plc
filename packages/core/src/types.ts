@@ -17,7 +17,7 @@ export interface SubrangeType {
   lower: number | string;
   upper: number | string;
 }
-/** Plain-data descriptors; composite storage is implemented by later milestones. */
+/** Plain-data descriptors; structures and references are reserved for later milestones. */
 export type TypeDescriptor =
   | DataType
   | NamedType
@@ -43,10 +43,39 @@ export type TypeDefinition =
       kind: "structure";
       members: { name: string; dataType: TypeDescriptor; initialValue: unknown }[];
     };
+export type InitialValue = TypedValue["value"] | InitialValue[];
+export function cloneInitialValue<T>(value: T): T {
+  return (Array.isArray(value) ? value.map((item) => cloneInitialValue(item)) : value) as T;
+}
+export type ArrayType = Extract<TypeDescriptor, { kind: "array" }>;
+export function arrayType(
+  type: TypeDescriptor,
+  table: readonly TypeEntry[] = [],
+): ArrayType | undefined {
+  const resolved = resolveType(type, table);
+  return typeof resolved !== "string" && resolved.kind === "array" ? resolved : undefined;
+}
+export function arraySize(type: ArrayType): number {
+  return type.dimensions.reduce((size, d) => size * (d === "*" ? 0 : d.upper - d.lower + 1), 1);
+}
+export function leafCount(type: TypeDescriptor, table: readonly TypeEntry[] = []): number {
+  const array = arrayType(type, table);
+  return array ? arraySize(array) * leafCount(array.element, table) : 1;
+}
+export function arrayIndices(type: ArrayType, offset: number): number[] {
+  const result: number[] = [];
+  for (const d of [...type.dimensions].reverse()) {
+    if (d === "*") throw new RangeError("Open dimension");
+    const size = d.upper - d.lower + 1;
+    result.unshift(d.lower + (offset % size));
+    offset = Math.floor(offset / size);
+  }
+  return result;
+}
 export interface TypeEntry {
   name: string;
   definition: TypeDefinition;
-  initialValue: TypedValue["value"];
+  initialValue: InitialValue;
 }
 export type TypeTable = TypeEntry[];
 
@@ -108,6 +137,15 @@ export function sameScalarType(
 ): boolean {
   const left = resolveType(a, table),
     right = resolveType(b, table);
+  const la = arrayType(a, table),
+    ra = arrayType(b, table);
+  if (la || ra)
+    return (
+      !!la &&
+      !!ra &&
+      JSON.stringify(la.dimensions) === JSON.stringify(ra.dimensions) &&
+      sameScalarType(la.element, ra.element, table)
+    );
   const leftBase = scalarBase(a, table),
     rightBase = scalarBase(b, table);
   if (isCharacterType(leftBase) || isCharacterType(rightBase)) return leftBase === rightBase;

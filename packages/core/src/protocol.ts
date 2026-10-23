@@ -7,6 +7,7 @@ export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT";
 
 export type UiToRuntimeMessage =
   | { type: "load"; ir: ProgramIR }
+  | { type: "watch"; variables: VariableId[] }
   | { type: "run" }
   | { type: "stop" }
   | { type: "step" }
@@ -38,6 +39,8 @@ export interface RuntimeSnapshot {
   outputs: IoImage;
   /** Aligned with the loaded program's variable table; FB ports use descriptor order. */
   variables: VariableSnapshot[];
+  /** When present, parallel IDs for compact snapshots with watched array leaves. */
+  variableIds?: VariableId[];
   /** Variable IDs, encoded as an array rather than a Set for JSON transport. */
   forced: VariableId[];
   /**
@@ -59,3 +62,12 @@ export type RuntimeToUiMessage =
   | { type: "snapshot"; snapshot: RuntimeSnapshot }
   | { type: "fault"; diagnostic: Diagnostic }
   | CommandRejectionMessage;
+
+/** Scalar-only snapshots keep their original layout; composites use compact ID/value pairs. */
+export function snapshotVariable(
+  snapshot: RuntimeSnapshot | null | undefined,
+  id: VariableId,
+): VariableSnapshot | undefined {
+  if (!snapshot) return undefined;
+  return snapshot.variables[snapshot.variableIds ? snapshot.variableIds.indexOf(id) : id];
+}

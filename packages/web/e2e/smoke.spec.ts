@@ -62,12 +62,13 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
     address: { area: "I", byte: 0, bit: 0 },
     span: ir.span,
   });
-  await page.evaluate((ir) => {
+  await page.evaluate((encodedIr) => {
+    const ir: unknown = JSON.parse(encodedIr);
     const worker = (window as Window & { testWorker?: Worker }).testWorker;
     if (!worker) throw new Error("Expected runtime Worker");
     worker.postMessage({ type: "load", ir });
     worker.postMessage({ type: "force", variable: 0, value: { dataType: "DINT", value: 50 } });
-  }, ir);
+  }, JSON.stringify(ir));
   await page.getByRole("button", { name: "RUN", exact: true }).click();
   await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
   const commands: UiToRuntimeMessage[] = [
@@ -76,7 +77,7 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
   ];
   for (const command of commands) {
     const snapshot = await page.evaluate(
-      (command) =>
+      (encodedCommand) =>
         new Promise<RuntimeSnapshot>((resolve) => {
           const worker = (window as Window & { testWorker?: Worker }).testWorker;
           if (!worker) throw new Error("Expected runtime Worker");
@@ -89,9 +90,9 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
             }
           };
           worker.addEventListener("message", listener);
-          worker.postMessage(command);
+          worker.postMessage(JSON.parse(encodedCommand) as unknown);
         }),
-      command,
+      JSON.stringify(command),
     );
     expect(snapshot.forced).toEqual([0]);
     expect(snapshot.variables).toMatchObject([

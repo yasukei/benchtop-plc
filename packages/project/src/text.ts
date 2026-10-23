@@ -1,6 +1,10 @@
-import { check, lex, parsePou } from "@benchtop-plc/compiler";
+import { check, lex, parsePou, type Declaration, type Expression } from "@benchtop-plc/compiler";
 import {
   MAX_STRING_LENGTH,
+  formatType,
+  arrayType,
+  isIntegerType,
+  enumerationType,
   type Diagnostic,
   type SourceSpan,
   type TypeTable,
@@ -76,6 +80,29 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
       };
       return { value: null, diagnostics: [diagnostic] };
     }
+    let initialValue: string | undefined;
+    try {
+      initialValue = declaration.initializer
+        ? canonicalInitializer(
+            source,
+            declaration.initializer,
+            ast.declarations.slice(0, ast.declarations.indexOf(declaration)),
+            types,
+          )
+        : undefined;
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      return {
+        value: null,
+        diagnostics: [
+          {
+            code: "project.invalid",
+            severity: "error",
+            args: { path: "arrayValue/repetitionValue" },
+          },
+        ],
+      };
+    }
     for (const name of declaration.names) {
       variables.push({
         section:
@@ -94,14 +121,7 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
           normalizeType(declaration.typeName.key) +
           (declaration.stringLength === undefined ? "" : `[${declaration.stringLength}]`),
         ...(declaration.address ? { address: declaration.address.text } : {}),
-        ...(declaration.initializer
-          ? {
-              initialValue: source.slice(
-                offset(source, declaration.initializer.span),
-                offset(source, declaration.initializer.span, true),
-              ),
-            }
-          : {}),
+        ...(initialValue === undefined ? {} : { initialValue }),
       });
     }
   }
@@ -109,7 +129,8 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
   // must not hide a representable subrange or prevent saving unrelated declarations.
   const rangeType = (
     name: import("@benchtop-plc/compiler").Identifier,
-    range: import("@benchtop-plc/compiler").Subrange,
+    range:
+      import("@benchtop-plc/compiler").Subrange | import("@benchtop-plc/compiler").ArrayDeclaration,
     before: number,
   ): string | undefined => {
     const names = new Set([
@@ -151,7 +172,7 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
             kind: "declaration",
             names: [{ name: key, key, span: name.span }],
             typeName: name,
-            subrange: range,
+            ...("dimensions" in range ? { array: range } : { subrange: range }),
             span: range.span,
           },
         ],
@@ -162,14 +183,68 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
       types,
     );
     const descriptor = result.checked?.symbols.at(-1)?.descriptor;
-    return descriptor && typeof descriptor !== "string" && descriptor.kind === "subrange"
-      ? `${descriptor.base} (${descriptor.lower}..${descriptor.upper})`
-      : undefined;
+    // XML readers canonicalize derived names too; source extensions keep declared spelling.
+    if (descriptor) return formatType(descriptor).toUpperCase();
+    if ("dimensions" in range && result.diagnostics.some((d) => d.code === "decl.unknown-type")) {
+      // Unknown element names are exchangeable semantic errors; fold only the dimensions.
+      const eraseElement = (
+        array: import("@benchtop-plc/compiler").ArrayDeclaration,
+      ): import("@benchtop-plc/compiler").ArrayDeclaration => ({
+        ...array,
+        typeName: { ...array.typeName, name: "INT", key: "INT" },
+        subrange: undefined,
+        stringLength: undefined,
+        ...(array.array ? { array: eraseElement(array.array) } : {}),
+      });
+      const folded = check(
+        {
+          ...ast,
+          kind: "program",
+          resultType: undefined,
+          sections: [],
+          body: [],
+          declarations: [
+            ...included,
+            {
+              kind: "declaration",
+              names: [{ name: key, key, span: name.span }],
+              typeName: name,
+              array: eraseElement(range),
+              span: range.span,
+            },
+          ],
+        },
+        new Map(),
+        new Map(),
+        new Map(),
+        types,
+      ).checked?.symbols.at(-1)?.descriptor;
+      const restore = (
+        syntax: import("@benchtop-plc/compiler").ArrayDeclaration,
+        type: import("@benchtop-plc/core").TypeDescriptor,
+      ): string => {
+        const array = arrayType(type, types)!;
+        const element = syntax.array
+          ? restore(syntax.array, array.element)
+          : normalizeType(syntax.typeName.key) +
+            (syntax.stringLength === undefined ? "" : `[${syntax.stringLength}]`) +
+            (syntax.subrange
+              ? ` (${expressionText(source, syntax.subrange.lower.span)}..${expressionText(source, syntax.subrange.upper.span)})`
+              : "");
+        return `ARRAY[${array.dimensions.map((d) => (d === "*" ? "*" : `${d.lower}..${d.upper}`)).join(", ")}] OF ${element}`;
+      };
+      if (folded) return restore(range, folded);
+    }
+    return undefined;
   };
   let index = 0;
   for (const [position, declaration] of ast.declarations.entries()) {
-    if (declaration.subrange) {
-      const type = rangeType(declaration.typeName, declaration.subrange, position);
+    if (declaration.subrange || declaration.array) {
+      const type = rangeType(
+        declaration.typeName,
+        (declaration.array ?? declaration.subrange)!,
+        position,
+      );
       if (!type)
         return {
           value: null,
@@ -253,4 +328,64 @@ export function containsSpan(outer: SourceSpan, inner: SourceSpan): boolean {
     (inner.endLine < outer.endLine ||
       (inner.endLine === outer.endLine && inner.endColumn <= outer.endColumn))
   );
+}
+
+/** Canonical XML spelling preserves repetition and expands repeated groups in source order. */
+export function canonicalInitializer(
+  source: string,
+  node: Expression,
+  declarations: Declaration[] = [],
+  types: TypeTable = [],
+): string {
+  if (node.kind !== "arrayInitializer") return expressionText(source, node.span);
+  const items: string[] = [];
+  for (const item of node.items) {
+    const values = item.values.map((value) =>
+      canonicalInitializer(source, value, declarations, types),
+    );
+    if (!item.count) {
+      items.push(...values);
+      continue;
+    }
+    const countAst = parsePou(
+      `PROGRAM Initial MOVE(${expressionText(source, item.count.span)}); END_PROGRAM`,
+    ).ast;
+    if (!countAst) throw new RangeError("Invalid repetition expression");
+    const statement = countAst.body[0]!;
+    if (statement.kind !== "call") throw new RangeError("Invalid repetition expression");
+    const countExpression = statement.call.args[0]!;
+    // Only count dependencies participate, so unrelated semantic errors remain exchangeable.
+    const needed = new Set(
+      (lex(expressionText(source, item.count.span)).tokens ?? []).map((t) => t.key),
+    );
+    const constants: Declaration[] = [];
+    for (const declaration of declarations.toReversed()) {
+      if (!declaration.constant || !declaration.names.some((n) => needed.has(n.key))) continue;
+      constants.unshift(declaration);
+      if (declaration.initializer)
+        for (const token of lex(expressionText(source, declaration.initializer.span)).tokens ?? [])
+          needed.add(token.key);
+    }
+    const checked = check(
+      { ...countAst, declarations: constants },
+      new Map(),
+      new Map(),
+      new Map(),
+      types,
+    );
+    const info = checked.checked?.expressions.get(countExpression);
+    const count = Number(info?.constant);
+    if (
+      !info ||
+      !isIntegerType(info.dataType) ||
+      enumerationType(info.descriptor ?? info.dataType, types) ||
+      !Number.isInteger(count) ||
+      count < 0 ||
+      count > 10000
+    )
+      throw new RangeError("Invalid array repetition");
+    if (values.length === 1) items.push(`${count}(${values[0]})`);
+    else for (let i = 0; i < count; i++) items.push(...values);
+  }
+  return `[${items.join(", ")}]`;
 }

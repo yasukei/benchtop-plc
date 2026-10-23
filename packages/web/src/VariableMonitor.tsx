@@ -1,7 +1,13 @@
-import { useState } from "react";
-import { formatType, type TypeTable, type Variable } from "@benchtop-plc/core";
+import { useState, useEffect, useMemo } from "react";
+import { formatType, type ProgramIR, type TypeTable, type Variable } from "@benchtop-plc/core";
 import type { ShellCatalog } from "./catalog.js";
-import { parseWrittenValue, variableValue } from "./monitor.js";
+import {
+  parseWrittenValue,
+  variableValue,
+  monitorRows,
+  watchedLeaves,
+  snapshotValues,
+} from "./monitor.js";
 import type { AppState, AppStore } from "./store.js";
 
 function WriteValue({
@@ -72,13 +78,23 @@ export function VariableMonitor({
   text,
   variables,
   types = [],
+  composites = [],
 }: {
   state: AppState;
   store: AppStore;
   text: ShellCatalog;
   variables: Variable[];
   types?: TypeTable;
+  composites?: ProgramIR["composites"];
 }) {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const values = useMemo(() => snapshotValues(state.snapshot), [state.snapshot]);
+  const rows = monitorRows(variables, composites, expanded, state.snapshot?.forced);
+  const watchKey = JSON.stringify(watchedLeaves(rows, variables));
+  useEffect(() => {
+    if (state.connection === "connected" && state.snapshot)
+      store.send({ type: "watch", variables: JSON.parse(watchKey) as number[] });
+  }, [watchKey, store, state.connection, !!state.snapshot]);
   const disabled = state.connection !== "connected" || !state.snapshot;
   return (
     <section className="panel monitor" aria-labelledby="monitor-title">
@@ -98,11 +114,37 @@ export function VariableMonitor({
               </tr>
             </thead>
             <tbody>
-              {variables.map((variable, id) => {
+              {rows.map((row) => {
+                if (row.kind === "group")
+                  return (
+                    <tr key={row.name}>
+                      <th scope="row" style={{ paddingLeft: `${row.depth + 1}rem` }}>
+                        <button
+                          aria-expanded={expanded.has(row.name)}
+                          onClick={() =>
+                            setExpanded((current) => {
+                              const next = new Set(current);
+                              if (next.has(row.name)) next.delete(row.name);
+                              else next.add(row.name);
+                              return next;
+                            })
+                          }
+                        >
+                          {row.name}
+                        </button>
+                      </th>
+                      <td />
+                      <td>{formatType(row.dataType)}</td>
+                      <td />
+                      <td />
+                    </tr>
+                  );
+                const id = row.id;
+                const variable = variables[id]!;
                 const forced = state.snapshot?.forced.includes(id) ?? false;
                 return (
                   <tr key={id} data-forced={forced}>
-                    <th scope="row">
+                    <th scope="row" style={{ paddingLeft: `${row.depth + 1}rem` }}>
                       {variable.name}
                       {forced && <span className="force-badge">{text.forced}</span>}
                     </th>
@@ -114,7 +156,7 @@ export function VariableMonitor({
                     <td>
                       {variable.kind === "scalar" ? formatType(variable.dataType) : variable.fbType}
                     </td>
-                    <td>{variableValue(variable, state.snapshot?.variables[id], types)}</td>
+                    <td>{variableValue(variable, values.get(id), types)}</td>
                     <td>
                       {variable.kind === "scalar" &&
                         (variable.dataType === "BOOL" ? (

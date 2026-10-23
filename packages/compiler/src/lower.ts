@@ -1,5 +1,7 @@
 import {
   coerceValue,
+  arrayType,
+  arrayIndices,
   scalarBase,
   enumerationType,
   isCalendarType,
@@ -85,6 +87,13 @@ class Lowerer {
       return { ...base, kind: "userFunctionBlock", block: symbol.userBlock, initialValue: null };
     if (isBlock(symbol.type))
       return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
+    if (symbol.descriptor && arrayType(symbol.descriptor, this.checked.types))
+      return {
+        ...base,
+        kind: "array",
+        dataType: symbol.descriptor,
+        initialValue: required(symbol.arrayValues),
+      };
     if (symbol.type === "BOOL") {
       const address = declaration.address;
       return {
@@ -112,12 +121,37 @@ class Lowerer {
   private reference(
     node: AST.AssignmentTarget,
   ):
+    | IR.IndexReference
+    | IR.ElementBitReference
     | IR.VariableReference
     | IR.BitReference
     | IR.FunctionBlockMemberReference
     | IR.UserFunctionBlockMemberReference {
     const info = required(this.checked.expressions.get(node));
     const dataType = info.descriptor ?? info.dataType;
+    if (node.kind === "index") {
+      const array = this.reference(node.array);
+      if (array.kind !== "variable" && array.kind !== "index")
+        throw new Error("Checked array base");
+      return {
+        kind: "index",
+        array,
+        indices: node.indices.map((index) => this.expression(index)),
+        dataType,
+        span: span(node),
+      };
+    }
+    if (node.kind === "elementBit") {
+      const element = this.reference(node.element);
+      if (element.kind !== "index") throw new Error("Checked element");
+      return {
+        kind: "elementBit",
+        element,
+        bit: required(this.checked.references.get(node.member)?.bit),
+        dataType: "BOOL",
+        span: span(node),
+      };
+    }
     if (node.kind === "name")
       return {
         kind: "variable",
@@ -148,12 +182,20 @@ class Lowerer {
 
   private target(node: AST.AssignmentTarget): IR.AssignmentTarget {
     const reference = this.reference(node);
-    if (reference.kind === "variable" || reference.kind === "bit") return reference;
+    if (
+      reference.kind === "variable" ||
+      reference.kind === "bit" ||
+      reference.kind === "index" ||
+      reference.kind === "elementBit"
+    )
+      return reference;
     if (reference.port !== "input") throw new Error("Checked assignment targets an FB output");
     return { ...reference, port: "input" };
   }
 
   private widen(expression: IR.Expression, target: IR.TypeDescriptor): IR.Expression {
+    if (arrayType(target, this.checked.types) || arrayType(expression.dataType, this.checked.types))
+      return expression;
     const to = scalarBase(target, this.checked.types);
     const from = scalarBase(expression.dataType, this.checked.types);
     if (!isLongType(to) || from === to) return expression;
@@ -168,6 +210,10 @@ class Lowerer {
 
   private usesNamedConstant(node: AST.Expression): boolean {
     switch (node.kind) {
+      case "arrayInitializer":
+      case "index":
+      case "elementBit":
+        return false;
       case "name":
       case "member":
         return this.checked.expressions.get(node)?.constant !== undefined;
@@ -206,6 +252,10 @@ class Lowerer {
       case "enumeration":
       case "literal":
         return literal();
+      case "arrayInitializer":
+        throw new Error("Initializer is not a body expression");
+      case "index":
+      case "elementBit":
       case "name":
       case "member":
         return this.reference(node);
@@ -495,6 +545,7 @@ export function lower(
   const layout = new Lowerer(checked).run();
   const variables: IR.Variable[] = [];
   const instances: IR.UserFunctionBlockStorage[] = [];
+  const composites: NonNullable<IR.ProgramIR["composites"]> = [];
   const allocate = (
     locals: IR.LocalVariable[],
     temporaries: readonly number[],
@@ -504,7 +555,8 @@ export function lower(
     locals.map((variable, slot) => {
       if (inOuts.includes(slot)) return { kind: "inOut" };
       if (temporaries.includes(slot)) {
-        if (variable.kind !== "scalar") throw new Error("Checked temporary is an instance");
+        if (variable.kind !== "scalar" && variable.kind !== "array")
+          throw new Error("Checked temporary is an instance");
         return { kind: "temporary", variable };
       }
       const path = prefix + variable.key;
@@ -520,6 +572,51 @@ export function lower(
           `${path}.`,
         );
         return { kind: "instance", instance };
+      }
+      if (variable.kind === "array") {
+        const expand = (
+          type: IR.TypeDescriptor,
+          initial: IR.InitialValue,
+          segments: string[],
+        ): IR.InstanceStorage => {
+          const array = arrayType(type, checked.types);
+          if (array) {
+            composites.push({
+              name: segments.reduce(
+                (path, segment) => path + (segment.startsWith("[") || !path ? "" : ".") + segment,
+                "",
+              ),
+              path: segments,
+              dataType: type,
+            });
+            return {
+              kind: "array",
+              dataType: type,
+              elements: (initial as IR.InitialValue[]).map((value, index) =>
+                expand(array.element, value, [
+                  ...segments,
+                  `[${arrayIndices(array, index).join(",")}]`,
+                ]),
+              ),
+            };
+          }
+          const id = variables.length;
+          const name = segments.reduce(
+            (path, segment) => path + (segment.startsWith("[") || !path ? "" : ".") + segment,
+            "",
+          );
+          variables.push({
+            kind: "scalar",
+            name,
+            key: name.toUpperCase(),
+            path: segments,
+            dataType: type,
+            initialValue: initial,
+            span: span(variable),
+          } as IR.ScalarVariable);
+          return { kind: "variable", variable: id };
+        };
+        return expand(variable.dataType, variable.initialValue, path.split("."));
       }
       const id = variables.length;
       variables.push(prefix ? { ...variable, name: path, key: path } : variable);
@@ -537,9 +634,14 @@ export function lower(
       ? { types: JSON.parse(JSON.stringify(checked.types)) as IR.TypeTable }
       : {}),
     variables,
+    ...(composites.length ? { composites } : {}),
     body: layout.body,
     ...(blocks.length ? { functionBlocks: blocks } : {}),
-    ...(instances.length || temporarySlots.length ? { storage, instances } : {}),
+    ...(instances.length ||
+    temporarySlots.length ||
+    layout.variables.some((v) => v.kind === "array")
+      ? { storage, instances }
+      : {}),
   };
 }
 
@@ -551,7 +653,8 @@ export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
     span: ir.span,
     body: ir.body,
     variables: ir.variables.map((variable) => {
-      if (variable.kind !== "scalar") throw new Error("Checked function contains an FB");
+      if (variable.kind !== "scalar" && variable.kind !== "array")
+        throw new Error("Checked function contains an FB");
       return variable;
     }),
     inputs: parameters.flatMap((section, index) => (section === "VAR_INPUT" ? [index] : [])),
