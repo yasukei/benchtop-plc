@@ -138,9 +138,11 @@ export class Interpreter {
     const parent = this.location(ref.array);
     const array = arrayType(ref.array.dataType, this.programMemory.ir.types)!;
     let offset = 0;
+    const indices: string[] = [];
     ref.indices.forEach((index, i) => {
       const value = BigInt(this.expression(index)),
         d = array.dimensions[i]!;
+      indices.push(value.toString());
       if (d === "*") throw new Error("Open array dimension");
       if (value < BigInt(d.lower) || value > BigInt(d.upper))
         throw new RuntimeFault({
@@ -148,7 +150,13 @@ export class Interpreter {
           severity: "error",
           span: index.span,
           pou: this.pou,
-          ...(this.instancePath ? { instance: this.instancePath } : {}),
+          ...(typeof ref.dataType !== "string" && ref.dataType.kind === "functionBlock"
+            ? {
+                instance: `${this.instancePath ? this.instancePath + "." : ""}${ref.instanceName}[${indices.join(",")}]`,
+              }
+            : this.instancePath
+              ? { instance: this.instancePath }
+              : {}),
           args: { index: value.toString(), lower: d.lower, upper: d.upper },
         });
       offset = offset * (d.upper - d.lower + 1) + Number(value) - d.lower;
@@ -201,6 +209,10 @@ export class Interpreter {
         value,
       );
     }
+    if ((target.kind === "fbMember" || target.kind === "userFbMember") && target.instance) {
+      const { frame, variable } = this.location(target.instance);
+      return frame.assign({ ...target, variable }, value);
+    }
     return this.memory.assign(target, value);
   }
 
@@ -221,9 +233,13 @@ export class Interpreter {
         return expr.value;
       case "variable":
       case "bit":
-      case "fbMember":
-      case "userFbMember":
         return this.memory.value(expr).value;
+      case "fbMember":
+      case "userFbMember": {
+        if (!expr.instance) return this.memory.value(expr).value;
+        const { frame, variable } = this.location(expr.instance);
+        return frame.value({ ...expr, variable }).value;
+      }
       case "unary": {
         const value = this.expression(expr.operand);
         const result = unaryValue(expr.operator, value);
@@ -431,6 +447,9 @@ export class Interpreter {
   }
 
   private blockCall(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
+    const location = call.instance
+      ? this.location(call.instance)
+      : { frame: this.memory, variable: call.variable };
     const inputs = call.inputs.map((input) => ({
       input: input.input,
       value: this.expression(input.value),
@@ -438,8 +457,8 @@ export class Interpreter {
     let outputs: TypedValue[];
     let outputSlots: number[];
     if (call.kind === "fbCall") {
-      for (const input of inputs) this.memory.input(call.variable, input.input, input.value);
-      const instance = this.memory.block(call.variable);
+      for (const input of inputs) location.frame.input(location.variable, input.input, input.value);
+      const instance = location.frame.block(location.variable);
       instance.execute(this.scanStart);
       outputs = instance.outputs.map((output) => {
         output.value = coerceValue(output.dataType, output.value);
@@ -447,7 +466,7 @@ export class Interpreter {
       });
       outputSlots = outputs.map((_, index) => index);
     } else {
-      const instance = this.memory.userBlock(call.variable);
+      const instance = location.frame.userBlock(location.variable);
       const definition = this.programMemory.ir.functionBlocks![instance.block]!;
       instance.resetTemporaries();
       for (const binding of call.inOuts ?? [])

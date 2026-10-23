@@ -304,3 +304,15 @@ array descriptor. These errors do not also report `type.invalid-constant`.
 used directly as a structure member. `name` retains the source type spelling;
 the diagnostic span covers that member's type name. Function block instances
 cannot be structure members under ADR 0015.
+
+## Function block array declaration restrictions
+
+`decl.fb-array-form` (`{ form: "named" | "nested" }`) explains unsupported
+instance-array declarations. Named instance-array types use `form: "named"` on
+the element type name; nested instance arrays use `form: "nested"` on the array
+type. Each rejected declaration reports the restriction once. Direct inline
+multidimensional instance arrays remain supported.
+
+Indexing a scalar function block instance uses `type.not-array` with a
+`functionBlock` descriptor naming the actual block, rather than a scalar
+placeholder type.

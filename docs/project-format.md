@@ -213,3 +213,13 @@ canonical STRUCT declarations and named initializers with equivalent executable
 IR. Unknown/repeated initializer members and invalid leaf values block save/open.
 External changes to member declarations, defaults or nested initializers invalidate
 stale preserved source. Conformance tests validate nested examples against TC6 v2.01.
+
+## Function block arrays
+
+Inline arrays of standard and user function blocks use TC6 `array` dimensions
+with a `derived` base type, for example
+`<array><dimension lower="1" upper="4"/><baseType><derived name="TON"/></baseType></array>`.
+The same representation applies within user function block interfaces. Instance
+arrays have no user initializer. Saving and opening preserve exact POU texts;
+files without source extensions reconstruct equivalent declarations and indexed
+call bodies through the canonical XML representation.

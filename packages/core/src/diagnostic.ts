@@ -33,6 +33,7 @@ export interface DiagnosticArgs {
 
   "decl.unknown-type": { name: string };
   "decl.structure-member-type": { name: string };
+  "decl.fb-array-form": { form: "named" | "nested" };
   "decl.duplicate": { name: string };
   "decl.name-collision": { name: string; kind: "type" | "function" };
   "decl.direct-address-type": { name: string; type: string };

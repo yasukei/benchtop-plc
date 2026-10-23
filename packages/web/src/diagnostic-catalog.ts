@@ -55,6 +55,10 @@ export const diagnosticEn = {
   "syntax.unexpected-eof": () => "Unexpected end of input.",
   "syntax.missing-end": ({ expected }) => `Missing ${expected}.`,
   "decl.unknown-type": ({ name }) => `Unknown type: ${name}.`,
+  "decl.fb-array-form": ({ form }) =>
+    form === "named"
+      ? "Named function block array types are not supported; declare the instance array directly in a PROGRAM or FUNCTION_BLOCK VAR section."
+      : "Function block instances are not supported inside nested array types; use a multidimensional instance array instead.",
   "decl.structure-member-type": ({ name }) =>
     `Function block type ${name} is not supported in a structure.`,
   "decl.duplicate": ({ name }) => `Duplicate declaration: ${name}.`,
@@ -199,6 +203,10 @@ export const diagnosticJa = {
   "syntax.unexpected-eof": () => "入力が途中で終了しています。",
   "syntax.missing-end": ({ expected }) => `${expected}がありません。`,
   "decl.unknown-type": ({ name }) => `不明な型です: ${name}。`,
+  "decl.fb-array-form": ({ form }) =>
+    form === "named"
+      ? "ファンクションブロックの配列に名前付きの型は使用できません。PROGRAM または FUNCTION_BLOCK の VAR セクションで配列を直接宣言してください。"
+      : "入れ子の配列型にはファンクションブロックを含められません。多次元のインスタンス配列を使用してください。",
   "decl.structure-member-type": ({ name }) =>
     `${name} はファンクションブロック型のため、構造体のメンバーには使用できません。`,
   "decl.duplicate": ({ name }) => `宣言が重複しています: ${name}。`,

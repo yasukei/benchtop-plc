@@ -37,9 +37,10 @@ export function blockTypeAt(
   if (!declaration) return null;
   if (declaration.array) {
     const composite = ir.composites?.find((item) => item.name === token.key);
+    const dataType = variable?.kind === "array" ? variable.dataType : composite?.dataType;
     return {
       ...spanRange(source, token.span),
-      text: `${token.text}: ${composite ? formatType(composite.dataType) : source.slice(spanRange(source, declaration.array.span).from, spanRange(source, declaration.array.span).to)}`,
+      text: `${token.text}: ${dataType ? formatType(dataType) : source.slice(spanRange(source, declaration.array.span).from, spanRange(source, declaration.array.span).to)}`,
     };
   }
   const typeRange = spanRange(source, declaration.typeName.span);

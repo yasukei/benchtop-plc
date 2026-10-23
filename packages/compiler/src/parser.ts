@@ -528,6 +528,12 @@ class Parser {
       return { kind: "call", call, span: this.spanFrom(start) };
     }
     const target = this.reference(name);
+    if (target.kind === "index" && this.accept("(")) {
+      const call = this.functionArguments(name, true);
+      call.instance = target;
+      this.expect(";");
+      return { kind: "call", call, span: this.spanFrom(start) };
+    }
     this.assignmentOperator();
     const value = this.expression();
     this.expect(";");

@@ -1,5 +1,5 @@
 import type { DataType, FunctionBlockType } from "@benchtop-plc/core";
-import type { Expression, Statement } from "./ast.js";
+import { rootName, type Expression, type Statement } from "./ast.js";
 import { assignable, commonType } from "./type-rules.js";
 
 export const selectingPort = (type: string): "PT" | "PV" | null =>
@@ -12,9 +12,16 @@ export function readsInferredMember(node: Expression, instances: ReadonlySet<str
     case "arrayInitializer":
       return false;
     case "index":
-      return node.indices.some((index) => readsInferredMember(index, instances));
+      return (
+        readsInferredMember(node.array, instances) ||
+        node.indices.some((index) => readsInferredMember(index, instances))
+      );
     case "field":
-      return readsInferredMember(node.object, instances);
+      return (
+        (instances.has(rootName(node.object).key) &&
+          ["PT", "PV", "ET", "CV"].includes(node.member.key)) ||
+        readsInferredMember(node.object, instances)
+      );
     case "elementBit":
       return readsInferredMember(node.element, instances);
     case "member":
@@ -46,6 +53,8 @@ export function visitBlockBindings(
       case "assignment":
         if (node.target.kind === "member")
           visit(node.target.instance.key, node.target.member.key, node.value);
+        if (node.target.kind === "field")
+          visit(rootName(node.target.object).key, node.target.member.key, node.value);
         break;
       case "call":
         node.call.args.forEach((value, index) => {

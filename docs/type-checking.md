@@ -500,3 +500,26 @@ arrays of structures compare element types by this identity. Whole-structure
 comparisons/arithmetic and aggregate constants are rejected. Structures can be
 PROGRAM/FB VAR or VAR_TEMP and function locals; parameters/results remain
 unsupported until #128.
+
+## Function block array checks
+
+Indexing a scalar instance reports `type.not-array` with its function block type.
+Unsupported named/nested instance-array types report `decl.fb-array-form` once per
+declaration, with `form` identifying the restriction.
+
+Inline arrays with standard or user function block element types are instances,
+allowed only in persistent PROGRAM/FB `VAR`. Declaration section, initializer,
+constant and recursion checks apply as for scalar instances. Function block types
+are not permitted inside structures or named value-array types. Nested value
+arrays cannot contain function block instances.
+
+Indexed calls and port references check the array bounds, dimension count and
+integer indices, then apply the scalar block's formal argument, `=>`, in-out and
+public member rules. Whole-array and whole-element values are rejected with
+`fb.instance-as-value`; selecting a port requires an indexed element.
+
+Overloaded TON/TOF/TP and CTU/CTD/CTUD select one variant per array declaration.
+The POU-wide selection pass gathers eligible PT/PV arguments and assignments from
+any element. Reads of inferred PT/PV/ET/CV ports exclude the containing binding,
+including indexed reads. Untyped bindings do not select a variant; absent an
+eligible binding, the TIME/INT defaults apply (ADR 0014/0015).

@@ -50,6 +50,7 @@ import type {
   StandardFunction,
 } from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
+import { rootName } from "./ast.js";
 import type {
   CheckedProgram,
   ExpressionInfo,
@@ -126,6 +127,7 @@ class Checker {
   private readonly failedBlockSelections = new Set<string>();
   private result?: VariableSymbol;
   private collectingDeclarations = true;
+  private readonly unsupportedBlockArrays = new Set<AST.ArrayDeclaration>();
 
   constructor(
     private readonly ast: AST.Program,
@@ -263,8 +265,12 @@ class Checker {
     // Resolve only after collecting every selecting type, independently of source order.
     for (const [symbol, types] of bindings) {
       const variant = blockVariant(symbol.type, types);
-      if (variant) symbol.type = variant;
-      else {
+      if (variant) {
+        symbol.type = variant;
+        const array = symbol.descriptor && arrayType(symbol.descriptor, this.types);
+        if (array)
+          symbol.descriptor = { ...array, element: { kind: "functionBlock", name: variant } };
+      } else {
         this.failedBlockSelections.add(symbol.name.key);
         this.report("fb.no-matching-variant", { name: symbol.name.name, types }, symbol.name.span);
       }
@@ -273,20 +279,46 @@ class Checker {
 
   private failedPreset(target: AST.AssignmentTarget): boolean {
     return (
-      target.kind === "member" &&
-      this.failedBlockSelections.has(target.instance.key) &&
+      (target.kind === "member" || target.kind === "field") &&
+      this.failedBlockSelections.has(rootName(target).key) &&
       ["PT", "PV"].includes(target.member.key)
     );
   }
 
   /** Composite descriptors remain authoritative; scalar-only side tables use an unused INT tag. */
   private base(type: TypeDescriptor, table = this.types): DataType {
-    return isAggregateType(type, table) ? "INT" : scalarBase(type, table);
+    return isAggregateType(type, table) ||
+      (typeof type !== "string" && type.kind === "functionBlock")
+      ? "INT"
+      : scalarBase(type, table);
   }
 
   private arrayDeclaration(node: AST.ArrayDeclaration): TypeDescriptor | undefined {
-    const element = this.descriptor(node.typeName, node.subrange, node.stringLength, node.array);
-    if (!element) return undefined;
+    if (this.unsupportedBlockArrays.has(node)) return undefined;
+    const key = declarationType(node.typeName.key);
+    const block = !node.array && (isBlock(key) || this.blockIds.has(key));
+    if (block && (node.subrange || node.stringLength !== undefined)) {
+      this.report("type.invalid-constant", {}, node.span);
+      return undefined;
+    }
+    const element: TypeDescriptor | undefined = block
+      ? {
+          kind: "functionBlock",
+          name: key,
+          ...(this.blockIds.has(key) ? { block: this.blockIds.get(key)! } : {}),
+        }
+      : this.descriptor(node.typeName, node.subrange, node.stringLength, node.array);
+    if (!element) {
+      if (node.array && this.unsupportedBlockArrays.has(node.array))
+        this.unsupportedBlockArrays.add(node);
+      return undefined;
+    }
+    const nested = arrayType(element, this.types);
+    if (nested && typeof nested.element !== "string" && nested.element.kind === "functionBlock") {
+      this.unsupportedBlockArrays.add(node);
+      this.report("decl.fb-array-form", { form: "nested" }, node.span);
+      return undefined;
+    }
     if (this.collectingDeclarations)
       return { kind: "array", dimensions: [{ lower: 0, upper: 0 }], element };
     try {
@@ -526,9 +558,14 @@ class Checker {
       declaration.stringLength,
       declaration.array,
     );
-    const type = descriptor
-      ? this.base(descriptor, this.types)
-      : declarationType(declaration.typeName.key);
+    if (declaration.array && this.unsupportedBlockArrays.has(declaration.array)) return;
+    const element = descriptor && arrayType(descriptor, this.types)?.element;
+    const type =
+      element && typeof element !== "string" && element.kind === "functionBlock"
+        ? element.name
+        : descriptor
+          ? this.base(descriptor, this.types)
+          : declarationType(declaration.typeName.key);
     const userBlock = this.blockIds.get(type);
     const block = isBlock(type) || userBlock !== undefined;
     const known = isScalar(type) || block;
@@ -639,7 +676,17 @@ class Checker {
       if (descriptor && constant?.name === name) constant.descriptor = descriptor;
     }
     if (descriptor && isAggregateType(descriptor, this.types)) {
-      const values = this.aggregateInitial(descriptor, declaration.initializer);
+      const element = arrayType(descriptor, this.types)?.element;
+      const block = element && typeof element !== "string" && element.kind === "functionBlock";
+      if (block && declaration.initializer)
+        this.report(
+          "decl.fb-initializer",
+          { name: declaration.names[0].name },
+          declaration.initializer.span,
+        );
+      const values = block
+        ? Array.from({ length: arraySize(arrayType(descriptor, this.types)!) }, () => 0)
+        : this.aggregateInitial(descriptor, declaration.initializer);
       for (const name of declaration.names) {
         const symbol = this.names.get(name.key);
         if (symbol?.name === name) symbol.aggregateValues = cloneInitialValue(values);
@@ -749,15 +796,22 @@ class Checker {
     return { dataType: "BOOL" };
   }
 
-  private reference(node: AST.AssignmentTarget, write = false): ExpressionInfo | null {
+  private reference(
+    node: AST.AssignmentTarget,
+    write = false,
+    instance = false,
+  ): ExpressionInfo | null {
     if (node.kind === "field") {
-      const object = this.reference(node.object, write);
+      const object = this.reference(node.object, write, true);
       if (!object) return null;
-      if (node.object.kind === "member" && this.references.get(node.object.member)?.port) {
+      if (
+        (node.object.kind === "member" || node.object.kind === "field") &&
+        this.references.get(node.object.member)?.port
+      ) {
         this.report(
           "fb.unknown-member",
           {
-            name: node.object.instance.name,
+            name: rootName(node.object).name,
             member: `${node.object.member.name}.${node.member.name}`,
           },
           node.member.span,
@@ -765,10 +819,14 @@ class Checker {
         return null;
       }
       this.expressions.set(node.object, object);
+      if (typeof object.descriptor !== "string" && object.descriptor?.kind === "functionBlock") {
+        const symbol = this.names.get(rootName(node.object).key);
+        return symbol ? this.blockMember(symbol, node.member, write) : null;
+      }
       return this.field(object.descriptor ?? object.dataType, node.member);
     }
     if (node.kind === "index") {
-      const parent = this.reference(node.array, write);
+      const parent = this.reference(node.array, write, true);
       if (!parent) return null;
       this.expressions.set(node.array, parent);
       const parentType = parent.descriptor ?? parent.dataType;
@@ -801,6 +859,14 @@ class Checker {
         )
           this.report("type.invalid-constant", {}, index.span);
       });
+      if (
+        !instance &&
+        typeof array.element !== "string" &&
+        array.element.kind === "functionBlock"
+      ) {
+        this.report("fb.instance-as-value", { name: rootName(node).name }, node.span);
+        return null;
+      }
       return { dataType: this.base(array.element), descriptor: array.element };
     }
     if (node.kind === "elementBit") {
@@ -838,11 +904,16 @@ class Checker {
     const symbol = this.resolve(name);
     if (!symbol) return null;
     if (node.kind === "name") {
-      if (!isScalar(symbol.type)) {
+      if (!isScalar(symbol.type) && !instance) {
         this.report("fb.instance-as-value", { name: name.name }, node.span);
         return null;
       }
-      return { dataType: symbol.type, descriptor: symbol.descriptor };
+      return {
+        dataType: isScalar(symbol.type) ? symbol.type : "INT",
+        descriptor:
+          symbol.descriptor ??
+          (isScalar(symbol.type) ? undefined : { kind: "functionBlock", name: symbol.type }),
+      };
     }
     if (symbol.descriptor && structureType(symbol.descriptor, this.types)) {
       return this.field(symbol.descriptor, node.member);
@@ -856,6 +927,19 @@ class Checker {
       this.references.set(node.member, { variable: symbol.id, bit });
       return { dataType: "BOOL" };
     }
+    if (symbol.descriptor && arrayType(symbol.descriptor, this.types)) {
+      this.report("fb.not-function-block", { name: name.name }, name.span);
+      return null;
+    }
+    return this.blockMember(symbol, node.member, write, name);
+  }
+
+  private blockMember(
+    symbol: VariableSymbol,
+    member: AST.Identifier,
+    write: boolean,
+    name = symbol.name,
+  ): ExpressionInfo | null {
     if (symbol.userBlock !== undefined) {
       const pou = this.pous.get(symbol.type)!;
       const parameters = pou.declarations
@@ -869,25 +953,21 @@ class Checker {
         );
       const index = parameters.findIndex(
         (parameter) =>
-          parameter.name.key === node.member.key &&
+          parameter.name.key === member.key &&
           ["VAR_INPUT", "VAR_OUTPUT"].includes(parameter.section ?? ""),
       );
       const parameter = parameters[index];
       if (!parameter?.type) {
-        this.report(
-          "fb.unknown-member",
-          { name: name.name, member: node.member.name },
-          node.member.span,
-        );
+        this.report("fb.unknown-member", { name: name.name, member: member.name }, member.span);
         return null;
       }
       if (write && parameter.section === "VAR_OUTPUT")
         this.report(
           "fb.output-not-writable",
-          { name: name.name, member: node.member.name },
-          node.member.span,
+          { name: name.name, member: member.name },
+          member.span,
         );
-      this.references.set(node.member, {
+      this.references.set(member, {
         variable: symbol.id,
         member: index,
         port: parameter.section === "VAR_INPUT" ? "input" : "output",
@@ -901,26 +981,22 @@ class Checker {
     }
     const descriptor = blocks[symbol.type];
     for (const port of ["inputs", "outputs"] as const) {
-      const index = descriptor[port].findIndex(([key]) => key === node.member.key);
+      const index = descriptor[port].findIndex(([key]) => key === member.key);
       if (index < 0) continue;
       if (write && port === "outputs")
         this.report(
           "fb.output-not-writable",
-          { name: name.name, member: node.member.name },
-          node.member.span,
+          { name: name.name, member: member.name },
+          member.span,
         );
-      this.references.set(node.member, {
+      this.references.set(member, {
         variable: symbol.id,
         port: port === "inputs" ? "input" : "output",
         member: index,
       });
       return { dataType: descriptor[port][index]![1] };
     }
-    this.report(
-      "fb.unknown-member",
-      { name: name.name, member: node.member.name },
-      node.member.span,
-    );
+    this.report("fb.unknown-member", { name: name.name, member: member.name }, member.span);
     return null;
   }
 
@@ -1658,6 +1734,18 @@ class Checker {
       this.report("fb.not-function-block", { name: node.name.name }, node.name.span);
       return;
     }
+    if (node.instance) {
+      const info = this.reference(node.instance, false, true);
+      if (!info) return;
+      this.expressions.set(node.instance, info);
+      if (typeof info.descriptor === "string" || info.descriptor?.kind !== "functionBlock") {
+        this.report("fb.not-function-block", { name: node.name.name }, node.span);
+        return;
+      }
+    } else if (symbol.descriptor && arrayType(symbol.descriptor, this.types)) {
+      this.report("fb.not-function-block", { name: node.name.name }, node.span);
+      return;
+    }
     if (this.ast.kind === "function") this.report("pou.function-block-in-function", {}, node.span);
     if (node.args.length && !node.inputNames) {
       this.report("fb.unsupported-call", { name: node.name.name }, node.span);
@@ -1693,7 +1781,7 @@ class Checker {
         member: name,
         span: name.span,
       };
-      const target = this.reference(member, true);
+      const target = this.blockMember(symbol, name, true);
       const failed = this.failedPreset(member);
       const info = this.expression(
         value,
@@ -1708,12 +1796,7 @@ class Checker {
     });
     this.requireInOuts(inOuts, seen, node);
     for (const output of node.outputs ?? []) {
-      const source = this.reference({
-        kind: "member",
-        instance: node.name,
-        member: output.name,
-        span: output.name.span,
-      });
+      const source = this.blockMember(symbol, output.name, false);
       const reference = this.references.get(output.name);
       if ((reference && reference.port !== "output") || seen.has(output.name.key))
         this.report(
@@ -1796,7 +1879,10 @@ class Checker {
         }
         case "call": {
           const symbol = this.names.get(node.call.name.key);
-          if (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
+          if (
+            node.call.instance ||
+            (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
+          )
             this.blockCall(node.call);
           else {
             const info = this.functionCall(node.call, true);

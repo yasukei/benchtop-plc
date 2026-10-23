@@ -494,3 +494,18 @@ PROGRAM VAR_TEMP and FB VAR_TEMP receive fresh defaults at their normal invocati
 boundaries. Cold reset restores declared defaults. Monitoring watches and forces
 scalar member IDs under paths such as `LINE[2].START.X`; ordinary leaves and forced
 members are always sent, and watched members use the compact snapshot ID mapping.
+
+## Function block arrays
+
+An instance array uses aggregate storage containing independent standard block
+cells or user instance frames, with shared code definitions. Indexed calls resolve
+and bounds-check the instance once before evaluating inputs. An invalid index
+faults with `runtime.index-out-of-range`, the calling POU and the indexed instance
+path (for example `T[5]`). Faults inside user elements retain the full nested path,
+such as `M[2].DELAY`.
+
+Load and cold reset initialize every element's complete instance tree, including
+nested timer/counter private state. STOP/RUN transitions, single scans and FAULT
+preserve it. Monitored scalar leaves and standard block snapshots alias the same
+cells used by execution, so writes and the existing pre/post-scan force stages
+apply to element members by VariableId.

@@ -198,3 +198,15 @@ its declared type; invalid enum/subrange/string values are rejected as for other
 scalars. A forced member stays visible when its parents collapse. Only visible
 or forced aggregate leaves are watched. Whole-structure copies have no inline
 scalar annotation; scalar member assignments retain normal inline values.
+
+## Function block array monitoring
+
+Instance arrays appear as collapsible array rows. Editor hovers show the selected
+array element variant, including inside uninstantiated user function blocks. Standard elements keep their
+block snapshot representation (`T[2]`, including output names and values). User
+block members appear under paths such as `M[2].RUNNING`; nested instance arrays
+keep the full parent path. Expanding the array watches its visible leaves.
+Scalar user member writes and forces use their usual controls and affect the
+same persistent state used by indexed calls. Forced members remain visible when
+the array is collapsed. Inline values in PROGRAM show indexed call outputs;
+function block bodies still have no inline values.

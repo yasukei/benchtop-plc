@@ -76,7 +76,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `TYPE` declarations                         | Partial | One type per separate compiler source, ordered before POUs; case-insensitive shared namespace; elementary aliases and defaults (ADR 0015). PLCopen XML exchanges these sources; web type list deferred.                          |
 | Enumerations                                | Partial | Implicit/explicit integer values, qualified/contextual literals, assignment, equality, CASE, MOVE/SEL/MUX, scalar POU parameters/results and CONSTANT; no ordering, conversion or enum ranges (restrictions; 3rd edition basis). |
 | Subranges                                   | Partial | Named/inline integer limits, lower-bound defaults, constant checks and runtime store faults; exact in-outs compare base and limits; forbidden as FOR controls (restriction; 3rd edition basis).                                  |
-| Arrays                                      | Partial | Up to three dimensions, 10,000 scalar leaves, nested arrays, initializers, indexing and whole-array assignment/selection (ADR 0015).                                                                                             |
+| Arrays                                      | Partial | Up to three dimensions, 10,000 scalar leaves, nested arrays, initializers, indexing and whole-array assignment/selection; inline function block instance arrays with indexed calls and per-element state (ADR 0015).             |
 | Structures                                  | Partial | Named structures, member defaults, nested array/member access, initializers, whole-structure assignment/MOVE/SEL/MUX and scalar monitoring (ADR 0015).                                                                           |
 | References                                  | No      |                                                                                                                                                                                                                                  |
 
@@ -286,9 +286,16 @@ and secondary sources, pending 4th edition verification (ADR 0015).
 Bounds must be constant integers fitting DINT. Each array has at most three
 dimensions and 10,000 elements; a variable has at most 10,000 scalar leaves.
 Arrays support elementary/string/enumeration/subrange, nested-array and structure elements.
-Arrays of function blocks, array parameters/results, open dimensions
+Array parameters/results, open dimensions
 (`ARRAY[*]`), constant arrays and whole-array comparisons remain unsupported.
-Whole-array MOVE/SEL/MUX require equivalent bounds and element types, with exact
+Inline arrays of standard and user function block instances are supported in
+PROGRAM/FB VAR, including indexed formal calls, output bindings, public port
+access, independent state and cold reset. One timer/counter variant is selected
+per declaration (ADR 0014/0015). Instances cannot be values, constants,
+temporaries, function locals or parameters/results; instance array initializers,
+named instance-array types and function blocks inside structures or nested value
+arrays are unsupported. Monitor paths include standard elements and user members.
+Whole-array MOVE/SEL/MUX for value arrays require equivalent bounds and element types, with exact
 subrange limits and string capacities excluded from equivalence. Missing
 initializer elements use their type defaults. These rules follow ADR 0015's
 3rd-edition-based decisions, pending 4th edition verification.
