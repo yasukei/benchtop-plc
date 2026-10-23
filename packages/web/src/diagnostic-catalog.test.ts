@@ -50,6 +50,7 @@ const examples = {
   "decl.constant-address": {},
   "decl.constant-not-writable": { name: "N" },
   "decl.constant-order": { name: "N" },
+  "decl.open-array-section": {},
   "decl.in-out-initializer": { name: "n" },
   "pou.duplicate": { name: "Compute" },
   "pou.name-collision": { name: "TON" },

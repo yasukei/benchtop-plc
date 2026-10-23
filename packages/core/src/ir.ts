@@ -263,7 +263,7 @@ export interface UserFunctionBlockIR extends SourceNode {
   variables: LocalVariable[];
   inputs: FrameSlot[];
   outputs: FrameSlot[];
-  /** Alias slots, bound to caller scalar cells on every invocation. */
+  /** Alias slots, bound to caller storage on every invocation. */
   inOuts?: FrameSlot[];
   temporaries: FrameSlot[];
   body: Statement[];
@@ -274,7 +274,7 @@ export interface UserFunctionIR extends SourceNode {
   variables: (ScalarVariable | ArrayVariable | StructureVariable)[];
   inputs: FrameSlot[];
   outputs: FrameSlot[];
-  /** Alias slots, bound to caller scalar cells on every invocation. */
+  /** Alias slots, bound to caller storage on every invocation. */
   inOuts?: FrameSlot[];
   /** Local variable holding the result; absent for a function without a result. */
   result?: FrameSlot;
@@ -283,7 +283,7 @@ export interface UserFunctionIR extends SourceNode {
 
 export interface InOutBinding {
   variable: FrameSlot;
-  actual: VariableReference;
+  actual: VariableReference | IndexReference | StructureMemberReference;
 }
 
 export interface UserFunctionCall extends SourceNode {
@@ -341,13 +341,21 @@ export interface IndexReference extends SourceNode {
   kind: "index";
   /** Declaration name for instance bounds diagnostics. */
   instanceName?: string;
-  array: VariableReference | IndexReference | StructureMemberReference;
+  array:
+    | VariableReference
+    | IndexReference
+    | StructureMemberReference
+    | UserFunctionBlockMemberReference;
   indices: Expression[];
   dataType: TypeDescriptor;
 }
 export interface StructureMemberReference extends SourceNode {
   kind: "structureMember";
-  object: VariableReference | IndexReference | StructureMemberReference;
+  object:
+    | VariableReference
+    | IndexReference
+    | StructureMemberReference
+    | UserFunctionBlockMemberReference;
   member: number;
   dataType: TypeDescriptor;
 }
@@ -417,10 +425,20 @@ export interface FunctionOutputAssignment extends SourceNode {
 
 export interface FunctionCallStatement extends SourceNode {
   kind: "call";
-  call: FunctionCallExpression | UserFunctionCall;
+  call: FunctionCallExpression | UserFunctionCall | ArrayBoundExpression;
+}
+
+export interface ArrayBoundExpression extends SourceNode {
+  kind: "arrayBound";
+  array: Expression;
+  /** Zero-based dimension, checked at compile time. */
+  dimension: number;
+  upper: boolean;
+  dataType: "DINT";
 }
 
 export type Expression =
+  | ArrayBoundExpression
   | StructureMemberReference
   | IndexReference
   | ElementBitReference

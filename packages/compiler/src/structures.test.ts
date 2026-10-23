@@ -121,7 +121,7 @@ describe("structures", () => {
     expect(result.diagnostics.some((d) => d.severity === "error")).toBe(true);
   });
 
-  it("keeps aggregate constants and POU interfaces out of scope", () => {
+  it("rejects aggregate constants and accepts aggregate POU interfaces", () => {
     for (const source of [
       "PROGRAM Main VAR CONSTANT p : Point; END_VAR END_PROGRAM",
       "FUNCTION F : Point END_FUNCTION",
@@ -135,7 +135,15 @@ describe("structures", () => {
         ],
         [point],
       );
-      expect(result.ir).toBeUndefined();
+      if (source.includes("CONSTANT")) {
+        expect(result.ir).toBeUndefined();
+        expect(result.diagnostics).toContainEqual(
+          expect.objectContaining({ code: "decl.constant-type" }),
+        );
+      } else {
+        expect(result.diagnostics).toEqual([]);
+        expect(result.ir).toBeDefined();
+      }
     }
   });
 });

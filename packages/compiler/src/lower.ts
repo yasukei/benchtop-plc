@@ -42,13 +42,18 @@ class Lowerer {
           this.checked.result
             ? [
                 {
-                  kind: "scalar",
+                  kind: this.checked.result.aggregateValues
+                    ? structureType(this.checked.result.descriptor!, this.checked.types)
+                      ? "structure"
+                      : "array"
+                    : "scalar",
                   name: ast.name.name,
                   key: ast.name.key,
                   span: span(ast.name),
                   dataType: this.checked.result.descriptor ?? this.checked.result.type,
-                  initialValue: this.checked.result.initialValue,
-                } as IR.ScalarVariable,
+                  initialValue:
+                    this.checked.result.aggregateValues ?? this.checked.result.initialValue,
+                } as IR.ScalarVariable | IR.ArrayVariable | IR.StructureVariable,
               ]
             : [],
         ),
@@ -77,7 +82,12 @@ class Lowerer {
   private inOutBindings(bindings: UserCallInfo["inOuts"]): IR.InOutBinding[] {
     return bindings.map(({ variable, actual }) => {
       const reference = this.reference(actual);
-      if (reference.kind !== "variable") throw new Error("Checked in-out is not a variable");
+      if (
+        reference.kind !== "variable" &&
+        reference.kind !== "index" &&
+        reference.kind !== "structureMember"
+      )
+        throw new Error("Checked in-out is not storage");
       return { variable, actual: reference };
     });
   }
@@ -135,7 +145,12 @@ class Lowerer {
     const dataType = info.descriptor ?? info.dataType;
     if (node.kind === "index") {
       const array = this.reference(node.array);
-      if (array.kind !== "variable" && array.kind !== "index" && array.kind !== "structureMember")
+      if (
+        array.kind !== "variable" &&
+        array.kind !== "index" &&
+        array.kind !== "structureMember" &&
+        array.kind !== "userFbMember"
+      )
         throw new Error("Checked array base");
       return {
         kind: "index",
@@ -171,7 +186,8 @@ class Lowerer {
       if (
         object.kind !== "variable" &&
         object.kind !== "index" &&
-        object.kind !== "structureMember"
+        object.kind !== "structureMember" &&
+        object.kind !== "userFbMember"
       )
         throw new Error("Checked structure base");
       return selector.bit !== undefined
@@ -350,6 +366,17 @@ class Lowerer {
         };
       }
       case "functionCall": {
+        const bound = this.checked.arrayBounds.get(node);
+        if (bound) {
+          return {
+            ...base,
+            kind: "arrayBound",
+            array: this.expression(bound.array),
+            dimension: bound.dimension,
+            upper: bound.upper,
+            dataType: "DINT",
+          };
+        }
         const user = this.checked.userCalls.get(node);
         if (user) {
           const call = this.userCall(node, user);
@@ -488,7 +515,8 @@ class Lowerer {
         const user = this.checked.userCalls.get(node.call);
         if (user) return { ...base, kind: "call", call: this.userCall(node.call, user) };
         const call = this.expression(node.call);
-        if (call.kind !== "functionCall") throw new Error("Expected a checked function call");
+        if (call.kind !== "functionCall" && call.kind !== "arrayBound")
+          throw new Error("Expected a checked function call");
         return { ...base, kind: "call", call };
       }
       case "fbCall": {

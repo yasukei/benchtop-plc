@@ -1,3 +1,4 @@
+import { parsePou } from "./parser.js";
 import { describe, expect, it } from "vitest";
 import type { Expression, Program } from "./index.js";
 import { parse } from "./index.js";
@@ -442,7 +443,6 @@ describe("syntax diagnostics", () => {
     "FUNCTION F END_FUNCTION",
     "FUNCTION_BLOCK F END_FUNCTION_BLOCK",
     "PROGRAM P VAR_INPUT x : INT; END_VAR END_PROGRAM",
-    "PROGRAM P VAR x : ARRAY[*] OF INT; END_VAR END_PROGRAM",
   ])("does not accept unsupported syntax %s", (source) => {
     expect(parse(source).ast).toBeNull();
     expect(parse(source).diagnostics).toHaveLength(1);
@@ -485,4 +485,13 @@ it.each([
 
 it("parses chained member access for later type checking", () => {
   expect(shape(expression("a.b.c"))).toEqual(["A.B", "C"]);
+});
+
+it("parses open array dimensions and inline array function results", () => {
+  const source =
+    "FUNCTION F : ARRAY[1..2] OF INT VAR_IN_OUT a : ARRAY[*, *] OF INT; END_VAR END_FUNCTION";
+  const result = parsePou(source);
+  expect(result.diagnostics).toEqual([]);
+  expect(result.ast?.resultArray?.dimensions).toHaveLength(1);
+  expect(result.ast?.declarations[0]?.array?.dimensions).toEqual(["*", "*"]);
 });

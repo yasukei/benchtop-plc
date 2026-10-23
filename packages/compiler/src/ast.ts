@@ -18,6 +18,7 @@ export interface Program extends SourceNode {
   kind: "program" | "function" | "functionBlock";
   name: Identifier;
   resultType?: Identifier;
+  resultArray?: ArrayDeclaration;
   resultSubrange?: Subrange;
   resultStringLength?: number;
   sections?: { name: string; constant?: boolean; span: import("@benchtop-plc/core").SourceSpan }[];
@@ -71,7 +72,7 @@ export interface ArrayInitializer extends SourceNode {
   items: { count?: Expression; values: Expression[] }[];
 }
 export interface ArrayDeclaration extends SourceNode {
-  dimensions: Subrange[];
+  dimensions: (Subrange | "*")[];
   typeName: Identifier;
   subrange?: Subrange;
   stringLength?: number;

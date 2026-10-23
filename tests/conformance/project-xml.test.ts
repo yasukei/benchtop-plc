@@ -280,3 +280,27 @@ it("validates nested structures and their initial values against TC6 v2.01", () 
     schema.dispose();
   }
 });
+
+it("validates open-array in-outs and aggregate function results against TC6 v2.01", () => {
+  const value: Project = {
+    ...project,
+    pous: [
+      "PROGRAM Main VAR a : ARRAY[1..2] OF INT; END_VAR Change(a := a); END_PROGRAM",
+      "FUNCTION Change VAR_IN_OUT a : ARRAY[*] OF INT; END_VAR a[1] := 5; END_FUNCTION",
+      "FUNCTION ResultArray : ARRAY[1..2] OF INT END_FUNCTION",
+    ],
+  };
+  const written = writeProject(value);
+  expect(written.diagnostics).toEqual([]);
+  const schema = XmlDocument.fromString(loadSchema());
+  const validator = XsdValidator.fromDoc(schema);
+  const document = XmlDocument.fromString(written.value!);
+  try {
+    expect(() => validator.validate(document)).not.toThrow();
+    expect(readProject(written.value!).value).toEqual(value);
+  } finally {
+    document.dispose();
+    validator.dispose();
+    schema.dispose();
+  }
+});

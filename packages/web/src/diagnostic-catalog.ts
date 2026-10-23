@@ -79,6 +79,8 @@ export const diagnosticEn = {
   "decl.constant-not-writable": ({ name }) => `Constant ${name} cannot be written.`,
   "decl.constant-order": ({ name }) =>
     `Constant ${name} must be declared and initialized earlier in this POU.`,
+  "decl.open-array-section": () =>
+    "Open arrays are allowed only as direct VAR_IN_OUT parameters, with every dimension open.",
   "decl.in-out-initializer": ({ name }) =>
     `In-out parameter ${name} cannot have an initializer; its value comes from the caller's variable.`,
   "pou.duplicate": ({ name }) => `Duplicate POU: ${name}.`,
@@ -95,7 +97,7 @@ export const diagnosticEn = {
   "call.no-result": ({ name }) =>
     `Function ${name} has no result and cannot be used in an expression.`,
   "call.in-out-variable": () =>
-    "An in-out argument must be a writable scalar variable of the caller.",
+    "An in-out argument must be a writable variable, array element or structure member of the caller.",
   "call.in-out-type": ({ from, to }) =>
     `An in-out argument must have exactly type ${typeText(to)}, received ${typeText(from)}.`,
   "call.missing-in-out": ({ name, parameter }) =>
@@ -226,6 +228,8 @@ export const diagnosticJa = {
   "decl.constant-not-writable": ({ name }) => `定数 ${name} には書き込めません。`,
   "decl.constant-order": ({ name }) =>
     `定数 ${name} は同じ POU 内で先に宣言・初期化する必要があります。`,
+  "decl.open-array-section": () =>
+    "可変長配列は VAR_IN_OUT 引数に直接宣言し、すべての次元を * にする必要があります。",
   "decl.in-out-initializer": ({ name }) =>
     `入出力パラメーター${name}には初期値を指定できません。値は呼び出し元の変数から取得します。`,
   "pou.duplicate": ({ name }) => `POUが重複しています: ${name}。`,
@@ -241,7 +245,8 @@ export const diagnosticJa = {
   "pou.recursion": ({ name }) => `${name}への再帰呼び出しです。`,
   "call.program": ({ name }) => `PROGRAM ${name}は呼び出せません。`,
   "call.no-result": ({ name }) => `関数${name}には戻り値がないため、式の中で使用できません。`,
-  "call.in-out-variable": () => "入出力引数には呼び出し元の書き込み可能なスカラー変数が必要です。",
+  "call.in-out-variable": () =>
+    "入出力引数には呼び出し元の書き込み可能な変数、配列要素、構造体メンバーが必要です。",
   "call.in-out-type": ({ from, to }) =>
     `入出力引数の型は厳密に ${typeText(to)} でなければなりません（実際の型: ${typeText(from)}）。`,
   "call.missing-in-out": ({ name, parameter }) =>

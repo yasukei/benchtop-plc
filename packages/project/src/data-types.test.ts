@@ -552,3 +552,35 @@ it("round trips standard and user function block arrays with derived base types"
   expect(imported.diagnostics).toEqual([]);
   expect(executable(imported.ir)).toEqual(executable(original.ir));
 });
+
+it("round-trips aggregate parameters/results and open dimensions with and without source text", () => {
+  const value = project(
+    [
+      "TYPE Point : STRUCT x : REAL; y : REAL; END_STRUCT; END_TYPE",
+      "TYPE Table : ARRAY[-1..1] OF STRING[10]; END_TYPE",
+    ],
+    [
+      `PROGRAM Main VAR p : Point; a : Table; block : Copier; END_VAR
+     p := MakePoint(); Change(a := a); block(a := a, q => a); END_PROGRAM`,
+      "FUNCTION MakePoint : Point MakePoint.x := 1.0; MakePoint.y := 2.0; END_FUNCTION",
+      "FUNCTION Change VAR_IN_OUT a : ARRAY[*] OF STRING[20]; END_VAR a[LOWER_BOUND(a,1)] := 'changed'; END_FUNCTION",
+      "FUNCTION_BLOCK Copier VAR_INPUT a : Table; END_VAR VAR_OUTPUT q : Table; END_VAR q := a; END_FUNCTION_BLOCK",
+      "FUNCTION Matrix VAR_IN_OUT a : ARRAY[*,*] OF INT; END_VAR END_FUNCTION",
+      "FUNCTION ResultArray : ARRAY[1..2] OF Point END_FUNCTION",
+    ],
+  );
+  const xml = save(value);
+  expect(xml).toContain(
+    '<array><dimension lower="*" upper="*"/><baseType><string length="20"/></baseType></array>',
+  );
+  expect(xml).toContain('<array><dimension lower="*" upper="*"/><dimension lower="*" upper="*"/>');
+  expect(readProject(xml).value).toEqual(value);
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(compileProject(value.pous, value.dataTypes).diagnostics).toEqual([]);
+  expect(compileProject(canonical.value!.pous, canonical.value!.dataTypes).diagnostics).toEqual([]);
+  expect(executable(compileProject(canonical.value!.pous, canonical.value!.dataTypes).ir)).toEqual(
+    executable(compileProject(value.pous, value.dataTypes).ir),
+  );
+  expect(readProject(save(canonical.value!)).value).toEqual(canonical.value);
+});

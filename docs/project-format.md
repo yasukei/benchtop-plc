@@ -223,3 +223,18 @@ The same representation applies within user function block interfaces. Instance
 arrays have no user initializer. Saving and opening preserve exact POU texts;
 files without source extensions reconstruct equivalent declarations and indexed
 call bodies through the canonical XML representation.
+
+## Aggregate parameters and open arrays
+
+Array and structure parameters use the same TC6 type encoding as local values in
+`inputVars`, `outputVars` and `inOutVars`; aggregate function results use
+`returnType`. Named arrays/structures use `derived`; inline arrays use `array`.
+Whole-value initializers retain the existing `arrayValue`/`structValue` encoding.
+
+`ARRAY[*]` is stored as `<array><dimension lower="*" upper="*"/><baseType>...</baseType></array>`.
+Multiple open dimensions have one such `dimension` each. TC6 v2.01 bounds are
+strings, so this ADR 0015 convention is schema-valid. Both bounds must be `*` for
+an open dimension. The compiler restricts open arrays to direct VAR_IN_OUT
+parameters; the XML codec preserves representable section errors for editing.
+Source extensions preserve exact POU text, and files without them reconstruct
+canonical open-array declarations and aggregate function result types.

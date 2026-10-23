@@ -2,6 +2,7 @@ import {
   coerceValue,
   arrayType,
   structureType,
+  sameScalarType,
   type StructureVariable,
   type ArrayVariable,
   type InitialValue,
@@ -60,10 +61,19 @@ interface UserBlockCell {
   path: string;
   resetTemporaries(): void;
 }
-export type AggregateValue = (ScalarValue | AggregateValue)[];
-type ValueCell = ScalarCell | { kind: "aggregate"; elements: Cell[] };
+export interface AggregateValue {
+  dataType: TypeDescriptor;
+  elements: (ScalarValue | AggregateValue)[];
+}
+export function isAggregateValue(
+  value: ScalarValue | AggregateValue | null,
+): value is AggregateValue {
+  return value !== null && typeof value === "object";
+}
+type AggregateCell = { kind: "aggregate"; descriptor: TypeDescriptor; elements: Cell[] };
+type ValueCell = ScalarCell | AggregateCell;
 type Cell =
-  | { kind: "aggregate"; elements: Cell[] }
+  | AggregateCell
   | { kind: "unbound" }
   | ScalarCell
   | { kind: "functionBlock"; instance: FunctionBlockInstance }
@@ -80,6 +90,7 @@ function initialCell(
       if (array || structure)
         return {
           kind: "aggregate",
+          descriptor: type,
           elements: (value as InitialValue[]).map((v, i) =>
             create(structure ? structure.members[i]!.dataType : array!.element, v),
           ),
@@ -115,8 +126,14 @@ export class MemoryFrame implements ScanMemory {
     protected readonly types: TypeTable = [],
   ) {}
 
-  asAggregateCell(): Cell {
-    return { kind: "aggregate", elements: this.cells };
+  asAggregateCell(descriptor: TypeDescriptor): Cell {
+    return { kind: "aggregate", descriptor, elements: this.cells };
+  }
+
+  descriptor(variable: number): TypeDescriptor {
+    const cell = this.cells[variable];
+    if (!cell || !("descriptor" in cell)) throw new Error("Expected value storage");
+    return cell.descriptor;
   }
 
   element(variable: number, offset: number): MemoryFrame {
@@ -129,16 +146,23 @@ export class MemoryFrame implements ScanMemory {
   aggregateValue(variable: number): AggregateValue {
     const cell = this.cells[variable];
     if (cell?.kind !== "aggregate") throw new Error("Expected aggregate");
-    return cell.elements.map((child, i) => {
-      const frame = this.element(variable, i);
-      return child.kind === "aggregate" ? frame.aggregateValue(0) : frame.read(0);
-    });
+    return {
+      dataType: cell.descriptor,
+      elements: cell.elements.map((child, i) => {
+        const frame = this.element(variable, i);
+        return child.kind === "aggregate" ? frame.aggregateValue(0) : frame.read(0);
+      }),
+    };
   }
 
   assignAggregate(variable: number, values: AggregateValue): void {
-    values.forEach((value, i) => {
+    // Open-array formals can bind different actual types. Check the concrete
+    // descriptors before changing any destination leaf.
+    if (!sameScalarType(this.descriptor(variable), values.dataType, this.types))
+      throw new RangeError("Incompatible aggregate copy");
+    values.elements.forEach((value, i) => {
       const frame = this.element(variable, i);
-      if (Array.isArray(value)) frame.assignAggregate(0, value);
+      if (isAggregateValue(value)) frame.assignAggregate(0, value);
       else frame.write(0, value);
     });
   }
@@ -146,8 +170,8 @@ export class MemoryFrame implements ScanMemory {
   /** Share the actual cell, including when it is already an in-out alias. */
   bind(variable: number, caller: MemoryFrame, actual: number): void {
     const cell = caller.cells[actual];
-    if (!cell || (cell.kind !== "scalar" && cell.kind !== "long"))
-      throw new Error("Expected scalar in-out actual");
+    if (!cell || (cell.kind !== "scalar" && cell.kind !== "long" && cell.kind !== "aggregate"))
+      throw new Error("Expected value in-out actual");
     this.cells[variable] = cell;
   }
 
@@ -320,7 +344,7 @@ export class Memory extends MemoryFrame {
         if (slot.kind === "variable") return this.cells[slot.variable]!;
         if (slot.kind === "temporary") return initialCell(slot.variable, this.types);
         if (slot.kind === "array" || slot.kind === "structure")
-          return this.frame(slot.elements).asAggregateCell();
+          return this.frame(slot.elements).asAggregateCell(slot.dataType);
         let cell = this.instanceCells.get(slot.instance);
         if (!cell) {
           const instance = this.ir.instances![slot.instance]!;
@@ -352,7 +376,11 @@ export class Memory extends MemoryFrame {
     return new MemoryFrame(
       initial.map(function clone(cell: Cell): ValueCell {
         if (cell.kind === "aggregate")
-          return { kind: "aggregate", elements: cell.elements.map(clone) };
+          return {
+            kind: "aggregate",
+            descriptor: cell.descriptor,
+            elements: cell.elements.map(clone),
+          };
         if (cell.kind === "long") return { ...cell };
         if (cell.kind === "scalar") return { ...cell, value: { ...cell.value } };
         throw new Error("Instance in function initial storage");

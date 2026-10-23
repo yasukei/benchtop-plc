@@ -67,9 +67,9 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | ------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `VAR` with initial values                   | Partial | Scalar constant expressions including conversion calls; other calls and FB initializers are rejected                                                                                                                             |
 | Directly represented variables `%IX`, `%QX` | Partial | PROGRAM VAR only (restriction; no AT on VAR_TEMP); BOOL only, at `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7`                                                                                                                         |
-| `VAR_INPUT`, `VAR_OUTPUT`                   | Partial | Scalar function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                                                                                                                             |
+| `VAR_INPUT`, `VAR_OUTPUT`                   | Partial | Scalar/array/structure function parameters and FB ports; no PROGRAM parameters or instance parameters (restrictions)                                                                                                             |
 | `VAR_TEMP`                                  | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                                                                                             |
-| `VAR_IN_OUT`                                | Partial | Scalar FUNCTION/FUNCTION_BLOCK aliases; exact-type caller variable required every call; formal only, no initializers or instance/bit actuals (restrictions)                                                                      |
+| `VAR_IN_OUT`                                | Partial | Scalar/array/structure FUNCTION/FUNCTION_BLOCK aliases; exact-type variable/element/member required every call; formal only, no initializers or instance/bit actuals (restrictions)                                              |
 | `VAR_GLOBAL`, `VAR_EXTERNAL`                | No      | Deferred                                                                                                                                                                                                                         |
 | `CONSTANT`                                  | Partial | Elementary, alias, enum and subrange typed constants, only on `VAR`; no `AT` or FB instances. POU-local, earlier constants only; folded without runtime storage (ADR 0014)                                                       |
 | `RETAIN`, `NON_RETAIN`                      | No      |                                                                                                                                                                                                                                  |
@@ -78,6 +78,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Subranges                                   | Partial | Named/inline integer limits, lower-bound defaults, constant checks and runtime store faults; exact in-outs compare base and limits; forbidden as FOR controls (restriction; 3rd edition basis).                                  |
 | Arrays                                      | Partial | Up to three dimensions, 10,000 scalar leaves, nested arrays, initializers, indexing and whole-array assignment/selection; inline function block instance arrays with indexed calls and per-element state (ADR 0015).             |
 | Structures                                  | Partial | Named structures, member defaults, nested array/member access, initializers, whole-structure assignment/MOVE/SEL/MUX and scalar monitoring (ADR 0015).                                                                           |
+| Variable-length arrays                      | Partial | `ARRAY[*, ...]` only in direct VAR_IN_OUT, matching rank/element types, actual bounds and DINT LOWER_BOUND/UPPER_BOUND with constant dimension (ADR 0015; 3rd edition basis).                                                    |
 | References                                  | No      |                                                                                                                                                                                                                                  |
 
 ## Program organization units
@@ -249,7 +250,7 @@ Partial support of the standard's non-formal parameter list.
 Project restrictions: functions cannot declare VAR_TEMP or FB instances; PROGRAM
 cannot declare VAR_INPUT, VAR_OUTPUT or VAR_IN_OUT; direct addresses are allowed
 only in PROGRAM, and are forbidden in both functions and function blocks.
-EN/ENO remains deferred. CONSTANT is supported only on VAR, with elementary types and no AT. VAR_IN_OUT supports exact-type scalar caller variables in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
+EN/ENO remains deferred. CONSTANT is supported only on VAR, with elementary types and no AT. VAR_IN_OUT supports exact-type scalar/array/structure caller variables, elements and members in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
 Function locals, outputs and results are fresh per call. Operands and arguments
 evaluate left to right; the 200,000-iteration limit is shared by all calls in a scan.
 
@@ -286,8 +287,11 @@ and secondary sources, pending 4th edition verification (ADR 0015).
 Bounds must be constant integers fitting DINT. Each array has at most three
 dimensions and 10,000 elements; a variable has at most 10,000 scalar leaves.
 Arrays support elementary/string/enumeration/subrange, nested-array and structure elements.
-Array parameters/results, open dimensions
-(`ARRAY[*]`), constant arrays and whole-array comparisons remain unsupported.
+Arrays support copied inputs/outputs, whole function results and in-out aliases.
+Open dimensions (`ARRAY[*, ...]`) are allowed only directly in VAR_IN_OUT, with
+all dimensions open and a matching actual rank/element type. LOWER_BOUND and
+UPPER_BOUND return actual bounds as DINT; the dimension is a constant from 1 to
+the rank. Constant arrays and whole-array comparisons remain unsupported.
 Inline arrays of standard and user function block instances are supported in
 PROGRAM/FB VAR, including indexed formal calls, output bindings, public port
 access, independent state and cold reset. One timer/counter variant is selected
@@ -307,7 +311,7 @@ array members, member defaults, partial nested initializers, arbitrary access
 chains and whole-structure assignment/MOVE/SEL/MUX by name equivalence. Direct
 and indirect containment cycles are compile errors. A variable has at most 10,000
 scalar leaves. Function block members, aggregate constants, whole-structure
-comparisons, parameters/results (#128), OVERLAP and relative addresses remain
-unsupported. Scalar members support monitor writes/forces; PLCopen XML preserves
+comparisons, OVERLAP and relative addresses remain unsupported. Copied
+input/output parameters, in-out aliases and whole function results are supported. Scalar members support monitor writes/forces; PLCopen XML preserves
 nested declarations and initial values. These decisions follow ADR 0015's
 3rd-edition-based rules, pending 4th edition verification.
