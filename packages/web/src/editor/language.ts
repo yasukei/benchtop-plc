@@ -8,20 +8,21 @@ import {
 import { tags } from "@lezer/highlight";
 import { nextIndent, readStToken, type TokenizerState } from "./tokenizer.js";
 
-const language = StreamLanguage.define<TokenizerState>({
-  name: "Structured Text",
-  startState: () => ({ commentDepth: 0 }),
-  copyState: (state) => ({ ...state }),
-  token(stream, state) {
-    const token = readStToken(stream.string.slice(stream.pos), state);
-    stream.pos += token.length;
-    return token.style;
-  },
-  languageData: { commentTokens: { line: "//", block: { open: "(*", close: "*)" } } },
-});
+const language = (typeNames: ReadonlySet<string>) =>
+  StreamLanguage.define<TokenizerState>({
+    name: "Structured Text",
+    startState: () => ({ commentDepth: 0 }),
+    copyState: (state) => ({ ...state }),
+    token(stream, state) {
+      const token = readStToken(stream.string.slice(stream.pos), state, typeNames);
+      stream.pos += token.length;
+      return token.style;
+    },
+    languageData: { commentTokens: { line: "//", block: { open: "(*", close: "*)" } } },
+  });
 
-export const stLanguage = [
-  language,
+export const stLanguage = (typeNames: readonly string[] = []) => [
+  language(new Set(typeNames.map((name) => name.toUpperCase()))),
   indentUnit.of("  "),
   indentService.of((context, pos) => {
     const current = context.lineAt(pos, 1);

@@ -42,6 +42,8 @@ describe("browser autosave", () => {
     expect(storage.setItem).toHaveBeenCalledTimes(1);
     const restored = readAutosave(storage)!;
     expect(restored).toEqual({
+      dataTypes: [],
+      selectedDataType: null,
       pous: store.getSnapshot().pous,
       selectedPou: 0,
       layout: store.getSnapshot().layout,
@@ -50,7 +52,16 @@ describe("browser autosave", () => {
     });
     expect(restored.project?.contentHeader.name).toBeTruthy();
     expect(Object.keys(JSON.parse(storage.getItem()!)).sort()).toEqual(
-      ["version", "pous", "selectedPou", "layout", "cycleMs", "project"].sort(),
+      [
+        "version",
+        "pous",
+        "selectedPou",
+        "dataTypes",
+        "selectedDataType",
+        "layout",
+        "cycleMs",
+        "project",
+      ].sort(),
     );
     const fresh = createAppStore(new RuntimeClient(new FakeWorker()), restored);
     expect(fresh.getSnapshot()).toMatchObject({
@@ -132,6 +143,8 @@ describe("browser autosave", () => {
 
   it("accepts a record without project metadata and does not require the source to compile", () => {
     const work: SavedWork = {
+      dataTypes: [],
+      selectedDataType: null,
       pous: createPous([""]),
       selectedPou: 0,
       layout: [],
@@ -176,6 +189,8 @@ it("migrates the single-program metadata of a 0.3.0 autosave", () => {
   const legacy = { version: 1, ...work, project: { ...metadata, program: pous[0] } };
   const restored = readAutosave({ getItem: () => JSON.stringify(legacy), setItem: vi.fn() });
   expect(restored).toEqual({
+    dataTypes: [],
+    selectedDataType: null,
     pous: work.pous,
     selectedPou: 0,
     layout: work.layout,
@@ -185,7 +200,7 @@ it("migrates the single-program metadata of a 0.3.0 autosave", () => {
   store.dispose();
 });
 
-it("preserves all draft texts, previous names and selection in version 2", () => {
+it("preserves all draft texts, previous names and selection in version 3", () => {
   const { store, storage } = setup();
   const autosave = createAutosave(store, storage);
   store.addFunction();
@@ -196,7 +211,7 @@ it("preserves all draft texts, previous names and selection in version 2", () =>
   expect(restored.pous).toEqual(store.getSnapshot().pous);
   expect(restored.selectedPou).toBe(2);
   expect(restored.pous[2]).toMatchObject({ name: "F2", source: "FUNCTION", kind: "FUNCTION" });
-  expect(JSON.parse(storage.getItem()!).version).toBe(2);
+  expect(JSON.parse(storage.getItem()!).version).toBe(3);
   autosave.dispose();
   store.dispose();
 });
@@ -234,6 +249,8 @@ it.each([
   { selectedPou: "0" },
 ])("rejects invalid version 2 work %j", (invalid) => {
   const work: SavedWork = {
+    dataTypes: [],
+    selectedDataType: null,
     pous: createPous(["PROGRAM Main END_PROGRAM"]),
     selectedPou: 0,
     layout: [],
@@ -290,5 +307,79 @@ it("migrates project metadata without data types and rejects malformed type sour
     JSON.stringify({ ...work, project: { ...legacy, dataTypes } }),
   );
   expect(readAutosave(storage)?.project?.dataTypes).toEqual(dataTypes);
+  expect(readAutosave(storage)?.dataTypes.map((type) => type.source)).toEqual(dataTypes);
   store.dispose();
+});
+
+it("restores 0.4.0 autosaves with all POUs, drafts and selection intact", () => {
+  const pous = [
+    { source: "FUNCTION", name: "F1", kind: "FUNCTION" },
+    { source: "PROGRAM Main END_PROGRAM", name: "Main", kind: "PROGRAM" },
+  ];
+  const legacy = { version: 2, pous, selectedPou: 0, project: null, layout: [], cycleMs: 20 };
+  const restored = readAutosave({ getItem: () => JSON.stringify(legacy), setItem: vi.fn() })!;
+  expect(restored).toEqual({
+    pous,
+    selectedPou: 0,
+    project: null,
+    layout: [],
+    cycleMs: 20,
+    dataTypes: [],
+    selectedDataType: null,
+  });
+  const store = createAppStore(new RuntimeClient(new FakeWorker()), restored);
+  expect(store.getSnapshot()).toMatchObject({ pous, selectedPou: 0, source: "FUNCTION" });
+  store.dispose();
+});
+
+it("autosaves type drafts and previous names independently of project metadata", () => {
+  const { store, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  store.addDataType();
+  store.setSource("TYPE State : (Idle, Running); END_TYPE");
+  store.setSource("TYPE");
+  autosave.flush();
+  const restored = readAutosave(storage)!;
+  expect(restored).toMatchObject({
+    selectedDataType: 0,
+    dataTypes: [{ source: "TYPE", name: "State", kind: "TYPE" }],
+  });
+  const fresh = createAppStore(new RuntimeClient(new FakeWorker()), restored);
+  expect(fresh.getSnapshot()).toMatchObject({ source: "TYPE", selectedDataType: 0 });
+  expect(fresh.getSnapshot().diagnostics).toContainEqual(
+    expect.objectContaining({ sourceKind: "dataType", sourceIndex: 0 }),
+  );
+  store.selectPou(0);
+  autosave.flush();
+  expect(readAutosave(storage)?.selectedDataType).toBeNull();
+  store.deleteDataType(0);
+  autosave.flush();
+  expect(readAutosave(storage)?.dataTypes).toEqual([]);
+  fresh.dispose();
+  autosave.dispose();
+  store.dispose();
+});
+
+it.each([
+  { dataTypes: null },
+  { dataTypes: ["TYPE State : INT; END_TYPE"] },
+  { dataTypes: [{ name: "State", source: "TYPE", kind: "PROGRAM" }] },
+  { selectedDataType: -1 },
+  { selectedDataType: 0 },
+  { selectedDataType: 0.5 },
+  { selectedDataType: "0" },
+  { selectedDataType: undefined },
+])("rejects malformed version 3 type state %j", (invalid) => {
+  const work = {
+    version: 3,
+    pous: [],
+    selectedPou: 0,
+    dataTypes: [],
+    selectedDataType: null,
+    project: null,
+    layout: [],
+    cycleMs: 10,
+    ...invalid,
+  };
+  expect(readAutosave({ getItem: () => JSON.stringify(work), setItem: vi.fn() })).toBeNull();
 });

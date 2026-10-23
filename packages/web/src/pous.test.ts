@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDataType,
+  createDataTypes,
+  deriveDataType,
+  deleteDataType,
+  diagnosticSourceMatches,
   addFunction,
   addFunctionBlock,
   compilePous,
@@ -119,4 +124,33 @@ it("adds a compilable function block with a unique case-insensitive name", () =>
   expect(added.at(-1)).toMatchObject({ name: "FB2", kind: "FUNCTION_BLOCK" });
   expect(compilePous(added).diagnostics).toEqual([]);
   expect(addFunctionBlock(added).at(-1)?.name).toBe("FB3");
+});
+
+it("adds types in order with names shared with POUs and preserves damaged names", () => {
+  const pous = createPous(["PROGRAM type1 END_PROGRAM"]);
+  const types = addDataType([], pous);
+  expect(types[0]).toMatchObject({ name: "Type2", kind: "TYPE" });
+  expect(compilePous(pous, pouSources(types)).ir).toBeDefined();
+  const renamed = deriveDataType("(* comment *) TYPE State : (Idle, Running); END_TYPE", types[0]);
+  expect(renamed.name).toBe("State");
+  expect(deriveDataType("TYPE", renamed)).toEqual({ ...renamed, source: "TYPE" });
+  expect(deriveDataType("TYPE Renamed : @", renamed).name).toBe("Renamed");
+  const damaged = deriveDataType("TYPE", types[0]);
+  const added = addDataType([damaged], pous);
+  expect(added.map((type) => type.name)).toEqual(["Type2", "Type3"]);
+  expect(deleteDataType(added, 0)).toEqual([added[1]]);
+  expect(deleteDataType(added, -1)).toBe(added);
+  expect(deleteDataType(added, 9)).toBe(added);
+  const reserved = createDataTypes(["TYPE f1 : INT; END_TYPE", "TYPE fb1 : INT; END_TYPE"]);
+  expect(addFunction(pous, reserved).at(-1)?.name).toBe("F2");
+  expect(addFunctionBlock(pous, reserved).at(-1)?.name).toBe("FB2");
+});
+
+it("keeps type and POU diagnostic locations separate even with the same index", () => {
+  const result = compilePous(createPous(["PROGRAM Main missing := 1; END_PROGRAM"]), ["TYPE"]);
+  const typeError = result.diagnostics.find((diagnostic) => diagnostic.sourceKind === "dataType")!;
+  expect(typeError.sourceIndex).toBe(0);
+  expect(diagnosticSourceMatches(typeError, 0, 0)).toBe(true);
+  expect(diagnosticSourceMatches(typeError, 0, null)).toBe(false);
+  expect(diagnosticSourceMatches({ ...typeError, sourceKind: "pou" }, 0, 0)).toBe(false);
 });

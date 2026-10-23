@@ -1,3 +1,4 @@
+import { compileProject } from "@benchtop-plc/compiler";
 import { expect, it } from "vitest";
 import { blockTypeAt } from "./block-hover.js";
 
@@ -32,4 +33,42 @@ it("keeps block hovers available when the project uses declared data types", () 
     blockTypeAt([source], 0, source.indexOf("c :"), ["TYPE State : (Idle, Running); END_TYPE"])
       ?.text,
   ).toBe("c: CTU_DINT");
+});
+
+it("shows declared named and inline types on variables in every POU kind", () => {
+  const types = ["TYPE State : (Idle, Running); END_TYPE", "TYPE Speed : INT; END_TYPE"];
+  const main =
+    "PROGRAM Main VAR phase : State; percent : INT (0..100); END_VAR phase := State#Running; END_PROGRAM";
+  expect(compileProject([main], types).diagnostics).toEqual([]);
+  for (const position of [main.indexOf("phase :"), main.indexOf("phase :=")])
+    expect(blockTypeAt([main], 0, position, types)?.text).toBe("phase: State");
+  expect(blockTypeAt([main], 0, main.indexOf("percent"), types)?.text).toBe(
+    "percent: INT (0..100)",
+  );
+  const fn = "FUNCTION F : Speed VAR_INPUT n : Speed; END_VAR F := n; END_FUNCTION";
+  expect(blockTypeAt([main, fn], 1, fn.indexOf("n;"), types)?.text).toBe("n: Speed");
+  const block =
+    "FUNCTION_BLOCK Block VAR_OUTPUT s : State; END_VAR s := State#Idle; END_FUNCTION_BLOCK";
+  expect(blockTypeAt([main, block], 1, block.indexOf("s :="), types)?.text).toBe("s: State");
+});
+
+it("distinguishes formal parameter names from same-named local variables", () => {
+  const main = `PROGRAM Main
+VAR t : TON; IN, Q : BOOL; n : DINT; END_VAR
+t(IN := IN, PT := T#1s, Q => Q);
+n := F(n := n);
+END_PROGRAM`;
+  const fn = "FUNCTION F : DINT VAR_INPUT n : LINT; END_VAR F := LINT_TO_DINT(n); END_FUNCTION";
+  const sources = [main, fn];
+  expect(compileProject(sources).diagnostics).toEqual([]);
+  for (const formal of ["IN :=", "Q =>", "n := n)"])
+    expect(blockTypeAt(sources, 0, main.indexOf(formal))).toBeNull();
+  for (const [actual, expected] of [
+    ["IN, PT", "IN: BOOL"],
+    ["Q);", "Q: BOOL"],
+    ["n);", "n: DINT"],
+  ])
+    expect(blockTypeAt(sources, 0, main.indexOf(actual!))?.text).toBe(expected);
+  // A declaration after a comma is still a variable, not a formal argument.
+  expect(blockTypeAt(sources, 0, main.indexOf("Q :"))?.text).toBe("Q: BOOL");
 });

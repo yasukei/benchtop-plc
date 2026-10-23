@@ -18,6 +18,9 @@ export function blockTypeAt(
     }) ?? -1;
   const token = tokens?.[index];
   if (token?.kind !== "identifier" || tokens?.[index - 1]?.key === ".") return null;
+  const previous = tokens?.[index - 1]?.key;
+  const next = tokens?.[index + 1]?.key;
+  if ((previous === "(" || previous === ",") && (next === ":=" || next === "=>")) return null;
   const ast = parsePou(source).ast;
   if (!ast) return null;
   const ir = compileProject(sources, dataTypes).ir;
@@ -27,6 +30,13 @@ export function blockTypeAt(
       ? ir.variables
       : ir.functionBlocks?.find((block) => block.name.toUpperCase() === ast.name.key)?.variables;
   const variable = variables?.find((item) => item.key === token.key);
-  if (variable?.kind !== "functionBlock") return null;
-  return { ...spanRange(source, token.span), text: `${token.text}: ${variable.fbType}` };
+  const declaration = ast.declarations.find((declaration) =>
+    declaration.names.some((name) => name.key === token.key),
+  );
+  if (!declaration) return null;
+  const typeRange = spanRange(source, declaration.typeName.span);
+  const end = declaration.subrange ? spanRange(source, declaration.subrange.span).to : typeRange.to;
+  const type =
+    variable?.kind === "functionBlock" ? variable.fbType : source.slice(typeRange.from, end);
+  return { ...spanRange(source, token.span), text: `${token.text}: ${type}` };
 }

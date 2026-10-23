@@ -184,7 +184,12 @@ test("preserves an unresolved enum type default without routing its diagnostic i
   });
   const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
   await expect(diagnostics).toContainText("Missing");
-  await expect(diagnostics.getByRole("button")).toBeDisabled();
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await expect(editor).toContainText("PROGRAM Main");
+  await expect(page.locator(".cm-lintRange-error")).toHaveCount(0);
+  await diagnostics.getByRole("button").click();
+  await expect(editor).toHaveText(dataTypes[0]!);
+  await expect(page.locator(".cm-lintRange-error")).not.toHaveCount(0);
   const list = page.getByRole("region", { name: "POUs", exact: true });
   await expect(list.getByRole("button", { name: /^Main/ })).toContainText("Diagnostics: 0");
   await expect(page.getByRole("button", { name: "Single scan", exact: true })).toBeDisabled();

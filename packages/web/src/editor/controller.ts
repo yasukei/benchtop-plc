@@ -17,6 +17,7 @@ import { catalogs, type Language } from "../catalog.js";
 import { formatDiagnostic } from "../diagnostic-catalog.js";
 import { insertSpacesOrIndent } from "./commands.js";
 import { stLanguage } from "./language.js";
+import { createDataTypes } from "../pous.js";
 import { blockTypeAt } from "./block-hover.js";
 import { mapAnnotations, spanRange, type InlineAnnotation } from "./mapping.js";
 
@@ -73,13 +74,14 @@ export function createStEditor(
   onChange: (source: string) => void,
 ) {
   const accessibility = new Compartment();
+  const highlighting = new Compartment();
   let previous: EditorProps | undefined;
   const view = new EditorView({
     parent,
     state: EditorState.create({
       doc: source,
       extensions: [
-        stLanguage,
+        highlighting.of(stLanguage()),
         history(),
         lineNumbers(),
         drawSelection(),
@@ -161,6 +163,13 @@ export function createStEditor(
         );
       }
       const effects: StateEffect<unknown>[] = [displayEffect.of(Decoration.set(decorations, true))];
+      if (JSON.stringify(previous?.dataTypes) !== JSON.stringify(props.dataTypes)) {
+        effects.push(
+          highlighting.reconfigure(
+            stLanguage(createDataTypes(props.dataTypes ?? []).map((type) => type.name)),
+          ),
+        );
+      }
       if (previous?.language !== props.language) {
         const text = catalogs[props.language];
         effects.push(

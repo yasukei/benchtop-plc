@@ -1,7 +1,7 @@
 import { compileProject } from "@benchtop-plc/compiler";
 import {
   diagnosticPouIndex,
-  diagnosticPouSourceIndex,
+  diagnosticSourceMatches,
   pouSources,
   sameSources,
   type EditorDiagnostic,
@@ -27,18 +27,20 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const loadedIr = useMemo(
     () =>
       state.loadedSources
-        ? compileProject(state.loadedSources, state.project?.dataTypes).ir
+        ? compileProject(state.loadedSources, state.loadedDataTypes ?? []).ir
         : undefined,
-    [state.loadedSources, state.project?.dataTypes],
+    [state.loadedSources, state.loadedDataTypes],
   );
   const variables = loadedIr?.variables ?? [];
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
   const banner = bannerFor(state);
   const editor = useRef<StEditorHandle>(null);
-  const unapplied = !sameSources(pouSources(state.pous), state.loadedSources);
+  const unapplied =
+    !sameSources(pouSources(state.pous), state.loadedSources) ||
+    !sameSources(pouSources(state.dataTypes), state.loadedDataTypes);
   const online = !unapplied && !disconnected;
-  const selected = state.pous[state.selectedPou];
+  const selected = state.selectedDataType === null ? state.pous[state.selectedPou] : undefined;
   const faultIndex = state.diagnostic
     ? diagnosticPouIndex(state.pous, state.diagnostic)
     : undefined;
@@ -50,7 +52,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   useLayoutEffect(() => {
     if (pendingFocus.current?.span) editor.current?.focusSpan(pendingFocus.current.span);
     pendingFocus.current = null;
-  }, [state.selectedPou]);
+  }, [state.editorSession]);
 
   return (
     <div className="workbench" data-theme={appearance.resolved}>
@@ -175,15 +177,19 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 ref={editor}
                 source={state.source}
                 sources={pouSources(state.pous)}
-                dataTypes={state.project?.dataTypes}
-                sourceIndex={state.selectedPou}
+                dataTypes={pouSources(state.dataTypes)}
+                sourceIndex={state.selectedDataType === null ? state.selectedPou : -1}
                 onChange={store.setSource}
-                diagnostics={state.diagnostics.filter(
-                  (diagnostic) => diagnosticPouSourceIndex(diagnostic) === state.selectedPou,
+                diagnostics={state.diagnostics.filter((diagnostic) =>
+                  diagnosticSourceMatches(diagnostic, state.selectedPou, state.selectedDataType),
                 )}
                 snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
                 online={online}
-                fault={faultIndex === state.selectedPou ? state.diagnostic : null}
+                fault={
+                  state.selectedDataType === null && faultIndex === state.selectedPou
+                    ? state.diagnostic
+                    : null
+                }
                 language={language}
               />
             </div>
@@ -196,14 +202,21 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                   {diagnostics.map((diagnostic, index) => (
                     <li key={index}>
                       <button
-                        disabled={
-                          !diagnostic.span || diagnosticPouSourceIndex(diagnostic) === undefined
-                        }
+                        disabled={!diagnostic.span || diagnostic.sourceIndex === undefined}
                         onClick={() => {
-                          const sourceIndex = diagnosticPouSourceIndex(diagnostic);
-                          if (sourceIndex !== undefined && sourceIndex !== state.selectedPou) {
+                          const sourceIndex = diagnostic.sourceIndex;
+                          if (
+                            sourceIndex !== undefined &&
+                            !diagnosticSourceMatches(
+                              diagnostic,
+                              state.selectedPou,
+                              state.selectedDataType,
+                            )
+                          ) {
                             pendingFocus.current = diagnostic;
-                            store.selectPou(sourceIndex);
+                            if (diagnostic.sourceKind === "dataType")
+                              store.selectDataType(sourceIndex);
+                            else store.selectPou(sourceIndex);
                           } else if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
                         }}
                       >
@@ -231,7 +244,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             <OperatorPanel state={state} store={store} text={text} language={language} />
             <IoImage state={state} text={text} />
             <VariableMonitor
-              key={JSON.stringify(state.loadedSources)}
+              key={JSON.stringify([state.loadedSources, state.loadedDataTypes])}
               state={state}
               store={store}
               text={text}

@@ -1,5 +1,12 @@
 import type { Project } from "@benchtop-plc/project";
-import { createPous, derivePou, initialPouIndex, type EditorPou } from "./pous.js";
+import {
+  createDataTypes,
+  createPous,
+  derivePou,
+  type EditorDataType,
+  initialPouIndex,
+  type EditorPou,
+} from "./pous.js";
 import type { BrowserStorage } from "./browser-storage.js";
 import { readLayout, type PanelLayout } from "./panel/layout.js";
 
@@ -8,6 +15,8 @@ export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
+  dataTypes: EditorDataType[];
+  selectedDataType: number | null;
   pous: EditorPou[];
   selectedPou: number;
   layout: PanelLayout;
@@ -73,7 +82,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
       value.project.pous = [value.project.program];
       delete value.project.program;
     }
-    if (!record(value) || ![1, 2].includes(value.version as number)) return null;
+    if (!record(value) || ![1, 2, 3].includes(value.version as number)) return null;
     // Older autosaves predate the separate data type source list.
     if (record(value.project) && value.project.dataTypes === undefined)
       value.project.dataTypes = [];
@@ -113,11 +122,40 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
       pous = value.pous as EditorPou[];
       selectedPou = value.selectedPou as number;
     }
+    let dataTypes: EditorDataType[];
+    let selectedDataType: number | null;
+    if (value.version === 3) {
+      if (
+        !Array.isArray(value.dataTypes) ||
+        !value.dataTypes.every(
+          (type: unknown) =>
+            record(type) &&
+            typeof type.source === "string" &&
+            typeof type.name === "string" &&
+            type.kind === "TYPE",
+        )
+      )
+        return null;
+      dataTypes = value.dataTypes as EditorDataType[];
+      if (
+        value.selectedDataType !== null &&
+        (!Number.isInteger(value.selectedDataType) ||
+          (value.selectedDataType as number) < 0 ||
+          (value.selectedDataType as number) >= dataTypes.length)
+      )
+        return null;
+      selectedDataType = value.selectedDataType as number | null;
+    } else {
+      dataTypes = createDataTypes(value.project?.dataTypes ?? []);
+      selectedDataType = null;
+    }
     const layout = readLayout(value.layout);
     if (!layout) return null;
     return {
       pous,
       selectedPou,
+      dataTypes,
+      selectedDataType,
       layout,
       cycleMs: value.cycleMs as CycleMs,
       project: value.project,
@@ -142,7 +180,7 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
     clearTimeout(timer);
     if (!pending) return;
     try {
-      storage?.setItem(autosaveStorageKey, JSON.stringify({ version: 2, ...pending }));
+      storage?.setItem(autosaveStorageKey, JSON.stringify({ version: 3, ...pending }));
     } catch {
       // Editing remains available when storage is blocked or full.
     }
@@ -151,6 +189,8 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
   const unsubscribe = store.subscribe(() => {
     const next = store.getSnapshot();
     if (
+      next.dataTypes === previous.dataTypes &&
+      next.selectedDataType === previous.selectedDataType &&
       next.pous === previous.pous &&
       next.selectedPou === previous.selectedPou &&
       next.layout === previous.layout &&
@@ -160,6 +200,8 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
       return;
     previous = next;
     pending = {
+      dataTypes: next.dataTypes,
+      selectedDataType: next.selectedDataType,
       pous: next.pous,
       selectedPou: next.selectedPou,
       layout: next.layout,
