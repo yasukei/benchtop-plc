@@ -54,8 +54,8 @@ type editor/list belongs to #122.
 ASTs, returning a type table and diagnostics without requiring a complete program.
 The project codec uses it to fold enum values and subrange bounds and to check
 initializers with project types in scope.
-Until TC6 mapping is available, XML export explicitly rejects inline subranges,
-so their limits cannot be silently discarded.
+PLCopen XML preserves inline subranges through signed or unsigned TC6 subrange
+elements; see [project-format.md](project-format.md#data-type-mapping).
 
 ## Representation
 
