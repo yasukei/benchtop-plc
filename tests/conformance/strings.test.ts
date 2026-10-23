@@ -74,6 +74,44 @@ it("uses the common character type for selection, ordering and MOVE", () => {
   expect(runtime.diagnostic).toBeNull();
 });
 
+it.each([
+  ["CHAR", "STRING", "'"],
+  ["WCHAR", "WSTRING", '"'],
+])(
+  "widens %s beside untyped literals in operands and generic arguments",
+  (character, string, quote) => {
+    const literal = (text: string) => `${quote}${text}${quote}`;
+    const { runtime, value } = setup([
+      `PROGRAM Main
+    VAR ch : ${character} := ${literal("A")};
+      equal, reversed, ordered : BOOL;
+      first, second, multiplexed, largest, smallest, limited : ${string};
+    END_VAR
+    equal := ch = ${literal("AB")}; reversed := (${literal("AB")}) <> ch;
+    ordered := LT(ch, ${literal("AB")}, ${literal("abc")});
+    first := SEL(FALSE, ch, ${literal("abc")});
+    second := SEL(TRUE, ch, (${literal("abc")}));
+    multiplexed := MUX(1, ch, ${literal("abc")});
+    largest := MAX(ch, ${literal("abc")}); smallest := MIN(${literal("abc")}, ch);
+    limited := LIMIT(ch, ${literal("abc")}, ${literal("z")});
+    END_PROGRAM`,
+    ]);
+    const snapshot = runtime.step();
+    for (const [name, expected] of Object.entries({ equal: false, reversed: true, ordered: true }))
+      expect(value(snapshot, name)).toMatchObject({ dataType: "BOOL", value: expected });
+    for (const [name, expected] of Object.entries({
+      first: "A",
+      second: "abc",
+      multiplexed: "abc",
+      largest: "abc",
+      smallest: "A",
+      limited: "abc",
+    }))
+      expect(value(snapshot, name)).toMatchObject({ dataType: string, value: expected });
+    expect(runtime.diagnostic).toBeNull();
+  },
+);
+
 it("truncates inputs, outputs, results and in-outs at the actual storage capacity", () => {
   const { runtime, value } = setup([
     `PROGRAM Main VAR text : STRING := 'abcdef'; shortText : STRING[2]; resultText : STRING[3]; outputText : STRING[1]; unit : EchoBlock; END_VAR

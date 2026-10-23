@@ -876,7 +876,8 @@ class Checker {
     }
   }
 
-  /** Original typed neighbors supply a type only to whole untyped constants.
+  /** Original typed neighbors supply a type only to whole untyped numeric constants.
+   * Quoted literals keep their default STRING/WSTRING type in operand positions.
    * Defaults chosen for other constants never influence this contextual type. TIME scaling
    * has independent operand types, so its numeric factor uses the default. */
   private operands(
@@ -935,7 +936,7 @@ class Checker {
           ? characterLiteral(value.expression)
           : value.kind === "literal" && value.literalKind === "string" && !value.dataType;
       if (characterLiteral(node)) {
-        infos[index] = this.expression(node, common ?? defaultExpected);
+        infos[index] = this.expression(node);
         pending.delete(index);
         continue;
       }

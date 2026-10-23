@@ -137,16 +137,19 @@ it.each([
   ).toBeUndefined();
 });
 
-it.each(["ch := MOVE('A');", "ch := SEL(TRUE, 'A', 'B');", "ch := MUX(0, 'A', 'B');"])(
-  "keeps destination types out of larger string expressions: %s",
-  (body) => {
-    const result = program("ch : CHAR;", body);
-    expect(result.ir).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "type.assign-mismatch" }),
-    );
-  },
-);
+it.each([
+  "ch := MOVE('A');",
+  "ch := SEL(TRUE, 'A', 'B');",
+  "ch := MUX(0, 'A', 'B');",
+  "ch := SEL(TRUE, ch, 'B');",
+  "ch := MAX(ch, 'B');",
+])("keeps destination types out of larger string expressions: %s", (body) => {
+  const result = program("ch : CHAR;", body);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "type.assign-mismatch" }),
+  );
+});
 
 it("rejects a capacity suffix on a named alias", () => {
   const result = compileProject(
