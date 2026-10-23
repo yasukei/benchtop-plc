@@ -4,6 +4,10 @@ import type { DataType } from "@benchtop-plc/core";
 
 it("allows precisely identity and the current ADR 0013 widening paths", () => {
   const paths: Record<DataType, string> = {
+    STRING: "",
+    WSTRING: "",
+    CHAR: "STRING",
+    WCHAR: "WSTRING",
     DATE: "LDATE",
     TOD: "LTOD",
     DT: "LDT",

@@ -405,3 +405,24 @@ and output de-energization rules. Values and limits use decimal strings for 64-b
 bases to preserve precision in diagnostics. Arithmetic itself uses the base type;
 only storage applies the range. Cold reset and fresh function/temporary frames
 restore declared defaults, including the lower-bound default of a subrange.
+
+## Strings and character storage
+
+Character data uses JavaScript strings inside execution; long numeric values use
+`bigint`. Every evaluated literal, variable and function result is converted by
+its scalar type before participating in an operation. This keeps STRING `'123'`
+distinct from LINT 123 without guessing from its contents. Snapshots, annotations
+and Worker commands retain JSON-safe typed values.
+
+String stores keep the first code units up to the destination's capacity, without
+faulting. This applies to ordinary assignments, function and FB inputs, outputs,
+results, temporaries and in-out aliases. In-outs share the caller's storage, so
+the caller's capacity applies even when the formal parameter has another length.
+CHAR/WCHAR hold exactly one unit. Single-byte values reject units above 16#FF.
+Comparisons order code units lexicographically, including prefix ordering; generic
+selection, MIN/MAX/LIMIT and MOVE operate on strings and characters.
+
+Monitor writes and forces validate the complete value before queueing or changing
+storage. A wrong scalar type, invalid character representation or value exceeding
+capacity is rejected without truncation, changing a prior force or latching a
+runtime fault. Cold reset and fresh POU storage restore their declared defaults.

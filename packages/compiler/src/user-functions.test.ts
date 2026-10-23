@@ -126,8 +126,8 @@ describe("project-wide POU compilation", () => {
     },
   );
   it.each([
-    "FUNCTION F : STRING END_FUNCTION",
-    "FUNCTION F VAR_INPUT A: STRING; END_VAR END_FUNCTION",
+    "FUNCTION F : MissingType END_FUNCTION",
+    "FUNCTION F VAR_INPUT A: MissingType; END_VAR END_FUNCTION",
   ])("rejects unsupported function types", (source) => {
     rejects([main(), source], "decl.unknown-type", "F");
   });

@@ -1,5 +1,6 @@
 import {
   coerceValue,
+  internalValue,
   scalarBase,
   SubrangeViolation,
   convertValue,
@@ -112,7 +113,7 @@ export class Interpreter {
 
   expression(expr: Expression): ScalarValue {
     try {
-      return this.evaluate(expr);
+      return internalValue(this.base(expr.dataType), this.evaluate(expr));
     } catch (error) {
       if (error instanceof RangeError) throw this.invalidValue(error, expr.span);
       throw error;
@@ -164,9 +165,7 @@ export class Interpreter {
             ? timeBinary(
                 expr.operator as "+" | "-" | "*" | "/",
                 Number(left),
-                typeof right === "string" || typeof right === "bigint"
-                  ? BigInt(right)
-                  : Number(right),
+                typeof right === "bigint" ? BigInt(right) : Number(right),
                 this.base(expr.right.dataType),
               )
             : coerceValue(

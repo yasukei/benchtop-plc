@@ -407,3 +407,27 @@ Subrange operands use their base for arithmetic and elementary generic functions
 Exact-type positions (in-outs) compare base and limits, whether named or anonymous;
 a subrange never exactly matches its base. A subrange or enum cannot control a
 FOR loop (`type.for-variable-not-integer`).
+
+## Strings and characters
+
+STRING and WSTRING default to capacity 80; `[n]` accepts an integer literal from
+1 through 1,024. CHAR and WCHAR hold exactly one code unit, defaulting to zero;
+strings default to empty text. All four work as variables, aliases, CONSTANTs,
+POU parameters and function results. Aliases preserve declared capacities and
+default initializers. Length is a storage capacity, never type identity, including
+in-out parameters.
+
+An untyped single-quoted literal takes STRING or CHAR from its immediate typed
+position; a double-quoted literal takes WSTRING or WCHAR. Without context they
+are STRING and WSTRING. Typed prefixes fix the type and require the matching
+quote width. Invalid character counts and constants exceeding a destination's
+capacity report `type.invalid-constant`; dynamic values are truncated on storage.
+The only implicit character conversions are CHAR → STRING and WCHAR → WSTRING.
+STRING and WSTRING have no common type. Numeric-looking text stays text.
+
+Comparisons and GT/GE/EQ/LE/LT/NE compare code units lexicographically; a prefix
+sorts first. MIN, MAX, LIMIT, MOVE, SEL and MUX accept character values. Their
+common type follows ADR 0013, so CHAR mixed with STRING produces STRING, and
+WCHAR mixed with WSTRING produces WSTRING. Arithmetic and bit operations reject
+character types. String functions and explicit character conversions follow in
+issue #124.

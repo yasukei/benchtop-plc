@@ -10,3 +10,4 @@ export * from "./operators.js";
 export * from "./rounding.js";
 export * from "./calendar.js";
 export * from "./types.js";
+export * from "./strings.js";

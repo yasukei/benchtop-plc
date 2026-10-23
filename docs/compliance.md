@@ -33,19 +33,19 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Elementary data types
 
-| Type                                            | Status | Notes                                                                      |
-| ----------------------------------------------- | ------ | -------------------------------------------------------------------------- |
-| BOOL                                            | Yes    |                                                                            |
-| INT, DINT, UINT                                 | Yes    |                                                                            |
-| SINT, USINT, UDINT                              | Yes    |                                                                            |
-| LINT, ULINT                                     | Yes    | Canonical decimal strings, bigint arithmetic                               |
-| BYTE, WORD, DWORD                               | Yes    | Unsigned bit patterns, formatted with full-width hexadecimal digits        |
-| LWORD                                           | Yes    | 64-bit patterns, hexadecimal display and bit access through bit 63         |
-| REAL, LREAL                                     | Yes    | REAL uses binary32 at every result; LREAL uses binary64                    |
-| TIME                                            | Yes    | Signed 32-bit milliseconds (ADR 0012)                                      |
-| LTIME                                           | Yes    | Signed 64-bit nanoseconds; LT#/LTIME#, including us/ns                     |
-| DATE, TIME_OF_DAY, DATE_AND_TIME and long forms | Yes    | ADR 0012 ranges; TOD/DT/LTOD/LDT aliases; long forms use exact nanoseconds |
-| CHAR, WCHAR, STRING, WSTRING                    | No     |                                                                            |
+| Type                                            | Status | Notes                                                                          |
+| ----------------------------------------------- | ------ | ------------------------------------------------------------------------------ |
+| BOOL                                            | Yes    |                                                                                |
+| INT, DINT, UINT                                 | Yes    |                                                                                |
+| SINT, USINT, UDINT                              | Yes    |                                                                                |
+| LINT, ULINT                                     | Yes    | Canonical decimal strings, bigint arithmetic                                   |
+| BYTE, WORD, DWORD                               | Yes    | Unsigned bit patterns, formatted with full-width hexadecimal digits            |
+| LWORD                                           | Yes    | 64-bit patterns, hexadecimal display and bit access through bit 63             |
+| REAL, LREAL                                     | Yes    | REAL uses binary32 at every result; LREAL uses binary64                        |
+| TIME                                            | Yes    | Signed 32-bit milliseconds (ADR 0012)                                          |
+| LTIME                                           | Yes    | Signed 64-bit nanoseconds; LT#/LTIME#, including us/ns                         |
+| DATE, TIME_OF_DAY, DATE_AND_TIME and long forms | Yes    | ADR 0012 ranges; TOD/DT/LTOD/LDT aliases; long forms use exact nanoseconds     |
+| CHAR, WCHAR, STRING, WSTRING                    | Yes    | ADR 0015: single-byte or UTF-16 code units; default capacity 80, maximum 1,024 |
 
 ## Literals
 
@@ -59,6 +59,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Duration literals `T#`, `TIME#`, `LT#`, `LTIME#` | Yes     | Units d/h/m/s/ms, plus us/ns for LTIME; exact range checks precede TIME truncation                                    |
 | Typed literals `<type>#<value>`                  | Partial | All supported elementary types; based integer and bit-string forms included                                           |
 | Date and time-of-day literals                    | Yes     | All short and full prefixes; unpadded fields and underscore separators; Gregorian dates, precision and ranges checked |
+| String and character literals                    | Yes     | Single/double quotes, typed prefixes, dollar escapes; CHAR/WCHAR require one code unit (ADR 0015)                     |
 
 ## Derived types and variables
 
@@ -259,3 +260,17 @@ outputs after the call. Load/cold reset initializes every nested instance, inclu
 standard FB private state; STOP/RUN and FAULT preserve it. Every persistent scalar
 member has a dotted monitor identity for snapshots, writes and forces. These
 ADR 0014 access, restart and recursion choices still await 4th-edition verification.
+
+### Character data restrictions
+
+STRING/WSTRING capacities use `[n]` with an integer literal, 1–1,024 (default 80);
+`STRING(n)` is rejected. Single-byte data uses ISO/IEC 8859-1 code units; wide data
+uses UTF-16 code units, so a surrogate pair occupies two units. Physical line
+breaks in literals are rejected. Constants exceeding a destination's capacity
+are compile errors; dynamic stores truncate without a fault. Length does not
+participate in type identity, including in-outs. CHAR → STRING and WCHAR → WSTRING
+are the only implicit character conversions. Comparisons and MIN/MAX/LIMIT use
+code-unit ordering with a prefix first; SEL/MUX use the ADR 0013 common type.
+String functions and explicit conversions are tracked by #124; arrays and
+structures of strings remain unsupported. These decisions follow the 3rd edition
+and secondary sources, pending 4th edition verification (ADR 0015).

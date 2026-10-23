@@ -1,3 +1,4 @@
+import { isCharacterType, DEFAULT_STRING_LENGTH } from "./strings.js";
 import {
   validateValue,
   type DataType,
@@ -76,7 +77,13 @@ export function resolveType(
 export function scalarBase(type: TypeDescriptor, table: readonly TypeEntry[] = []): DataType {
   const resolved = resolveType(type, table);
   if (typeof resolved === "string") return resolved;
-  if (resolved.kind === "enumeration" || resolved.kind === "subrange") return resolved.base;
+  if (
+    resolved.kind === "enumeration" ||
+    resolved.kind === "subrange" ||
+    resolved.kind === "string" ||
+    resolved.kind === "character"
+  )
+    return resolved.base;
   throw new RangeError("Expected a supported scalar type");
 }
 export function enumerationType(
@@ -101,6 +108,9 @@ export function sameScalarType(
 ): boolean {
   const left = resolveType(a, table),
     right = resolveType(b, table);
+  const leftBase = scalarBase(a, table),
+    rightBase = scalarBase(b, table);
+  if (isCharacterType(leftBase) || isCharacterType(rightBase)) return leftBase === rightBase;
   if (typeof left === "string" || typeof right === "string") return left === right;
   if (left.kind === "enumeration" || right.kind === "enumeration") return left === right;
   return (
@@ -118,6 +128,15 @@ export function validateDeclaredValue(
   table: readonly TypeEntry[] = [],
 ): void {
   const resolved = resolveType(type, table);
+  const base = scalarBase(type, table);
+  if (base === "STRING" || base === "WSTRING") {
+    const length =
+      typeof resolved !== "string" && resolved.kind === "string"
+        ? resolved.length
+        : DEFAULT_STRING_LENGTH;
+    if (typeof value !== "string" || value.length > length)
+      throw new RangeError("String exceeds capacity");
+  }
   if (typeof resolved === "string") return;
   if (resolved.kind === "subrange") {
     const integer = BigInt(value);
@@ -162,4 +181,22 @@ export function formatType(type: TypeDescriptor): string {
     case "array":
       return `ARRAY[${type.dimensions.map((dimension) => (dimension === "*" ? "*" : `${dimension.lower}..${dimension.upper}`)).join(", ")}] OF ${formatType(type.element)}`;
   }
+}
+
+/** Runtime stores truncate text; external values use validateScalar instead. */
+export function truncateString(
+  type: TypeDescriptor,
+  value: ScalarValue,
+  table: readonly TypeEntry[] = [],
+): ScalarValue {
+  const resolved = resolveType(type, table);
+  const base = scalarBase(type, table);
+  return (base === "STRING" || base === "WSTRING") && typeof value === "string"
+    ? value.slice(
+        0,
+        typeof resolved !== "string" && resolved.kind === "string"
+          ? resolved.length
+          : DEFAULT_STRING_LENGTH,
+      )
+    : value;
 }

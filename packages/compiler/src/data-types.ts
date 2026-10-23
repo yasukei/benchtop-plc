@@ -1,5 +1,8 @@
 import {
   coerceValue,
+  isCharacterType,
+  DEFAULT_STRING_LENGTH,
+  MAX_STRING_LENGTH,
   validateValue,
   isIntegerType,
   isLongType,
@@ -41,13 +44,17 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
           ? descriptor
           : descriptor.kind === "named"
             ? descriptor.name
-            : "INT",
+            : descriptor.kind === "string" || descriptor.kind === "character"
+              ? descriptor.base
+              : "INT",
       key:
         typeof descriptor === "string"
           ? descriptor
           : descriptor.kind === "named"
             ? descriptor.name.toUpperCase()
-            : "INT",
+            : descriptor.kind === "string" || descriptor.kind === "character"
+              ? descriptor.base
+              : "INT",
       span: expression.span,
     };
     const result = check(
@@ -59,6 +66,9 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
             kind: "declaration",
             names: [name],
             typeName,
+            ...(typeof descriptor !== "string" && descriptor.kind === "string"
+              ? { stringLength: descriptor.length }
+              : {}),
             initializer: expression,
             span: expression.span,
           },
@@ -109,7 +119,29 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
         base = { kind: "named", name: entry.name };
       }
     }
+    if (
+      ast.stringLength !== undefined &&
+      !["STRING", "WSTRING"].includes(ast.typeName?.key ?? "")
+    ) {
+      report(ast, { code: "type.invalid-constant", severity: "error", span: ast.span, args: {} });
+      visiting.delete(ast.name.key);
+      return undefined;
+    }
     const elementary = scalarBase(base, types);
+    if (elementary === "STRING" || elementary === "WSTRING") {
+      const length = ast.stringLength ?? DEFAULT_STRING_LENGTH;
+      if (ast.stringLength !== undefined || typeof base === "string")
+        base = { kind: "string", base: elementary, length };
+      if (!Number.isInteger(length) || length < 1 || length > MAX_STRING_LENGTH) {
+        report(ast, { code: "type.invalid-constant", severity: "error", span: ast.span, args: {} });
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
+    } else if (ast.stringLength !== undefined) {
+      report(ast, { code: "type.invalid-constant", severity: "error", span: ast.span, args: {} });
+      visiting.delete(ast.name.key);
+      return undefined;
+    }
     let entry: TypeEntry | undefined;
     const invalid = (): void =>
       report(ast, { code: "type.invalid-constant", severity: "error", span: ast.span, args: {} });
@@ -177,11 +209,15 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       const initialValue =
         typeof base !== "string" && base.kind === "named"
           ? typeEntry(base, types).initialValue
-          : elementary === "BOOL"
-            ? false
-            : isLongType(elementary)
-              ? "0"
-              : 0;
+          : isCharacterType(elementary)
+            ? elementary === "CHAR" || elementary === "WCHAR"
+              ? "\0"
+              : ""
+            : elementary === "BOOL"
+              ? false
+              : isLongType(elementary)
+                ? "0"
+                : 0;
       entry = { name: ast.name.name, definition: { kind: "alias", type: base }, initialValue };
     } else invalid();
     if (entry) {

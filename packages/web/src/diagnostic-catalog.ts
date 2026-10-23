@@ -17,6 +17,7 @@ const enTokens: Record<string, string> = {
   expression: "expression",
 };
 const jaTokens: Record<string, string> = {
+  integer: "整数",
   identifier: "識別子",
   address: "直接アドレス",
   eof: "入力の終わり",
@@ -38,6 +39,9 @@ export const diagnosticEn = {
   "project.dropped-data": ({ name }) => `Unknown vendor data was dropped: ${name}.`,
   "project.stale-source": () =>
     "Preserved editor text differs from the XML. Canonical text was imported.",
+  "lex.unterminated-string": () => "Unterminated string literal or line break inside a literal.",
+  "lex.invalid-string-escape": () => "Invalid string escape.",
+  "lex.invalid-string-character": () => "Single-byte literal contains a character above 16#FF.",
   "lex.unterminated-comment": () => "Block comment has no closing delimiter.",
   "lex.invalid-character": ({ character }) => `Invalid character: ${character}.`,
   "lex.malformed-direct-address": ({ address }) => `Malformed direct address: ${address}.`,
@@ -99,7 +103,7 @@ export const diagnosticEn = {
     name.endsWith("_TO_BOOL")
       ? `${name} returns the rightmost bit; some vendor runtimes return TRUE for any non-zero value.`
       : `${name} reinterprets the bit pattern; some vendor runtimes convert the numeric value instead.`,
-  "type.invalid-constant": () => "Invalid constant or numeric value outside the supported range.",
+  "type.invalid-constant": () => "Invalid constant or value outside the supported range.",
   "type.case-label-not-constant": () => "CASE label must be an integer constant expression.",
   "fb.invalid-instance-section": ({ name }) =>
     `Function block instance ${name} must be declared in VAR.`,
@@ -166,6 +170,9 @@ export const diagnosticJa = {
   "project.dropped-data": ({ name }) => `不明なベンダーデータを破棄しました: ${name}。`,
   "project.stale-source": () =>
     "保存されたエディターテキストがXMLと異なるため、標準形式のテキストを読み込みました。",
+  "lex.unterminated-string": () => "文字列リテラルが閉じられていないか、改行が含まれています。",
+  "lex.invalid-string-escape": () => "文字列のエスケープが不正です。",
+  "lex.invalid-string-character": () => "単一バイト文字列に16#FFを超える文字が含まれています。",
   "lex.unterminated-comment": () => "ブロックコメントの終了記号がありません。",
   "lex.invalid-character": ({ character }) => `不正な文字です: ${character}。`,
   "lex.malformed-direct-address": ({ address }) => `直接アドレスの構文が不正です: ${address}。`,
@@ -225,7 +232,7 @@ export const diagnosticJa = {
     name.endsWith("_TO_BOOL")
       ? `${name}は最下位ビットを返します。一部のベンダーの実行環境では、ゼロ以外のすべての値に対してTRUEを返します。`
       : `${name}はビットパターンを再解釈します。一部のベンダーの実行環境では、代わりに数値を変換します。`,
-  "type.invalid-constant": () => "定数が不正、または数値が対応範囲外です。",
+  "type.invalid-constant": () => "定数が不正、または値が対応範囲外です。",
   "type.case-label-not-constant": () => "CASEラベルには整数の定数式が必要です。",
   "fb.invalid-instance-section": ({ name }) =>
     `ファンクションブロックのインスタンス${name}はVARで宣言してください。`,

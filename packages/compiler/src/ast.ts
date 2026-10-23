@@ -19,6 +19,7 @@ export interface Program extends SourceNode {
   name: Identifier;
   resultType?: Identifier;
   resultSubrange?: Subrange;
+  resultStringLength?: number;
   sections?: { name: string; constant?: boolean; span: import("@benchtop-plc/core").SourceSpan }[];
   declarations: Declaration[];
   body: Statement[];
@@ -30,6 +31,7 @@ export interface Declaration extends SourceNode {
   address?: Address;
   typeName: Identifier;
   subrange?: Subrange;
+  stringLength?: number;
   initializer?: Expression;
   constant?: boolean;
   /** Absent means VAR, preserving the original single-program AST. */
@@ -39,6 +41,7 @@ export interface Declaration extends SourceNode {
 export type Literal = SourceNode & { kind: "literal"; text: string; dataType?: DataType } & (
     | { literalKind: "integer" | "real" | "time" | "calendar"; value: number }
     | { literalKind: "boolean"; value: boolean }
+    | { literalKind: "string"; value: string }
   );
 
 export interface NameReference extends SourceNode {
@@ -95,6 +98,7 @@ export interface DataTypeDeclaration extends SourceNode {
   name: Identifier;
   typeName?: Identifier;
   subrange?: Subrange;
+  stringLength?: number;
   values?: { name: Identifier; value?: Expression }[];
   initializer?: Expression;
 }

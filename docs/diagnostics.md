@@ -38,7 +38,7 @@ documentation, not message templates. Translation catalogs are outside issue #4.
 - `expected` in syntax diagnostics is a raw token spelling, canonical token-kind
   identifier, or stable construct identifier, never a localized description such
   as "an identifier". The parser's non-spelling vocabulary is `identifier`,
-  `address`, `eof` (token kinds) and `expression` (a construct).
+  `address`, `integer`, `eof` (token kinds) and `expression` (a construct).
   `found` retains the actual non-EOF token's source spelling.
   `syntax.expected-token` and `syntax.expected-identifier` only describe an actual
   non-EOF token; use the selection rules below when input ends.
@@ -264,3 +264,18 @@ and `sourceIndex` into the compiler's separate data type source list. Duplicate
 types use `decl.duplicate`; type/POU/standard-name clashes use `decl.name-collision`;
 unknown type references use `decl.unknown-type`. Invalid bounds, duplicate enum
 values and out-of-range subrange constants use `type.invalid-constant`.
+
+## Character literal diagnostics
+
+| Code                           | Arguments | Meaning                                                       |
+| ------------------------------ | --------- | ------------------------------------------------------------- |
+| `lex.unterminated-string`      | `{}`      | Missing closing quote or physical line break inside a literal |
+| `lex.invalid-string-escape`    | `{}`      | Unknown escape or incomplete hexadecimal escape               |
+| `lex.invalid-string-character` | `{}`      | Single-byte literal contains a code unit above 16#FF          |
+
+These diagnostics retain the source name and literal span. `type.invalid-constant`
+also covers invalid string capacities, literals longer than their destination,
+CHAR/WCHAR literals with other than one code unit, and typed literals with the
+wrong quote width. Invalid monitor text is handled by the monitor's localized
+validation message; malformed protocol values use `runtime.debug-value` and wrong
+scalar discriminators use `runtime.debug-type-mismatch`.

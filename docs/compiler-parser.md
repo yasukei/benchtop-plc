@@ -37,7 +37,7 @@ the selection rules in [diagnostics.md](diagnostics.md).
 
 For localization, `syntax.expected-token.args.expected` uses a literal spelling
 (such as `;` or `END_REPEAT`) or one of these stable identifiers: `identifier`,
-`address`, `eof` (matching token kinds), and `expression` (a grammatical construct).
+`address`, `integer`, `eof` (matching token kinds), and `expression` (a grammatical construct).
 `args.found` is the actual token's source spelling. A stray token after an UNTIL
 condition reports `syntax.expected-token`; EOF or an enclosing `END_*` in that
 position reports `syntax.missing-end` for `END_REPEAT`.
@@ -68,7 +68,7 @@ Binary operators associate left; unary operators nest right. Calls bind more
 tightly than unary operators. Function and FB names are not resolved here.
 
 Literal nodes retain original text and a lexical kind (`integer`, `real`, `time`,
-`boolean`), with an approximate numeric or boolean value. Exact numeric checking
+`boolean`, `calendar`, `string`), with a decoded string, approximate numeric or boolean value. Exact numeric checking
 uses the source text, so lexical numeric magnitudes are unbounded; a non-finite
 approximation is stored as zero to keep AST data JSON-safe. Decimal and base 2/16
 integers support underscores between digits. Octal `8#` is rejected. Reals support
@@ -85,13 +85,13 @@ arithmetic, range checks and binary32/64 rounding belong to semantic checking.
 
 The AST contains only plain, JSON-safe data. It does not enforce supported types,
 I/O ranges, name resolution, writable FB members, constant initializers or operand
-types. All elementary type keywords reserved by the lexer, including unsupported
-types such as `WORD`, `SINT` and `STRING`, are accepted in type position and
-retained for semantic analysis to report `decl.unknown-type`. They remain reserved
-in identifier positions; string literals and extended string type syntax are
-unsupported. In particular, an address such as `%IX12.9` is syntactically valid and
+types. Elementary type keywords are accepted in type position and remain reserved
+in identifier positions. Declarations, aliases and function results accept
+`STRING[n]` and `WSTRING[n]`, where n is an integer literal. The AST keeps the
+optional capacity in `stringLength` or `resultStringLength`; the checker enforces
+1–1,024 and supplies the default 80. `CHAR` and `WCHAR` have no capacity suffix. In particular, an address such as `%IX12.9` is syntactically valid and
 remains available for a later `decl.address-out-of-range` diagnostic. `parsePou` also accepts FUNCTION and FUNCTION_BLOCK, their input/output/temporary
-sections and formal `=>` call outputs. Arrays, structs, strings and unsupported
+sections and formal `=>` call outputs. Arrays, structs and unsupported
 extended VAR forms remain outside this parser's scope.
 
 ## Data type declarations and derived scalar syntax
@@ -109,3 +109,16 @@ literal such as `Color#Red` is an `enumeration` AST expression with separate typ
 and member identifiers. Unqualified values remain ordinary `name` nodes until
 contextual resolution. The lexer recognizes the separating `#` without changing
 existing elementary typed numeric, duration or calendar literal tokens.
+
+## Character literals
+
+Single-quoted literals hold single-byte text; double-quoted literals hold UTF-16
+code units. Each is one `string` token, including its optional `STRING#`,
+`WSTRING#`, `CHAR#` or `WCHAR#` prefix. Comment delimiters inside a literal are text.
+The lexer decodes `$$`, an escaped matching quote, `$L`, `$N`, `$P`, `$R`, `$T`
+(case-insensitive), and hexadecimal `$hh` or `$hhhh`, respectively. Opposite
+quotes need no escape. Missing terminators or physical line breaks report
+`lex.unterminated-string`; unknown or incomplete escapes report
+`lex.invalid-string-escape`; a single-byte code unit above 16#FF reports
+`lex.invalid-string-character`. Character counts and typed delimiter matching
+are checked semantically.

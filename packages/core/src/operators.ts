@@ -2,7 +2,7 @@ import type { BinaryOperator, UnaryOperator } from "./ir.js";
 import type { ScalarValue } from "./values.js";
 
 export function unaryValue(operator: UnaryOperator, value: ScalarValue): ScalarValue {
-  if (typeof value === "string" || typeof value === "bigint") {
+  if (typeof value === "bigint") {
     const n = BigInt(value);
     return operator === "+" ? n : operator === "-" ? -n : ~n;
   }
@@ -22,15 +22,11 @@ export function binaryValue(
   if (operator === "**") {
     const base = Number(left);
     // A 64-bit integer exponent can lose its parity when converted to binary64.
-    if (base < 0 && (typeof right === "string" || typeof right === "bigint"))
+    if (base < 0 && typeof right === "bigint")
       return (BigInt(right) % 2n === 0n ? 1 : -1) * Math.abs(base) ** Number(right);
     return base ** Number(right);
   }
-  const long =
-    typeof left === "string" ||
-    typeof right === "string" ||
-    typeof left === "bigint" ||
-    typeof right === "bigint";
+  const long = typeof left === "bigint" || typeof right === "bigint";
   if (long) {
     const a = BigInt(left),
       b = BigInt(right);
@@ -63,6 +59,24 @@ export function binaryValue(
         return a <= b;
       case ">=":
         return a >= b;
+    }
+  }
+  if (typeof left === "string" && typeof right === "string") {
+    switch (operator) {
+      case "=":
+        return left === right;
+      case "<>":
+        return left !== right;
+      case "<":
+        return left < right;
+      case ">":
+        return left > right;
+      case "<=":
+        return left <= right;
+      case ">=":
+        return left >= right;
+      default:
+        throw new RangeError("Invalid character operation");
     }
   }
   const a = Number(left),

@@ -19,6 +19,10 @@ export const scalarTypes = [
   "TIME",
   "LTIME",
   ...calendarTypes,
+  "CHAR",
+  "WCHAR",
+  "STRING",
+  "WSTRING",
 ] as const;
 export const isInteger = isIntegerType;
 export const isNumeric = (type: DataType): boolean => numericTypes.some((item) => item === type);
@@ -39,6 +43,10 @@ type PlannedType =
   | "DT"
   | "LDT";
 const widening: Record<PlannedType, readonly PlannedType[]> = {
+  CHAR: ["STRING"],
+  WCHAR: ["WSTRING"],
+  STRING: [],
+  WSTRING: [],
   SINT: ["INT", "REAL"],
   INT: ["DINT", "REAL"],
   DINT: ["LINT", "LREAL"],

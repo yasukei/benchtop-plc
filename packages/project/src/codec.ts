@@ -5,7 +5,12 @@ import {
   resolveDataTypes,
   type DataTypeDeclaration,
 } from "@benchtop-plc/compiler";
-import { isIntegerType, type TypeTable, type Diagnostic } from "@benchtop-plc/core";
+import {
+  MAX_STRING_LENGTH,
+  isIntegerType,
+  type TypeTable,
+  type Diagnostic,
+} from "@benchtop-plc/core";
 import type {
   ContentHeader,
   FileHeader,
@@ -217,7 +222,16 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
   const definition = resolved.types.find(
     (item) => item.name.toUpperCase() === ast.name.key,
   )?.definition;
-  let type = normalizeType(ast.typeName?.key ?? "INT");
+  if (
+    ast.stringLength !== undefined &&
+    resolved.diagnostics.some(
+      (item) => item.pou === ast.name.name && item.code === "type.invalid-constant",
+    )
+  )
+    fail("project.invalid", `dataType/${ast.name.name}/baseType`);
+  let type =
+    normalizeType(ast.typeName?.key ?? "INT") +
+    (ast.stringLength === undefined ? "" : `[${ast.stringLength}]`);
   if (ast.values || ast.subrange) {
     if (resolved.diagnostics.some((item) => item.pou === ast.name.name))
       fail("project.invalid", `dataType/${ast.name.name}/baseType`);
@@ -312,6 +326,16 @@ function readType(type: XmlNode, enumeration = false): string {
     const base = baseType ? readType(baseType) : "INT";
     if (!isIntegerType(base)) fail("project.invalid", "enum/baseType");
     return `${base} (${members.join(", ")})`;
+  }
+  if (choice.name === "string" || choice.name === "wstring") {
+    leaf(choice, ["length"]);
+    const length = choice.attributes.length;
+    if (
+      length !== undefined &&
+      (!/^[0-9]+$/.test(length) || Number(length) < 1 || Number(length) > MAX_STRING_LENGTH)
+    )
+      fail("project.invalid", `${choice.name}/@length`);
+    return choice.name.toUpperCase() + (length === undefined ? "" : `[${Number(length)}]`);
   }
   leaf(choice, choice.name === "derived" ? ["name"] : []);
   if (choice.name === "derived") {
@@ -617,6 +641,9 @@ export function readProject(xml: string): ProjectResult<Project> {
 }
 
 function typeXml(type: string): string {
+  const string = /^(STRING|WSTRING)(?:\[([0-9]+)\])?$/.exec(type);
+  if (string)
+    return element(string[1]!.toLowerCase(), string[2] === undefined ? {} : { length: string[2] });
   const range = /^(\w+) \(([+-]?\d+)\.\.([+-]?\d+)\)$/.exec(type);
   if (range && isIntegerType(range[1]!))
     return element(

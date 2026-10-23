@@ -1,3 +1,4 @@
+import { readStringLiteral, StringLiteralError, isCharacterType } from "@benchtop-plc/core";
 import type { DataType, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import { FrontendError } from "./diagnostic.js";
 
@@ -6,6 +7,7 @@ export type TokenKind =
   | "keyword"
   | "integer"
   | "real"
+  | "string"
   | "time"
   | "calendar"
   | "boolean"
@@ -21,7 +23,7 @@ export interface Token {
   key: string;
   span: SourceSpan;
   /** Approximate lexical value; numeric source text is authoritative for exact evaluation. */
-  value?: number | boolean;
+  value?: number | boolean | string;
   dataType?: DataType;
 }
 
@@ -31,7 +33,7 @@ export type LexResult =
 /** Reserved elementary type names are legal in type position, even before type checking. */
 const elementaryTypeKeywords = new Set(
   `BOOL INT DINT UINT REAL LREAL TIME SINT USINT UDINT LINT ULINT BYTE WORD DWORD
-   LWORD LTIME DATE TIME_OF_DAY TOD DATE_AND_TIME DT LDATE LTIME_OF_DAY LTOD LDATE_AND_TIME LDT STRING WSTRING`.split(
+   LWORD LTIME DATE TIME_OF_DAY TOD DATE_AND_TIME DT LDATE LTIME_OF_DAY LTOD LDATE_AND_TIME LDT STRING WSTRING CHAR WCHAR`.split(
     /\s+/,
   ),
 );
@@ -44,7 +46,7 @@ const keywords = new Set([
    NOT MOD AND XOR OR
    FUNCTION END_FUNCTION FUNCTION_BLOCK END_FUNCTION_BLOCK VAR_INPUT VAR_OUTPUT
    VAR_IN_OUT VAR_TEMP VAR_GLOBAL VAR_EXTERNAL VAR_ACCESS VAR_CONFIG RETAIN NON_RETAIN
-   CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE
+   CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE REF_TO REF NULL
    EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE
    TASK WITH ON READ_ONLY READ_WRITE`.split(/\s+/),
 ]);
@@ -106,7 +108,12 @@ class Lexer {
     return { ...start, endLine: this.line, endColumn: this.column };
   }
 
-  private token(kind: TokenKind, start: number, span: SourceSpan, value?: number | boolean): Token {
+  private token(
+    kind: TokenKind,
+    start: number,
+    span: SourceSpan,
+    value?: number | boolean | string,
+  ): Token {
     const text = this.source.slice(start, this.offset);
     return {
       kind,
@@ -247,14 +254,33 @@ class Lexer {
     };
   }
 
+  private string(start: number, span: SourceSpan, dataType?: DataType): Token {
+    try {
+      const literal = readStringLiteral(this.source.slice(this.offset));
+      for (let index = 0; index < literal.length; index++) this.advance();
+      return {
+        ...this.token("string", start, span, literal.value),
+        ...(dataType ? { dataType } : {}),
+      };
+    } catch (error) {
+      if (!(error instanceof StringLiteralError)) throw error;
+      this.fail({ code: error.code, severity: "error", span: this.finishSpan(span), args: {} });
+    }
+  }
+
   private next(): Token {
     this.skipTrivia();
     const start = this.offset;
     const span = this.position();
     if (!this.char) return this.token("eof", start, span);
+    if (this.char === "'" || this.char === '"') return this.string(start, span);
     if (/[A-Za-z_]/.test(this.char)) {
       while (/[A-Za-z0-9_]/.test(this.char) && this.char) this.advance();
       const key = this.source.slice(start, this.offset).toUpperCase();
+      if (isCharacterType(key) && this.char === "#") {
+        this.advance();
+        return this.string(start, span, key);
+      }
       const calendarPrefixes: Record<string, DataType> = {
         D: "DATE",
         DATE: "DATE",
@@ -344,7 +370,7 @@ class Lexer {
       this.advance();
       return this.token("symbol", start, span);
     }
-    if (";:,().+-*/=<>&#".includes(this.char)) {
+    if (";:,()[].+-*/=<>&#".includes(this.char)) {
       this.advance();
       return this.token("symbol", start, span);
     }
