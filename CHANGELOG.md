@@ -12,7 +12,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - Standard STRING/WSTRING functions LEN, LEFT, RIGHT, MID, extensible CONCAT,
   INSERT, DELETE, REPLACE and FIND, with checked positions, clamped lengths and
-  results up to 1,024 code units. Elementary values convert to and from text using
+  results up to 1,024 code units. CHAR/WCHAR inputs widen to their string types.
+  Elementary values convert to and from text using
   the monitor format and literal syntax; character/code-unit conversions and
   overloaded TO_ forms are supported. Invalid conversions fault without wrapping.
 

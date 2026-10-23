@@ -78,6 +78,14 @@ export function assignable(to: DataType, from: DataType): boolean {
   return widens(to, from);
 }
 
+/** A string slot widens a character; ANY_CHAR/ANY_CHARS slots retain its type. */
+export function stringArgumentType(type: DataType, accepted: readonly DataType[]): DataType {
+  if (accepted.includes(type)) return type;
+  if (type === "CHAR" && accepted.includes("STRING")) return "STRING";
+  if (type === "WCHAR" && accepted.includes("WSTRING")) return "WSTRING";
+  return type;
+}
+
 /** ADR 0013: choose a least candidate from the entire set, then try integers only. */
 export function commonType(types: readonly DataType[]): DataType | null {
   if (!types.length) return null;

@@ -433,7 +433,9 @@ LEN and FIND return INT. LEN counts code units, so a WSTRING surrogate pair has
 length two. LEFT/RIGHT take L characters, MID takes L starting at 1-based P,
 DELETE removes L starting at P, and REPLACE replaces that range with IN2. INSERT
 inserts after P characters (0 inserts at the front). CONCAT joins two or more
-inputs. FIND returns the first 1-based match, or zero for no match or an empty
+inputs. CHAR/WCHAR inputs implicitly widen to STRING/WSTRING; string-producing
+functions return strings, including empty results, even with only character inputs.
+FIND returns the first 1-based match, or zero for no match or an empty
 needle. String functions preserve STRING/WSTRING and keep the first 1,024 code
 units of their result before the destination's storage capacity applies.
 

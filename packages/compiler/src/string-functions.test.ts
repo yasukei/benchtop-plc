@@ -86,3 +86,49 @@ it.each(["LEN", "CONCAT", "STRING_TO_INT", "TO_STRING", "CHAR_TO_BYTE", "TO_CHAR
     ).toBeUndefined();
   },
 );
+
+it.each([
+  ["n := LEN(ch);", "INT"],
+  ["s := LEFT(ch, 0);", "STRING"],
+  ["s := RIGHT(CHAR#'X', 0);", "STRING"],
+  ["s := MID(ch, 0, 1);", "STRING"],
+  ["s := DELETE(ch, 1, 1);", "STRING"],
+  ["s := CONCAT(ch, CHAR#'X');", "STRING"],
+  ["s := CONCAT(s, ch, CHAR#'X');", "STRING"],
+  ["s := INSERT(ch, CHAR#'X', 0);", "STRING"],
+  ["s := REPLACE(ch, CHAR#'X', 0, 1);", "STRING"],
+  ["n := FIND(s, ch);", "INT"],
+  ["n := LEN(wc);", "INT"],
+  ["w := LEFT(wc, 0);", "WSTRING"],
+  ['w := RIGHT(WCHAR#"Ω", 0);', "WSTRING"],
+  ["w := MID(wc, 0, 1);", "WSTRING"],
+  ["w := DELETE(wc, 1, 1);", "WSTRING"],
+  ['w := CONCAT(wc, WCHAR#"Ω");', "WSTRING"],
+  ['w := CONCAT(w, wc, WCHAR#"Ω");', "WSTRING"],
+  ['w := INSERT(wc, WCHAR#"Ω", 0);', "WSTRING"],
+  ['w := REPLACE(wc, WCHAR#"Ω", 0, 1);', "WSTRING"],
+  ["n := FIND(w, wc);", "INT"],
+])("widens string-function character inputs in %s", (body, expected) => {
+  const result = program(body);
+  expect(result.diagnostics).toEqual([]);
+  const statement = result.ir?.body[0];
+  expect(statement?.kind).toBe("assignment");
+  if (statement?.kind !== "assignment") throw new Error("Expected assignment");
+  expect(statement.value).toMatchObject({ kind: "functionCall", dataType: expected });
+});
+
+it.each([
+  "s := CONCAT(ch, wc);",
+  's := CONCAT(s, WCHAR#"X");',
+  "s := INSERT(s, wc, 0);",
+  "n := FIND(w, ch);",
+  "s := LEFT(wc, 1);",
+  "w := RIGHT(ch, 1);",
+  "s := REPLACE(ch, wc, 1, 1);",
+  "ch := CONCAT(ch, ch);",
+  "ch := LEFT(ch, 1);",
+  "wc := CONCAT(wc, wc);",
+  "wc := MID(wc, 1, 1);",
+])("keeps string-function widths and result types distinct in %s", (body) => {
+  expect(program(body).ir).toBeUndefined();
+});

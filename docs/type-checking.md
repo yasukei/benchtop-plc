@@ -433,8 +433,9 @@ character types.
 
 The generic families ANY_CHAR (CHAR/WCHAR), ANY_STRING (STRING/WSTRING) and
 ANY_CHARS (both) belong to ANY_ELEMENTARY. LEN, LEFT, RIGHT, MID, CONCAT, INSERT,
-DELETE, REPLACE and FIND take ANY_STRING inputs; multiple string inputs must have
-one common type (STRING and WSTRING cannot mix). L and P are independently typed
+DELETE, REPLACE and FIND take ANY_STRING inputs, implicitly widening CHAR to
+STRING and WCHAR to WSTRING, even when every string input is a character. Multiple
+string inputs must have one common type (STRING and WSTRING cannot mix). L and P are independently typed
 ANY_INT parameters, including subranges. LEN and FIND return INT; other results
 have the input string type and capacity up to 1,024 until stored. CONCAT takes at
 least two inputs and is extensible. Existing CONCAT_DATE/TOD families are unchanged.

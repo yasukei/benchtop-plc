@@ -74,6 +74,7 @@ import {
   commonType,
   scalarTypes,
   unaryType,
+  stringArgumentType,
 } from "./type-rules.js";
 
 export type CheckResult =
@@ -1055,7 +1056,7 @@ class Checker {
     const realGroup =
       start !== undefined &&
       signature.arguments[start]?.every((type) => type === "REAL" || type === "LREAL");
-    const args =
+    const inputArgs =
       start === undefined
         ? inputs.map(parameter)
         : [
@@ -1069,6 +1070,11 @@ class Checker {
               .slice(signature.genericEnd ?? inputs.length)
               .map((arg, index) => parameter(arg, index + (signature.genericEnd ?? inputs.length))),
           ];
+    const args = inputArgs.map((arg, index) => {
+      if (!arg) return null;
+      const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+      return { ...arg, dataType: stringArgumentType(arg.dataType, accepted) };
+    });
     const enumeration = args.find((arg) => arg && this.enum(arg));
     if (enumeration) {
       const firstValue = name === "SEL" || name === "MUX" ? 1 : 0;

@@ -65,3 +65,46 @@ it("keeps the calendar CONCAT families working beside CONCAT", () => {
   expect(execute("DATE", "CONCAT_DATE(2024, 2, 29)").runtime.diagnostic).toBeNull();
   expect(execute("TOD", "CONCAT_TOD(12, 0, 0, 0)").runtime.diagnostic).toBeNull();
 });
+
+it.each([
+  ["INT", "LEN(ch)", 1],
+  ["STRING", "LEFT(ch, 0)", ""],
+  ["STRING", "RIGHT(CHAR#'X', 0)", ""],
+  ["STRING", "MID(ch, 0, 1)", ""],
+  ["STRING", "DELETE(ch, 1, 1)", ""],
+  ["STRING", "CONCAT(ch, CHAR#'X')", "AX"],
+  ["STRING", "CONCAT(text, ch, CHAR#'X')", "ABAX"],
+  ["STRING", "INSERT(ch, CHAR#'X', 0)", "XA"],
+  ["STRING", "INSERT(text, ch, 1)", "AAB"],
+  ["STRING", "REPLACE(ch, CHAR#'X', 0, 1)", "XA"],
+  ["STRING", "REPLACE(text, ch, 1, 2)", "AA"],
+  ["INT", "FIND(text, ch)", 1],
+  ["INT", "LEN(wc)", 1],
+  ["WSTRING", "LEFT(wc, 0)", ""],
+  ["WSTRING", 'RIGHT(WCHAR#"Ω", 0)', ""],
+  ["WSTRING", "MID(wc, 0, 1)", ""],
+  ["WSTRING", "DELETE(wc, 1, 1)", ""],
+  ["WSTRING", 'CONCAT(wc, WCHAR#"Ω")', "ΩΩ"],
+  ["WSTRING", 'CONCAT(wide, wc, WCHAR#"Ω")', "ΩBΩΩ"],
+  ["WSTRING", 'INSERT(wc, WCHAR#"X", 0)', "XΩ"],
+  ["WSTRING", "INSERT(wide, wc, 1)", "ΩΩB"],
+  ["WSTRING", 'REPLACE(wc, WCHAR#"X", 0, 1)', "XΩ"],
+  ["WSTRING", "REPLACE(wide, wc, 1, 2)", "ΩΩ"],
+  ["INT", "FIND(wide, wc)", 1],
+  ["STRING[1]", "CONCAT(ch, ch)", "A"],
+  ["WSTRING[1]", "CONCAT(wc, wc)", "Ω"],
+  ["STRING", "CONCAT(DELETE(ch, 1, 1), ch)", "A"],
+  ["WSTRING", "CONCAT(DELETE(wc, 1, 1), wc)", "Ω"],
+])("widens character inputs and executes %s := %s", (type, expression, expected) => {
+  const { runtime, value } = execute(
+    String(type),
+    String(expression),
+    `ch : CHAR := 'A'; wc : WCHAR := "Ω"; text : STRING := 'AB'; wide : WSTRING := "ΩB";`,
+  );
+  expect(runtime.diagnostic).toBeNull();
+  expect(value).toMatchObject({
+    kind: "scalar",
+    dataType: String(type).split("[")[0],
+    value: expected,
+  });
+});
