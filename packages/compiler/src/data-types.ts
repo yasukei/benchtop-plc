@@ -131,7 +131,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
         seen.add(name.key);
       }
       const functionBlockMembers = ast.members.filter((member) =>
-        isFunctionBlockType(member.typeName.key),
+        isFunctionBlockType((member.array?.typeName ?? member.typeName).key),
       );
       for (const member of functionBlockMembers)
         report(ast, {
@@ -264,6 +264,16 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       );
       diagnostics.push(...result.diagnostics.map((d) => ({ ...d, pou: ast.name.name })));
       const symbol = result.checked?.symbols[0];
+      if (symbol && isFunctionBlockType(symbol.type)) {
+        report(ast, {
+          code: "decl.unknown-type",
+          severity: "error",
+          span: ast.array.typeName.span,
+          args: { name: ast.array.typeName.name },
+        });
+        visiting.delete(ast.name.key);
+        return undefined;
+      }
       if (symbol?.descriptor && symbol.aggregateValues) {
         const entry: TypeEntry = {
           name: ast.name.name,

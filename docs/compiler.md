@@ -121,3 +121,19 @@ fixture; grouped expression spans now include their parentheses in compiled IR.
 Multi-source traces and `user-functions.test.ts` cover user-function execution
 and checking, including fresh locals, formal defaults, outputs, nested calls,
 fault attribution and the shared scan watchdog.
+
+## Arrays of function block instances
+
+PROGRAM and FUNCTION_BLOCK `VAR` sections can declare inline instance arrays,
+such as `t : ARRAY[1..4] OF TON;` or `m : ARRAY[1..2] OF MotorStarter;`.
+Up to three dimensions use the same constant bounds and checked indexing as value
+arrays. A function cannot declare instances, and instances cannot be constants,
+temporaries, parameters or function results. Instance arrays have no initializer
+and cannot be copied or passed to whole-array selection functions.
+
+Call an element with formal arguments: `t[i](IN := run, PT := presets[i], Q => done)`.
+Read its public inputs/outputs with `t[i].IN` and `t[i].Q`; only inputs are writable
+from outside the block. User block private members and in-outs remain inaccessible.
+Every element shares its block's code and has its own persistent instance tree.
+Overloaded timer/counter selection combines eligible PT/PV bindings across all
+elements of the declaration; use a typed block name to fix the variant explicitly.

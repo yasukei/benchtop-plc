@@ -20,6 +20,7 @@ export interface SubrangeType {
 /** Plain-data descriptors; named structures are defined in the type table. */
 export type TypeDescriptor =
   | DataType
+  | { kind: "functionBlock"; name: string; block?: number }
   | NamedType
   | SubrangeType
   | { kind: "string"; base: "STRING" | "WSTRING"; length: number }
@@ -223,6 +224,8 @@ export function validateScalar(
 export function formatType(type: TypeDescriptor): string {
   if (typeof type === "string") return type;
   switch (type.kind) {
+    case "functionBlock":
+      return type.name;
     case "named":
       return type.name;
     case "subrange":

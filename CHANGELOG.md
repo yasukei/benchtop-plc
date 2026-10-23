@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Arrays of standard and user function block instances in PROGRAM and function
+  block VAR sections, with indexed calls and public port access, independent
+  persistent state, shared timer/counter variant selection and cold reset of
+  every instance tree. The monitor groups element paths and supports member
+  writes/forces; PLCopen XML preserves arrays with derived block base types.
+
 - Structure declarations report unsupported function block member types on the
   type name, with an explanation of the restriction in English and Japanese.
 

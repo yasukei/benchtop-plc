@@ -111,6 +111,7 @@ export interface GroupExpression extends SourceNode {
 export interface FunctionCall extends SourceNode {
   kind: "functionCall";
   name: Identifier;
+  instance?: ArrayAccess;
   args: Expression[];
   /** Present for formal calls; positional and formal inputs cannot be mixed. */
   inputNames?: Identifier[];

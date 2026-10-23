@@ -526,3 +526,29 @@ it.each([
   const xml = save(project([point, `TYPE RecordType : STRUCT ${valid} END_STRUCT; END_TYPE`]));
   expect(readProject(xml.replace(before, after)).value).toBeNull();
 });
+
+it("round trips standard and user function block arrays with derived base types", () => {
+  const value = project(
+    [],
+    [
+      `PROGRAM Main VAR t : ARRAY[1..4] OF TON; m : ARRAY[-1..0,1..2] OF MotorStarter; i : INT := 1; END_VAR
+     t[i](IN := TRUE, PT := T#1s); m[0,i](enable := t[i].Q); END_PROGRAM`,
+      `FUNCTION_BLOCK MotorStarter VAR_INPUT enable : BOOL; END_VAR
+     VAR_OUTPUT running : BOOL; END_VAR VAR delay : ARRAY[1..2] OF TON; END_VAR
+     delay[1](IN := enable, PT := T#1s, Q => running); END_FUNCTION_BLOCK`,
+    ],
+  );
+  const xml = save(value);
+  expect(xml).toContain(
+    '<array><dimension lower="1" upper="4"/><baseType><derived name="TON"/></baseType></array>',
+  );
+  expect(xml).toContain('<baseType><derived name="MOTORSTARTER"/></baseType>');
+  expect(readProject(xml)).toEqual({ value, diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  const original = compileProject(value.pous);
+  const imported = compileProject(canonical.value!.pous);
+  expect(original.diagnostics).toEqual([]);
+  expect(imported.diagnostics).toEqual([]);
+  expect(executable(imported.ir)).toEqual(executable(original.ir));
+});

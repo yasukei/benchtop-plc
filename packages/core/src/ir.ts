@@ -312,6 +312,8 @@ export interface VariableReference extends SourceNode {
 export interface FunctionBlockMemberReference extends SourceNode {
   kind: "fbMember";
   variable: FrameSlot;
+  /** Indexed instance, resolved once before accessing ports or evaluating call inputs. */
+  instance?: IndexReference;
   port: "input" | "output";
   member: number;
   dataType: TypeDescriptor;
@@ -321,6 +323,8 @@ export interface FunctionBlockMemberReference extends SourceNode {
 export interface UserFunctionBlockMemberReference extends SourceNode {
   kind: "userFbMember";
   variable: FrameSlot;
+  /** Indexed instance, resolved once before accessing ports or evaluating call inputs. */
+  instance?: IndexReference;
   port: "input" | "output";
   member: number;
   dataType: TypeDescriptor;
@@ -335,6 +339,8 @@ export interface BitReference extends SourceNode {
 }
 export interface IndexReference extends SourceNode {
   kind: "index";
+  /** Declaration name for instance bounds diagnostics. */
+  instanceName?: string;
   array: VariableReference | IndexReference | StructureMemberReference;
   indices: Expression[];
   dataType: TypeDescriptor;
@@ -445,6 +451,8 @@ export interface FunctionBlockInput extends SourceNode {
 export interface FunctionBlockCallStatement extends SourceNode {
   kind: "fbCall";
   variable: FrameSlot;
+  /** Indexed instance, resolved once before accessing ports or evaluating call inputs. */
+  instance?: IndexReference;
   inputs: FunctionBlockInput[];
   outputs?: FunctionOutputAssignment[];
 }
@@ -453,6 +461,8 @@ export interface UserFunctionBlockCallStatement extends SourceNode {
   inOuts?: InOutBinding[];
   kind: "userFbCall";
   variable: FrameSlot;
+  /** Indexed instance, resolved once before accessing ports or evaluating call inputs. */
+  instance?: IndexReference;
   inputs: FunctionBlockInput[];
   outputs?: FunctionOutputAssignment[];
 }

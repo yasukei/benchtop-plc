@@ -80,3 +80,11 @@ it("shows full array types including nested dimensions", () => {
     "a: ARRAY[-1..2, 0..1] OF ARRAY[1..3] OF INT",
   );
 });
+
+it("shows selected array variants inside uninstantiated user blocks", () => {
+  const main = "PROGRAM Main END_PROGRAM";
+  const block =
+    "FUNCTION_BLOCK Block VAR c : ARRAY[1..2] OF CTU; END_VAR c[1](PV := DINT#40000); END_FUNCTION_BLOCK";
+  for (const position of [block.indexOf("c :"), block.indexOf("c[1]")])
+    expect(blockTypeAt([main, block], 1, position)?.text).toBe("c: ARRAY[1..2] OF CTU_DINT");
+});

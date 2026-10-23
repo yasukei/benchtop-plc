@@ -1,8 +1,8 @@
 import { isReservedStandardName } from "./reserved-names.js";
-import { isFunctionBlockType, isStandardFunction } from "@benchtop-plc/core";
+import { isFunctionBlockType, isStandardFunction, leafCount } from "@benchtop-plc/core";
 import type { Diagnostic, ProgramIR } from "@benchtop-plc/core";
 import type { Program } from "./ast.js";
-import type { CheckedProgram } from "./checked.js";
+import type { CheckedProgram, VariableSymbol } from "./checked.js";
 import { check, checkDeclarations } from "./checker.js";
 import { lower, lowerFunction, lowerFunctionBlock } from "./lower.js";
 import { isElementaryTypeName } from "./lexer.js";
@@ -181,7 +181,7 @@ export function compileProject(
         callee: functions[call.function]!,
       })),
       ...ast.declarations.flatMap((node) => {
-        const callee = pous.get(node.typeName.key);
+        const callee = pous.get((node.array?.typeName ?? node.typeName).key);
         return callee?.kind === "functionBlock" ? [{ node, callee }] : [];
       }),
     ];
@@ -201,6 +201,45 @@ export function compileProject(
     visited.add(ast);
   };
   for (const ast of asts) visit(ast);
+  if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
+  // Instance-array limits include every monitored member, not just the instance slots.
+  const blockLeafCounts = new Map<number, number>();
+  const variableLeaves = (symbol: VariableSymbol): number =>
+    (symbol.descriptor ? leafCount(symbol.descriptor, resolved.types) : 1) *
+    (symbol.userBlock === undefined ? 1 : blockLeaves(symbol.userBlock));
+  const blockLeaves = (block: number): number => {
+    const cached = blockLeafCounts.get(block);
+    if (cached !== undefined) return cached;
+    const definition = checked.get(blocks[block]!)!;
+    const count = definition.ast.declarations
+      .filter(
+        (declaration) =>
+          !declaration.constant &&
+          declaration.section !== "VAR_TEMP" &&
+          declaration.section !== "VAR_IN_OUT",
+      )
+      .flatMap((declaration) => declaration.names)
+      .reduce(
+        (sum, name) =>
+          sum + variableLeaves(definition.symbols[definition.references.get(name)!.variable]!),
+        0,
+      );
+    blockLeafCounts.set(block, count);
+    return count;
+  };
+  for (const ast of asts) {
+    for (const symbol of checked.get(ast)!.symbols) {
+      if (symbol.userBlock !== undefined && symbol.descriptor && variableLeaves(symbol) > 10000)
+        diagnostics.push({
+          code: "type.invalid-constant",
+          severity: "error",
+          pou: ast.name.name,
+          sourceIndex: sourceIndexes.get(ast),
+          span: symbol.name.span,
+          args: {},
+        });
+    }
+  }
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
   const ir = lower(
     checked.get(programs[0]!)!,

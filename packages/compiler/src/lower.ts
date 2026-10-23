@@ -85,10 +85,6 @@ class Lowerer {
     const id = required(this.checked.references.get(name)).variable;
     const symbol = required(this.checked.symbols[id]);
     const base = { name: name.name, key: name.key, span: span(declaration) };
-    if (symbol.userBlock !== undefined)
-      return { ...base, kind: "userFunctionBlock", block: symbol.userBlock, initialValue: null };
-    if (isBlock(symbol.type))
-      return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
     if (symbol.descriptor && isAggregateType(symbol.descriptor, this.checked.types))
       return {
         ...base,
@@ -96,6 +92,10 @@ class Lowerer {
         dataType: symbol.descriptor,
         initialValue: required(symbol.aggregateValues),
       } as IR.ArrayVariable | IR.StructureVariable;
+    if (symbol.userBlock !== undefined)
+      return { ...base, kind: "userFunctionBlock", block: symbol.userBlock, initialValue: null };
+    if (isBlock(symbol.type))
+      return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
     if (symbol.type === "BOOL") {
       const address = declaration.address;
       return {
@@ -120,6 +120,14 @@ class Lowerer {
     } as IR.ScalarVariable;
   }
 
+  private rootName(node: AST.AssignmentTarget): AST.Identifier {
+    if (node.kind === "name") return node.name;
+    if (node.kind === "member") return node.instance;
+    return this.rootName(
+      node.kind === "index" ? node.array : node.kind === "field" ? node.object : node.element,
+    );
+  }
+
   private reference(
     node: AST.AssignmentTarget,
   ):
@@ -138,6 +146,13 @@ class Lowerer {
         throw new Error("Checked array base");
       return {
         kind: "index",
+        ...(typeof dataType !== "string" && dataType.kind === "functionBlock"
+          ? {
+              instanceName:
+                this.checked.symbols[this.checked.references.get(this.rootName(node))!.variable]!
+                  .name.key,
+            }
+          : {}),
         array,
         indices: node.indices.map((index) => this.expression(index)),
         dataType,
@@ -145,7 +160,7 @@ class Lowerer {
       };
     }
     if (
-      node.kind === "field" ||
+      (node.kind === "field" && !this.checked.references.get(node.member)?.port) ||
       (node.kind === "member" && this.checked.references.get(node.member)?.structure)
     ) {
       const selector = required(this.checked.references.get(node.member));
@@ -211,6 +226,9 @@ class Lowerer {
       };
     const member = {
       variable: reference.variable,
+      ...(node.kind === "field"
+        ? { instance: this.reference(node.object) as IR.IndexReference }
+        : {}),
       port: required(reference.port),
       member: required(reference.member),
       dataType,
@@ -417,6 +435,9 @@ class Lowerer {
       span: span(node),
       kind: symbol.userBlock === undefined ? "fbCall" : "userFbCall",
       variable,
+      ...(node.kind === "functionCall" && node.instance
+        ? { instance: this.reference(node.instance) as IR.IndexReference }
+        : {}),
       inputs: inputs
         .filter((input) => !inOuts.some((binding) => binding.actual === input.value))
         .map((input) => {
@@ -466,7 +487,10 @@ class Lowerer {
       case "call": {
         const resolved = this.checked.references.get(node.call.name);
         const symbol = resolved && this.checked.symbols[resolved.variable];
-        if (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
+        if (
+          node.call.instance ||
+          (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
+        )
           return { ...this.blockCall(node.call), span: span(node) };
         const user = this.checked.userCalls.get(node.call);
         if (user) return { ...base, kind: "call", call: this.userCall(node.call, user) };
@@ -661,6 +685,17 @@ export function lower(
             (path, segment) => path + (segment.startsWith("[") || !path ? "" : ".") + segment,
             "",
           );
+          if (typeof type !== "string" && type.kind === "functionBlock") {
+            const leaf =
+              type.block !== undefined
+                ? { kind: "userFunctionBlock" as const, block: type.block, initialValue: null }
+                : {
+                    kind: "functionBlock" as const,
+                    fbType: type.name as IR.FunctionBlockType,
+                    initialValue: null,
+                  };
+            return allocate([{ ...leaf, name, key: name, span: span(variable) }], [], [], "")[0]!;
+          }
           variables.push({
             kind: "scalar",
             name,
@@ -672,10 +707,21 @@ export function lower(
           } as IR.ScalarVariable);
           return { kind: "variable", variable: id };
         };
-        return expand(variable.dataType, variable.initialValue, path.split("."));
+        return expand(
+          variable.dataType,
+          variable.initialValue,
+          path.match(/[^.[\]]+|\[[^\]]+\]/g)!,
+        );
       }
       const id = variables.length;
-      variables.push(prefix ? { ...variable, name: path, key: path } : variable);
+      const segments = path.match(/[^.[\]]+|\[[^\]]+\]/g)!;
+      variables.push(
+        path.includes("[")
+          ? { ...variable, name: path, key: path, path: segments }
+          : prefix
+            ? { ...variable, name: path, key: path }
+            : variable,
+      );
       return { kind: "variable", variable: id };
     });
   const temporarySlots = sections(checked).flatMap((section, index) =>
