@@ -1,4 +1,4 @@
-import type { TypeDescriptor, TypeTable } from "./types.js";
+import type { TypeDescriptor, TypeTable, InitialValue } from "./types.js";
 import type { SourceNode } from "./source.js";
 import type {
   BitType,
@@ -178,6 +178,8 @@ export type StandardFunction =
 interface VariableBase extends SourceNode {
   /** Original spelling for display. */
   name: string;
+  /** Display path segments; array leaves are sent only when watched or forced. */
+  path?: string[];
   /** Upper-case ST identifier, for compilation and display lookup only. */
   key: string;
 }
@@ -221,12 +223,19 @@ export interface ProgramIR extends SourceNode {
   functions?: UserFunctionIR[];
   functionBlocks?: UserFunctionBlockIR[];
   /** Declaration slots mapped to monitored storage, temporaries or user instances. */
+  composites?: { name: string; path: string[]; dataType: TypeDescriptor }[];
   storage?: InstanceStorage[];
   instances?: UserFunctionBlockStorage[];
 }
 
 /** Local declaration slots are distinct from the flat monitored VariableIds. */
+export interface ArrayVariable extends VariableBase {
+  kind: "array";
+  dataType: TypeDescriptor;
+  initialValue: InitialValue[];
+}
 export type LocalVariable =
+  | ArrayVariable
   | Variable
   | (VariableBase & {
       kind: "userFunctionBlock";
@@ -235,7 +244,8 @@ export type LocalVariable =
     });
 export type InstanceStorage =
   | { kind: "variable"; variable: VariableId }
-  | { kind: "temporary"; variable: ScalarVariable }
+  | { kind: "temporary"; variable: ScalarVariable | ArrayVariable }
+  | { kind: "array"; dataType: TypeDescriptor; elements: InstanceStorage[] }
   | { kind: "instance"; instance: number }
   | { kind: "inOut" };
 export interface UserFunctionBlockStorage {
@@ -256,7 +266,7 @@ export interface UserFunctionBlockIR extends SourceNode {
 
 export interface UserFunctionIR extends SourceNode {
   name: string;
-  variables: ScalarVariable[];
+  variables: (ScalarVariable | ArrayVariable)[];
   inputs: FrameSlot[];
   outputs: FrameSlot[];
   /** Alias slots, bound to caller scalar cells on every invocation. */
@@ -318,7 +328,21 @@ export interface BitReference extends SourceNode {
   bit: number;
   dataType: "BOOL";
 }
+export interface IndexReference extends SourceNode {
+  kind: "index";
+  array: VariableReference | IndexReference;
+  indices: Expression[];
+  dataType: TypeDescriptor;
+}
+export interface ElementBitReference extends SourceNode {
+  kind: "elementBit";
+  element: IndexReference;
+  bit: number;
+  dataType: "BOOL";
+}
 export type AssignmentTarget =
+  | IndexReference
+  | ElementBitReference
   | VariableReference
   | BitReference
   | ((FunctionBlockMemberReference | UserFunctionBlockMemberReference) & { port: "input" });
@@ -379,6 +403,8 @@ export interface FunctionCallStatement extends SourceNode {
 }
 
 export type Expression =
+  | IndexReference
+  | ElementBitReference
   | LiteralExpression
   | VariableReference
   | BitReference

@@ -175,3 +175,15 @@ STRING/CHAR are rejected without changing the value or an existing force.
 The editor highlights each quoted literal as one token, including typed prefixes.
 `(*` and `//` inside literals never start comments, and incomplete literals do not
 put later lines into comment state.
+
+## Array monitoring
+
+Array variables appear as collapsible rows. Expanding one reveals scalar elements
+under paths such as `V[1]`, `M1.A[2,1]` or nested rows such as `N[1]`. Expanded
+scalar leaves are watched in the Worker; collapsing removes those watches. Forced
+leaves remain visible and reported when their parent is collapsed. Write, Force
+and Unforce act on individual leaves with the usual type/range checks.
+
+PROGRAM inline values show scalar element stores; whole-array copies show no
+scalar value. The tokenizer recognizes brackets and variable hovers show complete
+array types, including nested dimensions.

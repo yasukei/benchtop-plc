@@ -47,6 +47,9 @@ export function createWorkerHost(
           runtime.load(message.ir);
           inputs.fill(false);
           break;
+        case "watch":
+          runtime.watch(message.variables);
+          break;
         case "run":
           runtime.run();
           break;

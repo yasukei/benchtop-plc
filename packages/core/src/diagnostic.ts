@@ -98,6 +98,7 @@ export interface DiagnosticArgs {
     found: TypeDescriptor;
   };
 
+  "runtime.index-out-of-range": { index: number | string; lower: number; upper: number };
   "runtime.subrange-violation": {
     value: number | string;
     lower: number | string;

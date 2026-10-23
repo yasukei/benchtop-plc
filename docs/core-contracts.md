@@ -103,9 +103,10 @@ are the existing `DataType` strings. `{ kind: "named", name: "State" }` refers t
 an entry of the optional, ordered `ProgramIR.types` table. An inline subrange is
 `{ kind: "subrange", base: "INT", lower: 0, upper: 100 }`; it has no table entry.
 Bounded strings use `{ kind: "string", base: "STRING" | "WSTRING", length }`;
-characters use `{ kind: "character", base: "CHAR" | "WCHAR" }`. Arrays and
-references remain reserved descriptor shapes for later storage support.
-Type table entries contain `name`, `definition` and a scalar `initialValue`.
+characters use `{ kind: "character", base: "CHAR" | "WCHAR" }`. Arrays use
+`{ kind: "array", dimensions: [{ lower, upper }], element }`; references remain
+reserved. Type table entries contain `name`, `definition` and an `initialValue`,
+which can be a scalar or recursively nested array.
 Definitions currently compiled are enumerations (integer base and ordered named
 values), subranges, and aliases (target descriptor). A structure definition shape
 is reserved for the later implementation.
@@ -171,7 +172,7 @@ in snapshots. Standard formal calls may carry an `evaluationOrder` permutation o
 `args` indices so source order is preserved independently of descriptor order.
 
 `ProgramIR.functionBlocks` holds shared `UserFunctionBlockIR` bodies with local
-`variables` (scalar, standard FB or user FB declaration), input/output slot arrays
+`variables` (scalar, array, standard FB or user FB declaration), input/output slot arrays
 and temporary slots, plus optional in-out slots. `userFbCall` and `userFbMember` reference a caller frame slot;
 member/input/output indices are slots in the callee definition. Standard `fbCall`
 now also accepts `outputs` with descriptor output indices and writable targets.
@@ -281,3 +282,18 @@ storage capacity, and `truncateString` applies capacity to runtime stores.
 `coerceValue` validates text representation without interpreting numeric-looking
 text. `formatValue` emits quoted ST literals, escaping dollars, delimiters,
 controls and surrogate units; `readStringLiteral` decodes the same syntax.
+
+## Array storage and snapshots
+
+Array expressions carry descriptors. `index` references hold their array reference
+and integer index expressions; `elementBit` addresses a bit of an indexed leaf.
+`ArrayVariable` describes function locals and temporaries. Persistent arrays expand
+into consecutive scalar variables with display names (`M1.A[2,1]`, `N[1][3]`) and
+`path` segments. `composites` records each collapsible array and its descriptor.
+Recursive `array` storage slots group the leaves without copying shared POU bodies.
+
+`watch` supplies a set of leaf IDs. For a program containing arrays, snapshots use
+parallel `variableIds` and `variables` arrays: ordinary variables, watched array
+leaves and forced leaves only. `snapshotVariable(snapshot, id)` handles both this
+compact form and the original scalar-only layout. Writes and forces still use
+leaf IDs. Whole-array assignments have no inline scalar annotation.

@@ -250,6 +250,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
               text={text}
               variables={variables}
               types={loadedIr?.types}
+              composites={loadedIr?.composites}
             />
           </div>
         </div>

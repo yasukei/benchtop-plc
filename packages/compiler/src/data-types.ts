@@ -1,5 +1,8 @@
 import {
   coerceValue,
+  cloneInitialValue,
+  arrayType,
+  type InitialValue,
   isCharacterType,
   DEFAULT_STRING_LENGTH,
   MAX_STRING_LENGTH,
@@ -34,7 +37,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
     ast: DataTypeDeclaration,
     expression: Expression,
     descriptor: TypeDescriptor,
-  ): ScalarValue | undefined => {
+  ): InitialValue | undefined => {
     let key = "__INITIAL_VALUE";
     while (declarations.some((declaration) => declaration.name.key === key)) key += "_";
     const name: Identifier = { name: key, key, span: expression.span };
@@ -84,7 +87,10 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
     diagnostics.push(
       ...result.diagnostics.map((diagnostic) => ({ ...diagnostic, pou: ast.name.name })),
     );
-    return result.checked?.symbols[0]?.initialValue ?? undefined;
+    return (
+      result.checked?.symbols[0]?.arrayValues ??
+      (result.checked?.symbols[0]?.initialValue as InitialValue | undefined)
+    );
   };
   const resolve = (ast: DataTypeDeclaration): TypeEntry | undefined => {
     const existing = types.find((entry) => entry.name.toUpperCase() === ast.name.key);
@@ -127,6 +133,68 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       visiting.delete(ast.name.key);
       return undefined;
     }
+    if (ast.array) {
+      const resolveElements = (node: import("./ast.js").ArrayDeclaration): void => {
+        if (node.array) resolveElements(node.array);
+        else {
+          const other = pending.get(node.typeName.key);
+          if (other) resolve(other);
+        }
+      };
+      resolveElements(ast.array);
+      const result = check(
+        {
+          kind: "program",
+          name: ast.name,
+          span: ast.span,
+          body: [],
+          declarations: [
+            {
+              kind: "declaration",
+              names: [{ name: "__ARRAY_VALUE", key: "__ARRAY_VALUE", span: ast.span }],
+              typeName: { name: "ARRAY", key: "ARRAY", span: ast.span },
+              array: ast.array,
+              initializer: ast.initializer,
+              span: ast.span,
+            },
+          ],
+        },
+        new Map(),
+        new Map(),
+        new Map(),
+        types,
+      );
+      diagnostics.push(...result.diagnostics.map((d) => ({ ...d, pou: ast.name.name })));
+      const symbol = result.checked?.symbols[0];
+      if (symbol?.descriptor && symbol.arrayValues) {
+        const entry: TypeEntry = {
+          name: ast.name.name,
+          definition: { kind: "alias", type: symbol.descriptor },
+          initialValue: symbol.arrayValues,
+        };
+        types.push(entry);
+        visiting.delete(ast.name.key);
+        return entry;
+      }
+      visiting.delete(ast.name.key);
+      return undefined;
+    }
+    if (arrayType(base, types)) {
+      const entry: TypeEntry = {
+        name: ast.name.name,
+        definition: { kind: "alias", type: base },
+        initialValue: cloneInitialValue(
+          typeEntry(base as import("@benchtop-plc/core").NamedType, types).initialValue,
+        ),
+      };
+      types.push(entry);
+      if (ast.initializer) {
+        const value = evaluate(ast, ast.initializer, { kind: "named", name: entry.name });
+        if (value !== undefined) entry.initialValue = value;
+      }
+      visiting.delete(ast.name.key);
+      return entry;
+    }
     const elementary = scalarBase(base, types);
     if (elementary === "STRING" || elementary === "WSTRING") {
       const length = ast.stringLength ?? DEFAULT_STRING_LENGTH;
@@ -164,12 +232,15 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
               values.some(
                 (item) =>
                   item.name.toUpperCase() === member.name.key ||
-                  BigInt(item.value) === BigInt(value),
+                  BigInt(item.value) === BigInt(value as ScalarValue),
               )
             )
               throw new RangeError("Duplicate enumeration member");
-            values.push({ name: member.name.name, value: coerceValue(elementary, value) });
-            next = BigInt(value) + 1n;
+            values.push({
+              name: member.name.name,
+              value: coerceValue(elementary, value as ScalarValue),
+            });
+            next = BigInt(value as ScalarValue) + 1n;
           } catch (error) {
             if (!(error instanceof RangeError)) throw error;
             invalid();
@@ -191,7 +262,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
         !isIntegerType(elementary) ||
         lower === undefined ||
         upper === undefined ||
-        BigInt(lower) > BigInt(upper)
+        BigInt(lower as ScalarValue) > BigInt(upper as ScalarValue)
       )
         invalid();
       else
@@ -200,10 +271,10 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
           definition: {
             kind: "subrange",
             base: elementary,
-            lower: coerceValue(elementary, lower),
-            upper: coerceValue(elementary, upper),
+            lower: coerceValue(elementary, lower as ScalarValue),
+            upper: coerceValue(elementary, upper as ScalarValue),
           },
-          initialValue: coerceValue(elementary, lower),
+          initialValue: coerceValue(elementary, lower as ScalarValue),
         };
     } else if (ast.typeName) {
       const initialValue =
@@ -224,7 +295,7 @@ export function resolveDataTypes(declarations: readonly DataTypeDeclaration[]): 
       types.push(entry);
       if (ast.initializer) {
         const value = evaluate(ast, ast.initializer, { kind: "named", name: entry.name });
-        if (value !== undefined) entry.initialValue = coerceValue(elementary, value);
+        if (value !== undefined) entry.initialValue = coerceValue(elementary, value as ScalarValue);
       }
     }
     visiting.delete(ast.name.key);

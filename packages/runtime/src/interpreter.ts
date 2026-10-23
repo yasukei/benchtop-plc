@@ -1,5 +1,9 @@
 import {
   coerceValue,
+  arrayType,
+  type AssignmentTarget,
+  type IndexReference,
+  type VariableReference,
   internalValue,
   scalarBase,
   SubrangeViolation,
@@ -30,7 +34,7 @@ import type {
   UserFunctionBlockCallStatement,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
-import { typed, type Memory, type MemoryFrame } from "./memory.js";
+import { typed, type Memory, type MemoryFrame, type ArrayValue } from "./memory.js";
 
 export const WATCHDOG_LIMIT = 200_000;
 export class RuntimeFault extends Error {
@@ -120,8 +124,84 @@ export class Interpreter {
     }
   }
 
+  private location(ref: VariableReference | IndexReference): {
+    frame: MemoryFrame;
+    variable: number;
+  } {
+    if (ref.kind === "variable") return { frame: this.memory, variable: ref.variable };
+    const parent = this.location(ref.array);
+    const array = arrayType(ref.array.dataType, this.programMemory.ir.types)!;
+    let offset = 0;
+    ref.indices.forEach((index, i) => {
+      const value = BigInt(this.expression(index)),
+        d = array.dimensions[i]!;
+      if (d === "*") throw new Error("Open array dimension");
+      if (value < BigInt(d.lower) || value > BigInt(d.upper))
+        throw new RuntimeFault({
+          code: "runtime.index-out-of-range",
+          severity: "error",
+          span: index.span,
+          pou: this.pou,
+          ...(this.instancePath ? { instance: this.instancePath } : {}),
+          args: { index: value.toString(), lower: d.lower, upper: d.upper },
+        });
+      offset = offset * (d.upper - d.lower + 1) + Number(value) - d.lower;
+    });
+    return { frame: parent.frame.element(parent.variable, offset), variable: 0 };
+  }
+
+  private arrayExpression(expr: Expression): ArrayValue {
+    if (expr.kind === "variable" || expr.kind === "index") {
+      const { frame, variable } = this.location(expr);
+      return frame.arrayValue(variable);
+    }
+    if (expr.kind === "functionCall") {
+      const args: (ArrayValue | ScalarValue)[] = [];
+      for (const i of expr.evaluationOrder ?? expr.args.map((_, i) => i)) {
+        const arg = expr.args[i]!;
+        args[i] = arrayType(arg.dataType, this.programMemory.ir.types)
+          ? this.arrayExpression(arg)
+          : this.expression(arg);
+      }
+      if (expr.function === "MOVE") return args[0] as ArrayValue;
+      if (expr.function === "SEL") return args[args[0] ? 2 : 1] as ArrayValue;
+      const selector = BigInt(args[0] as ScalarValue);
+      if (selector < 0n || selector >= BigInt(args.length - 1))
+        throw new RangeError("MUX selector");
+      return args[Number(selector) + 1] as ArrayValue;
+    }
+    throw new Error("Unsupported array expression");
+  }
+
+  private assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
+    if (target.kind === "index" || target.kind === "elementBit") {
+      const { frame, variable } = this.location(target.kind === "index" ? target : target.element);
+      return frame.assign(
+        target.kind === "index"
+          ? { ...target, kind: "variable", variable }
+          : {
+              kind: "bit",
+              variable,
+              bit: target.bit,
+              dataType: "BOOL",
+              span: target.span,
+            },
+        value,
+      );
+    }
+    return this.memory.assign(target, value);
+  }
+
   private evaluate(expr: Expression): ScalarValue {
     switch (expr.kind) {
+      case "index": {
+        const { frame, variable } = this.location(expr);
+        return frame.read(variable);
+      }
+      case "elementBit": {
+        const { frame, variable } = this.location(expr.element);
+        return (BigInt(frame.read(variable)) & (1n << BigInt(expr.bit))) !== 0n;
+      }
       case "literal":
         if (isLongType(this.base(expr.dataType)) || isCalendarType(this.base(expr.dataType)))
           validateValue(this.base(expr.dataType), expr.value);
@@ -195,7 +275,7 @@ export class Interpreter {
         for (const binding of expr.outputs ?? []) {
           const value = outputs.get(binding.output);
           if (value === undefined) throw new Error("Missing function output");
-          this.memory.assign(binding.target, value);
+          this.assign(binding.target, value);
         }
         return result;
       }
@@ -233,9 +313,16 @@ export class Interpreter {
   private statement(statement: Statement): Flow {
     switch (statement.kind) {
       case "assignment":
-        this.annotate(statement, [
-          this.memory.assign(statement.target, this.expression(statement.value)),
-        ]);
+        if (arrayType(statement.target.dataType, this.programMemory.ir.types)) {
+          const values = this.arrayExpression(statement.value);
+          const target = statement.target;
+          if (target.kind !== "variable" && target.kind !== "index")
+            throw new Error("Invalid array target");
+          const { frame, variable } = this.location(target);
+          frame.assignArray(variable, values);
+          break;
+        }
+        this.annotate(statement, [this.assign(statement.target, this.expression(statement.value))]);
         break;
       case "call": {
         if (statement.call.kind === "userFunctionCall") {
@@ -244,6 +331,10 @@ export class Interpreter {
             this.annotate(statement, [
               { dataType: this.base(statement.call.dataType), value: result } as TypedValue,
             ]);
+          break;
+        }
+        if (arrayType(statement.call.dataType, this.programMemory.ir.types)) {
+          this.arrayExpression(statement.call);
           break;
         }
         this.annotate(statement, [
@@ -278,7 +369,7 @@ export class Interpreter {
         const to = BigInt(this.expression(statement.to));
         const step = BigInt(this.expression(statement.step));
         if (step === 0n) this.fault("runtime.for-by-zero", statement.step.span);
-        this.memory.assign(statement.variable, from);
+        this.assign(statement.variable, from);
         while (
           step > 0n
             ? BigInt(this.memory.read(statement.variable.variable)) <= to
@@ -289,7 +380,7 @@ export class Interpreter {
           const flow = this.execute(statement.body);
           if (flow === "exit") break;
           if (flow) return flow;
-          this.memory.assign(
+          this.assign(
             statement.variable,
             BigInt(this.memory.read(statement.variable.variable)) + step,
           );
@@ -371,7 +462,7 @@ export class Interpreter {
     for (const binding of call.outputs ?? []) {
       const value = outputs[outputSlots.indexOf(binding.output)]!;
       const to = this.base(binding.target.dataType);
-      this.memory.assign(
+      this.assign(
         binding.target,
         isLongType(to) && value.dataType !== to
           ? convertValue(`${value.dataType}_TO_${to}` as ConversionFunction, value.value)
@@ -414,7 +505,7 @@ export class Interpreter {
       const variable = definition.variables[output.variable]!;
       const to = this.base(output.target.dataType);
       const value = locals.read(output.variable);
-      caller.assign(
+      this.assign(
         output.target,
         isLongType(to) && this.base(variable.dataType) !== to
           ? convertValue(`${this.base(variable.dataType)}_TO_${to}` as ConversionFunction, value)

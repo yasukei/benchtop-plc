@@ -193,3 +193,17 @@ it("checks named and anonymous subrange writes before sending a command", () => 
     expect(parseWrittenValue(descriptor, "-11", types)).toBeNull();
   }
 });
+
+it("builds nested array rows, watches expanded leaves, and retains collapsed forces", async () => {
+  const { monitorRows, watchedLeaves } = await import("./monitor.js");
+  const ir = compile(
+    "PROGRAM Main VAR n : ARRAY[1..2] OF ARRAY[1..2] OF INT; sum : INT; END_VAR END_PROGRAM",
+  ).ir!;
+  const rows = (expanded: string[], forced: number[] = []) =>
+    monitorRows(ir.variables, ir.composites!, new Set(expanded), forced);
+  expect(
+    rows([]).map((row) => (row.kind === "group" ? row.name : ir.variables[row.id]!.name)),
+  ).toEqual(["N", "sum"]);
+  expect(watchedLeaves(rows(["N", "N[1]"]), ir.variables)).toEqual([0, 1]);
+  expect(watchedLeaves(rows([], [2]), ir.variables)).toEqual([2]);
+});

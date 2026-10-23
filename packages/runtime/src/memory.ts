@@ -1,5 +1,8 @@
 import {
   coerceValue,
+  arrayType,
+  type ArrayVariable,
+  type InitialValue,
   truncateString,
   isCharacterType,
   validateValue,
@@ -55,13 +58,31 @@ interface UserBlockCell {
   path: string;
   resetTemporaries(): void;
 }
+export type ArrayValue = (ScalarValue | ArrayValue)[];
+type ValueCell = ScalarCell | { kind: "array"; elements: Cell[] };
 type Cell =
+  | { kind: "array"; elements: Cell[] }
   | { kind: "unbound" }
   | ScalarCell
   | { kind: "functionBlock"; instance: FunctionBlockInstance }
   | UserBlockCell;
 
-function initialCell(variable: ScalarVariable, types: TypeTable): ScalarCell {
+function initialCell(variable: ScalarVariable | ArrayVariable, types: TypeTable): ValueCell {
+  if (variable.kind === "array") {
+    const create = (type: TypeDescriptor, value: InitialValue): ValueCell => {
+      const array = arrayType(type, types);
+      if (array)
+        return {
+          kind: "array",
+          elements: (value as InitialValue[]).map((v) => create(array.element, v)),
+        };
+      return initialCell(
+        { ...variable, kind: "scalar", dataType: type, initialValue: value } as ScalarVariable,
+        types,
+      );
+    };
+    return create(variable.dataType, variable.initialValue);
+  }
   const dataType = scalarBase(variable.dataType, types);
   validateValue(dataType, variable.initialValue);
   validateDeclaredValue(variable.dataType, variable.initialValue, types);
@@ -85,6 +106,34 @@ export class MemoryFrame implements ScanMemory {
     protected readonly cells: Cell[],
     protected readonly types: TypeTable = [],
   ) {}
+
+  asArrayCell(): Cell {
+    return { kind: "array", elements: this.cells };
+  }
+
+  element(variable: number, offset: number): MemoryFrame {
+    const cell = this.cells[variable];
+    if (cell?.kind !== "array" || !cell.elements[offset])
+      throw new RangeError("Invalid array storage");
+    return new MemoryFrame([cell.elements[offset]!], this.types);
+  }
+
+  arrayValue(variable: number): ArrayValue {
+    const cell = this.cells[variable];
+    if (cell?.kind !== "array") throw new Error("Expected array");
+    return cell.elements.map((child, i) => {
+      const frame = this.element(variable, i);
+      return child.kind === "array" ? frame.arrayValue(0) : frame.read(0);
+    });
+  }
+
+  assignArray(variable: number, values: ArrayValue): void {
+    values.forEach((value, i) => {
+      const frame = this.element(variable, i);
+      if (Array.isArray(value)) frame.assignArray(0, value);
+      else frame.write(0, value);
+    });
+  }
 
   /** Share the actual cell, including when it is already an in-out alias. */
   bind(variable: number, caller: MemoryFrame, actual: number): void {
@@ -166,7 +215,10 @@ export class MemoryFrame implements ScanMemory {
     return { ...value };
   }
 
-  assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
+  assign(
+    target: Exclude<AssignmentTarget, { kind: "index" | "elementBit" }>,
+    value: ScalarValue,
+  ): TypedValue {
     if (target.kind === "bit") {
       const pattern = BigInt(this.read(target.variable)),
         mask = 1n << BigInt(target.bit);
@@ -187,7 +239,7 @@ export class MemoryFrame implements ScanMemory {
 }
 
 export class Memory extends MemoryFrame {
-  private readonly functionInitialCells: readonly ScalarCell[][];
+  private readonly functionInitialCells: readonly ValueCell[][];
   private readonly instanceCells = new Map<number, UserBlockCell>();
 
   constructor(
@@ -259,6 +311,7 @@ export class Memory extends MemoryFrame {
         if (slot.kind === "inOut") return { kind: "unbound" };
         if (slot.kind === "variable") return this.cells[slot.variable]!;
         if (slot.kind === "temporary") return initialCell(slot.variable, this.types);
+        if (slot.kind === "array") return this.frame(slot.elements).asArrayCell();
         let cell = this.instanceCells.get(slot.instance);
         if (!cell) {
           const instance = this.ir.instances![slot.instance]!;
@@ -288,11 +341,12 @@ export class Memory extends MemoryFrame {
     const initial = this.functionInitialCells[index];
     if (!initial) throw new Error("Missing function locals");
     return new MemoryFrame(
-      initial.map((cell) =>
-        cell.kind === "long"
-          ? { ...cell }
-          : { kind: "scalar", value: { ...cell.value }, descriptor: cell.descriptor },
-      ),
+      initial.map(function clone(cell: Cell): ValueCell {
+        if (cell.kind === "array") return { kind: "array", elements: cell.elements.map(clone) };
+        if (cell.kind === "long") return { ...cell };
+        if (cell.kind === "scalar") return { ...cell, value: { ...cell.value } };
+        throw new Error("Instance in function initial storage");
+      }),
       this.types,
     );
   }
@@ -321,8 +375,9 @@ export class Memory extends MemoryFrame {
     });
   }
 
-  snapshot(): VariableSnapshot[] {
-    return this.cells.map((cell): VariableSnapshot => {
+  snapshot(ids = this.cells.map((_, i) => i)): VariableSnapshot[] {
+    return ids.map((id): VariableSnapshot => {
+      const cell = this.cells[id]!;
       if (cell.kind === "long") return { kind: "scalar", ...typed(cell.dataType, cell.value) };
       if (cell.kind === "scalar") return { kind: "scalar", ...cell.value };
       if (cell.kind !== "functionBlock") throw new Error("User instance in monitored storage");

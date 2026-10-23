@@ -17,6 +17,15 @@ function expression(source: string): Expression {
 
 function shape(node: Expression): unknown {
   switch (node.kind) {
+    case "index":
+      return [shape(node.array), ...node.indices.map(shape)];
+    case "elementBit":
+      return [shape(node.element), node.member.key];
+    case "arrayInitializer":
+      return node.items.map((item) => [
+        item.count ? shape(item.count) : 1,
+        ...item.values.map(shape),
+      ]);
     case "enumeration":
       return `${node.typeName.key}#${node.member.key}`;
     case "literal":
@@ -429,7 +438,7 @@ describe("syntax diagnostics", () => {
     "FUNCTION F END_FUNCTION",
     "FUNCTION_BLOCK F END_FUNCTION_BLOCK",
     "PROGRAM P VAR_INPUT x : INT; END_VAR END_PROGRAM",
-    "PROGRAM P VAR x : ARRAY[1..3] OF INT; END_VAR END_PROGRAM",
+    "PROGRAM P VAR x : ARRAY[*] OF INT; END_VAR END_PROGRAM",
     "PROGRAM P x := a.b.c; END_PROGRAM",
   ])("does not accept unsupported syntax %s", (source) => {
     expect(parse(source).ast).toBeNull();

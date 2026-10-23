@@ -7,6 +7,7 @@ import {
 } from "@benchtop-plc/compiler";
 import {
   MAX_STRING_LENGTH,
+  formatType,
   isIntegerType,
   type TypeTable,
   type Diagnostic,
@@ -22,6 +23,7 @@ import type {
 } from "./model.js";
 import {
   canonicalBody,
+  canonicalInitializer,
   joinProgram,
   splitProgram,
   expressionText,
@@ -232,6 +234,17 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
   let type =
     normalizeType(ast.typeName?.key ?? "INT") +
     (ast.stringLength === undefined ? "" : `[${ast.stringLength}]`);
+  if (ast.array) {
+    if (definition?.kind === "alias") type = formatType(definition.type);
+    else {
+      const split = splitProgram(
+        `PROGRAM __TYPE_SOURCE VAR __VALUE : ${expressionText(source, ast.array.span)}; END_VAR END_PROGRAM`,
+        resolved.types,
+      );
+      if (!split.value) fail("project.invalid", `dataType/${ast.name.name}/baseType`);
+      type = split.value.variables[0]!.type;
+    }
+  }
   if (ast.values || ast.subrange) {
     if (resolved.diagnostics.some((item) => item.pou === ast.name.name))
       fail("project.invalid", `dataType/${ast.name.name}/baseType`);
@@ -242,7 +255,7 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
     else fail("project.invalid", `dataType/${ast.name.name}/baseType`);
   }
   // Slice initializer text by lexer spans, including CRLF sources.
-  const initialValue = ast.initializer ? expressionText(source, ast.initializer.span) : undefined;
+  const initialValue = ast.initializer ? canonicalInitializer(source, ast.initializer) : undefined;
   return { name: ast.name.name, type, ...(initialValue === undefined ? {} : { initialValue }) };
 }
 function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
@@ -268,13 +281,65 @@ function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
 function readInitialValue(node: XmlNode): string | undefined {
   const initial = one(node, "initialValue", false);
   if (!initial) return undefined;
-  shape(initial, [], ["simpleValue"]);
-  const simple = required(initial, "simpleValue");
-  leaf(simple, ["value"]);
-  return attribute(simple, "value");
+  const read = (value: XmlNode): string => {
+    shape(value, value.name === "value" ? ["repetitionValue"] : [], ["simpleValue", "arrayValue"]);
+    const children = value.children.filter((child) => child.name !== "addData");
+    if (children.length !== 1) fail("project.invalid", `${value.name}/value`);
+    const child = children[0]!;
+    if (child.name === "simpleValue") {
+      leaf(child, ["value"]);
+      return attribute(child, "value");
+    }
+    shape(child, [], ["value"]);
+    return `[${child.children
+      .filter((item) => item.name === "value")
+      .map((item) => {
+        const text = read(item),
+          repetition = item.attributes.repetitionValue;
+        if (
+          repetition !== undefined &&
+          (!/^[0-9]+$/.test(repetition) || Number(repetition) > 10000)
+        )
+          fail("project.invalid", "arrayValue/repetitionValue");
+        return repetition === undefined ? text : `${repetition}(${text})`;
+      })
+      .join(", ")}]`;
+  };
+  return read(initial);
 }
 function initialXml(value: string | undefined): string {
-  return value === undefined ? "" : element("initialValue", {}, element("simpleValue", { value }));
+  if (value === undefined) return "";
+  if (!value.trimStart().startsWith("["))
+    return element("initialValue", {}, element("simpleValue", { value }));
+  const source = `PROGRAM Initial VAR a : INT := ${value}; END_VAR END_PROGRAM`;
+  const initializer = parsePou(source).ast?.declarations[0]?.initializer;
+  if (!initializer) fail("project.invalid", "arrayValue");
+  const encode = (node: import("@benchtop-plc/compiler").Expression): string => {
+    if (node.kind !== "arrayInitializer")
+      return element("simpleValue", { value: expressionText(source, node.span) });
+    return element(
+      "arrayValue",
+      {},
+      node.items
+        .map((item) => {
+          if (!item.count) return item.values.map((v) => element("value", {}, encode(v))).join("");
+          const countText = expressionText(source, item.count.span);
+          const ast = parsePou(
+            `PROGRAM Count VAR n : DINT := ${countText}; END_VAR END_PROGRAM`,
+          ).ast;
+          const count = ast && check(ast).checked?.symbols[0]?.initialValue;
+          if (typeof count !== "number" || count < 0 || count > 10000)
+            fail("project.invalid", "arrayValue/repetitionValue");
+          if (item.values.length === 1)
+            return element("value", { repetitionValue: String(count) }, encode(item.values[0]!));
+          return Array.from({ length: count }, () =>
+            item.values.map((v) => element("value", {}, encode(v))).join(""),
+          ).join("");
+        })
+        .join(""),
+    );
+  };
+  return element("initialValue", {}, encode(initializer));
 }
 
 function readType(type: XmlNode, enumeration = false): string {
@@ -286,6 +351,7 @@ function readType(type: XmlNode, enumeration = false): string {
       "string",
       "wstring",
       "derived",
+      "array",
       "subrangeSigned",
       "subrangeUnsigned",
       ...(enumeration ? ["enum"] : []),
@@ -294,6 +360,27 @@ function readType(type: XmlNode, enumeration = false): string {
   const choices = type.children.filter((child) => child.name !== "addData");
   if (choices.length !== 1) fail("project.invalid", `${type.name}/type`);
   const choice = choices[0]!;
+  if (choice.name === "array") {
+    shape(choice, [], ["dimension", "baseType"]);
+    const dimensions = choice.children
+      .filter((child) => child.name === "dimension")
+      .map((d) => {
+        leaf(d, ["lower", "upper"]);
+        const lower = attribute(d, "lower"),
+          upper = attribute(d, "upper");
+        if (
+          !/^[+-]?\d+$/.test(lower) ||
+          !/^[+-]?\d+$/.test(upper) ||
+          BigInt(lower) < -2147483648n ||
+          BigInt(upper) > 2147483647n ||
+          BigInt(lower) > BigInt(upper)
+        )
+          fail("project.invalid", "array/dimension");
+        return `${BigInt(lower)}..${BigInt(upper)}`;
+      });
+    if (!dimensions.length || dimensions.length > 3) fail("project.invalid", "array/dimension");
+    return `ARRAY[${dimensions.join(", ")}] OF ${readType(required(choice, "baseType"))}`;
+  }
   if (choice.name === "subrangeSigned" || choice.name === "subrangeUnsigned") {
     shape(choice, [], ["range", "baseType"]);
     const range = required(choice, "range");
@@ -641,6 +728,20 @@ export function readProject(xml: string): ProjectResult<Project> {
 }
 
 function typeXml(type: string): string {
+  const array = /^ARRAY\[([^\]]+)\] OF (.+)$/.exec(type);
+  if (array)
+    return element(
+      "array",
+      {},
+      array[1]!
+        .split(",")
+        .map((d) => {
+          const [lower, upper] = d.trim().split("..");
+          return element("dimension", { lower: lower!, upper: upper! });
+        })
+        .join("") + element("baseType", {}, typeXml(array[2]!)),
+    );
+
   const string = /^(STRING|WSTRING)(?:\[([0-9]+)\])?$/.exec(type);
   if (string)
     return element(string[1]!.toLowerCase(), string[2] === undefined ? {} : { length: string[2] });

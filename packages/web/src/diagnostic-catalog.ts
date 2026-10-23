@@ -145,6 +145,8 @@ export const diagnosticEn = {
       : `${name} requires ${min === max ? min : `${min}–${max}`} arguments; found ${typeText(found)}.`,
   "call.argument-type": ({ name, index, expected, found }) =>
     `Argument ${index + 1} of ${name} requires ${expected.map(formatType).join(" / ")}; found ${typeText(found)}.`,
+  "runtime.index-out-of-range": ({ index, lower, upper }) =>
+    `Array index ${index} is outside ${lower}..${upper}.`,
   "runtime.subrange-violation": ({ value, lower, upper }) =>
     `Value ${value} is outside subrange ${lower}..${upper}.`,
   "type.ambiguous-enumeration": ({ name }) =>
@@ -276,6 +278,8 @@ export const diagnosticJa = {
       : `${name}には${min === max ? min : `${min}～${max}`}個の引数が必要ですが、${typeText(found)}個です。`,
   "call.argument-type": ({ name, index, expected, found }) =>
     `${name}の${index + 1}番目の引数には${expected.map(formatType).join(" / ")}が必要ですが、${typeText(found)}です。`,
+  "runtime.index-out-of-range": ({ index, lower, upper }) =>
+    `配列の添字 ${index} は範囲 ${lower}..${upper} の外です。`,
   "runtime.subrange-violation": ({ value, lower, upper }) =>
     `値 ${value} は部分範囲 ${lower}..${upper} の範囲外です。`,
   "type.ambiguous-enumeration": ({ name }) =>

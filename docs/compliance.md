@@ -76,7 +76,8 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `TYPE` declarations                         | Partial | One type per separate compiler source, ordered before POUs; case-insensitive shared namespace; elementary aliases and defaults (ADR 0015). PLCopen XML exchanges these sources; web type list deferred.                          |
 | Enumerations                                | Partial | Implicit/explicit integer values, qualified/contextual literals, assignment, equality, CASE, MOVE/SEL/MUX, scalar POU parameters/results and CONSTANT; no ordering, conversion or enum ranges (restrictions; 3rd edition basis). |
 | Subranges                                   | Partial | Named/inline integer limits, lower-bound defaults, constant checks and runtime store faults; exact in-outs compare base and limits; forbidden as FOR controls (restriction; 3rd edition basis).                                  |
-| Arrays, structures, references              | No      |                                                                                                                                                                                                                                  |
+| Arrays                                      | Partial | Up to three dimensions, 10,000 scalar leaves, nested arrays, initializers, indexing and whole-array assignment/selection (ADR 0015).                                                                                             |
+| Structures, references                      | No      |                                                                                                                                                                                                                                  |
 
 ## Program organization units
 
@@ -276,6 +277,18 @@ end, and fault on invalid positions/negative lengths. Results hold up to 1,024
 code units before storage. String conversions use the monitor format and accept
 all target literal prefixes, rejecting invalid or out-of-range text with
 runtime.invalid-value. String functions/conversions execute at run time and are
-not constant initializer expressions. Arrays and structures of strings remain
-unsupported. These decisions follow the 3rd edition
+not constant initializer expressions. Arrays of strings are supported; structures
+remain unsupported. These decisions follow the 3rd edition
 and secondary sources, pending 4th edition verification (ADR 0015).
+
+## Array restrictions (ADR 0015)
+
+Bounds must be constant integers fitting DINT. Each array has at most three
+dimensions and 10,000 elements; a variable has at most 10,000 scalar leaves.
+Arrays support elementary/string/enumeration/subrange and nested-array elements.
+Arrays of structures or function blocks, array parameters/results, open dimensions
+(`ARRAY[*]`), constant arrays and whole-array comparisons remain unsupported.
+Whole-array MOVE/SEL/MUX require equivalent bounds and element types, with exact
+subrange limits and string capacities excluded from equivalence. Missing
+initializer elements use their type defaults. These rules follow ADR 0015's
+3rd-edition-based decisions, pending 4th edition verification.

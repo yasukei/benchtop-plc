@@ -190,7 +190,9 @@ describe("PLCopen data types", () => {
       `<dataType name="T"><baseType>${type}`,
     );
     expect(readProject(xml).diagnostics).toContainEqual(
-      expect.objectContaining({ code: "project.unsupported" }),
+      expect.objectContaining({
+        code: type === "<array/>" ? "project.invalid" : "project.unsupported",
+      }),
     );
   });
 });
@@ -332,6 +334,73 @@ it.each(["STRING[0]", "WSTRING[1025]", "CHAR[2]"])(
     ).toBeNull();
     expect(
       writeProject(project([`TYPE Text : ${type}; END_TYPE`], ["PROGRAM Main END_PROGRAM"])).value,
+    ).toBeNull();
+  },
+);
+
+it("round trips named, anonymous and nested arrays, row-major initializers and repetitions", () => {
+  const value = project(
+    [
+      "TYPE Table : ARRAY[1..3] OF INT := [1, 2, 1(3)]; END_TYPE",
+      "TYPE Nested : ARRAY[1..2] OF ARRAY[-1..1] OF STRING[5] := [2(['a', 'b'])]; END_TYPE",
+    ],
+    [
+      "PROGRAM Main VAR CONSTANT N : INT := 3; END_VAR VAR a : Table; b : ARRAY[0..1,1..N] OF INT := [2(1, 2), 2(0)]; grid : Nested; END_VAR a[2] := b[1,1]; END_PROGRAM",
+    ],
+  );
+  const xml = save(value);
+  expect(xml).toContain('<array><dimension lower="0" upper="1"/><dimension lower="1" upper="3"/>');
+  expect(xml).toContain('<value repetitionValue="2"><simpleValue value="0"/>');
+  expect(xml).toContain("<arrayValue>");
+  expect(readProject(xml)).toEqual({ value, diagnostics: [] });
+  const canonical = readProject(withoutSource(xml));
+  expect(canonical.diagnostics).toEqual([]);
+  const compiled = compileProject(canonical.value!.pous, canonical.value!.dataTypes);
+  expect(compiled.diagnostics).toEqual([]);
+  expect(executable(compiled.ir)).toEqual(
+    executable(compileProject(value.pous, value.dataTypes).ir),
+  );
+});
+
+it.each([
+  "<array/>",
+  '<array><dimension lower="0" upper="2147483648"/><baseType><INT/></baseType></array>',
+  '<array><dimension lower="5" upper="1"/><baseType><INT/></baseType></array>',
+])("rejects malformed array types %s", (type) => {
+  const xml = save(project(["TYPE T : INT; END_TYPE"])).replace(
+    '<dataType name="T"><baseType><INT/>',
+    `<dataType name="T"><baseType>${type}`,
+  );
+  expect(readProject(xml).value).toBeNull();
+});
+
+it("folds repetition counts from POU constants and any integer type", () => {
+  const value = project(
+    [],
+    [
+      "PROGRAM Main VAR CONSTANT N : ULINT := ULINT#2; END_VAR VAR a : ARRAY[1..5] OF INT := [N(1,2), ULINT#1(0)]; END_VAR END_PROGRAM",
+    ],
+  );
+  expect(readProject(save(value))).toEqual({ value, diagnostics: [] });
+});
+
+it("preserves arrays with unresolved element types and unresolved leaf initializers", () => {
+  const value = project(
+    ["TYPE Table : ARRAY[1..2] OF Missing := [UnknownValue]; END_TYPE"],
+    [
+      "PROGRAM Main VAR a : ARRAY[1..2] OF Missing := [UnknownValue]; b : ARRAY[1..2] OF INT := [UnknownValue]; END_VAR END_PROGRAM",
+    ],
+  );
+  expect(readProject(save(value))).toEqual({ value, diagnostics: [] });
+});
+
+it.each(["[-1(0)]", "[N(0)]", "[2.5(0)]", "[[1](0)]"])(
+  "rejects invalid array repetitions %s without throwing",
+  (initial) => {
+    expect(
+      writeProject(
+        project([], [`PROGRAM Main VAR a : ARRAY[1..5] OF INT := ${initial}; END_VAR END_PROGRAM`]),
+      ).value,
     ).toBeNull();
   },
 );

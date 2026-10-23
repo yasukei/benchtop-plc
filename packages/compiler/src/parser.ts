@@ -2,6 +2,7 @@ import { isStandardFunction } from "@benchtop-plc/core";
 import type { BinaryOperator, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import type {
   Address,
+  ArrayDeclaration,
   AssignmentTarget,
   CaseBranch,
   CaseLabel,
@@ -230,7 +231,8 @@ class Parser {
     const start = this.expect("TYPE").span;
     const name = this.identifier(true);
     this.expect(":");
-    const typeName = this.at("(") ? undefined : this.identifier(true);
+    const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
+    const typeName = array ? undefined : this.at("(") ? undefined : this.identifier(true);
     const stringLength = this.at("[") ? this.stringLength() : undefined;
     let subrange: Subrange | undefined;
     let values: DataTypeDeclaration["values"];
@@ -250,7 +252,7 @@ class Parser {
         this.expect(")");
       } else subrange = this.subrange();
     }
-    const initializer = this.accept(":=") ? this.expression() : undefined;
+    const initializer = this.accept(":=") ? this.initialValue() : undefined;
     this.expect(";");
     this.expect("END_TYPE");
     const span = this.spanFrom(start);
@@ -259,6 +261,7 @@ class Parser {
     return {
       name,
       span,
+      ...(array ? { array } : {}),
       ...(typeName ? { typeName } : {}),
       ...(subrange ? { subrange } : {}),
       ...(stringLength === undefined ? {} : { stringLength }),
@@ -286,17 +289,21 @@ class Parser {
       };
     }
     this.expect(":");
-    const typeName = this.identifier(true);
+    const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
+    const typeName = array
+      ? { name: "ARRAY", key: "ARRAY", span: array.span }
+      : this.identifier(true);
     const stringLength = this.at("[") ? this.stringLength() : undefined;
     const subrange = this.at("(") ? this.subrange() : undefined;
     let initializer: Expression | undefined;
     if (this.at(":=") || this.at("=")) {
       this.assignmentOperator();
-      initializer = this.expression();
+      initializer = this.initialValue();
     }
     this.expect(";");
     return {
       kind: "declaration",
+      ...(array ? { array } : {}),
       names,
       typeName,
       ...(subrange ? { subrange } : {}),
@@ -305,6 +312,65 @@ class Parser {
       ...(initializer ? { initializer } : {}),
       span: this.spanFrom(names[0].span),
     };
+  }
+
+  private arrayDeclaration(): ArrayDeclaration {
+    const start = this.expect("ARRAY").span;
+    this.expect("[");
+    const dimensions: Subrange[] = [];
+    do {
+      const lower = this.expression();
+      this.expect("..");
+      const upper = this.expression();
+      dimensions.push({ lower, upper, span: joinedSpan(lower.span, upper.span) });
+    } while (this.accept(","));
+    this.expect("]");
+    this.expect("OF");
+    const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
+    const typeName = array
+      ? { name: "ARRAY", key: "ARRAY", span: array.span }
+      : this.identifier(true);
+    const stringLength = this.at("[") ? this.stringLength() : undefined;
+    const subrange = this.at("(") ? this.subrange() : undefined;
+    return {
+      dimensions,
+      typeName,
+      span: this.spanFrom(start),
+      ...(array ? { array } : {}),
+      ...(stringLength === undefined ? {} : { stringLength }),
+      ...(subrange ? { subrange } : {}),
+    };
+  }
+
+  private initialValue(): Expression {
+    if (!this.at("[")) return this.expression();
+    const start = this.take().span;
+    const items: import("./ast.js").ArrayInitializer["items"] = [];
+    if (!this.at("]"))
+      do {
+        if (
+          this.current.kind === "identifier" &&
+          this.tokens[this.cursor + 1]?.key === "(" &&
+          !isStandardFunction(this.current.key)
+        ) {
+          const name = this.identifier();
+          this.expect("(");
+          const values = [this.initialValue()];
+          while (this.accept(",")) values.push(this.initialValue());
+          this.expect(")");
+          items.push({ count: { kind: "name", name, span: name.span }, values });
+          continue;
+        }
+        const first = this.initialValue();
+        if (this.accept("(")) {
+          const values = [this.initialValue()];
+          while (this.accept(",")) values.push(this.initialValue());
+          this.expect(")");
+          items.push({ count: first, values });
+        } else items.push({ values: [first] });
+      } while (this.accept(","));
+    this.expect("]");
+    return { kind: "arrayInitializer", items, span: this.spanFrom(start) };
   }
 
   private body(
@@ -480,6 +546,33 @@ class Parser {
   }
 
   private reference(name: Identifier): AssignmentTarget {
+    if (this.at("[")) {
+      let array: import("./ast.js").NameReference | import("./ast.js").ArrayAccess = {
+        kind: "name",
+        name,
+        span: name.span,
+      };
+      while (this.accept("[")) {
+        const indices = [this.expression()];
+        while (this.accept(",")) indices.push(this.expression());
+        this.expect("]");
+        array = { kind: "index", array, indices, span: this.spanFrom(name.span) };
+      }
+      if (this.accept(".")) {
+        const token = this.current;
+        const member =
+          token.kind === "integer" && !token.dataType && /^\d+$/.test(token.text)
+            ? (this.take(), { name: token.text, key: token.key, span: token.span })
+            : this.identifier();
+        return {
+          kind: "elementBit",
+          element: array as import("./ast.js").ArrayAccess,
+          member,
+          span: this.spanFrom(name.span),
+        };
+      }
+      return array;
+    }
     if (this.accept(".")) {
       const token = this.current;
       // A numeric selector is checked against the variable's bit width in the semantic pass.

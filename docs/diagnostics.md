@@ -279,3 +279,11 @@ CHAR/WCHAR literals with other than one code unit, and typed literals with the
 wrong quote width. Invalid monitor text is handled by the monitor's localized
 validation message; malformed protocol values use `runtime.debug-value` and wrong
 scalar discriminators use `runtime.debug-type-mismatch`.
+
+### Array index faults
+
+`runtime.index-out-of-range` reports `{ index, lower, upper }` for the offending
+dimension, with the executing POU, instance path and index-expression span. The
+index uses a decimal string to preserve 64-bit values. Constant out-of-bounds
+indices, invalid bounds and excessive array sizes are compile-time
+`type.invalid-constant` diagnostics instead.

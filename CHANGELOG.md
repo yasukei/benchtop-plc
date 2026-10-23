@@ -10,6 +10,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Arrays with constant DINT bounds, up to three dimensions and 10,000 scalar
+  leaves, nested arrays, repeated initializers, checked indexing, element bit
+  access and whole-array assignment/MOVE/SEL/MUX. Array elements support strings,
+  enumerations and subranges. The monitor expands arrays and writes/forces
+  individual elements; snapshots include watched or forced elements. Editor
+  hovers show array types, and PLCopen XML preserves array types and initial values.
+
 - Standard STRING/WSTRING functions LEN, LEFT, RIGHT, MID, extensible CONCAT,
   INSERT, DELETE, REPLACE and FIND, with checked positions, clamped lengths and
   results up to 1,024 code units. CHAR/WCHAR inputs widen to their string types.

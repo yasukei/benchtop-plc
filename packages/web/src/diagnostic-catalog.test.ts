@@ -84,6 +84,7 @@ const examples = {
   "call.invalid-parameter": { name: "SPLIT_DATE", parameter: "YEAR" },
   "call.argument-count": { name: "LIMIT", min: 3, max: 3, found: 2 },
   "call.argument-type": { name: "ABS", index: 0, expected: ["INT", "REAL"], found: "BOOL" },
+  "runtime.index-out-of-range": { index: 6, lower: 1, upper: 5 },
   "runtime.subrange-violation": { value: 120, lower: 0, upper: 100 },
   "type.ambiguous-enumeration": { name: "Red" },
   "runtime.invalid-value": {},

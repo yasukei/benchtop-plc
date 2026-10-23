@@ -449,3 +449,25 @@ conversion. Enumerations cannot use conversion functions. String functions and
 conversions involving character data execute at run time, including calls with
 literal inputs; they are not constant initializer expressions. Invalid text or
 positions therefore fault at the call span rather than becoming compiler errors.
+
+## Arrays
+
+Array bounds are constant integer expressions fitting DINT, with lower <= upper.
+Earlier POU CONSTANT declarations are in scope; data type sources allow literal
+arithmetic only. There are at most three dimensions, 10,000 elements per array and
+10,000 scalar leaves per variable, including nested arrays. Invalid bounds,
+excessive sizes, initializer counts and constant out-of-bounds indices report
+`type.invalid-constant`. Each index must have an integer type, with exactly one
+index per dimension.
+
+Element types include elementary, string, enumeration, subrange and array types.
+Initializers enumerate elements in row-major order, support repeated values or
+groups and default missing trailing elements. Every supplied leaf is checked
+against its destination. Array constants and array parameters/results are rejected.
+Arrays are allowed in PROGRAM/FB VAR, VAR_TEMP, and function locals.
+
+Arrays match structurally by bounds and recursively by element type. Subranges
+must have the same base and limits; string capacities do not participate in type
+identity. Whole-array assignment, MOVE, SEL and MUX require equivalent array types.
+Arithmetic and whole-array comparisons are rejected. Scalar element operations
+follow their ordinary scalar rules.

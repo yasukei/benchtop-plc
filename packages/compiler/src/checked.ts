@@ -31,6 +31,7 @@ export interface VariableSymbol {
   descriptor?: TypeDescriptor;
   userBlock?: number;
   initialValue: ScalarValue | null;
+  arrayValues?: import("@benchtop-plc/core").InitialValue[];
 }
 
 export interface ExpressionInfo {
