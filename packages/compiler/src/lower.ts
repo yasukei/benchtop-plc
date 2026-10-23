@@ -255,7 +255,7 @@ class Lowerer {
             ? null
             : commonType(
                 inputs
-                  .slice(start)
+                  .slice(start, signature.genericEnd)
                   .map((arg) => required(this.checked.expressions.get(arg)).dataType),
               );
         return {
@@ -279,7 +279,12 @@ class Lowerer {
           args: inputs.map((arg, index) => {
             const expression = this.expression(arg);
             const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)];
-            if (start !== undefined && index >= start && common)
+            if (
+              start !== undefined &&
+              index >= start &&
+              index < (signature.genericEnd ?? inputs.length) &&
+              common
+            )
               return this.widen(expression, common);
             if (accepted?.length === 1) return this.widen(expression, accepted[0]!);
             return expression;

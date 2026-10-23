@@ -53,6 +53,25 @@ describe("conformance trace harness", () => {
     );
   });
 
+  it("supports string values in expectations and pending writes", () => {
+    runTrace(
+      "text",
+      "PROGRAM Text VAR inputText : STRING; outputText : STRING; END_VAR outputText := inputText; END_PROGRAM",
+      parseTrace({
+        kind: "run",
+        cycleMs: 10,
+        steps: [
+          {
+            label: "copy text",
+            set: { inputText: "123" },
+            scans: 1,
+            expect: { outputText: "123" },
+          },
+        ],
+      }),
+    );
+  });
+
   it.each([
     { scans: -1 },
     { scans: 0.5 },
@@ -61,7 +80,7 @@ describe("conformance trace harness", () => {
     { scans: 1, advanceMs: 1 },
     { scan: 1 },
     { expect: {} },
-    { expect: { Count: "1" } },
+    { expect: { Count: ["1"] } },
     { set: { Input: null } },
     { label: "" },
   ])("rejects malformed steps %j", (step) => {

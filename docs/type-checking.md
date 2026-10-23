@@ -429,5 +429,22 @@ Comparisons and GT/GE/EQ/LE/LT/NE compare code units lexicographically; a prefix
 sorts first. MIN, MAX, LIMIT, MOVE, SEL and MUX accept character values. Their
 common type follows ADR 0013, so CHAR mixed with STRING produces STRING, and
 WCHAR mixed with WSTRING produces WSTRING. Arithmetic and bit operations reject
-character types. String functions and explicit character conversions follow in
-issue #124.
+character types.
+
+The generic families ANY_CHAR (CHAR/WCHAR), ANY_STRING (STRING/WSTRING) and
+ANY_CHARS (both) belong to ANY_ELEMENTARY. LEN, LEFT, RIGHT, MID, CONCAT, INSERT,
+DELETE, REPLACE and FIND take ANY_STRING inputs; multiple string inputs must have
+one common type (STRING and WSTRING cannot mix). L and P are independently typed
+ANY_INT parameters, including subranges. LEN and FIND return INT; other results
+have the input string type and capacity up to 1,024 until stored. CONCAT takes at
+least two inputs and is extensible. Existing CONCAT_DATE/TOD families are unchanged.
+
+Every non-character elementary type supports `<type>_TO_STRING`,
+`<type>_TO_WSTRING`, `STRING_TO_<type>` and `WSTRING_TO_<type>`. The supported
+character conversions are STRING ↔ WSTRING, CHAR ↔ STRING, WCHAR ↔ WSTRING,
+CHAR ↔ WCHAR, CHAR ↔ BYTE and WCHAR ↔ WORD. Overloaded `TO_<type>` resolves from
+the source type to these same conversions; there is no implicit STRING ↔ WSTRING
+conversion. Enumerations cannot use conversion functions. String functions and
+conversions involving character data execute at run time, including calls with
+literal inputs; they are not constant initializer expressions. Invalid text or
+positions therefore fault at the call span rather than becoming compiler errors.

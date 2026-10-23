@@ -7,6 +7,7 @@ import type {
   StandardFunction,
   TimeArithmeticFunction,
   CalendarFunction,
+  StringFunction,
 } from "./ir.js";
 import { integerTypes as integers } from "./values.js";
 import { calendarTypes } from "./calendar.js";
@@ -135,6 +136,8 @@ export interface StandardFunctionSignature {
   result?: DataType;
   /** Arguments from this index onward form one common-type group. */
   genericStart?: number;
+  /** Exclusive end of the common-type group; omitted means all remaining arguments. */
+  genericEnd?: number;
   /** Independent parameters: result takes this argument's type. */
   resultArgument?: number;
   inputNames?: readonly string[];
@@ -193,6 +196,46 @@ for (const to of calendarTypes) {
       `${from}_TO_${to}`,
       { min: 1, max: 1, arguments: [[from]], result: to },
     ]);
+}
+// String conversions extend the existing overloaded destination signatures.
+const textTypes = ["STRING", "WSTRING"] as const;
+const plainTypes = scalarTypes.filter(
+  (type) => !["STRING", "WSTRING", "CHAR", "WCHAR"].includes(type),
+);
+const characterPairs = [
+  ["STRING", "WSTRING"],
+  ["WSTRING", "STRING"],
+  ["CHAR", "STRING"],
+  ["WCHAR", "WSTRING"],
+  ["STRING", "CHAR"],
+  ["WSTRING", "WCHAR"],
+  ["CHAR", "WCHAR"],
+  ["WCHAR", "CHAR"],
+  ["CHAR", "BYTE"],
+  ["BYTE", "CHAR"],
+  ["WCHAR", "WORD"],
+  ["WORD", "WCHAR"],
+] as const;
+const stringPairs: readonly (readonly [DataType, DataType])[] = [
+  ...textTypes.flatMap((text) =>
+    plainTypes.flatMap(
+      (type) =>
+        [
+          [type, text],
+          [text, type],
+        ] as const,
+    ),
+  ),
+  ...characterPairs,
+];
+for (const [from, to] of stringPairs) {
+  conversionEntries.push([`${from}_TO_${to}`, { min: 1, max: 1, arguments: [[from]], result: to }]);
+  const overloaded = conversionEntries.find(([name]) => name === `TO_${to}`);
+  if (overloaded) {
+    const sources = overloaded[1].arguments[0]!;
+    if (!sources.includes(from)) overloaded[1].arguments = [[...sources, from]];
+  } else
+    conversionEntries.push([`TO_${to}`, { min: 1, max: 1, arguments: [[from, to]], result: to }]);
 }
 // Every conversion opcode is generated from the families in ConversionFunction.
 export const conversionFunctions = Object.fromEntries(conversionEntries) as Record<
@@ -326,6 +369,31 @@ export const calendarFunctions = {
   },
 } as const satisfies Record<CalendarFunction, StandardFunctionSignature>;
 
+const strings = ["STRING", "WSTRING"] as const;
+export const stringFunctions = {
+  LEN: { min: 1, max: 1, arguments: [strings], result: "INT" },
+  LEFT: { min: 2, max: 2, arguments: [strings, integers], resultArgument: 0 },
+  RIGHT: { min: 2, max: 2, arguments: [strings, integers], resultArgument: 0 },
+  MID: { min: 3, max: 3, arguments: [strings, integers, integers], resultArgument: 0 },
+  CONCAT: generic(strings, 2, null),
+  INSERT: {
+    min: 3,
+    max: 3,
+    arguments: [strings, strings, integers],
+    genericStart: 0,
+    genericEnd: 2,
+  },
+  DELETE: { min: 3, max: 3, arguments: [strings, integers, integers], resultArgument: 0 },
+  REPLACE: {
+    min: 4,
+    max: 4,
+    arguments: [strings, strings, integers, integers],
+    genericStart: 0,
+    genericEnd: 2,
+  },
+  FIND: { ...generic(strings, 2, 2), result: "INT" },
+} as const satisfies Record<StringFunction, StandardFunctionSignature>;
+
 export const standardFunctions = {
   ABS: generic(numericTypes, 1, 1),
   SQRT: realUnary,
@@ -365,6 +433,7 @@ export const standardFunctions = {
   LE: comparison,
   LT: comparison,
   NE: { ...comparison, max: 2 },
+  ...stringFunctions,
   ...timeArithmeticFunctions,
   ...calendarFunctions,
   ...truncationFunctions,

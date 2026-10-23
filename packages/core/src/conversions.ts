@@ -1,3 +1,6 @@
+import { isCharacterType, validateCharacters } from "./strings.js";
+import { parseElementaryText } from "./elementary-text.js";
+import { formatValue } from "./values.js";
 import { isCalendarType, convertCalendar } from "./calendar.js";
 import type { ConversionFunction } from "./ir.js";
 import type { DataType, ScalarValue } from "./values.js";
@@ -7,10 +10,33 @@ import { roundRational } from "./rounding.js";
 import { realFraction } from "./time.js";
 
 /** Shared by constant evaluation and execution, so typed constants have runtime semantics. */
-export function convertValue(name: ConversionFunction, value: ScalarValue): ScalarValue {
-  const source = name.startsWith("TO_") ? null : (name.split("_TO_")[0] as DataType);
+export function convertValue(
+  name: ConversionFunction,
+  value: ScalarValue,
+  sourceType?: DataType,
+): ScalarValue {
+  const source = name.startsWith("TO_")
+    ? (sourceType ?? null)
+    : (name.split("_TO_")[0] as DataType);
   const input = source ? coerceValue(source, value) : value;
   const to = conversionFunctions[name].result!;
+  if (source && (isCharacterType(source) || isCharacterType(to))) {
+    if (isCharacterType(to)) {
+      let text: string;
+      if ((source === "BYTE" && to === "CHAR") || (source === "WORD" && to === "WCHAR"))
+        text = String.fromCharCode(Number(input));
+      else if (isCharacterType(source)) text = String(input);
+      else text = formatValue(source, coerceValue(source, input));
+      if (to === "CHAR" || to === "WCHAR") {
+        if (text.length === 0) throw new RangeError("Empty string to character");
+        text = text.slice(0, 1);
+      }
+      validateCharacters(to, text);
+      return text;
+    }
+    if (source === "CHAR" || source === "WCHAR") return String(input).charCodeAt(0);
+    return parseElementaryText(to, String(input));
+  }
   if (source && isCalendarType(source) && isCalendarType(to))
     return convertCalendar(source, to, input);
   if ((source === "LREAL" && to === "LWORD") || (source === "LWORD" && to === "LREAL")) {

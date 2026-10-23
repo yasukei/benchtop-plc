@@ -1060,7 +1060,14 @@ class Checker {
         ? inputs.map(parameter)
         : [
             ...inputs.slice(0, start).map(parameter),
-            ...this.operands(inputs.slice(start), false, realGroup ? "LREAL" : enumContext),
+            ...this.operands(
+              inputs.slice(start, signature.genericEnd),
+              false,
+              realGroup ? "LREAL" : enumContext,
+            ),
+            ...inputs
+              .slice(signature.genericEnd ?? inputs.length)
+              .map((arg, index) => parameter(arg, index + (signature.genericEnd ?? inputs.length))),
           ];
     const enumeration = args.find((arg) => arg && this.enum(arg));
     if (enumeration) {
@@ -1137,6 +1144,8 @@ class Checker {
           pou: this.ast.name.name,
         });
       }
+      if (arg && (isCharacterType(arg.dataType) || isCharacterType(signature.result)))
+        return { dataType: signature.result };
       return this.constant(
         { dataType: signature.result },
         node,
@@ -1161,7 +1170,9 @@ class Checker {
       return arg ? { dataType: arg.dataType } : null;
     }
     const values = args.flatMap((arg, index) =>
-      arg && index >= (start ?? 0) ? [{ ...arg, index }] : [],
+      arg && index >= (start ?? 0) && index < (signature.genericEnd ?? args.length)
+        ? [{ ...arg, index }]
+        : [],
     );
     const types = values.map((arg) => arg.dataType);
     const dataType = commonType(types);
