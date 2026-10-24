@@ -324,9 +324,11 @@ project restrictions below are tracked in
   reinitializes `RETAIN` variables.
 
 - Keeping retentive values in the browser:
-  - The Worker host sends the values of retained leaves to the page at most once per
-    second while they change, and after every command that changes the state. The page
-    stores the latest values with the autosave record. A reload can therefore lose up
+  - The Worker host sends the values of all retained leaves, as one complete set rather
+    than only the changed ones, to the page at most once per second while any of them
+    changes, and after every command that changes the state. The page replaces the
+    stored set with the latest one in the autosave record, so each stored set restores
+    on its own. A reload can therefore lose up
     to about one second of changes (restriction); the page cannot wait for the Worker
     while it is being unloaded.
   - A page reload counts as a power loss followed by a warm restart: the app compiles
