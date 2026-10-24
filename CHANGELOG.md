@@ -8,6 +8,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Fixed
+
+- Compiler diagnostics name the actual standard or user function block type in
+  structure array members, identify containment and alias cycles without
+  cascading unknown-type errors, and explain the restriction on subrange FOR
+  control variables in English and Japanese.
+
 ### Added
 
 - Batch mixer reference project combines an enumerated CASE state machine, three

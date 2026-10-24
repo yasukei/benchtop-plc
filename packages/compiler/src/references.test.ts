@@ -178,7 +178,7 @@ it("reports by-value cycles without publishing cyclic storage descriptors", () =
       const result = compileProject([program("")], ordered);
       expect(result.ir).toBeUndefined();
       expect(result.diagnostics).toContainEqual(
-        expect.objectContaining({ code: "type.invalid-constant" }),
+        expect.objectContaining({ code: "decl.type-cycle" }),
       );
     }
   }

@@ -32,6 +32,7 @@ export interface DiagnosticArgs {
   "syntax.missing-end": { expected: `END_${string}` };
 
   "decl.unknown-type": { name: string };
+  "decl.type-cycle": { name: string };
   "decl.structure-member-type": { name: string };
   "decl.fb-array-form": { form: "named" | "nested" };
   "decl.duplicate": { name: string };
@@ -82,6 +83,7 @@ export interface DiagnosticArgs {
   "type.case-selector-not-integer": { type: TypeDescriptor };
   "type.case-label-not-integer": { type: TypeDescriptor };
   "type.for-variable-not-integer": { name: string; type: TypeDescriptor };
+  "type.for-variable-subrange": { name: string; type: TypeDescriptor };
   "type.for-bound-not-integer": { bound: "from" | "to" | "step"; type: TypeDescriptor };
   "flow.exit-outside-loop": NoArguments;
   "fb.not-function-block": { name: string };

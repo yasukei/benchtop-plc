@@ -128,6 +128,7 @@ as syntax errors.
 | `type.condition-not-bool`         | Statement condition is not BOOL                                                | `{ statement: "IF" \| "ELSIF" \| "WHILE" \| "REPEAT" }`                                                            |
 | `type.case-selector-not-integer`  | CASE selector is not an integer                                                | `{ type: TypeDescriptor }`                                                                                         |
 | `type.case-label-not-integer`     | CASE label or range endpoint is not an integer                                 | `{ type: TypeDescriptor }`                                                                                         |
+| `type.for-variable-subrange`      | Subrange FOR control variables are unsupported                                 | `{ name: string; type: TypeDescriptor }`                                                                           |
 | `type.for-variable-not-integer`   | FOR control variable is not an integer                                         | `{ name: string; type: TypeDescriptor }`                                                                           |
 | `type.for-bound-not-integer`      | FOR start, end or step is not an integer                                       | `{ bound: "from" \| "to" \| "step"; type: TypeDescriptor }`                                                        |
 | `flow.exit-outside-loop`          | EXIT occurs outside a loop                                                     | `{}`                                                                                                               |
@@ -301,9 +302,10 @@ array descriptor. These errors do not also report `type.invalid-constant`.
 ## Structure member declarations
 
 `decl.structure-member-type` (`{ name: string }`) reports a function block type
-used directly as a structure member. `name` retains the source type spelling;
-the diagnostic span covers that member's type name. Function block instances
-cannot be structure members under ADR 0015.
+used directly or inside arrays at any nesting depth as a structure member.
+`name` retains the innermost standard or user function block type's source
+spelling; the diagnostic span covers the member's full type. Function block
+instances cannot be structure members under ADR 0015.
 
 ## Function block array declaration restrictions
 
@@ -328,3 +330,17 @@ placeholder type.
 Reference assignments and comparisons also use `type.assign-mismatch` and
 `type.operand-mismatch` with reference descriptors. NULL faults name the executing
 POU and the instance path when inside a function block.
+
+## Type cycles and subrange FOR variables
+
+`decl.type-cycle` (`{ name: string }`) identifies a direct or indirect containment
+cycle through structures or arrays, or an alias cycle, at the declaration name
+where resolution detects it. The cycle is reported once; involved declarations
+do not also report `type.invalid-constant` or `decl.unknown-type`. Recursive links
+through `REF_TO` are allowed because references do not contain their targets.
+
+`type.for-variable-subrange` (`{ name: string; type: TypeDescriptor }`) explains
+that a named or inline subrange cannot be a FOR control variable under ADR 0015.
+It spans the variable in the FOR header and includes its name and declared type.
+Use an unrestricted integer variable instead. Other non-integer control
+variables retain `type.for-variable-not-integer`.

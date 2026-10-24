@@ -408,8 +408,11 @@ declaring POU. The default is always the lower limit, including -10 for
 the limits report `type.invalid-constant`; dynamic stores are checked by the runtime.
 Subrange operands use their base for arithmetic and elementary generic functions.
 Exact-type positions (in-outs) compare base and limits, whether named or anonymous;
-a subrange never exactly matches its base. A subrange or enum cannot control a
-FOR loop (`type.for-variable-not-integer`).
+a subrange never exactly matches its base. A named or inline subrange cannot
+control a FOR loop (`type.for-variable-subrange`), because the control variable
+finishes one step past the end value. Use an unrestricted integer variable
+instead. Enumerations and other non-integer control variables continue to report
+`type.for-variable-not-integer`.
 
 ## Strings and characters
 
@@ -484,8 +487,12 @@ follow their ordinary scalar rules.
 Structures have ordered named members of elementary, string, enumeration,
 subrange, array or structure type. Forward dependencies and aliases are resolved
 before POU checking. Direct and indirect containment cycles, including through
-arrays, fail with `type.invalid-constant`. Function block members are unsupported;
-`decl.structure-member-type` identifies the function block type at its type-name span.
+arrays, and alias cycles fail with `decl.type-cycle`, naming the type where the
+cycle is detected. A cycle is reported once, without cascading unknown-type
+errors for the involved types. Recursive links through `REF_TO` remain allowed.
+Function block members are unsupported, including arrays at any nesting depth;
+`decl.structure-member-type` names the innermost standard or user block type and
+spans the member's full type.
 Member names are case-insensitive and unique within their structure. Each
 variable may contain at most 10,000 scalar leaves, including nested members.
 

@@ -53,3 +53,20 @@ test("shows localized subrange faults for dynamic assignments", async ({ page })
     "値 120 は部分範囲 0..100 の範囲外です。",
   );
 });
+
+test("explains the subrange FOR restriction in both languages", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "Structured Text", exact: true })
+    .fill("PROGRAM Ranges VAR p : INT (0..100); END_VAR FOR p := 0 TO 10 DO END_FOR; END_PROGRAM");
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "FOR variable p has subrange type INT (0..100), which is not supported as a loop control variable; use an unrestricted integer variable.",
+  );
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(
+    "FOR変数pの部分範囲型INT (0..100)はループ制御変数として使用できません。部分範囲のない整数変数を使用してください。",
+  );
+});

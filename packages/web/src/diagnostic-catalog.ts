@@ -59,6 +59,8 @@ export const diagnosticEn = {
   "syntax.unexpected-eof": () => "Unexpected end of input.",
   "syntax.missing-end": ({ expected }) => `Missing ${expected}.`,
   "decl.unknown-type": ({ name }) => `Unknown type: ${name}.`,
+  "decl.type-cycle": ({ name }) =>
+    `Type ${name} has a containment or alias cycle; use REF_TO for recursive links.`,
   "decl.fb-array-form": ({ form }) =>
     form === "named"
       ? "Named function block array types are not supported; declare the instance array directly in a PROGRAM or FUNCTION_BLOCK VAR section."
@@ -142,6 +144,8 @@ export const diagnosticEn = {
     `CASE label must be an integer; found ${typeText(type)}.`,
   "type.for-variable-not-integer": ({ name, type }) =>
     `FOR variable ${name} must be an integer; found ${typeText(type)}.`,
+  "type.for-variable-subrange": ({ name, type }) =>
+    `FOR variable ${name} has subrange type ${typeText(type)}, which is not supported as a loop control variable; use an unrestricted integer variable.`,
   "type.for-bound-not-integer": ({ bound, type }) =>
     `FOR ${enBounds[bound]} must be an integer; found ${typeText(type)}.`,
   "flow.exit-outside-loop": () => "EXIT must be inside a loop.",
@@ -212,6 +216,8 @@ export const diagnosticJa = {
   "syntax.unexpected-eof": () => "入力が途中で終了しています。",
   "syntax.missing-end": ({ expected }) => `${expected}がありません。`,
   "decl.unknown-type": ({ name }) => `不明な型です: ${name}。`,
+  "decl.type-cycle": ({ name }) =>
+    `型${name}の包含関係または別名定義が循環しています。再帰的なリンクにはREF_TOを使用してください。`,
   "decl.fb-array-form": ({ form }) =>
     form === "named"
       ? "ファンクションブロックの配列に名前付きの型は使用できません。PROGRAM または FUNCTION_BLOCK の VAR セクションで配列を直接宣言してください。"
@@ -294,6 +300,8 @@ export const diagnosticJa = {
     `CASEラベルには整数が必要ですが、${typeText(type)}です。`,
   "type.for-variable-not-integer": ({ name, type }) =>
     `FOR変数${name}には整数が必要ですが、${typeText(type)}です。`,
+  "type.for-variable-subrange": ({ name, type }) =>
+    `FOR変数${name}の部分範囲型${typeText(type)}はループ制御変数として使用できません。部分範囲のない整数変数を使用してください。`,
   "type.for-bound-not-integer": ({ bound, type }) =>
     `FORの${jaBounds[bound]}には整数が必要ですが、${typeText(type)}です。`,
   "flow.exit-outside-loop": () => "EXITはループ内で使用してください。",
