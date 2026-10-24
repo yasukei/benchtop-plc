@@ -98,9 +98,12 @@ project restrictions below are tracked in
 - Each task has exactly one of `INTERVAL` and `SINGLE`, and a `PRIORITY`
   (restriction; what the standard does with other combinations is listed under
   Restrictions). Parameters are written as `name := value` in any order.
-- `INTERVAL` is a `TIME` or `LTIME` literal with a whole number of milliseconds from
-  1 ms to 1 h (restriction). `T#10ms` is valid; `T#0.5ms`, `T#0s` and a variable are
-  compile errors.
+- `INTERVAL` is a `TIME` or `LTIME` literal that is a whole multiple of 10 ms, from
+  10 ms to 1 h (restriction). `T#10ms` and `T#250ms` are valid; `T#5ms`, `T#15ms`,
+  `T#0s` and a variable are compile errors. Browsers clamp repeating timers to a few
+  milliseconds and deliver them late under load, so shorter or finer intervals would
+  count overruns from timer lateness alone. The 10 ms step matches the cycle options
+  of the web app and keeps the tick (below) at 10 ms or more.
 - `PRIORITY` is an integer literal from 0 to 65535, as the project file already
   allows. 0 is the highest priority, as in the 3rd edition.
 - `SINGLE` names a non-constant `BOOL` global or a `%IX` address (restriction; no
@@ -109,11 +112,17 @@ project restrictions below are tracked in
   interrupted. The runtime keeps a due time for each cyclic task (the first one is one
   interval after RUN starts) and samples event inputs:
   - The runtime ticks on the injected `Ticker` (ADR 0003) at the greatest common
-    divisor of the cyclic intervals, or every 10 ms when there is no cyclic task.
+    divisor of the cyclic intervals, which is a multiple of 10 ms, or every 10 ms when
+    there is no cyclic task. A tick that arrives late still runs every task that is due
+    by then; lateness becomes an overrun only when a whole interval is missed.
   - Each tick starts a scheduler pass. A cyclic task is ready when its due time has
     been reached. An event task is ready when its input is TRUE now and was FALSE at
-    the previous pass (the first pass after load or a restart compares with FALSE). A
-    task that becomes ready during a pass waits for the next pass.
+    the previous pass. Every pass samples every event input, including passes of a
+    single scan; nothing is sampled while no pass runs. Load, cold reset, warm restart
+    and a page reload clear the sampled value to FALSE; STOP → RUN keeps it. So an
+    input that was FALSE at the last pass before STOP and becomes TRUE during STOP is
+    an edge at the first pass after RUN, or at a single scan if one runs first, and not
+    again after that. A task that becomes ready during a pass waits for the next pass.
   - A pass runs its ready tasks one after another: highest priority first, then the
     task that has waited longest (earliest due time or edge), then declaration order.
   - After a cyclic task runs, its next due time is the previous due time plus one
@@ -238,7 +247,11 @@ project restrictions below are tracked in
   implicit conversions of an assignment. A direct address connected to a parameter
   acts as if the parameter were declared `AT` that address, so the size must bind the
   parameter's type (see Direct addresses): `%IW0` connects to an `INT`, `UINT` or
-  `WORD` input.
+  `WORD` input. Because `AT` cannot be combined with `RETAIN` or `NON_RETAIN`,
+  connecting a direct address to a parameter declared in a `RETAIN` or `NON_RETAIN`
+  section is a compile error too. A retained parameter may connect to a global or a
+  constant: a retained input is overwritten by its first copy after a restart, and a
+  retained output keeps its value until the instance writes it.
 - Inputs are copied in immediately before the instance runs, and outputs are copied
   out immediately after it, in the order given under Tasks and scheduling, so a later
   instance in the same task sees the outputs of an earlier one through globals. An
@@ -443,7 +456,7 @@ project restrictions below are tracked in
 - The implicit configuration is written as today: one `configuration`, `resource`,
   `task` and, with a `PROGRAM`, one `pouInstance`. A 0.5.0 file therefore opens as a
   project without a configuration source, with its names, interval and priority, and
-  saves back unchanged.
+  saves back unchanged (the panel layout included, see below).
 - A configuration source is written as TC6 v2.01
   `instances/configurations/configuration/resource`, with:
   - one `task` per task, with `name`, `priority`, and `interval` as an ISO 8601
@@ -472,6 +485,18 @@ project restrictions below are tracked in
 - Several configurations or resources, a `pouInstance` directly in a resource (a
   program without a task), `accessVars` and `configVars` are rejected on open
   (restriction).
+- The panel layout gets version 2 of the benchtop-plc panel extension:
+  - In version 2 every part names its binding as an address string instead of a bit
+    number: `"address": "%IX3.5"` for a button or selector, `"%QX0.2"` for a lamp,
+    and `null` for the emergency stop. Numeric parts add `"kind": "numericInput"` or
+    `"numericDisplay"` with `address`, `dataType` (one of the types the size binds)
+    and optional `min` and `max` (number field and slider) or `label`.
+  - Version 1 stays readable: `"bit": n` becomes `%QX0.n` for a lamp and `%IX0.n` for
+    a button or selector.
+  - Saving writes version 1 when every part can be written in it (bit parts on byte 0
+    only, no numeric parts), and version 2 otherwise. So projects that do not use the
+    new parts keep opening in 0.5.0, which rejects a panel extension with any other
+    version as `project.unsupported` (allowed by ADR 0011).
 - Saving requires the configuration source to parse and its initializers to pass the
   ADR 0014 checks; its semantic errors are kept for the compiler, as for POUs.
 
@@ -516,8 +541,8 @@ forbids other behavior:
   `ON` is ignored; projects without a configuration source run an implicit one.
 - Every program instance needs `WITH`; at most 16 tasks and 64 instances.
 - A task has exactly one of `INTERVAL` and `SINGLE`, and a `PRIORITY`; `INTERVAL` is a
-  literal of whole milliseconds from 1 ms to 1 h; `SINGLE` names a `BOOL` global or a
-  `%IX` address.
+  literal that is a whole multiple of 10 ms, from 10 ms to 1 h; `SINGLE` names a
+  `BOOL` global or a `%IX` address; event inputs are sampled only at passes.
 - The runtime ticks at the greatest common divisor of the intervals; a pass runs the
   tasks ready at its start; missed activations are skipped and counted as overruns,
   which do not fault.
@@ -525,7 +550,10 @@ forbids other behavior:
   every cyclic task once.
 - Configuration and resource globals cannot share a name.
 - `PROGRAM` `VAR_IN_OUT` stays rejected; a direct address connected to a parameter acts
-  like `AT`; connected inputs reject monitor writes.
+  like `AT`, so it cannot connect to a retained or `NON_RETAIN` parameter; connected
+  inputs reject monitor writes.
+- The panel layout has a version 2 with address strings and numeric parts; version 1
+  is written whenever it can represent the layout.
 - Address areas of 64, 64 and 1,024 bytes; numbering in units of the size;
   little-endian byte order; located variables limited to the types in the table;
   overlapping `%Q` writers produce a warning.
