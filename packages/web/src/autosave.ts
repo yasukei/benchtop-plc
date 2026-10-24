@@ -50,7 +50,7 @@ function isProject(value: unknown): value is Project {
       ["name"],
       ["version", "modificationDateTime", "organization", "author", "language"],
     ) &&
-    strings(value, ["configuration", "resource"]) &&
+    strings(value, ["configuration", "resource"], ["configurationSource"]) &&
     Array.isArray(value.dataTypes) &&
     value.dataTypes.every((source) => typeof source === "string") &&
     Array.isArray(value.pous) &&

@@ -147,12 +147,12 @@ benchtop-plc restriction pending IEC edition verification (see #92).
 
 ## Configuration elements
 
-| Feature                   | Status  | Notes                                                                                                                                                      |
-| ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONFIGURATION` in source | Partial | One optional source; implicit configuration for a single PROGRAM. No source editor/XML exchange yet. ADR 0016, based on 3rd edition and secondary sources. |
-| `RESOURCE`                | Partial | Exactly one; arbitrary `ON` identifier is ignored. No globals yet.                                                                                         |
-| `TASK`                    | Partial | One cyclic task; TIME/LTIME interval literal, 10 ms–1 h in 10 ms steps; priority 0–65535. Both parameters required. No event tasks or multiple tasks yet.  |
-| Program instances         | Partial | 1–64, `WITH` required; same/different PROGRAM bodies, separate memory, declaration order. No program parameter connections yet.                            |
+| Feature                   | Status  | Notes                                                                                                                                                                                                                                                                                        |
+| ------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONFIGURATION` in source | Partial | One optional source; implicit configuration for a single PROGRAM. PLCopen XML exchanges exact sources and reconstructs configurations for multiple tasks/event inputs; execution still requires one cyclic task. No source editor yet. ADR 0016, based on 3rd edition and secondary sources. |
+| `RESOURCE`                | Partial | Exactly one; arbitrary `ON` identifier is ignored. No globals yet.                                                                                                                                                                                                                           |
+| `TASK`                    | Partial | One cyclic task; TIME/LTIME interval literal, 10 ms–1 h in 10 ms steps; priority 0–65535. Both parameters required. No event tasks or multiple tasks yet.                                                                                                                                    |
+| Program instances         | Partial | 1–64, `WITH` required; same/different PROGRAM bodies, separate memory, declaration order. No program parameter connections yet.                                                                                                                                                              |
 
 ## Implementation-dependent parameters
 

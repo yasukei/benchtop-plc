@@ -65,15 +65,16 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     expect(written.value).not.toBeNull();
     expect(readProject(written.value!)).toEqual({ value: project, diagnostics: [] });
   });
-  it.each(["blink", "running-light", "motor-starters"])(
+  it.each(["blink", "running-light", "motor-starters", "batch-mixer"])(
     "resaves the bundled %s project without losing text",
     (name) => {
       const original = readProject(
         readFileSync(new URL(`../../examples/${name}/project.xml`, import.meta.url), "utf8"),
       );
       expect(original.diagnostics).toEqual([]);
-      expect(original.value!.dataTypes).toEqual([]);
-      if (name !== "motor-starters")
+      expect(original.value).not.toHaveProperty("configurationSource");
+      if (name !== "batch-mixer") expect(original.value!.dataTypes).toEqual([]);
+      if (name !== "motor-starters" && name !== "batch-mixer")
         expect(original.value!.pous).toEqual([
           readFileSync(
             new URL(`./${name === "blink" ? "reference" : name}/program.st`, import.meta.url),
@@ -83,6 +84,28 @@ describe("PLCopen TC6 v2.01 conformance", () => {
       expect(readProject(writeProject(original.value!).value!)).toEqual(original);
     },
   );
+  it("validates configurations with cyclic and event tasks and several instances", () => {
+    const configurationSource = `CONFIGURATION Plant RESOURCE Station ON Cpu
+TASK Fast (INTERVAL := T#10ms, PRIORITY := 0);
+TASK OnAck (SINGLE := %IX0.1, PRIORITY := 2);
+PROGRAM A WITH Fast : Main;
+PROGRAM B WITH OnAck : Main;
+PROGRAM C WITH Fast : Main;
+END_RESOURCE END_CONFIGURATION`;
+    const written = writeProject({ ...project, configurationSource });
+    expect(written.diagnostics).toEqual([]);
+    const schema = XmlDocument.fromString(loadSchema());
+    const validator = XsdValidator.fromDoc(schema);
+    const document = XmlDocument.fromString(written.value!);
+    try {
+      expect(() => validator.validate(document)).not.toThrow();
+      expect(readProject(written.value!).value?.configurationSource).toBe(configurationSource);
+    } finally {
+      document.dispose();
+      validator.dispose();
+      schema.dispose();
+    }
+  }, 40000);
   it("validates ordered POUs, function interfaces and tasks without a program instance", () => {
     const schema = XmlDocument.fromString(loadSchema());
     const validator = XsdValidator.fromDoc(schema);

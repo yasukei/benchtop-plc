@@ -259,7 +259,9 @@ it("round trips source and panel through the project package and rejects loading
   store.setLayout([]);
   expect(store.openProject(xml)).toBe(true);
   expect(store.getSnapshot().layout).toEqual([part]);
-  expect(worker.sent.map((message) => message.type)).toEqual(["setCycle", "load"]);
+  expect(worker.sent).toMatchObject([
+    { type: "load", ir: { resource: { tasks: [{ intervalMs: 10 }] } } },
+  ]);
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
   worker.receive({ type: "state", state: "RUN" });
   const before = store.getSnapshot();
@@ -296,8 +298,15 @@ it("restores the bundled example's source, panel and cycle through the project l
   expect(restored.project?.pous[0]).toBe(restored.source);
   expect(restored.cycleMs).toBe(10);
   expect(worker.sent.slice(-2)).toMatchObject([
-    { type: "setCycle", ms: 10 },
-    { type: "load", ir: { name: "Config", programs: [{ name: "Main" }] } },
+    { type: "setCycle", ms: 100 },
+    {
+      type: "load",
+      ir: {
+        name: "Config",
+        programs: [{ name: "Main" }],
+        resource: { tasks: [{ intervalMs: 10 }] },
+      },
+    },
   ]);
   // Replacing a project cannot race an unacknowledged load.
   expect(store.restoreExample()).toBe(false);
@@ -524,3 +533,40 @@ it("reloads when only type text changes and preserves selection across list oper
   expect(store.getSnapshot().loadedDataTypes).toEqual(["TYPE Type2 : (First, Second); END_TYPE"]);
   store.dispose();
 });
+
+it.each([false, true])(
+  "opens and saves configuration sources with multiple tasks=%s",
+  (multiple) => {
+    const { worker, store } = setup();
+    const project = readProject(store.saveProject()!).value!;
+    const configurationSource = `CONFIGURATION Plant RESOURCE Station ON Cpu
+TASK Fast (INTERVAL := T#200ms, PRIORITY := 0);
+${multiple ? "TASK Slow (INTERVAL := T#100ms, PRIORITY := 1);" : ""}
+PROGRAM A WITH Fast : BenchDemo;
+PROGRAM B WITH Fast : BenchDemo;
+END_RESOURCE END_CONFIGURATION`;
+    project.configurationSource = configurationSource;
+    expect(store.openProject(writeProject(project).value!)).toBe(true);
+    expect(store.getSnapshot().project?.configurationSource).toBe(configurationSource);
+    if (multiple) {
+      expect(store.getSnapshot().diagnostics).toContainEqual(
+        expect.objectContaining({ code: "config.task-count", sourceKind: "configuration" }),
+      );
+      expect(worker.sent.some((message) => message.type === "load")).toBe(false);
+    } else {
+      const load = worker.sent.find((message) => message.type === "load");
+      expect(load).toMatchObject({
+        type: "load",
+        ir: {
+          explicit: true,
+          resource: { tasks: [{ intervalMs: 200 }], programs: [{ name: "A" }, { name: "B" }] },
+        },
+      });
+      const sent = worker.sent.length;
+      store.send({ type: "setCycle", ms: 50 });
+      expect(worker.sent).toHaveLength(sent);
+    }
+    expect(readProject(store.saveProject()!).value?.configurationSource).toBe(configurationSource);
+    store.dispose();
+  },
+);

@@ -142,7 +142,7 @@ describe("PLCopen XML", () => {
     ],
     [
       (text: string) => text.replace("</resource>", '<task name="Other"/></resource>'),
-      "project.unsupported",
+      "project.invalid",
     ],
     [
       (text: string) =>

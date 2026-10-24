@@ -21,12 +21,13 @@ export interface ContentHeader {
   language?: string;
 }
 
-/** Ordered data type and POU texts and one configuration, resource and cyclic task. */
+/** Ordered sources with legacy fields describing the implicit configuration. */
 export interface Project {
   fileHeader: FileHeader;
   contentHeader: ContentHeader;
   dataTypes: string[];
   pous: string[];
+  configurationSource?: string;
   configuration: string;
   resource: string;
   task: { name: string; interval: string; priority: number };

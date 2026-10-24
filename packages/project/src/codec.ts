@@ -41,6 +41,14 @@ import {
 } from "./xml.js";
 import type { XmlNode } from "./xml.js";
 
+import {
+  ConfigurationError,
+  splitConfiguration,
+  joinConfiguration,
+  sameConfiguration,
+  type ConfigurationStructure,
+} from "./configuration.js";
+
 const elementaryTypes = new Set(
   "BOOL SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME LTIME DATE DT TOD LDATE LTOD LDT BYTE WORD DWORD LWORD".split(
     " ",
@@ -570,7 +578,7 @@ function readExtensions(
         const known =
           (node === root && (name === PANEL_NAMESPACE || name === SOURCE_NAMESPACE)) ||
           (node.uri === TC6_NAMESPACE &&
-            ["pou", "dataType"].includes(node.name) &&
+            ["pou", "dataType", "configuration"].includes(node.name) &&
             name === SOURCE_NAMESPACE);
         if (!known) {
           diagnostics.push({ code: "project.dropped-data", severity: "warning", args: { name } });
@@ -732,45 +740,96 @@ export function readProject(xml: string): ProjectResult<Project> {
     shape(configuration, ["name"], ["resource"]);
     const resource = required(configuration, "resource");
     shape(resource, ["name"], ["task"]);
-    const task = required(resource, "task");
-    shape(task, ["name", "interval", "priority"], ["pouInstance"]);
-    const taskInterval = attribute(task, "interval");
-    if (!interval(taskInterval)) fail("project.invalid", "task/@interval");
-    const priorityText = attribute(task, "priority");
-    const priority = Number(priorityText);
-    if (
-      !/^\+?\d+$/.test(priorityText) ||
-      !Number.isInteger(priority) ||
-      priority < 0 ||
-      priority > 65535
-    )
-      fail("project.invalid", "task/@priority");
-    const instance = one(task, "pouInstance", false);
-    let binding: Project["instance"];
-    if (instance) {
-      leaf(instance, ["name", "typeName"]);
-      const typeName = attribute(instance, "typeName");
-      if (
-        !programs.some(
-          ({ split }) =>
-            split.kind === "program" && split.name.toUpperCase() === typeName.toUpperCase(),
-        )
-      )
-        fail("project.invalid", "pouInstance/@typeName");
-      validateIdentifier(attribute(instance, "name"), "pouInstance/@name");
-      binding = { name: attribute(instance, "name"), typeName };
-    }
-    for (const node of [configuration, resource, task])
+    const structure: ConfigurationStructure = {
+      name: attribute(configuration, "name"),
+      resource: attribute(resource, "name"),
+      tasks: resource.children
+        .filter((node) => node.name === "task")
+        .map((task) => {
+          shape(task, ["name", "interval", "single", "priority"], ["pouInstance"]);
+          const taskInterval = task.attributes.interval;
+          const single = task.attributes.single;
+          if ((taskInterval === undefined) === (single === undefined))
+            fail("project.invalid", "task/trigger");
+          if (taskInterval !== undefined && !interval(taskInterval))
+            fail("project.invalid", "task/@interval");
+          const priorityText = attribute(task, "priority");
+          const priority = Number(priorityText);
+          if (!/^\+?\d+$/.test(priorityText) || !Number.isInteger(priority) || priority > 65535)
+            fail("project.invalid", "task/@priority");
+          const instances = task.children
+            .filter((node) => node.name === "pouInstance")
+            .map((instance) => {
+              leaf(instance, ["name", "typeName"]);
+              const name = attribute(instance, "name"),
+                typeName = attribute(instance, "typeName");
+              validateIdentifier(name, "pouInstance/@name");
+              // Unknown program types are compiler errors, just as in preserved POU text.
+              const parsed = splitProgram(
+                `PROGRAM __INSTANCE VAR x : ${typeName}; END_VAR END_PROGRAM`,
+              );
+              if (
+                !parsed.value ||
+                parsed.value.variables[0]?.type !== normalizeType(typeName.toUpperCase())
+              )
+                fail("project.invalid", "pouInstance/@typeName");
+              return { name, typeName };
+            });
+          validateIdentifier(attribute(task, "name"), "task/@name");
+          return {
+            name: attribute(task, "name"),
+            ...(taskInterval === undefined ? { single: single! } : { interval: taskInterval }),
+            priority,
+            instances,
+          };
+        }),
+    };
+    for (const node of [configuration, resource])
       validateIdentifier(attribute(node, "name"), `${node.name}/@name`);
+    const preserved = extensions.sources.get(configuration);
+    let configurationSource: string | undefined;
+    if (preserved !== undefined) {
+      try {
+        if (sameConfiguration(splitConfiguration(preserved), structure))
+          configurationSource = preserved;
+      } catch {
+        // Standard XML stays authoritative when source text is damaged.
+      }
+      if (configurationSource === undefined)
+        diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
+    }
+    const task = structure.tasks[0];
+    const implicit =
+      structure.tasks.length === 1 && task!.interval !== undefined && task!.instances.length <= 1;
+    if (configurationSource === undefined && (preserved !== undefined || !implicit)) {
+      configurationSource = joinConfiguration(structure);
+      // Prevent XML attributes from injecting declarations into generated source.
+      if (!sameConfiguration(splitConfiguration(configurationSource), structure))
+        fail("project.invalid", "configuration");
+    }
+    const binding = implicit ? task!.instances[0] : undefined;
+    if (
+      configurationSource === undefined &&
+      binding &&
+      !programs.some(
+        ({ split }) =>
+          split.kind === "program" && split.name.toUpperCase() === binding.typeName.toUpperCase(),
+      )
+    )
+      fail("project.invalid", "pouInstance/@typeName");
     return {
       value: {
         fileHeader: { ...file.attributes } as unknown as FileHeader,
         contentHeader: { ...header.attributes } as unknown as ContentHeader,
         dataTypes,
         pous: programs.map(({ source }) => source),
-        configuration: attribute(configuration, "name"),
-        resource: attribute(resource, "name"),
-        task: { name: attribute(task, "name"), interval: taskInterval, priority },
+        ...(configurationSource === undefined ? {} : { configurationSource }),
+        configuration: structure.name,
+        resource: structure.resource,
+        task:
+          task?.interval === undefined
+            ? { name: "Cyclic", interval: "PT0.01S", priority: 1 }
+            : { name: task.name, interval: task.interval, priority: task.priority },
         ...(binding ? { instance: binding } : {}),
         panel: extensions.panel,
       },
@@ -781,7 +840,7 @@ export function readProject(xml: string): ProjectResult<Project> {
       value: null,
       diagnostics: [
         ...diagnostics,
-        error instanceof ProjectError
+        error instanceof ProjectError || error instanceof ConfigurationError
           ? error.diagnostic
           : { code: "project.invalid-xml", severity: "error", args: {} },
       ],
@@ -893,7 +952,7 @@ export function writeProject(project: Project): ProjectResult<string> {
     return {
       value: null,
       diagnostics: [
-        error instanceof ProjectError
+        error instanceof ProjectError || error instanceof ConfigurationError
           ? error.diagnostic
           : { code: "project.invalid", severity: "error", args: { path: "dataTypes" } },
       ],
@@ -957,15 +1016,50 @@ export function writeProject(project: Project): ProjectResult<string> {
       })
     : "";
   const task = element("task", project.task, instance);
-  const configurations = element(
-    "configurations",
-    {},
-    element(
-      "configuration",
-      { name: project.configuration },
-      element("resource", { name: project.resource }, task),
-    ),
-  );
+  let configurationXml: string;
+  try {
+    if (project.configurationSource === undefined) {
+      configurationXml = element(
+        "configuration",
+        { name: project.configuration },
+        element("resource", { name: project.resource }, task),
+      );
+    } else {
+      const configuration = splitConfiguration(project.configurationSource);
+      configurationXml = element(
+        "configuration",
+        { name: configuration.name },
+        element(
+          "resource",
+          { name: configuration.resource },
+          configuration.tasks
+            .map((task) =>
+              element(
+                "task",
+                {
+                  name: task.name,
+                  interval: task.interval,
+                  single: task.single,
+                  priority: task.priority,
+                },
+                task.instances.map((instance) => element("pouInstance", instance)).join(""),
+              ),
+            )
+            .join(""),
+        ) + element("addData", {}, sourceXml(project.configurationSource)),
+      );
+    }
+  } catch (error) {
+    return {
+      value: null,
+      diagnostics: [
+        error instanceof ConfigurationError
+          ? error.diagnostic
+          : { code: "project.invalid", severity: "error", args: { path: "configuration" } },
+      ],
+    };
+  }
+  const configurations = element("configurations", {}, configurationXml);
   let panel: string;
   try {
     if (!validJson(project.panel)) fail("project.invalid", "panel");
