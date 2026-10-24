@@ -142,17 +142,25 @@ project restrictions below are tracked in
      3. execute the instance;
      4. apply every force again;
      5. copy its connected outputs out;
+     6. apply every force again;
   4. publish the `%Q` area as the output image.
 
-  Forces are applied around every instance, not only around the task, so no instance
-  sees a value that an earlier instance wrote to a forced variable. Inside one
-  instance, ADR 0014's behavior is unchanged: a statement can read a value its own
+  Forces are applied around every instance and after its output copies, not only
+  around the task. A forced parameter wins over its connection (stages 2 and 4), and a
+  forced destination wins over an output copy (stage 6), so no instance and no
+  published image sees a value that an earlier step wrote to a forced variable. Inside
+  one instance, ADR 0014's behavior is unchanged: a statement can read a value its own
   instance wrote to a forced variable earlier in the same run.
 
-  Example: in one task, `A` (connected `Out => g`) runs before `B` (connected
-  `In := g`). In one run, `B.In` receives the value `A` produced in that run. With
-  `A.Out` forced to TRUE while `A`'s body assigns FALSE, the force after `A`'s
-  execution restores TRUE before the copy, so `g` and `B.In` are TRUE in that run.
+  Examples, with `A` (connected `Out => g`) running before `B` (connected `In := g`)
+  in one task:
+  - Without forces, `B.In` receives the value `A` produced in the same run.
+  - With `A.Out` forced to TRUE while `A`'s body assigns FALSE, stage 4 restores TRUE
+    before the copy, so `g` and `B.In` are TRUE.
+  - With `g` forced to FALSE while `A` produces TRUE, the copy writes TRUE to `g`,
+    stage 6 restores FALSE, and `B.In` receives FALSE.
+  - With `gLamp AT %QX0.0 : BOOL` forced to FALSE and `A.Out => gLamp` producing
+    TRUE, stage 6 restores FALSE, so `%QX0.0` is published as FALSE.
 
 - Single scan (`step`) in STOP runs one pass in which every cyclic task runs once and
   every event task with a rising edge runs once, in the order above, regardless of due
@@ -241,8 +249,9 @@ project restrictions below are tracked in
   `:=`, an output connected to a constant, a constant global or an `%I` address, and a
   parameter connected twice are compile errors.
 - Forces apply to the parameter at the force stages around its instance, so a forced
-  input is not overwritten by its connection and a forced output is copied out with
-  the forced value. A connected input rejects monitor writes, as an input-mapped
+  input is not overwritten by its connection, a forced output is copied out with the
+  forced value, and a forced global or address connected to an output keeps its
+  forced value after the copy. A connected input rejects monitor writes, as an input-mapped
   variable does today, because the next copy would overwrite them; it accepts forces.
 
 ### Direct addresses
