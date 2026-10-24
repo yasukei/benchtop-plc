@@ -154,3 +154,38 @@ it("keeps type and POU diagnostic locations separate even with the same index", 
   expect(diagnosticSourceMatches(typeError, 0, null)).toBe(false);
   expect(diagnosticSourceMatches({ ...typeError, sourceKind: "pou" }, 0, 0)).toBe(false);
 });
+
+it("templates every PROGRAM on one cyclic task without shared namespace collisions", async () => {
+  const { configurationTemplate, deriveConfiguration } = await import("./pous.js");
+  const pous = createPous([
+    "PROGRAM Config END_PROGRAM",
+    "PROGRAM Res END_PROGRAM",
+    "FUNCTION Cyclic : INT Cyclic := 1; END_FUNCTION",
+  ]);
+  const types = createDataTypes(["TYPE mainInstance : INT; END_TYPE"]);
+  const configuration = configurationTemplate(pous, types, null, 50);
+  const result = compilePous(pous, pouSources(types), null, 50, configuration);
+  expect(result.diagnostics).toEqual([]);
+  expect(result.ir?.resource.tasks).toMatchObject([{ intervalMs: 50 }]);
+  expect(result.ir?.resource.programs).toMatchObject([
+    { name: "mainInstance1", program: 0 },
+    { name: "ResInstance", program: 1 },
+  ]);
+  expect(configuration.name).toBe("Config1");
+  expect(deriveConfiguration("CONFIGURATION Renamed END_CONFIGURATION").name).toBe("Renamed");
+  expect(deriveConfiguration("CONFIGURATION", configuration).name).toBe("Config1");
+});
+
+it("routes configuration diagnostics only to the configuration editor", () => {
+  const diagnostic = {
+    code: "syntax.unexpected-eof",
+    severity: "error",
+    args: {},
+    sourceKind: "configuration",
+    sourceIndex: 0,
+  } as const;
+  expect(diagnosticSourceMatches(diagnostic, 0, null, true)).toBe(true);
+  expect(diagnosticSourceMatches(diagnostic, 0, null)).toBe(false);
+  expect(diagnosticSourceMatches(diagnostic, 0, 0)).toBe(false);
+  expect(diagnosticSourceMatches({ ...diagnostic, sourceKind: "pou" }, 0, null, true)).toBe(false);
+});

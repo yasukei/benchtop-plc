@@ -8,6 +8,7 @@ export function serializePanelProject(
   cycleMs: number,
   project: Project | null,
   dataTypes: string[],
+  configurationSource: string | null = project?.configurationSource ?? null,
 ) {
   const result = writeProject({
     ...(project ?? {
@@ -26,6 +27,7 @@ export function serializePanelProject(
       companyURL: undefined,
       productRelease: undefined,
     },
+    configurationSource: configurationSource ?? undefined,
     dataTypes,
     pous: sources,
     task: {

@@ -1,0 +1,164 @@
+import { readFileSync } from "node:fs";
+import { expect, test } from "@playwright/test";
+import { readProject, writeProject } from "@benchtop-plc/project";
+
+const main = "PROGRAM Main\nVAR count : DINT; END_VAR\ncount := count + 1;\nEND_PROGRAM";
+const configuration = `CONFIGURATION Plant
+  RESOURCE Station ON BENCHTOP
+    TASK Tick (INTERVAL := T#100ms, PRIORITY := 1);
+    PROGRAM Second WITH Tick : Main;
+    PROGRAM First WITH Tick : Main;
+  END_RESOURCE
+END_CONFIGURATION`;
+
+test("adds two live instances, collapses groups, identifies inline values and round trips sources", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await editor.fill(main);
+  await page.getByRole("combobox", { name: "Cycle (ms)", exact: true }).selectOption("50");
+  await list.getByRole("button", { name: "Add configuration", exact: true }).click();
+  await expect(editor).toContainText("TASK Cyclic (INTERVAL := T#50ms, PRIORITY := 1)");
+  await expect(editor).toContainText("PROGRAM mainInstance WITH Cyclic : Main");
+  await expect(list.getByRole("button", { name: "Add configuration", exact: true })).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "Cycle (ms)", exact: true })).toHaveCount(0);
+  await editor.fill(configuration);
+  await expect(list.getByRole("button", { name: /^Plant CONFIGURATION/ })).toContainText(
+    "Diagnostics: 0",
+  );
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  const groups = monitor.getByRole("button", { name: /^(Second|First)$/, exact: true });
+  await expect(groups).toHaveText(["Second", "First"]);
+  const counts = monitor.locator('th[title$=".count"]').locator("..").locator("td").nth(2);
+  const rows = monitor
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: "count", exact: true }) });
+  await expect(rows).toHaveCount(2);
+  for (const index of [0, 1]) {
+    await expect
+      .poll(async () => Number(await rows.nth(index).locator("td").nth(2).textContent()))
+      .toBeGreaterThan(0);
+  }
+  const before = Number(await counts.textContent());
+  await expect.poll(async () => Number(await counts.textContent())).toBeGreaterThan(before);
+  await monitor.getByRole("button", { name: "Second", exact: true }).click();
+  await expect(monitor.getByRole("button", { name: "Second", exact: true })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(rows).toHaveCount(1);
+  await monitor.getByRole("button", { name: "Second", exact: true }).click();
+  await expect(rows).toHaveCount(2);
+  await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
+  await expect(page.getByText("Instance: Second", { exact: true })).toBeVisible();
+  await expect(page.locator(".inline-values")).toHaveCount(1);
+  await page
+    .getByRole("region", { name: "Runtime controls", exact: true })
+    .getByRole("button", { name: "STOP", exact: true })
+    .click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  // Distinct instance state proves that the annotation comes from declaration order.
+  await rows.nth(0).getByRole("textbox", { name: "Value to write", exact: true }).fill("1000");
+  await rows.nth(0).getByRole("button", { name: "Write", exact: true }).click();
+  await rows.nth(1).getByRole("textbox", { name: "Value to write", exact: true }).fill("2000");
+  await rows.nth(1).getByRole("button", { name: "Write", exact: true }).click();
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(rows.nth(0).locator("td").nth(2)).toHaveText("1001");
+  await expect(rows.nth(1).locator("td").nth(2)).toHaveText("2001");
+  await expect(page.locator(".inline-values")).toHaveText("1001");
+  await list.getByRole("button", { name: /^Plant CONFIGURATION/ }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  const xml = readFileSync((await (await download).path())!, "utf8");
+  expect(readProject(xml).value).toMatchObject({
+    configurationSource: configuration,
+    pous: [main],
+  });
+  await page.reload();
+  await expect(editor.locator(".cm-line")).toHaveText(configuration.split("\n"));
+  await expect(list.getByRole("button", { name: /^Plant CONFIGURATION/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+  await expect(groups).toHaveText(["Second", "First"]);
+  await expect(rows.nth(0).locator("td").nth(2)).toHaveText("0");
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "configured.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(xml),
+  });
+  await list.getByRole("button", { name: /^Plant CONFIGURATION/ }).click();
+  await expect(editor.locator(".cm-line")).toHaveText(configuration.split("\n"));
+});
+
+test("navigates configuration diagnostics, autosaves a damaged header and confirms deletion", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await list.getByRole("button", { name: "Add configuration", exact: true }).click();
+  await editor.fill(configuration.replaceAll(": Main", ": Missing"));
+  await expect(list.getByRole("button", { name: /^Plant CONFIGURATION/ })).toContainText(
+    "Diagnostics: 2",
+  );
+  await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
+  await expect(page.locator(".cm-lintRange-error")).toHaveCount(0);
+  await diagnostics.getByRole("button").filter({ hasText: "Missing" }).first().click();
+  await expect(editor).toContainText("CONFIGURATION Plant");
+  await expect(page.locator(".cm-lintRange-error")).not.toHaveCount(0);
+  await editor.fill("CONFIGURATION");
+  await expect(list.getByRole("button", { name: /^Plant CONFIGURATION/ })).toContainText(
+    "Diagnostics: 1",
+  );
+  await page.reload();
+  await expect(editor).toHaveText("CONFIGURATION");
+  await expect(list.getByRole("button", { name: /^Plant CONFIGURATION/ })).toBeVisible();
+  await list.getByRole("button", { name: "Delete Plant", exact: true }).click();
+  await list.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(list.getByRole("button", { name: /^Plant CONFIGURATION/ })).toBeVisible();
+  await list.getByRole("button", { name: "Delete Plant", exact: true }).click();
+  await list.getByRole("button", { name: "Confirm delete", exact: true }).click();
+  await expect(editor).toContainText("PROGRAM Main");
+  await expect(page.getByRole("combobox", { name: "Cycle (ms)", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  await expect(page.getByRole("button", { name: "mainInstance", exact: true })).toBeVisible();
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(
+    page.getByRole("button", { name: "コンフィグレーションを追加", exact: true }),
+  ).toBeVisible();
+});
+
+test("shows no inline values for an uninstantiated PROGRAM", async ({ page }) => {
+  const base = readProject(readFileSync("examples/blink/project.xml", "utf8")).value!;
+  const unused = "PROGRAM Unused\nVAR count : DINT; END_VAR\ncount := 99;\nEND_PROGRAM";
+  const xml = writeProject({
+    ...base,
+    pous: [unused, main],
+    configurationSource: configuration,
+  }).value!;
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page
+    .getByLabel("Open project", { exact: true })
+    .setInputFiles({ name: "unused.xml", mimeType: "application/xml", buffer: Buffer.from(xml) });
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+  await expect(page.getByRole("textbox", { name: "Structured Text", exact: true })).toContainText(
+    "PROGRAM Unused",
+  );
+  await expect(page.locator(".inline-values")).toHaveCount(0);
+  await expect(page.getByText(/^Instance:/)).toHaveCount(0);
+  await page.getByRole("button", { name: /^Main PROGRAM/ }).click();
+  await expect(page.getByText("Instance: Second", { exact: true })).toBeVisible();
+  await expect(page.locator(".inline-values")).toHaveCount(1);
+});

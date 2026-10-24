@@ -14,6 +14,11 @@ export interface EditorDataType {
   name: string;
   kind: "TYPE";
 }
+export interface EditorConfiguration {
+  source: string;
+  name: string;
+  kind: "CONFIGURATION";
+}
 export type EditorDiagnostic = CompileDiagnostic;
 
 /** Source indexes belong to separate lists for POUs and data types. */
@@ -29,6 +34,52 @@ function headerTokens(source: string) {
     scanned.tokens ??
     lex(source.slice(0, spanRange(source, scanned.diagnostics[0]!.span!).from)).tokens;
   return tokens;
+}
+
+export function deriveConfiguration(
+  source: string,
+  previous?: EditorConfiguration,
+): EditorConfiguration {
+  const tokens = headerTokens(source);
+  const name =
+    tokens?.[0]?.key === "CONFIGURATION" && tokens[1]?.kind === "identifier"
+      ? tokens[1].text
+      : (previous?.name ?? "Config");
+  return { source, name, kind: "CONFIGURATION" };
+}
+
+/** Preserve implicit project names where possible, avoiding the shared namespace. */
+export function configurationTemplate(
+  pous: readonly EditorPou[],
+  dataTypes: readonly EditorDataType[],
+  project: Project | null,
+  intervalMs: number,
+): EditorConfiguration {
+  const names = new Set([...pous, ...dataTypes].map(({ name }) => name.toUpperCase()));
+  const claim = (preferred: string) => {
+    let name = preferred;
+    let suffix = 1;
+    while (names.has(name.toUpperCase())) name = `${preferred}${suffix++}`;
+    names.add(name.toUpperCase());
+    return name;
+  };
+  const configuration = claim(project?.configuration ?? "Config");
+  const resource = claim(project?.resource ?? "Res");
+  const task = claim(project?.task.name ?? "Cyclic");
+  const instances = pous
+    .filter((pou) => pou.kind === "PROGRAM")
+    .map((pou, index) => {
+      const preferred =
+        index === 0 ? (project?.instance?.name ?? "mainInstance") : `${pou.name}Instance`;
+      return `    PROGRAM ${claim(preferred)} WITH ${task} : ${pou.name};`;
+    });
+  return deriveConfiguration(`CONFIGURATION ${configuration}
+  RESOURCE ${resource} ON BENCHTOP
+    TASK ${task} (INTERVAL := T#${intervalMs}ms, PRIORITY := ${project?.task.priority ?? 1});
+${instances.join("\n")}
+  END_RESOURCE
+END_CONFIGURATION
+`);
 }
 
 export function deriveDataType(source: string, previous?: EditorDataType): EditorDataType {
@@ -52,7 +103,9 @@ export function diagnosticSourceMatches(
   diagnostic: EditorDiagnostic,
   selectedPou: number,
   selectedDataType: number | null,
+  selectedConfiguration = false,
 ): boolean {
+  if (selectedConfiguration) return diagnostic.sourceKind === "configuration";
   return (
     diagnostic.sourceKind !== "configuration" &&
     diagnostic.sourceIndex === (selectedDataType ?? selectedPou) &&
@@ -140,11 +193,14 @@ export function compilePous(
   dataTypes: readonly string[] = [],
   project: Project | null = null,
   intervalMs = 10,
+  configuration: EditorConfiguration | null = project?.configurationSource === undefined
+    ? null
+    : deriveConfiguration(project.configurationSource),
 ) {
   return compileProject(
     pouSources(pous),
     dataTypes,
-    project?.configurationSource,
+    configuration?.source,
     implicitConfiguration(project, intervalMs),
   );
 }

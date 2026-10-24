@@ -3,6 +3,8 @@ import {
   createDataTypes,
   createPous,
   derivePou,
+  deriveConfiguration,
+  type EditorConfiguration,
   type EditorDataType,
   initialPouIndex,
   type EditorPou,
@@ -15,6 +17,8 @@ export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
+  configuration: EditorConfiguration | null;
+  selectedConfiguration: boolean;
   dataTypes: EditorDataType[];
   selectedDataType: number | null;
   pous: EditorPou[];
@@ -82,7 +86,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
       value.project.pous = [value.project.program];
       delete value.project.program;
     }
-    if (!record(value) || ![1, 2, 3].includes(value.version as number)) return null;
+    if (!record(value) || ![1, 2, 3, 4].includes(value.version as number)) return null;
     // Older autosaves predate the separate data type source list.
     if (record(value.project) && value.project.dataTypes === undefined)
       value.project.dataTypes = [];
@@ -124,7 +128,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
     }
     let dataTypes: EditorDataType[];
     let selectedDataType: number | null;
-    if (value.version === 3) {
+    if (value.version === 3 || value.version === 4) {
       if (
         !Array.isArray(value.dataTypes) ||
         !value.dataTypes.every(
@@ -149,9 +153,37 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
       dataTypes = createDataTypes(value.project?.dataTypes ?? []);
       selectedDataType = null;
     }
+    let configuration: EditorConfiguration | null;
+    let selectedConfiguration = false;
+    if (value.version === 4) {
+      if (
+        value.configuration !== null &&
+        !(
+          record(value.configuration) &&
+          typeof value.configuration.source === "string" &&
+          typeof value.configuration.name === "string" &&
+          value.configuration.kind === "CONFIGURATION"
+        )
+      )
+        return null;
+      if (
+        typeof value.selectedConfiguration !== "boolean" ||
+        (value.selectedConfiguration && (value.configuration === null || selectedDataType !== null))
+      )
+        return null;
+      configuration = value.configuration as EditorConfiguration | null;
+      selectedConfiguration = value.selectedConfiguration;
+    } else {
+      configuration =
+        value.project?.configurationSource === undefined
+          ? null
+          : deriveConfiguration(value.project.configurationSource);
+    }
     const layout = readLayout(value.layout);
     if (!layout) return null;
     return {
+      configuration,
+      selectedConfiguration,
       pous,
       selectedPou,
       dataTypes,
@@ -180,7 +212,7 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
     clearTimeout(timer);
     if (!pending) return;
     try {
-      storage?.setItem(autosaveStorageKey, JSON.stringify({ version: 3, ...pending }));
+      storage?.setItem(autosaveStorageKey, JSON.stringify({ version: 4, ...pending }));
     } catch {
       // Editing remains available when storage is blocked or full.
     }
@@ -189,6 +221,8 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
   const unsubscribe = store.subscribe(() => {
     const next = store.getSnapshot();
     if (
+      next.configuration === previous.configuration &&
+      next.selectedConfiguration === previous.selectedConfiguration &&
       next.dataTypes === previous.dataTypes &&
       next.selectedDataType === previous.selectedDataType &&
       next.pous === previous.pous &&
@@ -200,6 +234,8 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
       return;
     previous = next;
     pending = {
+      configuration: next.configuration,
+      selectedConfiguration: next.selectedConfiguration,
       dataTypes: next.dataTypes,
       selectedDataType: next.selectedDataType,
       pous: next.pous,

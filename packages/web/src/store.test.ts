@@ -570,3 +570,96 @@ END_RESOURCE END_CONFIGURATION`;
     store.dispose();
   },
 );
+
+it("adds one configuration, edits it independently, and applies its exact IR after acknowledgment", () => {
+  vi.useFakeTimers();
+  const { store, worker } = setup();
+  store.run();
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  const implicitIr = store.getSnapshot().loadedIr;
+  store.addConfiguration();
+  const template = store.getSnapshot().configuration!;
+  expect(template.source).toContain("PROGRAM mainInstance WITH Cyclic : BenchDemo;");
+  store.addConfiguration();
+  expect(store.getSnapshot().configuration).toBe(template);
+  store.setSource(template.source.replace("mainInstance", "Second").replace("Config", "Plant"));
+  expect(store.getSnapshot().configuration?.name).toBe("Plant");
+  expect(store.getSnapshot().loadedIr).toBe(implicitIr);
+  store.run();
+  expect(worker.sent.at(-2)).toMatchObject({
+    type: "load",
+    ir: { explicit: true, resource: { programs: [{ name: "Second" }] } },
+  });
+  // Editing again before acknowledgment must not change what the monitor receives.
+  store.setSource("CONFIGURATION");
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(store.getSnapshot().loadedIr?.resource.programs[0]?.name).toBe("Second");
+  expect(store.getSnapshot().loadedConfigurationSource).toContain("CONFIGURATION Plant");
+  vi.advanceTimersByTime(250);
+  expect(store.getSnapshot().configuration?.name).toBe("Plant");
+  expect(store.getSnapshot().diagnostics).toContainEqual(
+    expect.objectContaining({ sourceKind: "configuration", sourceIndex: 0 }),
+  );
+  const sent = worker.sent.length;
+  store.run();
+  expect(worker.sent).toHaveLength(sent);
+  expect(store.saveProject()).toBeNull();
+  store.selectPou(0);
+  expect(store.getSnapshot().selectedConfiguration).toBe(false);
+  expect(store.getSnapshot().source).toContain("PROGRAM BenchDemo");
+  store.selectConfiguration();
+  expect(store.getSnapshot().source).toBe("CONFIGURATION");
+  store.addDataType();
+  expect(store.getSnapshot().selectedConfiguration).toBe(false);
+  store.selectConfiguration();
+  store.deleteDataType(0);
+  expect(store.getSnapshot().source).toBe("CONFIGURATION");
+  store.addFunction();
+  expect(store.getSnapshot().selectedConfiguration).toBe(false);
+  store.selectConfiguration();
+  store.deletePou(1);
+  expect(store.getSnapshot().source).toBe("CONFIGURATION");
+  store.dispose();
+  vi.useRealTimers();
+});
+
+it("deletes an imported configuration and restores implicit names, cycle control and XML", () => {
+  const { store, worker } = setup();
+  const original = readProject(store.saveProject()!).value!;
+  const configurationSource = `CONFIGURATION Plant RESOURCE Station ON BENCHTOP
+TASK Fast (INTERVAL := T#200ms, PRIORITY := 0);
+PROGRAM A WITH Fast : BenchDemo;
+PROGRAM B WITH Fast : BenchDemo;
+END_RESOURCE END_CONFIGURATION`;
+  expect(store.openProject(writeProject({ ...original, configurationSource }).value!)).toBe(true);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  store.selectConfiguration();
+  store.deleteConfiguration();
+  expect(store.getSnapshot()).toMatchObject({
+    configuration: null,
+    selectedConfiguration: false,
+    source: original.pous[0],
+  });
+  expect(store.getSnapshot().diagnostics).toEqual([]);
+  store.send({ type: "setCycle", ms: 50 });
+  expect(store.getSnapshot().cycleMs).toBe(50);
+  expect(worker.sent.at(-1)?.type).toBe("load");
+  const saved = readProject(store.saveProject()!).value!;
+  expect(saved.configurationSource).toBeUndefined();
+  expect(saved.task.interval).toBe("PT0.05S");
+  store.run();
+  expect(worker.sent.at(-2)).toMatchObject({
+    type: "load",
+    ir: {
+      explicit: false,
+      resource: {
+        tasks: [{ intervalMs: 50 }],
+        programs: [{ name: original.instance?.name ?? "mainInstance" }],
+      },
+    },
+  });
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  store.send({ type: "setCycle", ms: 20 });
+  expect(worker.sent.at(-1)).toEqual({ type: "setCycle", ms: 20 });
+  store.dispose();
+});
