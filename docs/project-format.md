@@ -44,7 +44,7 @@ without a mapping remain unsupported (ADR 0014).
 
 The web app retains every imported data type and POU and compiles them together.
 Imported data type texts remain in project metadata through browser autosave and
-save/open; listing and editing them is deferred to #122. Older browser autosaves
+save/open; the web app lists and edits them before the POUs. Older browser autosaves
 without `dataTypes` migrate to an empty list. The POU list
 selects the text to edit; saving preserves every text.
 Parseable projects with semantic errors can be saved and opened without loading

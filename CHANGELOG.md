@@ -8,6 +8,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-24
+
+Derived data types and strings: enumerations, subranges, arrays, structures, strings and references, with PLCopen XML exchange and monitor support for composite variables. Contains breaking changes to accepted Structured Text; see Changed.
+
 ### Added
 
 - Batch mixer reference project combines an enumerated CASE state machine, three
@@ -86,11 +90,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   inline integer subranges (ADR 0015). Enumerations support contextual literals,
   CASE, selection functions and scalar POU parameters/results; subrange stores
   fault outside their limits. Monitor helpers format enum names and validate
-  writes and forces. The web editor lists these types alongside POUs.
+  writes and forces.
 
 - ADR 0015 documents the accepted design for data type declarations, enumerations,
-  subranges, arrays, structures, strings and references for Milestone 5;
-  implementation follows in its sub-issues.
+  subranges, arrays, structures, strings and references for Milestone 5.
 
 ### Changed
 
@@ -311,7 +314,8 @@ First release: the single-file HTML prototype rebuilt as a tested monorepo.
   setting unless you choose Light or Dark.
 - The app opens with the blink example and its panel.
 
-[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/yasukei/benchtop-plc/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/yasukei/benchtop-plc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/yasukei/benchtop-plc/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yasukei/benchtop-plc/compare/v0.1.0...v0.2.0

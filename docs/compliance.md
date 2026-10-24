@@ -71,9 +71,9 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `VAR_TEMP`                                  | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                                                                                                                                                                       |
 | `VAR_IN_OUT`                                | Partial | Scalar/array/structure FUNCTION/FUNCTION_BLOCK aliases; exact-type variable/element/member/dereference required every call; formal only, no initializers or instance/bit actuals (restrictions)                                                                                                            |
 | `VAR_GLOBAL`, `VAR_EXTERNAL`                | No      | Deferred                                                                                                                                                                                                                                                                                                   |
-| `CONSTANT`                                  | Partial | Elementary, alias, enum and subrange typed constants, only on `VAR`; no `AT` or FB instances. POU-local, earlier constants only; folded without runtime storage (ADR 0014)                                                                                                                                 |
+| `CONSTANT`                                  | Partial | Elementary, string, character, alias, enum and subrange typed constants, only on `VAR`; no `AT` or FB instances. POU-local, earlier constants only; folded without runtime storage (ADR 0014)                                                                                                              |
 | `RETAIN`, `NON_RETAIN`                      | No      |                                                                                                                                                                                                                                                                                                            |
-| `TYPE` declarations                         | Partial | One type per separate compiler source, ordered before POUs; case-insensitive shared namespace; elementary aliases and defaults (ADR 0015). PLCopen XML exchanges these sources; web type list deferred.                                                                                                    |
+| `TYPE` declarations                         | Partial | One type per separate compiler source, ordered before POUs; case-insensitive shared namespace; elementary aliases and defaults (ADR 0015). PLCopen XML exchanges these sources; the web app lists and edits them before the POUs.                                                                          |
 | Enumerations                                | Partial | Implicit/explicit integer values, qualified/contextual literals, assignment, equality, CASE, MOVE/SEL/MUX, scalar POU parameters/results and CONSTANT; no ordering, conversion or enum ranges (restrictions; 3rd edition basis).                                                                           |
 | Subranges                                   | Partial | Named/inline integer limits, lower-bound defaults, constant checks and runtime store faults; exact in-outs compare base and limits; forbidden as FOR controls (restriction; 3rd edition basis).                                                                                                            |
 | Arrays                                      | Partial | Up to three dimensions, 10,000 scalar leaves, nested arrays, initializers, indexing and whole-array assignment/selection; inline function block instance arrays with indexed calls and per-element state (ADR 0015).                                                                                       |
@@ -250,7 +250,7 @@ Partial support of the standard's non-formal parameter list.
 Project restrictions: functions cannot declare VAR_TEMP or FB instances; PROGRAM
 cannot declare VAR_INPUT, VAR_OUTPUT or VAR_IN_OUT; direct addresses are allowed
 only in PROGRAM, and are forbidden in both functions and function blocks.
-EN/ENO remains deferred. CONSTANT is supported only on VAR, with elementary types and no AT. VAR_IN_OUT supports exact-type scalar/array/structure/reference caller variables, elements, members and dereferenced storage in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
+EN/ENO remains deferred. CONSTANT is supported only on VAR, with elementary, string, character, alias, enum and subrange types and no AT. VAR_IN_OUT supports exact-type scalar/array/structure/reference caller variables, elements, members and dereferenced storage in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
 Function locals, outputs and results are fresh per call. Operands and arguments
 evaluate left to right; the 200,000-iteration limit is shared by all calls in a scan.
 
@@ -299,8 +299,8 @@ per declaration (ADR 0014/0015). Instances cannot be values, constants,
 temporaries, function locals or parameters/results; instance array initializers,
 named instance-array types and function blocks inside structures or nested value
 arrays are unsupported. Monitor paths include standard elements and user members.
-Whole-array MOVE/SEL/MUX for value arrays require equivalent bounds and element types, with exact
-subrange limits and string capacities excluded from equivalence. Missing
+Whole-array MOVE/SEL/MUX for value arrays require equivalent bounds and element types,
+including exact subrange limits; only string capacities are excluded from equivalence. Missing
 initializer elements use their type defaults. These rules follow ADR 0015's
 3rd-edition-based decisions, pending 4th edition verification.
 

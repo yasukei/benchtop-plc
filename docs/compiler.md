@@ -47,8 +47,8 @@ call sites are checked.
 A diagnostic from this list uses `pou` for the type source's name,
 `sourceKind: "dataType"` and `sourceIndex` into the data type list. POU diagnostics
 keep their existing identity and indexing. The project model and PLCopen XML retain
-both lists, and the web app compiles imported data types with its POUs. The data
-type editor/list belongs to #122.
+both lists, and the web app compiles imported data types with its POUs. The [web app](web-app.md)
+lists and edits data types before the POUs.
 
 `resolveDataTypes(declarations)` also exposes type resolution for parsed data type
 ASTs, returning a type table and diagnostics without requiring a complete program.
