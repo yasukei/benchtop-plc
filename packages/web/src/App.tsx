@@ -1,7 +1,5 @@
-import { compileProject } from "@benchtop-plc/compiler";
 import {
   diagnosticPouIndex,
-  implicitConfiguration,
   diagnosticSourceMatches,
   pouSources,
   sameSources,
@@ -11,7 +9,7 @@ import { PouList } from "./PouList.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
 import { IoImage } from "./IoImage.js";
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { bannerFor } from "./banner.js";
 import { catalogs } from "./catalog.js";
 import { StEditor, type StEditorHandle } from "./editor/StEditor.js";
@@ -25,18 +23,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const language = useSyncExternalStore(i18n.subscribe, i18n.getSnapshot);
   const text = catalogs[language];
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  const loadedIr = useMemo(
-    () =>
-      state.loadedSources
-        ? compileProject(
-            state.loadedSources,
-            state.loadedDataTypes ?? [],
-            state.project?.configurationSource,
-            implicitConfiguration(state.project, state.cycleMs),
-          ).ir
-        : undefined,
-    [state.loadedSources, state.loadedDataTypes, state.project, state.cycleMs],
-  );
+  const loadedIr = state.loadedIr;
   const variables = loadedIr?.variables ?? [];
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
@@ -44,9 +31,13 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const editor = useRef<StEditorHandle>(null);
   const unapplied =
     !sameSources(pouSources(state.pous), state.loadedSources) ||
-    !sameSources(pouSources(state.dataTypes), state.loadedDataTypes);
+    !sameSources(pouSources(state.dataTypes), state.loadedDataTypes) ||
+    (state.configuration?.source ?? null) !== state.loadedConfigurationSource;
   const online = !unapplied && !disconnected;
-  const selected = state.selectedDataType === null ? state.pous[state.selectedPou] : undefined;
+  const selected =
+    !state.selectedConfiguration && state.selectedDataType === null
+      ? state.pous[state.selectedPou]
+      : undefined;
   const inlineInstance = loadedIr?.resource.programs.find(
     (instance) =>
       loadedIr.programs[instance.program]!.name.toUpperCase() === selected?.name.toUpperCase(),
@@ -125,7 +116,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             <button disabled={disconnected} onClick={() => store.send({ type: "coldReset" })}>
               {text.reset}
             </button>
-            {state.project?.configurationSource === undefined && (
+            {!state.configuration && (
               <label>
                 {text.cycle}
                 <select
@@ -193,16 +184,27 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 source={state.source}
                 sources={pouSources(state.pous)}
                 dataTypes={pouSources(state.dataTypes)}
-                sourceIndex={state.selectedDataType === null ? state.selectedPou : -1}
+                sourceIndex={
+                  !state.selectedConfiguration && state.selectedDataType === null
+                    ? state.selectedPou
+                    : -1
+                }
                 onChange={store.setSource}
                 diagnostics={state.diagnostics.filter((diagnostic) =>
-                  diagnosticSourceMatches(diagnostic, state.selectedPou, state.selectedDataType),
+                  diagnosticSourceMatches(
+                    diagnostic,
+                    state.selectedPou,
+                    state.selectedDataType,
+                    state.selectedConfiguration,
+                  ),
                 )}
-                snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
+                snapshot={selected?.kind === "PROGRAM" && inlineInstance ? state.snapshot : null}
                 online={online}
                 pou={selected?.name}
                 fault={
-                  state.selectedDataType === null && faultIndex === state.selectedPou
+                  !state.selectedConfiguration &&
+                  state.selectedDataType === null &&
+                  faultIndex === state.selectedPou
                     ? state.diagnostic
                     : null
                 }
@@ -227,10 +229,13 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                               diagnostic,
                               state.selectedPou,
                               state.selectedDataType,
+                              state.selectedConfiguration,
                             )
                           ) {
                             pendingFocus.current = diagnostic;
-                            if (diagnostic.sourceKind === "dataType")
+                            if (diagnostic.sourceKind === "configuration")
+                              store.selectConfiguration();
+                            else if (diagnostic.sourceKind === "dataType")
                               store.selectDataType(sourceIndex);
                             else store.selectPou(sourceIndex);
                           } else if (diagnostic.span) editor.current?.focusSpan(diagnostic.span);
@@ -260,7 +265,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             <OperatorPanel state={state} store={store} text={text} language={language} />
             <IoImage state={state} text={text} />
             <VariableMonitor
-              key={JSON.stringify([state.loadedSources, state.loadedDataTypes])}
+              key={JSON.stringify([
+                state.loadedSources,
+                state.loadedDataTypes,
+                state.loadedConfigurationSource,
+              ])}
               state={state}
               store={store}
               text={text}

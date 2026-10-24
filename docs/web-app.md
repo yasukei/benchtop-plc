@@ -37,7 +37,7 @@ retains a latched diagnostic through STOP requests and emergency-stop transition
 
 ## Browser autosave
 
-Every POU and data type text (including code that does not compile), its last readable name and kind,
+Every POU, data type and configuration text (including code that does not compile), its last readable name and kind,
 the selected source, panel layout, cycle time and
 project metadata are saved to a versioned JSON record in `localStorage` 500 ms
 after the last change. Pending changes are also saved when the page is hidden or
@@ -47,8 +47,10 @@ source stays in the editor with diagnostics until it is fixed and applied; it is
 never run automatically. Missing, invalid or unsupported records, or unavailable
 storage, fall back to the bundled example without blocking startup.
 
-Version 3 stores separate ordered data type and POU lists and the selected source.
-It migrates version 2 autosaves from 0.4.0 with every POU and selection intact,
+Version 4 stores separate data type and POU lists, an optional configuration and
+the selected source. It migrates version 3 autosaves from 0.5.0 without changing
+source text, names, selection, layout or cycle settings, and preserves imported
+configuration text in older metadata. It also migrates version 2 autosaves from 0.4.0 with every POU and selection intact,
 and version 1 autosaves from 0.3.0 with the latest program draft even when it
 cannot be parsed. Imported types in older project metadata are retained.
 
@@ -57,6 +59,32 @@ devices, and browser settings or storage limits may prevent persistence. Use
 **Save project** to keep or share a project. **Restore example** replaces the
 current work and is autosaved like other edits. Runtime state and `RETAIN` values
 are not saved.
+
+## Configuration source
+
+The configuration appears after data types and before POUs. **Add configuration**
+creates at most one source and selects it. Its template gives each project
+`PROGRAM` an instance on one cyclic task, using the implicit project's names,
+priority and selected cycle interval where possible. Generated names avoid the
+POU and data type names. Edit the `CONFIGURATION` header to rename it; an unreadable
+header keeps the last readable name. Located configuration diagnostics open that
+source, and its squiggles stay out of POU and data type editors.
+
+Task intervals come from the configuration source while it exists, so the cycle
+selector is hidden. Execution currently supports one cyclic task; scheduling
+several tasks is a separate feature. Deleting the source requires confirmation and
+returns to the implicit configuration with the project names and cycle selector.
+Like other source edits, adding, editing or deleting a configuration takes effect
+when RUN applies the changes. Invalid changes leave the loaded PLC and monitor
+intact. Configuration text survives autosave and PLCopen XML save/open, including
+autosaved drafts that cannot yet be parsed.
+
+The monitor shows one collapsible group per program instance, initially expanded.
+Variable rows inside each group use relative paths such as `count` or `M1.RUNNING`;
+the full path remains in the row's tooltip. Each instance has independent memory,
+writes and forces. Inline values in a `PROGRAM` editor show its first instance in
+resource declaration order, identified above the editor. A `PROGRAM` with no
+instance shows no inline values. Instance selection is not yet available.
 
 ## POUs
 
@@ -79,10 +107,10 @@ name and kind until it becomes readable again. The PROGRAM cannot be added or
 deleted through the list. Deleting a function or block requires confirmation.
 
 The compiler checks the whole project on every edit and before RUN. The problems
-list shows diagnostics from all POUs and data types; selecting a located diagnostic
+list shows diagnostics from all POUs, data types and the configuration; selecting a located diagnostic
 opens its source and selects the source span. Editor squiggles belong only to the
 selected source. Inline runtime values appear only in the PROGRAM. Switching sources
-does not reload the PLC; edits to any POU or data type become unapplied changes.
+does not reload the PLC; edits to any source become unapplied changes.
 
 **Save project** and **Open project** preserve the ordered POU list and each exact
 text in PLCopen XML. Semantic errors, including calls to a deleted function, do
@@ -129,7 +157,7 @@ in sync with the lexer. Enter indents ST blocks. Tab inserts two spaces at a
 cursor or indents selected lines without replacing their code. Theme and language changes
 reconfigure the existing editor without replacing its selection or undo history.
 
-The store compiles all POUs and data types 250 ms after the last edit. Diagnostics use the existing
+The store compiles all POUs, data types and the configuration 250 ms after the last edit. Diagnostics use the existing
 English/Japanese catalog in both squiggle tooltips and a list; clicking a located
 diagnostic selects and scrolls to its source span. Editing clears stale diagnostic
 locations immediately. RUN compiles synchronously, so it also catches changes

@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Configuration source editing in the web source list, with one cyclic-task
+  template containing every PROGRAM, header-based renaming, diagnostic navigation
+  and confirmed deletion back to implicit mode. Browser autosave preserves
+  configuration drafts and selection and migrates 0.5.0 records unchanged.
+
 - PLCopen XML save/open for exact configuration sources, multiple tasks and program
   instances, and event task inputs. Imports without preserved text reconstruct
   configuration source when the implicit model cannot represent the structure.

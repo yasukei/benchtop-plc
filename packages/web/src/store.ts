@@ -1,6 +1,8 @@
 import { openPanelProject, serializePanelProject } from "./panel/project.js";
 import {
   addDataType,
+  configurationTemplate,
+  deriveConfiguration,
   createDataTypes,
   deriveDataType,
   deleteDataType,
@@ -19,6 +21,7 @@ import type { PanelLayout } from "./panel/layout.js";
 import blinkProjectXml from "../../../examples/blink/project.xml?raw";
 import type {
   CommandRejectionMessage,
+  ConfigurationIR,
   Diagnostic,
   RuntimeSnapshot,
   RuntimeState,
@@ -39,6 +42,8 @@ export interface AppState extends SavedWork {
   emergencyReleased: boolean;
   loadedSources: string[] | null;
   loadedDataTypes: string[] | null;
+  loadedConfigurationSource: string | null;
+  loadedIr?: ConfigurationIR;
   diagnostics: EditorDiagnostic[];
   runtimeState: RuntimeState;
   snapshot: RuntimeSnapshot | null;
@@ -54,10 +59,15 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   const selectedPou = typeof initial === "string" ? 0 : initial.selectedPou;
   const dataTypes = typeof initial === "string" ? [] : initial.dataTypes;
   const selectedDataType = typeof initial === "string" ? null : initial.selectedDataType;
-  const source =
-    (selectedDataType === null ? pous[selectedPou] : dataTypes[selectedDataType])?.source ?? "";
+  const configuration = typeof initial === "string" ? null : initial.configuration;
+  const selectedConfiguration = typeof initial === "string" ? false : initial.selectedConfiguration;
+  const source = selectedConfiguration
+    ? configuration!.source
+    : ((selectedDataType === null ? pous[selectedPou] : dataTypes[selectedDataType])?.source ?? "");
   let state: AppState = {
     source,
+    configuration,
+    selectedConfiguration,
     dataTypes,
     selectedDataType,
     editorSession: 0,
@@ -70,11 +80,13 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     emergencyReleased: false,
     loadedSources: null,
     loadedDataTypes: null,
+    loadedConfigurationSource: null,
     diagnostics: compilePous(
       pous,
       pouSources(dataTypes),
       typeof initial === "string" ? null : initial.project,
       typeof initial === "string" ? 10 : initial.cycleMs,
+      configuration,
     ).diagnostics,
     runtimeState: "STOP",
     snapshot: null,
@@ -84,7 +96,12 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     connection: "connected",
   };
   let compileTimer: ReturnType<typeof setTimeout> | undefined;
-  const pendingLoads: { loadedSources: string[]; loadedDataTypes: string[] }[] = [];
+  const pendingLoads: {
+    loadedSources: string[];
+    loadedDataTypes: string[];
+    loadedConfigurationSource: string | null;
+    loadedIr: ConfigurationIR;
+  }[] = [];
   const listeners = new Set<() => void>();
   const update = (patch: Partial<AppState>) => {
     state = { ...state, ...patch };
@@ -126,6 +143,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       pouSources(state.dataTypes),
       state.project,
       state.cycleMs,
+      state.configuration,
     );
     update({ diagnostics: result.diagnostics });
     return result;
@@ -137,6 +155,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     pendingLoads.push({
       loadedSources: pouSources(state.pous),
       loadedDataTypes: pouSources(state.dataTypes),
+      loadedConfigurationSource: state.configuration?.source ?? null,
+      loadedIr: result.ir,
     });
     update({ snapshot: null, diagnostic: null, rejection: null });
     client.send({ type: "load", ir: result.ir });
@@ -167,6 +187,11 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       selectedPou,
       dataTypes,
       selectedDataType: null,
+      selectedConfiguration: false,
+      configuration:
+        opened.project.configurationSource === undefined
+          ? null
+          : deriveConfiguration(opened.project.configurationSource),
       editorSession: state.editorSession + 1,
       saveDiagnostics: [],
       source: pous[selectedPou]?.source ?? "",
@@ -177,6 +202,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       // Identical editor text can belong to a different project-wide compilation.
       loadedSources: null,
       loadedDataTypes: null,
+      loadedConfigurationSource: null,
+      loadedIr: undefined,
       snapshot: null,
       diagnostic: null,
       rejection: null,
@@ -197,6 +224,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         state.cycleMs,
         state.project,
         pouSources(state.dataTypes),
+        state.configuration?.source ?? null,
       );
       update({ saveDiagnostics: result.diagnostics });
       return result.value;
@@ -211,6 +239,16 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     setSource(source: string) {
       if (source === state.source) return;
       clearTimeout(compileTimer);
+      if (state.selectedConfiguration && state.configuration) {
+        update({
+          source,
+          configuration: deriveConfiguration(source, state.configuration),
+          diagnostics: [],
+          saveDiagnostics: [],
+        });
+        compileTimer = setTimeout(compileEditor, 250);
+        return;
+      }
       if (state.selectedDataType !== null) {
         const dataTypes = state.dataTypes.map((type, index) =>
           index === state.selectedDataType ? deriveDataType(source, type) : type,
@@ -228,10 +266,16 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       compileTimer = setTimeout(compileEditor, 250);
     },
     selectPou(index: number) {
-      if (!state.pous[index] || (index === state.selectedPou && state.selectedDataType === null))
+      if (
+        !state.pous[index] ||
+        (index === state.selectedPou &&
+          state.selectedDataType === null &&
+          !state.selectedConfiguration)
+      )
         return;
       update({
         selectedPou: index,
+        selectedConfiguration: false,
         selectedDataType: null,
         source: state.pous[index]!.source,
         editorSession: state.editorSession + 1,
@@ -241,21 +285,70 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       if (!state.dataTypes[index] || index === state.selectedDataType) return;
       update({
         selectedDataType: index,
+        selectedConfiguration: false,
         source: state.dataTypes[index]!.source,
         editorSession: state.editorSession + 1,
       });
+    },
+    selectConfiguration() {
+      if (!state.configuration || state.selectedConfiguration) return;
+      update({
+        selectedConfiguration: true,
+        selectedDataType: null,
+        source: state.configuration.source,
+        editorSession: state.editorSession + 1,
+      });
+    },
+    addConfiguration() {
+      if (state.configuration) return;
+      clearTimeout(compileTimer);
+      const configuration = configurationTemplate(
+        state.pous,
+        state.dataTypes,
+        state.project,
+        state.cycleMs,
+      );
+      update({
+        configuration,
+        selectedConfiguration: true,
+        selectedDataType: null,
+        source: configuration.source,
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+      });
+      compileEditor();
+    },
+    deleteConfiguration() {
+      if (!state.configuration) return;
+      clearTimeout(compileTimer);
+      update({
+        configuration: null,
+        selectedConfiguration: false,
+        source: state.selectedConfiguration
+          ? (state.pous[state.selectedPou]?.source ?? "")
+          : state.source,
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+      });
+      compileEditor();
     },
     addDataType() {
       clearTimeout(compileTimer);
       const dataTypes = addDataType(state.dataTypes, state.pous);
       update({
         dataTypes,
+        selectedConfiguration: false,
         selectedDataType: dataTypes.length - 1,
         source: dataTypes.at(-1)!.source,
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
-        diagnostics: compilePous(state.pous, pouSources(dataTypes), state.project, state.cycleMs)
-          .diagnostics,
+        diagnostics: compilePous(
+          state.pous,
+          pouSources(dataTypes),
+          state.project,
+          state.cycleMs,
+          state.configuration,
+        ).diagnostics,
       });
     },
     deleteDataType(index: number) {
@@ -274,12 +367,21 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         dataTypes,
         selectedDataType,
         source:
-          (selectedDataType === null ? state.pous[state.selectedPou] : dataTypes[selectedDataType])
-            ?.source ?? "",
+          (state.selectedConfiguration
+            ? state.configuration
+            : selectedDataType === null
+              ? state.pous[state.selectedPou]
+              : dataTypes[selectedDataType]
+          )?.source ?? "",
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
-        diagnostics: compilePous(state.pous, pouSources(dataTypes), state.project, state.cycleMs)
-          .diagnostics,
+        diagnostics: compilePous(
+          state.pous,
+          pouSources(dataTypes),
+          state.project,
+          state.cycleMs,
+          state.configuration,
+        ).diagnostics,
       });
     },
     addFunction() {
@@ -290,10 +392,16 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou: pous.length - 1,
+        selectedConfiguration: false,
         selectedDataType: null,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous, pouSources(state.dataTypes), state.project, state.cycleMs)
-          .diagnostics,
+        diagnostics: compilePous(
+          pous,
+          pouSources(state.dataTypes),
+          state.project,
+          state.cycleMs,
+          state.configuration,
+        ).diagnostics,
       });
     },
     addFunctionBlock() {
@@ -304,10 +412,16 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou: pous.length - 1,
+        selectedConfiguration: false,
         selectedDataType: null,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous, pouSources(state.dataTypes), state.project, state.cycleMs)
-          .diagnostics,
+        diagnostics: compilePous(
+          pous,
+          pouSources(state.dataTypes),
+          state.project,
+          state.cycleMs,
+          state.configuration,
+        ).diagnostics,
       });
     },
     deletePou(index: number) {
@@ -324,12 +438,19 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         saveDiagnostics: [],
         selectedPou,
         source:
-          (state.selectedDataType === null
-            ? pous[selectedPou]
-            : state.dataTypes[state.selectedDataType]
+          (state.selectedConfiguration
+            ? state.configuration
+            : state.selectedDataType === null
+              ? pous[selectedPou]
+              : state.dataTypes[state.selectedDataType]
           )?.source ?? "",
-        diagnostics: compilePous(pous, pouSources(state.dataTypes), state.project, state.cycleMs)
-          .diagnostics,
+        diagnostics: compilePous(
+          pous,
+          pouSources(state.dataTypes),
+          state.project,
+          state.cycleMs,
+          state.configuration,
+        ).diagnostics,
       });
     },
     loadEditor,
@@ -338,7 +459,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       if (state.runtimeState !== "STOP" && state.runtimeState !== "RUN") return;
       if (
         (!sameSources(pouSources(state.pous), state.loadedSources) ||
-          !sameSources(pouSources(state.dataTypes), state.loadedDataTypes)) &&
+          !sameSources(pouSources(state.dataTypes), state.loadedDataTypes) ||
+          (state.configuration?.source ?? null) !== state.loadedConfigurationSource) &&
         !loadEditor()
       )
         return;
@@ -356,10 +478,11 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       if (state.connection !== "connected") return;
       if (state.rejection) update({ rejection: null });
       if (message.type === "setCycle") {
-        if (state.project?.configurationSource !== undefined) return;
+        if (state.configuration) return;
         if (!cycleOptions.includes(message.ms as CycleMs))
           throw new RangeError("Unsupported cycle");
         update({ cycleMs: message.ms as CycleMs });
+        if (state.loadedIr?.explicit) return;
       }
       client.send(message);
     },

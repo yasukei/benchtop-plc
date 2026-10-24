@@ -44,6 +44,8 @@ describe("browser autosave", () => {
     expect(restored).toEqual({
       dataTypes: [],
       selectedDataType: null,
+      configuration: null,
+      selectedConfiguration: false,
       pous: store.getSnapshot().pous,
       selectedPou: 0,
       layout: store.getSnapshot().layout,
@@ -54,6 +56,8 @@ describe("browser autosave", () => {
     expect(Object.keys(JSON.parse(storage.getItem()!)).sort()).toEqual(
       [
         "version",
+        "configuration",
+        "selectedConfiguration",
         "pous",
         "selectedPou",
         "dataTypes",
@@ -145,6 +149,8 @@ describe("browser autosave", () => {
     const work: SavedWork = {
       dataTypes: [],
       selectedDataType: null,
+      configuration: null,
+      selectedConfiguration: false,
       pous: createPous([""]),
       selectedPou: 0,
       layout: [],
@@ -191,6 +197,8 @@ it("migrates the single-program metadata of a 0.3.0 autosave", () => {
   expect(restored).toEqual({
     dataTypes: [],
     selectedDataType: null,
+    configuration: null,
+    selectedConfiguration: false,
     pous: work.pous,
     selectedPou: 0,
     layout: work.layout,
@@ -200,7 +208,7 @@ it("migrates the single-program metadata of a 0.3.0 autosave", () => {
   store.dispose();
 });
 
-it("preserves all draft texts, previous names and selection in version 3", () => {
+it("preserves all draft texts, previous names and selection in version 4", () => {
   const { store, storage } = setup();
   const autosave = createAutosave(store, storage);
   store.addFunction();
@@ -211,7 +219,7 @@ it("preserves all draft texts, previous names and selection in version 3", () =>
   expect(restored.pous).toEqual(store.getSnapshot().pous);
   expect(restored.selectedPou).toBe(2);
   expect(restored.pous[2]).toMatchObject({ name: "F2", source: "FUNCTION", kind: "FUNCTION" });
-  expect(JSON.parse(storage.getItem()!).version).toBe(3);
+  expect(JSON.parse(storage.getItem()!).version).toBe(4);
   autosave.dispose();
   store.dispose();
 });
@@ -251,6 +259,8 @@ it.each([
   const work: SavedWork = {
     dataTypes: [],
     selectedDataType: null,
+    configuration: null,
+    selectedConfiguration: false,
     pous: createPous(["PROGRAM Main END_PROGRAM"]),
     selectedPou: 0,
     layout: [],
@@ -326,6 +336,8 @@ it("restores 0.4.0 autosaves with all POUs, drafts and selection intact", () => 
     cycleMs: 20,
     dataTypes: [],
     selectedDataType: null,
+    configuration: null,
+    selectedConfiguration: false,
   });
   const store = createAppStore(new RuntimeClient(new FakeWorker()), restored);
   expect(store.getSnapshot()).toMatchObject({ pous, selectedPou: 0, source: "FUNCTION" });
@@ -376,6 +388,8 @@ it.each([
     selectedPou: 0,
     dataTypes: [],
     selectedDataType: null,
+    configuration: null,
+    selectedConfiguration: false,
     project: null,
     layout: [],
     cycleMs: 10,
@@ -400,4 +414,79 @@ it("preserves a configuration source through autosave without requiring compilat
   expect(readAutosave(storage)).toBeNull();
   fresh.dispose();
   store.dispose();
+});
+
+it("restores an unchanged 0.5.0 version 3 record including types, drafts and selection", () => {
+  const legacy = {
+    version: 3,
+    pous: [{ source: "PROGRAM Main END_PROGRAM", name: "Main", kind: "PROGRAM" }],
+    selectedPou: 0,
+    dataTypes: [{ source: "TYPE", name: "Phase", kind: "TYPE" }],
+    selectedDataType: 0,
+    layout: [],
+    cycleMs: 50,
+    project: null,
+  };
+  const restored = readAutosave({ getItem: () => JSON.stringify(legacy), setItem: vi.fn() })!;
+  const work = { ...legacy };
+  Reflect.deleteProperty(work, "version");
+  expect(restored).toEqual({ ...work, configuration: null, selectedConfiguration: false });
+  const store = createAppStore(new RuntimeClient(new FakeWorker()), restored);
+  expect(store.getSnapshot()).toMatchObject({
+    source: "TYPE",
+    runtimeState: "STOP",
+    snapshot: null,
+  });
+  store.dispose();
+});
+
+it("autosaves configuration drafts, previous names, selection and deletion independently of metadata", () => {
+  const { store, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  store.addConfiguration();
+  store.setSource(
+    store.getSnapshot().source.replace("CONFIGURATION Config", "CONFIGURATION Plant"),
+  );
+  store.setSource("CONFIGURATION");
+  autosave.flush();
+  const restored = readAutosave(storage)!;
+  expect(restored).toMatchObject({
+    configuration: { source: "CONFIGURATION", name: "Plant" },
+    selectedConfiguration: true,
+  });
+  const fresh = createAppStore(new RuntimeClient(new FakeWorker()), restored);
+  expect(fresh.getSnapshot().source).toBe("CONFIGURATION");
+  store.deleteConfiguration();
+  autosave.flush();
+  expect(readAutosave(storage)).toMatchObject({
+    configuration: null,
+    selectedConfiguration: false,
+  });
+  fresh.dispose();
+  autosave.dispose();
+  store.dispose();
+});
+
+it.each([
+  { configuration: undefined },
+  { configuration: {} },
+  { configuration: { name: "Config", source: 42, kind: "CONFIGURATION" } },
+  { selectedConfiguration: undefined },
+  { selectedConfiguration: "true" },
+  { selectedConfiguration: true },
+])("rejects malformed version 4 configuration state %j", (invalid) => {
+  const work = {
+    version: 4,
+    pous: [],
+    selectedPou: 0,
+    dataTypes: [],
+    selectedDataType: null,
+    configuration: null,
+    selectedConfiguration: false,
+    project: null,
+    layout: [],
+    cycleMs: 10,
+    ...invalid,
+  };
+  expect(readAutosave({ getItem: () => JSON.stringify(work), setItem: vi.fn() })).toBeNull();
 });

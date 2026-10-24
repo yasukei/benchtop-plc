@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { diagnosticPouSourceIndex, type EditorPou, type EditorDataType } from "./pous.js";
+import {
+  diagnosticPouSourceIndex,
+  type EditorPou,
+  type EditorDataType,
+  type EditorConfiguration,
+} from "./pous.js";
 import type { ShellCatalog } from "./catalog.js";
 import type { AppState, AppStore } from "./store.js";
 
@@ -14,19 +19,24 @@ export function PouList({
 }) {
   const [deleting, setDeleting] = useState<{
     index: number;
-    pou: EditorPou | EditorDataType;
+    pou: EditorPou | EditorDataType | EditorConfiguration;
   } | null>(null);
   const target =
     deleting &&
-    (deleting.pou.kind === "TYPE" ? state.dataTypes : state.pous)[deleting.index] === deleting.pou
+    (deleting.pou.kind === "CONFIGURATION"
+      ? state.configuration
+      : (deleting.pou.kind === "TYPE" ? state.dataTypes : state.pous)[deleting.index]) ===
+      deleting.pou
       ? deleting.pou
       : undefined;
   const confirmation =
     target &&
-    (target.kind === "TYPE" ? text.confirmDeleteDataType : text.confirmDeletePou).replace(
-      "{name}",
-      target.name,
-    );
+    (target.kind === "CONFIGURATION"
+      ? text.confirmDeleteConfiguration
+      : target.kind === "TYPE"
+        ? text.confirmDeleteDataType
+        : text.confirmDeletePou
+    ).replace("{name}", target.name);
   return (
     <section className="pou-list" aria-label={text.pous}>
       <h3>{text.dataTypes}</h3>
@@ -71,6 +81,48 @@ export function PouList({
           </li>
         ))}
       </ul>
+      <h3>{text.configuration}</h3>
+      <button
+        disabled={state.configuration !== null}
+        onClick={() => {
+          setDeleting(null);
+          store.addConfiguration();
+        }}
+      >
+        {text.addConfiguration}
+      </button>
+      <ul aria-label={text.configuration}>
+        {state.configuration && (
+          <li>
+            <button
+              aria-pressed={state.selectedConfiguration}
+              onClick={() => {
+                setDeleting(null);
+                store.selectConfiguration();
+              }}
+            >
+              <strong>{state.configuration.name}</strong>
+              <span>{text.CONFIGURATION}</span>
+              <span>
+                {text.diagnosticCount.replace(
+                  "{count}",
+                  String(
+                    state.diagnostics.filter(
+                      (diagnostic) => diagnostic.sourceKind === "configuration",
+                    ).length,
+                  ),
+                )}
+              </span>
+            </button>
+            <button
+              aria-label={text.deletePou.replace("{name}", state.configuration.name)}
+              onClick={() => setDeleting({ index: 0, pou: state.configuration! })}
+            >
+              {text.delete}
+            </button>
+          </li>
+        )}
+      </ul>
       <h3>{text.pous}</h3>
       <button
         onClick={() => {
@@ -92,7 +144,11 @@ export function PouList({
         {state.pous.map((pou, index) => (
           <li key={index}>
             <button
-              aria-pressed={state.selectedDataType === null && state.selectedPou === index}
+              aria-pressed={
+                !state.selectedConfiguration &&
+                state.selectedDataType === null &&
+                state.selectedPou === index
+              }
               onClick={() => {
                 setDeleting(null);
                 store.selectPou(index);
@@ -126,7 +182,8 @@ export function PouList({
           <p>{confirmation}</p>
           <button
             onClick={() => {
-              if (target.kind === "TYPE") store.deleteDataType(deleting!.index);
+              if (target.kind === "CONFIGURATION") store.deleteConfiguration();
+              else if (target.kind === "TYPE") store.deleteDataType(deleting!.index);
               else store.deletePou(deleting!.index);
               setDeleting(null);
             }}
