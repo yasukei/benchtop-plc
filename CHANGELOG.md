@@ -8,6 +8,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- ADR 0016 documents the accepted design for configurations, tasks and scheduling,
+  global variables, program parameters, byte, word and memory addresses, retentive
+  variables and warm restart for Milestone 6.
+
 ## [0.5.0] - 2026-10-24
 
 Derived data types and strings: enumerations, subranges, arrays, structures, strings and references, with PLCopen XML exchange and monitor support for composite variables. Contains breaking changes to accepted Structured Text; see Changed.

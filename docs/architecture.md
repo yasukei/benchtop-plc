@@ -37,6 +37,13 @@ monitoring and PLCopen XML mapping, is recorded in
 [ADR 0015](adr/0015-derived-types-strings-and-references.md). Its implementation is
 tracked by the sub-issues of [#118](https://github.com/yasukei/benchtop-plc/issues/118).
 
+Milestone 6's accepted model for configurations, tasks and scheduling, global
+variables, program parameters, byte, word and memory addresses, and retentive
+variables with warm restart, including their monitoring and PLCopen XML mapping, is
+recorded in [ADR 0016](adr/0016-configurations-tasks-and-global-variables.md). Its
+implementation is tracked by the sub-issues of
+[#147](https://github.com/yasukei/benchtop-plc/issues/147).
+
 ## Data flow
 
 ```
