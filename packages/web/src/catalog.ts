@@ -116,7 +116,7 @@ export const ja: Record<keyof typeof en, string> = {
   scans: "スキャン数",
   execution: "実行時間 (ms)",
   editor: "Structured Text",
-  inlineInstance: "Instance: {name}",
+  inlineInstance: "インスタンス: {name}",
   applied: "プログラム適用済み",
   unapplied: "未適用の変更あり",
   diagnostics: "診断",
