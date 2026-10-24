@@ -181,7 +181,10 @@ export function compileProject(
     };
     const result = check(ast, pous, functionIds, blockIds, resolved.types);
     diagnostics.push(...result.diagnostics.map(configDiagnostic));
-    globals = result.checked ?? undefined;
+    // External bindings require a valid global scope; avoid misleading lookup errors
+    // in every importing POU when a global declaration is invalid.
+    if (!result.checked) return { diagnostics };
+    globals = result.checked;
   }
   const scope = globals
     ? {

@@ -15,7 +15,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   support derived types, references, FBs and existing bit addresses, and appear in
   a Globals monitor group with write and force controls. PLCopen XML preserves global
   and external declarations and CONSTANT attributes; imported constants work in
-  array bounds and CASE labels.
+  array bounds and CASE labels. Invalid global declarations report configuration
+  errors without cascading missing-global messages in importing POUs.
 
 - Configuration source editing in the web source list, with one cyclic-task
   template containing every PROGRAM, header-based renaming, diagnostic navigation

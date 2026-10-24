@@ -24,6 +24,21 @@ it("aliases externals to one global without allocating a second monitored variab
 });
 
 it.each([
+  ["h : UnknownType;", "decl.unknown-type"],
+  ["h : INT := 40000;", "type.invalid-constant"],
+])("reports invalid globals without cascading external lookup errors: %s", (invalid, code) => {
+  for (const config of [configuration(`g : INT; ${invalid}`), configuration("g : INT;", invalid)]) {
+    const result = compile(program(), config, [
+      "FUNCTION_BLOCK Reader VAR_EXTERNAL g : INT; END_VAR g := g + 1; END_FUNCTION_BLOCK",
+    ]);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code, sourceKind: "configuration", pou: "Plant" }),
+    ]);
+  }
+});
+
+it.each([
   [program("VAR_EXTERNAL missing : INT; END_VAR", ""), configuration(), "global.not-found"],
   [program("VAR_EXTERNAL g : DINT; END_VAR", ""), configuration(), "global.type-mismatch"],
   [
