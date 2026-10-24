@@ -232,3 +232,7 @@ describe("translation catalogs", () => {
     }
   });
 });
+
+it("describes NULL dereferencing as a runtime failure in Japanese", () => {
+  expect(diagnosticJa["runtime.null-reference"]()).toBe("NULLを逆参照できません。");
+});

@@ -186,7 +186,7 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
-  "runtime.null-reference": () => "NULL参照を参照先として使用できません。",
+  "runtime.null-reference": () => "NULLを逆参照できません。",
   "type.invalid-reference-target": () => "参照には互換性のある永続変数が必要です。",
   "type.reference-initializer": () => "参照の初期値はNULLにしてください。",
   "project.invalid-xml": () => "XMLが不正、DTDが存在、またはXMLの入れ子が深すぎます。",
