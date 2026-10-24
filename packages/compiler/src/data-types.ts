@@ -20,7 +20,7 @@ import {
   type Diagnostic,
   type ScalarValue,
 } from "@benchtop-plc/core";
-import type { DataTypeDeclaration, Expression, Identifier, Subrange } from "./ast.js";
+import type { DataTypeDeclaration, Expression, Identifier, Subrange, TypeSyntax } from "./ast.js";
 import { check, declarationType } from "./checker.js";
 import { scalarTypes } from "./type-rules.js";
 
@@ -140,21 +140,26 @@ export function resolveDataTypes(
     if (visiting.has(ast.name.key)) {
       for (const name of visiting) failedCycles.add(name);
       report(ast, {
-        code: "type.invalid-constant",
+        code: "decl.type-cycle",
         severity: "error",
         span: ast.name.span,
-        args: {},
+        args: { name: ast.name.name },
       });
       return undefined;
     }
     visiting.add(ast.name.key);
+    const resolveDependency = (other: DataTypeDeclaration): TypeEntry | undefined => {
+      const entry = resolve(other);
+      if (failedCycles.has(other.name.key)) failedCycles.add(ast.name.key);
+      return entry;
+    };
     if (ast.members) {
       const dependencies = (syntax: import("./ast.js").TypeSyntax, indirect = false): void => {
         if (syntax.reference) dependencies(syntax.reference, true);
         else if (syntax.array) dependencies(syntax.array, indirect);
         else {
           const other = pending.get(syntax.typeName.key);
-          if (other && !(indirect && placeholders.has(other.name.key))) resolve(other);
+          if (other && !(indirect && placeholders.has(other.name.key))) resolveDependency(other);
         }
       };
       for (const member of ast.members) dependencies(member);
@@ -174,15 +179,21 @@ export function resolveDataTypes(
           });
         seen.add(name.key);
       }
-      const functionBlockMembers = ast.members.filter((member) =>
-        isFunctionBlockType((member.array?.typeName ?? member.typeName).key),
-      );
-      for (const member of functionBlockMembers)
+      const functionBlockMembers = ast.members.flatMap((member) => {
+        let syntax: TypeSyntax = member;
+        while (syntax.array) syntax = syntax.array;
+        if (syntax.reference) return [];
+        const typeName = syntax.typeName;
+        return isFunctionBlockType(typeName.key) || blockIds.has(typeName.key)
+          ? [{ member, typeName }]
+          : [];
+      });
+      for (const { member, typeName } of functionBlockMembers)
         report(ast, {
           code: "decl.structure-member-type",
           severity: "error",
           span: member.typeName.span,
-          args: { name: member.typeName.name },
+          args: { name: typeName.name },
         });
       if (functionBlockMembers.length) {
         visiting.delete(ast.name.key);
@@ -253,7 +264,7 @@ export function resolveDataTypes(
         else if (syntax.array) resolveTarget(syntax.array);
         else {
           const other = pending.get(syntax.typeName.key);
-          if (other && !placeholders.has(other.name.key)) resolve(other);
+          if (other && !placeholders.has(other.name.key)) resolveDependency(other);
         }
       };
       resolveTarget(ast.reference);
@@ -301,8 +312,12 @@ export function resolveDataTypes(
       if (scalarTypes.some((type) => type === key)) base = key as (typeof scalarTypes)[number];
       else {
         const other = pending.get(key);
-        const entry = other ? resolve(other) : undefined;
+        const entry = other ? resolveDependency(other) : undefined;
         if (!entry) {
+          if (failedCycles.has(ast.name.key)) {
+            visiting.delete(ast.name.key);
+            return undefined;
+          }
           report(ast, {
             code: "decl.unknown-type",
             severity: "error",
@@ -331,14 +346,14 @@ export function resolveDataTypes(
             else if (syntax.array) target(syntax.array);
             else {
               const other = pending.get(syntax.typeName.key);
-              if (other && !placeholders.has(other.name.key)) resolve(other);
+              if (other && !placeholders.has(other.name.key)) resolveDependency(other);
             }
           };
           target(node.reference);
         } else if (node.array) resolveElements(node.array);
         else {
           const other = pending.get(node.typeName.key);
-          if (other) resolve(other);
+          if (other) resolveDependency(other);
         }
       };
       resolveElements(ast.array);

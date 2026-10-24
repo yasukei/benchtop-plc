@@ -2357,11 +2357,16 @@ class Checker {
           if (symbol) {
             if (!isScalar(symbol.type))
               this.report("fb.instance-as-value", { name: node.variable.name }, node.variable.span);
+            else if (symbol.descriptor && subrangeType(symbol.descriptor, this.types))
+              this.report(
+                "type.for-variable-subrange",
+                { name: node.variable.name, type: symbol.descriptor },
+                node.variable.span,
+              );
             else if (
               !isInteger(symbol.type) ||
               (symbol.descriptor &&
                 (enumerationType(symbol.descriptor, this.types) ||
-                  subrangeType(symbol.descriptor, this.types) ||
                   referenceType(symbol.descriptor, this.types) ||
                   isAggregateType(symbol.descriptor, this.types)))
             )

@@ -232,7 +232,7 @@ describe("subranges", () => {
   });
   it("rejects subrange FOR controls", () => {
     expect(codes(compile("p : Percent;", "FOR p := 0 TO 10 DO END_FOR;"))).toContain(
-      "type.for-variable-not-integer",
+      "type.for-variable-subrange",
     );
   });
   it("uses structural exact matching for in-outs", () => {

@@ -110,3 +110,21 @@ test("navigates type diagnostics, retains damaged names, and confirms type delet
   await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
   await expect(page.getByRole("button", { name: "データ型を追加", exact: true })).toBeVisible();
 });
+
+test("explains recursive type cycles in both languages", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  await list.getByRole("button", { name: "Add data type", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Structured Text", exact: true })
+    .fill("TYPE Node : STRUCT next : Node; END_STRUCT; END_TYPE");
+  await expect(list.getByRole("button", { name: /^Node TYPE/ })).toContainText("Diagnostics: 1");
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "Type Node has a containment or alias cycle; use REF_TO for recursive links.",
+  );
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(page.getByRole("region", { name: "診断", exact: true })).toContainText(
+    "型Nodeの包含関係または別名定義が循環しています。再帰的なリンクにはREF_TOを使用してください。",
+  );
+});

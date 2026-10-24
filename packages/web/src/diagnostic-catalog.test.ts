@@ -38,6 +38,7 @@ const examples = {
   "syntax.unexpected-eof": {},
   "syntax.missing-end": { expected: "END_IF" },
   "decl.unknown-type": { name: "STRING" },
+  "decl.type-cycle": { name: "Node" },
   "decl.structure-member-type": { name: "TON" },
   "decl.fb-array-form": { form: "named" },
   "decl.duplicate": { name: "Counter" },
@@ -89,6 +90,7 @@ const examples = {
   "type.case-selector-not-integer": { type: "REAL" },
   "type.case-label-not-integer": { type: "BOOL" },
   "type.for-variable-not-integer": { name: "Index", type: "REAL" },
+  "type.for-variable-subrange": { name: "p", type: { kind: "named", name: "Percent" } },
   "type.for-bound-not-integer": { bound: "step", type: "LREAL" },
   "flow.exit-outside-loop": {},
   "fb.not-function-block": { name: "Counter" },
@@ -235,4 +237,35 @@ describe("translation catalogs", () => {
 
 it("describes NULL dereferencing as a runtime failure in Japanese", () => {
   expect(diagnosticJa["runtime.null-reference"]()).toBe("NULLを逆参照できません。");
+});
+
+it("explains type cycles in English and Japanese", () => {
+  const diagnostic = {
+    code: "decl.type-cycle",
+    severity: "error",
+    args: { name: "Node" },
+  } as const;
+  expect(formatDiagnostic("en", diagnostic)).toBe(
+    "Type Node has a containment or alias cycle; use REF_TO for recursive links.",
+  );
+  expect(formatDiagnostic("ja", diagnostic)).toBe(
+    "型Nodeの包含関係または別名定義が循環しています。再帰的なリンクにはREF_TOを使用してください。",
+  );
+});
+
+it.each<[TypeDescriptor, string]>([
+  [{ kind: "named", name: "Percent" }, "Percent"],
+  [{ kind: "subrange", base: "INT", lower: 0, upper: 100 }, "INT (0..100)"],
+])("explains the subrange FOR restriction for %j in both languages", (type, text) => {
+  const diagnostic = {
+    code: "type.for-variable-subrange",
+    severity: "error",
+    args: { name: "p", type },
+  } as const;
+  expect(formatDiagnostic("en", diagnostic)).toBe(
+    `FOR variable p has subrange type ${text}, which is not supported as a loop control variable; use an unrestricted integer variable.`,
+  );
+  expect(formatDiagnostic("ja", diagnostic)).toBe(
+    `FOR変数pの部分範囲型${text}はループ制御変数として使用できません。部分範囲のない整数変数を使用してください。`,
+  );
 });

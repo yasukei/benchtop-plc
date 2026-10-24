@@ -102,6 +102,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   using these names must be renamed. STRING and WSTRING remain reserved; string
   functions/conversions and references are available.
 
+### Fixed
+
+- Compiler diagnostics name the actual standard or user function block type in
+  structure array members, identify containment and alias cycles without
+  cascading unknown-type errors, and explain the restriction on subrange FOR
+  control variables in English and Japanese.
+
 ## [0.4.0] - 2026-10-23
 
 User-defined functions and function blocks in projects with several POUs, with `VAR_IN_OUT`, `VAR_TEMP`, `CONSTANT` and timers and counters that adapt to their preset type. Contains breaking changes to accepted Structured Text; see Changed.
