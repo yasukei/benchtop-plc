@@ -1,0 +1,1195 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Initialized outputs are off",
+      "scans": 0,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "First idle scan establishes the START edge detector history",
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "START latches Quick and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick selection stays latched despite both selectors ON",
+      "set": {
+        "Start": false,
+        "SelectStandard": true,
+        "SelectGentle": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 10
+      }
+    },
+    {
+      "label": "Quick filling remains pending at preset minus 10 ms",
+      "scans": 98,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick filling completes at preset",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick MixTimer remains pending one scan before 2000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 199,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 1990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 2000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick DrainTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "Quick Done stays latched with all actuators off",
+      "scans": 10,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "START latches Standard and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": true,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Standard: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Standard selection stays latched despite both selectors ON",
+      "set": {
+        "Start": false,
+        "SelectStandard": true,
+        "SelectGentle": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Standard: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 10
+      }
+    },
+    {
+      "label": "Standard filling remains pending at preset minus 10 ms",
+      "scans": 198,
+      "expect": {
+        "State": 1,
+        "Status": "Standard: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 1990
+      }
+    },
+    {
+      "label": "Standard filling completes at preset",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Standard: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Standard MixTimer remains pending one scan before 3000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 299,
+      "expect": {
+        "State": 2,
+        "Status": "Standard: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 2990
+      }
+    },
+    {
+      "label": "Standard advances at exactly 3000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 3,
+        "Status": "Standard: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Standard DrainTimer remains pending one scan before 2000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 199,
+      "expect": {
+        "State": 3,
+        "Status": "Standard: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 1990
+      }
+    },
+    {
+      "label": "Standard advances at exactly 2000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Standard: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "Standard Done stays latched with all actuators off",
+      "scans": 10,
+      "expect": {
+        "State": 4,
+        "Status": "Standard: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "START latches Gentle and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Gentle: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Gentle selection stays latched despite both selectors ON",
+      "set": {
+        "Start": false,
+        "SelectStandard": true,
+        "SelectGentle": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Gentle: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 10
+      }
+    },
+    {
+      "label": "Gentle filling remains pending at preset minus 10 ms",
+      "scans": 298,
+      "expect": {
+        "State": 1,
+        "Status": "Gentle: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 2990
+      }
+    },
+    {
+      "label": "Gentle filling completes at preset",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Gentle: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Gentle MixTimer remains pending one scan before 4000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 399,
+      "expect": {
+        "State": 2,
+        "Status": "Gentle: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 3990
+      }
+    },
+    {
+      "label": "Gentle advances at exactly 4000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 3,
+        "Status": "Gentle: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Gentle DrainTimer remains pending one scan before 3000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 299,
+      "expect": {
+        "State": 3,
+        "Status": "Gentle: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 2990
+      }
+    },
+    {
+      "label": "Gentle advances at exactly 3000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Gentle: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "Gentle Done stays latched with all actuators off",
+      "scans": 10,
+      "expect": {
+        "State": 4,
+        "Status": "Gentle: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "START latches Quick and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Advance partway through step 1",
+      "set": {
+        "Start": false
+      },
+      "scans": 25,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "STOP during step 1 wins over simultaneous START",
+      "set": {
+        "Stop": true,
+        "Start": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0,
+        "MixTimer.ET": 0,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Releasing STOP with START held cannot restart",
+      "set": {
+        "Stop": false
+      },
+      "scans": 500,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "Release START to rearm the edge detector",
+      "set": {
+        "Start": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "START latches Quick and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick FillTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick MixTimer remains pending one scan before 2000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 199,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 1990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 2000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick DrainTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "Release buttons and leave completion latched",
+      "set": {
+        "Start": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "START latches Quick and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick FillTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Advance partway through step 2",
+      "set": {
+        "Start": false
+      },
+      "scans": 25,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "STOP during step 2 wins over simultaneous START",
+      "set": {
+        "Stop": true,
+        "Start": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0,
+        "MixTimer.ET": 0,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Releasing STOP with START held cannot restart",
+      "set": {
+        "Stop": false
+      },
+      "scans": 500,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "Release START to rearm the edge detector",
+      "set": {
+        "Start": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "START latches Quick and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick FillTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick MixTimer remains pending one scan before 2000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 199,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 1990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 2000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick DrainTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "Release buttons and leave completion latched",
+      "set": {
+        "Start": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "START latches Quick and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick FillTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick MixTimer remains pending one scan before 2000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 199,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 1990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 2000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Advance partway through step 3",
+      "set": {
+        "Start": false
+      },
+      "scans": 25,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "STOP during step 3 wins over simultaneous START",
+      "set": {
+        "Stop": true,
+        "Start": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0,
+        "MixTimer.ET": 0,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Releasing STOP with START held cannot restart",
+      "set": {
+        "Stop": false
+      },
+      "scans": 500,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "Release START to rearm the edge detector",
+      "set": {
+        "Start": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "START latches Quick and arms filling at zero",
+      "set": {
+        "Start": true,
+        "Stop": false,
+        "SelectStandard": false,
+        "SelectGentle": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick FillTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 1,
+        "Status": "Quick: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick MixTimer remains pending one scan before 2000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 199,
+      "expect": {
+        "State": 2,
+        "Status": "Quick: Mixing",
+        "FillValve": false,
+        "Mixer": true,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "MixTimer.ET": 1990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 2000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 0
+      }
+    },
+    {
+      "label": "Quick DrainTimer remains pending one scan before 1000 ms",
+      "set": {
+        "Start": false
+      },
+      "scans": 99,
+      "expect": {
+        "State": 3,
+        "Status": "Quick: Draining",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": true,
+        "DoneLamp": false,
+        "DrainTimer.ET": 990
+      }
+    },
+    {
+      "label": "Quick advances at exactly 1000 ms",
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "Release buttons and leave completion latched",
+      "set": {
+        "Start": false
+      },
+      "scans": 1,
+      "expect": {
+        "State": 4,
+        "Status": "Quick: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "STOP clears the completed batch",
+      "set": {
+        "Stop": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    },
+    {
+      "label": "Both selectors ON choose Gentle on a new START",
+      "set": {
+        "Stop": false,
+        "Start": true,
+        "SelectStandard": true,
+        "SelectGentle": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 1,
+        "Status": "Gentle: Filling",
+        "FillValve": true,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false,
+        "FillTimer.ET": 0
+      }
+    },
+    {
+      "label": "Holding START cannot repeat a completed batch",
+      "scans": 1000,
+      "expect": {
+        "State": 4,
+        "Status": "Gentle: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "Done stays latched while START remains held",
+      "scans": 1000,
+      "expect": {
+        "State": 4,
+        "Status": "Gentle: Done",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": true
+      }
+    },
+    {
+      "label": "STOP clears held START and completion",
+      "set": {
+        "Stop": true
+      },
+      "scans": 1,
+      "expect": {
+        "State": 0,
+        "Status": "Idle",
+        "FillValve": false,
+        "Mixer": false,
+        "DrainValve": false,
+        "DoneLamp": false
+      }
+    }
+  ]
+}

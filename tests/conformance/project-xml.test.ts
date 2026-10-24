@@ -168,15 +168,20 @@ describe("PLCopen TC6 v2.01 conformance", () => {
     const motorStarters = XmlDocument.fromString(
       readFileSync(new URL("../../examples/motor-starters/project.xml", import.meta.url), "utf8"),
     );
+    const batchMixer = XmlDocument.fromString(
+      readFileSync(new URL("../../examples/batch-mixer/project.xml", import.meta.url), "utf8"),
+    );
     const invalid = XmlDocument.fromString(xml.replace('priority="1"', 'priority="65536"'));
     try {
       expect(() => validator.validate(document)).not.toThrow();
       expect(() => validator.validate(example)).not.toThrow();
       expect(() => validator.validate(runningLight)).not.toThrow();
       expect(() => validator.validate(motorStarters)).not.toThrow();
+      expect(() => validator.validate(batchMixer)).not.toThrow();
       expect(() => validator.validate(invalid)).toThrow();
     } finally {
       invalid.dispose();
+      batchMixer.dispose();
       motorStarters.dispose();
       runningLight.dispose();
       example.dispose();

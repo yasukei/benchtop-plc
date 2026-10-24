@@ -113,8 +113,13 @@ function readValue(ir: ProgramIR, snapshot: RuntimeSnapshot, path: string): Scal
 }
 
 /** Execute only through public compiler/runtime APIs, with no real-time waits. */
-export function runTrace(name: string, source: string | readonly string[], trace: Trace): void {
-  const result = typeof source === "string" ? compile(source) : compileProject(source);
+export function runTrace(
+  name: string,
+  source: string | readonly string[],
+  trace: Trace,
+  dataTypes: readonly string[] = [],
+): void {
+  const result = typeof source === "string" ? compile(source) : compileProject(source, dataTypes);
   const codes = result.diagnostics.map((diagnostic) => diagnostic.code).sort();
   if (trace.kind === "compile-error") {
     const expected = [...trace.diagnostics].sort();

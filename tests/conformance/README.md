@@ -4,7 +4,8 @@ Run `pnpm test` to include all cases, or
 `pnpm test tests/conformance/traces.test.ts` to run only the data-driven suite.
 Each immediate subdirectory except `fixtures/` is a case containing `program.st`
 and `trace.json`, optionally with further `.st` files for function POUs. The
-runner compiles every `.st` file together in filename order (one POU per file).
+runner compiles every `.st` file together in filename order (one POU per file),
+with `*.type.st` files supplied separately as data type sources (one TYPE per file).
 Cases are discovered in name order; a missing trace fails the suite. Existing TypeScript conformance tests and golden IR stay alongside them.
 
 ## Execution traces
