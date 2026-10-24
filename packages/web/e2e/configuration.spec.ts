@@ -20,3 +20,69 @@ test("groups implicit instance paths and names the instance supplying inline val
   await page.getByRole("button", { name: "Single scan", exact: true }).click();
   await expect(page.locator(".inline-values").first()).toBeVisible();
 });
+
+for (const multiple of [false, true]) {
+  test(`opens, autosaves and resaves configuration sources with multiple tasks=${multiple}`, async ({
+    page,
+  }) => {
+    const { readFileSync } = await import("node:fs");
+    const { readProject, writeProject } = await import("@benchtop-plc/project");
+    const { autosaveStorageKey } = await import("../src/autosave.js");
+    const project = readProject(
+      readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url), "utf8"),
+    ).value!;
+    const configurationSource = `// exact configuration text\r
+CONFIGURATION Plant RESOURCE Station ON Cpu\r
+TASK Fast (INTERVAL := T#200ms, PRIORITY := 0);\r
+${multiple ? "TASK Slow (INTERVAL := T#100ms, PRIORITY := 1);" : ""}\r
+PROGRAM A WITH Fast : Main;\r
+PROGRAM B WITH Fast : Main;\r
+END_RESOURCE END_CONFIGURATION\r
+`;
+    project.configurationSource = configurationSource;
+    await page.goto("/");
+    await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+    await page.getByLabel("Open project", { exact: true }).setInputFiles({
+      name: "configuration.xml",
+      mimeType: "application/xml",
+      buffer: Buffer.from(writeProject(project).value!),
+    });
+    const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+    if (multiple) {
+      await expect(diagnostics).toContainText("A resource requires exactly one cyclic task.");
+      await expect(page.getByRole("button", { name: "Single scan", exact: true })).toBeDisabled();
+    } else {
+      await expect(diagnostics).toContainText("No diagnostics");
+      await expect(page.getByText("Instance: A", { exact: true })).toBeVisible();
+      const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+      await expect(monitor.getByRole("button", { name: "A", exact: true })).toBeVisible();
+      await expect(monitor.getByRole("button", { name: "B", exact: true })).toBeVisible();
+    }
+    await expect(page.getByLabel("Cycle (ms)")).toBeDisabled();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.project?.configurationSource,
+          autosaveStorageKey,
+        ),
+      )
+      .toBe(configurationSource);
+    await page.reload();
+    await expect(diagnostics).toContainText(
+      multiple ? "A resource requires exactly one cyclic task." : "No diagnostics",
+    );
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Save project", exact: true }).click();
+    const download = await downloadPromise;
+    expect(
+      readProject(readFileSync((await download.path())!, "utf8")).value?.configurationSource,
+    ).toBe(configurationSource);
+    const restore = page.getByRole("button", { name: "Restore example", exact: true });
+    await restore.click();
+    await restore.click();
+    await expect(page.getByText("Instance: mainInstance", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Cycle (ms)")).toBeEnabled();
+    await expect(diagnostics).toContainText("No diagnostics");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+}

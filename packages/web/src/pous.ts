@@ -144,7 +144,7 @@ export function compilePous(
   return compileProject(
     pouSources(pous),
     dataTypes,
-    undefined,
+    project?.configurationSource,
     implicitConfiguration(project, intervalMs),
   );
 }

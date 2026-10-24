@@ -31,7 +31,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
         ? compileProject(
             state.loadedSources,
             state.loadedDataTypes ?? [],
-            undefined,
+            state.project?.configurationSource,
             implicitConfiguration(state.project, state.cycleMs),
           ).ir
         : undefined,
@@ -128,7 +128,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             <label>
               {text.cycle}
               <select
-                disabled={disconnected}
+                disabled={disconnected || state.project?.configurationSource !== undefined}
                 value={state.cycleMs}
                 onChange={(event) =>
                   store.send({ type: "setCycle", ms: Number(event.target.value) })

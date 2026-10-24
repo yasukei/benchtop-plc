@@ -383,3 +383,21 @@ it.each([
   };
   expect(readAutosave({ getItem: () => JSON.stringify(work), setItem: vi.fn() })).toBeNull();
 });
+
+it("preserves a configuration source through autosave without requiring compilation", () => {
+  const { store, storage } = setup();
+  const state = store.getSnapshot();
+  const project = { ...state.project!, configurationSource: "CONFIGURATION unfinished" };
+  storage.setItem(autosaveStorageKey, JSON.stringify({ version: 3, ...state, project }));
+  const restored = readAutosave(storage)!;
+  expect(restored.project?.configurationSource).toBe(project.configurationSource);
+  const fresh = createAppStore(new RuntimeClient(new FakeWorker()), restored);
+  expect(fresh.getSnapshot().diagnostics).toContainEqual(
+    expect.objectContaining({ sourceKind: "configuration" }),
+  );
+  project.configurationSource = 42 as unknown as string;
+  storage.setItem(autosaveStorageKey, JSON.stringify({ version: 3, ...state, project }));
+  expect(readAutosave(storage)).toBeNull();
+  fresh.dispose();
+  store.dispose();
+});

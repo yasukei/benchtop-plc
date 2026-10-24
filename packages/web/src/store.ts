@@ -153,7 +153,10 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       return false;
     const opened = openPanelProject(xml);
     if (!opened) return false;
-    const ms = Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000;
+    const ms =
+      opened.project.configurationSource === undefined
+        ? Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000
+        : state.cycleMs;
     if (!cycleOptions.includes(ms as CycleMs)) return false;
     clearTimeout(compileTimer);
     const pous = createPous(opened.project.pous);
@@ -178,7 +181,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       diagnostic: null,
       rejection: null,
     });
-    client.send({ type: "setCycle", ms });
+    // The loaded configuration IR supplies its cycle, including implicit projects.
     loadEditor();
     return true;
   };
@@ -353,6 +356,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       if (state.connection !== "connected") return;
       if (state.rejection) update({ rejection: null });
       if (message.type === "setCycle") {
+        if (state.project?.configurationSource !== undefined) return;
         if (!cycleOptions.includes(message.ms as CycleMs))
           throw new RangeError("Unsupported cycle");
         update({ cycleMs: message.ms as CycleMs });

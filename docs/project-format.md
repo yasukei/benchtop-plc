@@ -8,14 +8,15 @@ used by the package, so its built ESM also runs in a Web Worker.
 The model includes file/content header metadata, an ordered `dataTypes: string[]`
 (each text contains exactly one `TYPE Name : ...; END_TYPE`) before the ordered
 `pous: string[]` (each text contains exactly one `PROGRAM`, `FUNCTION` or
-`FUNCTION_BLOCK`), one configuration,
-one resource, one positive fixed-duration cyclic task, an optional program
-instance bound to that task, and a JSON panel layout. Task intervals use ISO 8601
+`FUNCTION_BLOCK`), the `configuration`, `resource`, `task` and optional `instance`
+fields for the implicit configuration, an optional `configurationSource: string`,
+and a JSON panel layout. A configuration source takes precedence over the implicit
+fields when saving and compiling. Task intervals use ISO 8601
 fixed durations such as `PT0.01S`; task priority is 0–65535. Writing binds the
 instance to the first `PROGRAM` in project order, retaining its instance name
 (or using `mainInstance` for a new binding). With no program, the instance is
-omitted. On import, an instance's `typeName` must name a `PROGRAM` of the file
-(case-insensitively). Graphical coordinate scaling is fixed at 1 for FBD, LD and
+omitted. For implicit imports, an instance's `typeName` must name a `PROGRAM` of the file
+(case-insensitively). Explicit configurations retain unknown types for compilation. Graphical coordinate scaling is fixed at 1 for FBD, LD and
 SFC; graphical bodies are unsupported.
 
 `splitProgram` uses the compiler POU parser and lexer spans to convert each editor
@@ -31,7 +32,7 @@ types, including nested instances. Derived type names are written in upper case
 and matched case-insensitively on read. ST bodies use an XHTML `p` element as
 required by TC6's `formattedText`.
 
-Saving requires each data type and POU to parse and each initializer to pass the
+Saving requires each data type, POU and configuration source to parse and each initializer to pass the
 compiler's initializer checks with the project's data types in scope. POU
 initializers also see earlier constants in their own POU context. The same checks
 apply to imports. An unresolved name or declaration type does not block exchange, while an initializer
@@ -56,15 +57,15 @@ parser. A small plain-data tree supports the scoped TC6 reader. XML is emitted
 with escaped text/attributes, including character references for CR and whitespace
 that XML otherwise normalizes. DTDs are rejected, and XML nesting is limited to
 128 elements. Unknown standard elements or attributes produce errors rather than
-silently changing program behavior. Multiple resources/tasks/configurations are
-unsupported.
+silently changing program behavior. Multiple resources/configurations are
+unsupported; configuration sources can exchange several tasks.
 
 Our `addData/data` records use `handleUnknown="discard"`:
 
 - At the project root, `https://github.com/yasukei/benchtop-plc/ns/panel/1` contains
   a `panel` element in that namespace with `version="1"`; its text is the JSON
   layout. Missing panel data imports as `null`.
-- Inside each `<pou>` and `<dataType>`, `https://github.com/yasukei/benchtop-plc/ns/source/1`
+- Inside each `<pou>`, `<dataType>` and `<configuration>`, `https://github.com/yasukei/benchtop-plc/ns/source/1`
   contains a `source` element in that namespace with `version="1"`; its text
   preserves that source's exact spelling, comments, grouping, whitespace and line
   endings. Each source has its own entry, so duplicate names remain unambiguous.
@@ -114,6 +115,46 @@ semantic errors still belong to compilation.
 `pointer` remains unsupported; structures are described below.
 Files written by 0.4.0 with an empty `<dataTypes/>` import with `dataTypes: []`;
 the blink, running-light and motor-starters example sources remain unchanged.
+
+## Configuration mapping
+
+Without a configuration source, saving writes the same single configuration,
+resource, cyclic task and optional instance as 0.5.0. Existing files and bundled
+examples remain implicit, retaining names, interval, priority and panel layout.
+
+A configuration source maps to `instances/configurations/configuration/resource`.
+Each task has `name`, `priority`, and either an ISO 8601 `interval` (for example
+`PT0.01S`) or `single` with its input text (`gAck`, `%IX0.1`). Each program instance
+is a `pouInstance` with `name` and `typeName` nested in its task. The configuration's
+`addData` holds its exact source text, including resource type, comments, declaration
+order and line endings. When XML disagrees with that source, `project.stale-source`
+warns and canonical configuration text is rebuilt from the standard structure.
+Equivalent ISO duration spellings compare by duration.
+
+A file without the source extension stays implicit only with exactly one cyclic
+task (an `interval` and no `single`) and at most one instance, without globals.
+Otherwise it receives generated configuration text, using `ON BENCHTOP` because TC6
+stores no resource type. For example, an event task imports as
+`TASK OnAck (SINGLE := %IX0.1, PRIORITY := 0);`. The legacy fields reflect the XML
+configuration/resource and first cyclic task; if the first task is not cyclic,
+the legacy task defaults to `Cyclic`, `PT0.01S`, priority 1. These fields do not
+control an explicit configuration.
+
+Exchange preserves representable semantic errors, including unknown task/type
+names, missing `WITH`, duplicate names and multiple tasks, for compiler diagnostics.
+TC6 cannot nest an instance under a nonexistent task: an unknown or missing `WITH`
+is projected into the first task in XML while the source extension retains the
+original binding and its error. Removing the extension loses that invalid binding.
+Instances with no task declaration cannot be represented and are rejected.
+Task literals must fit their scalar types; malformed sources and out-of-range
+values cannot be saved. Global variables, parameter connections, retain attributes,
+resource-level `pouInstance`, `accessVars` and `configVars` are unsupported here.
+
+The web app compiles imported configuration sources, preserves them through
+save/open and browser autosave, and disables the implicit cycle control for them.
+Several tasks and event tasks can be exchanged before the compiler can execute
+them; compilation reports diagnostics and does not load invalid code. Configuration
+source editing is not yet available in the web app.
 
 ## Writer identity
 
