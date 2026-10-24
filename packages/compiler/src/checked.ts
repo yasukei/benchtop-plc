@@ -23,9 +23,23 @@ export interface UserCallInfo {
   resultDescriptor?: TypeDescriptor;
 }
 
+export interface ConstantSymbol {
+  name: Identifier;
+  type: DataType;
+  descriptor?: TypeDescriptor;
+  initializerProcessed: boolean;
+  value?: ScalarValue;
+}
+export interface GlobalScope {
+  symbols: readonly VariableSymbol[];
+  constants: ReadonlyMap<string, ConstantSymbol>;
+  /** Selecting argument types collected across every POU in the project. */
+  bindings: Map<string, DataType[]>;
+}
 export interface VariableSymbol {
   /** Index in declaration order, shared by all resolved references. */
   id: number;
+  external?: string;
   name: Identifier;
   type: string;
   descriptor?: TypeDescriptor;
@@ -57,6 +71,7 @@ export interface CheckedProgram {
   ast: Program;
   types: TypeTable;
   symbols: readonly VariableSymbol[];
+  constants: ReadonlyMap<string, ConstantSymbol>;
   expressions: ReadonlyMap<Expression, ExpressionInfo>;
   references: ReadonlyMap<Identifier, ResolvedReference>;
   arrayBounds: ReadonlyMap<FunctionCall, { array: Expression; dimension: number; upper: boolean }>;
@@ -64,6 +79,7 @@ export interface CheckedProgram {
   functionArguments: ReadonlyMap<FunctionCall, readonly Expression[]>;
   userCalls: ReadonlyMap<FunctionCall | FunctionBlockCall, UserCallInfo>;
   blockInputTypes: ReadonlyMap<Identifier, DataType>;
+  blockCalls: ReadonlyMap<FunctionCall, number>;
   blockInOuts: ReadonlyMap<FunctionCall | FunctionBlockCall, UserCallInfo["inOuts"]>;
   result?: VariableSymbol;
 }

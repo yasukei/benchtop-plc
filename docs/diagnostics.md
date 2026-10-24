@@ -132,7 +132,7 @@ as syntax errors.
 | `type.for-variable-not-integer`   | FOR control variable is not an integer                                         | `{ name: string; type: TypeDescriptor }`                                                                           |
 | `type.for-bound-not-integer`      | FOR start, end or step is not an integer                                       | `{ bound: "from" \| "to" \| "step"; type: TypeDescriptor }`                                                        |
 | `flow.exit-outside-loop`          | EXIT occurs outside a loop                                                     | `{}`                                                                                                               |
-| `fb.invalid-instance-section`     | FB instance declared outside VAR                                               | `{ name: string }`                                                                                                 |
+| `fb.invalid-instance-section`     | FB instance declared outside VAR or VAR_EXTERNAL                               | `{ name: string }`                                                                                                 |
 | `fb.no-matching-variant`          | No variant accepts the selecting preset types                                  | `{ name: string; types: readonly TypeDescriptor[] }`                                                               |
 | `fb.not-function-block`           | Called instance is not a function block                                        | `{ name: string }`                                                                                                 |
 | `fb.unknown-member`               | FB instance has no such member                                                 | `{ name: string; member: string }`                                                                                 |
@@ -238,7 +238,7 @@ error, while retaining the usual initializer type and range checks.
 
 | Code                         | Meaning                                                                             | Arguments             |
 | ---------------------------- | ----------------------------------------------------------------------------------- | --------------------- |
-| `decl.constant-section`      | CONSTANT on a section other than VAR, including an empty section                    | `{ section: string }` |
+| `decl.constant-section`      | CONSTANT on a section other than VAR or VAR_EXTERNAL, including an empty section    | `{ section: string }` |
 | `decl.constant-type`         | An FB instance declared CONSTANT                                                    | `{}`                  |
 | `decl.constant-address`      | CONSTANT combined with AT                                                           | `{}`                  |
 | `decl.constant-not-writable` | Constant used as assignment/bit target, FOR control, output target or in-out actual | `{ name: string }`    |
@@ -352,22 +352,37 @@ Configuration compiler diagnostics use `sourceKind: "configuration"` and
 faults from configurations also carry `task`; qualified instance paths identify
 program and nested block storage.
 
-| Code                         | Arguments      | Meaning                                                                                        |
-| ---------------------------- | -------------- | ---------------------------------------------------------------------------------------------- |
-| `config.configuration-count` | `{}`           | More than one configuration source declaration.                                                |
-| `config.resource-count`      | `{}`           | Exactly one resource is required.                                                              |
-| `config.task-count`          | `{}`           | Exactly one cyclic task is currently supported.                                                |
-| `config.no-instances`        | `{}`           | A resource needs at least one program instance.                                                |
-| `config.instance-limit`      | `{}`           | More than 64 instances.                                                                        |
-| `config.name-collision`      | `name: string` | Duplicate configuration/resource/task/instance name or collision with POU/type/standard names. |
-| `config.unknown-task`        | `name: string` | Instance references an unknown task.                                                           |
-| `config.missing-task`        | `name: string` | Instance omits `WITH` and a task.                                                              |
-| `config.program-type`        | `name: string` | Instance type is unknown or is not a PROGRAM.                                                  |
-| `config.interval`            | `{}`           | Missing/nonliteral interval, outside 10 ms–1 h, or not a whole multiple of 10 ms.              |
-| `config.priority`            | `{}`           | Missing/noninteger priority or outside 0–65535.                                                |
-| `config.task-parameter`      | `name: string` | Duplicate or unsupported task parameter.                                                       |
-| `runtime.configured-cycle`   | `{}`           | Nonfatal `setCycle` rejection while an explicit configuration is loaded.                       |
+| Code                         | Arguments      | Meaning                                                                                               |
+| ---------------------------- | -------------- | ----------------------------------------------------------------------------------------------------- |
+| `config.configuration-count` | `{}`           | More than one configuration source declaration.                                                       |
+| `config.resource-count`      | `{}`           | Exactly one resource is required.                                                                     |
+| `config.task-count`          | `{}`           | Exactly one cyclic task is currently supported.                                                       |
+| `config.no-instances`        | `{}`           | A resource needs at least one program instance.                                                       |
+| `config.instance-limit`      | `{}`           | More than 64 instances.                                                                               |
+| `config.name-collision`      | `name: string` | Duplicate configuration/resource/task/instance/global name or collision with POU/type/standard names. |
+| `config.unknown-task`        | `name: string` | Instance references an unknown task.                                                                  |
+| `config.missing-task`        | `name: string` | Instance omits `WITH` and a task.                                                                     |
+| `config.program-type`        | `name: string` | Instance type is unknown or is not a PROGRAM.                                                         |
+| `config.interval`            | `{}`           | Missing/nonliteral interval, outside 10 ms–1 h, or not a whole multiple of 10 ms.                     |
+| `config.priority`            | `{}`           | Missing/noninteger priority or outside 0–65535.                                                       |
+| `config.task-parameter`      | `name: string` | Duplicate or unsupported task parameter.                                                              |
+| `runtime.configured-cycle`   | `{}`           | Nonfatal `setCycle` rejection while an explicit configuration is loaded.                              |
 
 `pou.program-count` still reports `found` when no configuration source is supplied.
 Its localized message explains that a configuration source is needed to run several
 PROGRAMs. `setCycle` joins `force` and `write` in rejection messages' `command` field.
+
+## Global binding diagnostics
+
+| Code                          | Arguments      | Meaning                                                  |
+| ----------------------------- | -------------- | -------------------------------------------------------- |
+| `global.not-found`            | `name: string` | No configuration/resource global matches an external.    |
+| `global.type-mismatch`        | `name: string` | External and global types differ (string lengths aside). |
+| `global.constant-mismatch`    | `name: string` | External and global CONSTANT qualifiers differ.          |
+| `global.external-initializer` | `name: string` | An external declares an initializer or direct address.   |
+
+`config.name-collision` includes global names in the shared configuration namespace.
+`decl.duplicate` covers local/external duplicates. `pou.invalid-section` rejects
+FUNCTION externals, and `decl.constant-not-writable` rejects stores to imported
+constants. Global declaration errors identify the configuration source; binding
+errors identify the importing POU and its source span.

@@ -176,6 +176,10 @@ export type StandardFunction =
   | ConversionFunction;
 
 interface VariableBase extends SourceNode {
+  /** Compiler layout alias; expanded to shared storage before runtime execution. */
+  external?: string;
+  /** This leaf belongs to configuration/resource storage, outside program instances. */
+  global?: true;
   /** Original spelling for display. */
   name: string;
   /** Display path segments; aggregate leaves are sent only when watched or forced. */

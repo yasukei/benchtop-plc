@@ -36,7 +36,7 @@ export interface Project {
 }
 
 export interface VariableDeclaration {
-  section: "localVars" | "inputVars" | "outputVars" | "tempVars" | "inOutVars";
+  section: "localVars" | "inputVars" | "outputVars" | "tempVars" | "inOutVars" | "externalVars";
   name: string;
   type: string;
   address?: string;

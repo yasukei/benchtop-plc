@@ -81,7 +81,8 @@ the runtime's wrap, floor and fault semantics.
 ### Literals and constants
 
 `VAR CONSTANT` declares elementary, alias, enumeration and subrange typed constants in PROGRAM, FUNCTION and
-FUNCTION_BLOCK. It is allowed only on `VAR`, cannot be combined with `AT`, and
+FUNCTION_BLOCK. It is allowed on local `VAR`, configuration/resource `VAR_GLOBAL`, and matching
+`VAR_EXTERNAL` imports, cannot be combined with `AT`, and
 cannot declare FB instances. Without an initializer the type's default applies.
 Initializers may refer only to constants declared earlier in the same POU;
 self, forward and cyclic references are errors. Mutable variables cannot supply
@@ -318,7 +319,7 @@ Initializers are optional except on `VAR_IN_OUT`, where they are forbidden. `FUN
 `FUNCTION F` has no result and is callable only as a statement. Functions cannot
 declare `VAR_TEMP`, FB instances, or direct addresses.
 A PROGRAM cannot be called and cannot declare `VAR_INPUT`, `VAR_OUTPUT` or
-`VAR_IN_OUT`. Direct addresses remain restricted to the PROGRAM.
+`VAR_IN_OUT`. Direct addresses are allowed on PROGRAM variables and configuration/resource globals.
 
 Formal calls use `:=` inputs and `=>` outputs without mixing positional arguments.
 Omitted inputs start from their declared initial values; an empty `F()` uses these
@@ -337,8 +338,8 @@ its standard-dependent choices await verification against the 4th edition.
 ## User function blocks
 
 A FUNCTION_BLOCK supports scalar VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR and VAR_TEMP.
-Persistent standard or user FB instances may appear only in VAR of PROGRAM or
-FUNCTION_BLOCK; other sections report `fb.invalid-instance-section`, and functions
+Persistent standard or user FB instances may appear in VAR of PROGRAM or
+FUNCTION_BLOCK and in configuration/resource globals imported through VAR_EXTERNAL; other sections report `fb.invalid-instance-section`, and functions
 cannot declare instances. Blocks cannot contain themselves directly or through
 other blocks (`pou.recursion`), including unused definitions. AT declarations in
 blocks report `pou.direct-address`.
@@ -518,7 +519,8 @@ Unsupported named/nested instance-array types report `decl.fb-array-form` once p
 declaration, with `form` identifying the restriction.
 
 Inline arrays with standard or user function block element types are instances,
-allowed only in persistent PROGRAM/FB `VAR`. Declaration section, initializer,
+allowed in persistent PROGRAM/FB `VAR` and configuration/resource globals,
+including matching `VAR_EXTERNAL` imports. Declaration section, initializer,
 constant and recursion checks apply as for scalar instances. Function block types
 are not permitted inside structures or named value-array types. Nested value
 arrays cannot contain function block instances.
@@ -584,3 +586,20 @@ in-out parameter, including whole arrays and structures. The location is evaluat
 once per call, and writes retain the target storage's constraints. A NULL actual
 faults before the callee runs. Direct block ports and bit selectors remain invalid
 in-out actuals.
+
+## Global scope
+
+`VAR_GLOBAL` belongs to the configuration or resource. Its names share the
+case-insensitive configuration/resource/task/instance namespace, excluding POU,
+data type and standard names. Configuration and resource globals cannot hide each
+other. Ordinary local variables may shadow globals, which are otherwise invisible
+inside POUs until imported with `VAR_EXTERNAL`.
+
+An external must match a global's exact type (string lengths aside) and CONSTANT
+qualifier, and cannot declare an initializer or AT address. Its effective string
+length is the global's. A FUNCTION external is invalid; the implicit configuration
+has no matching globals. Assigning an imported global constant is rejected by
+`decl.constant-not-writable`. Global constants may refer to earlier global constants;
+external constants are available to local constant expressions, bounds and CASE
+labels. REF accepts mutable externals and their elements/members. Global AT addresses
+follow the existing BOOL bit-address rules. RETAIN remains deferred.

@@ -181,3 +181,19 @@ Defaults are `Config`, `Res`, `Cyclic` (10 ms, priority 1) and `mainInstance`.
 The result always contains a configuration, with `explicit: false` for this
 implicit form. Its instance variables already use paths such as
 `mainInstance.LAMP`; adding an explicit source need not change their identity.
+
+## Global variables and externals
+
+An explicit configuration may declare `VAR_GLOBAL` and `VAR_GLOBAL CONSTANT`
+before its resource and before the resource's task. Configuration globals are
+checked and allocated before resource globals, in declaration order. A `PROGRAM`
+or `FUNCTION_BLOCK` imports a global with `VAR_EXTERNAL` (and `CONSTANT` when
+required); a `FUNCTION` cannot use externals. Implicit configurations have no globals.
+
+Globals accept the same types as persistent PROGRAM variables, including derived
+types, references, and standard/user FBs and FB arrays. Externals alias shared storage;
+they allocate no duplicate monitor leaves. Global FB overload selection combines
+bindings across every POU, including bodies without a configured instance. Global
+constants are folded and omitted from storage, and imported constants can supply
+array bounds and CASE labels. `lower` accepts an optional checked globals argument
+following the block definitions.

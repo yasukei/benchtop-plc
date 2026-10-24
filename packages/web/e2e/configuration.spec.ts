@@ -87,3 +87,58 @@ END_RESOURCE END_CONFIGURATION\r
     await expect(page.getByRole("alert")).toHaveCount(0);
   });
 }
+
+test("forces a shared global in the globals group and preserves declarations on save", async ({
+  page,
+}) => {
+  const { readFileSync } = await import("node:fs");
+  const { readProject, writeProject } = await import("@benchtop-plc/project");
+  const project = readProject(
+    readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url), "utf8"),
+  ).value!;
+  project.pous = [
+    "PROGRAM Writer VAR_EXTERNAL gCount : INT; END_VAR gCount := gCount + 1; END_PROGRAM",
+    "PROGRAM Reader VAR_EXTERNAL gCount : INT; END_VAR VAR seen : INT; END_VAR seen := gCount; END_PROGRAM",
+  ];
+  project.configurationSource = `CONFIGURATION Plant
+VAR_GLOBAL CONSTANT cLimit : INT := 100; END_VAR
+VAR_GLOBAL gCount : INT := 7; END_VAR
+RESOURCE Station ON Cpu TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM A WITH T : Writer; PROGRAM B WITH T : Reader;
+END_RESOURCE END_CONFIGURATION`;
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "globals.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(writeProject(project).value!),
+  });
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "No diagnostics",
+  );
+  const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+  const group = monitor.getByRole("button", { name: "Globals", exact: true });
+  await expect(group).toHaveAttribute("aria-expanded", "true");
+  const global = monitor.getByRole("row").filter({ has: page.locator('th[title="gCount"]') });
+  await expect(global).toContainText("7");
+  await global.getByRole("textbox", { name: "Value to write" }).fill("42");
+  await global.getByRole("button", { name: "Force", exact: true }).click();
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(global).toHaveAttribute("data-forced", "true");
+  await expect(global).toContainText("42");
+  const seen = monitor
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: "seen", exact: true }) });
+  await expect(seen).toContainText("42");
+  await group.click();
+  await expect(group).toHaveAttribute("aria-expanded", "false");
+  await expect(global).toBeVisible();
+  await group.click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  const download = await downloadPromise;
+  const reopened = readProject(readFileSync((await download.path())!, "utf8"));
+  expect(reopened.diagnostics).toEqual([]);
+  expect(reopened.value!.configurationSource).toBe(project.configurationSource);
+  expect(reopened.value!.pous).toEqual(project.pous);
+});

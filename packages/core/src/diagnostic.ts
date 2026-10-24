@@ -50,6 +50,10 @@ export interface DiagnosticArgs {
   "decl.constant-order": { name: string };
   "decl.open-array-section": NoArguments;
   "decl.in-out-initializer": { name: string };
+  "global.not-found": { name: string };
+  "global.type-mismatch": { name: string };
+  "global.constant-mismatch": { name: string };
+  "global.external-initializer": { name: string };
   "config.configuration-count": NoArguments;
   "config.resource-count": NoArguments;
   "config.task-count": NoArguments;

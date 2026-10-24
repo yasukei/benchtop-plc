@@ -46,7 +46,7 @@ export interface Declaration extends SourceNode {
   initializer?: Expression;
   constant?: boolean;
   /** Absent means VAR, preserving the original single-program AST. */
-  section?: "VAR_INPUT" | "VAR_OUTPUT" | "VAR_IN_OUT" | "VAR_TEMP";
+  section?: "VAR_INPUT" | "VAR_OUTPUT" | "VAR_IN_OUT" | "VAR_TEMP" | "VAR_EXTERNAL";
 }
 
 export type Literal = SourceNode & { kind: "literal"; text: string; dataType?: DataType } & (

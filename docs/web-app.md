@@ -260,3 +260,13 @@ and structure members that contain references use the same display when expanded
 A value changed through `r^` is monitored at its target's existing path. Inline
 assignment and POU call values also show reference paths or `NULL`. NULL faults
 use the English/Japanese diagnostic catalog and navigate to the executing POU.
+
+## Monitoring globals
+
+The variable monitor shows configuration and resource globals together in an
+initially expanded **Globals** group beside the program instance groups. Paths
+keep the global's own name. Scalar leaves accept the existing write and force
+controls; global arrays and structures use the existing expansion/watch behavior.
+A forced leaf stays visible when its group is collapsed. Global constants have no
+monitor rows. Configuration source editing, autosave and project save/open retain
+global and external declarations and CONSTANT attributes.

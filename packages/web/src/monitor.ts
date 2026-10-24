@@ -200,6 +200,7 @@ export function monitorRows(
       const group = groups.get(JSON.stringify(variable.path!.slice(0, i)));
       return group ? [group] : [];
     });
+    if (variable.global) parents.unshift({ name: "$globals", path: [] });
     let visible = true;
     for (const [depth, parent] of parents.entries()) {
       if (!visible) break;

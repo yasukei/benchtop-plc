@@ -4,6 +4,7 @@ import {
   parseDataType,
   resolveDataTypes,
   type DataTypeDeclaration,
+  type GlobalScope,
 } from "@benchtop-plc/compiler";
 import {
   MAX_STRING_LENGTH,
@@ -176,11 +177,39 @@ function validateIdentifier(name: string, path: string): void {
   if (!result.value || result.value.name !== name) fail("project.invalid", path);
 }
 
-function validateInitializers(program: SplitProgram, types: TypeTable): void {
+function globalConstantScope(
+  variables: VariableDeclaration[],
+  types: TypeTable,
+): GlobalScope | undefined {
+  const ast = parsePou(
+    joinProgram({
+      kind: "program",
+      name: "__GLOBALS",
+      body: "",
+      variables: variables.filter((v) => v.constant).map((v) => ({ ...v, section: "localVars" })),
+    }),
+  ).ast;
+  if (!ast) return undefined;
+  const checked = check(ast, new Map(), new Map(), new Map(), types).checked;
+  return checked ? { constants: checked.constants, symbols: [], bindings: new Map() } : undefined;
+}
+function validateInitializers(
+  program: SplitProgram,
+  types: TypeTable,
+  globals?: GlobalScope,
+): void {
   const ast = parsePou(joinProgram(program)).ast;
   if (!ast) fail("project.invalid", "pou/interface");
   // Check declarations together in their POU context; body/name/section errors do not block exchange.
-  const result = check({ ...ast, body: [] }, new Map(), new Map(), new Map(), types);
+  const result = check(
+    { ...ast, body: [] },
+    new Map(),
+    new Map(),
+    new Map(),
+    types,
+    new Map(),
+    globals,
+  );
   for (const declaration of ast.declarations) {
     const span = declaration.initializer?.span;
     if (!span) continue;
@@ -505,30 +534,42 @@ function readType(type: XmlNode, enumeration = false): string {
 
 function readVariables(pou: XmlNode): VariableDeclaration[] {
   const intf = required(pou, "interface");
-  shape(intf, [], ["returnType", "localVars", "inputVars", "outputVars", "tempVars", "inOutVars"]);
+  shape(
+    intf,
+    [],
+    ["returnType", "localVars", "inputVars", "outputVars", "tempVars", "inOutVars", "externalVars"],
+  );
   const variables: VariableDeclaration[] = [];
   for (const group of intf.children.filter((child) =>
-    ["localVars", "inputVars", "outputVars", "tempVars", "inOutVars"].includes(child.name),
+    ["localVars", "inputVars", "outputVars", "tempVars", "inOutVars", "externalVars"].includes(
+      child.name,
+    ),
   )) {
-    shape(group, ["constant"], ["variable"]);
-    const constant = group.attributes.constant;
-    if (constant !== undefined && !["true", "false", "1", "0"].includes(constant))
-      fail("project.invalid", `${group.name}/@constant`);
-    for (const variable of group.children.filter((child) => child.name === "variable")) {
-      shape(variable, ["name", "address"], ["type", "initialValue"]);
-      const type = required(variable, "type");
-      const initialValue = readInitialValue(variable);
-      variables.push({
-        section: group.name as VariableDeclaration["section"],
-        ...(["true", "1"].includes(constant ?? "") ? { constant: true } : {}),
-        name: attribute(variable, "name"),
-        type: readType(type),
-        ...(variable.attributes.address === undefined
-          ? {}
-          : { address: variable.attributes.address }),
-        ...(initialValue === undefined ? {} : { initialValue }),
-      });
-    }
+    variables.push(...readVariableGroup(group));
+  }
+  return variables;
+}
+
+function readVariableGroup(group: XmlNode): VariableDeclaration[] {
+  const variables: VariableDeclaration[] = [];
+  shape(group, ["constant"], ["variable"]);
+  const constant = group.attributes.constant;
+  if (constant !== undefined && !["true", "false", "1", "0"].includes(constant))
+    fail("project.invalid", `${group.name}/@constant`);
+  for (const variable of group.children.filter((child) => child.name === "variable")) {
+    shape(variable, ["name", "address"], ["type", "initialValue"]);
+    const type = required(variable, "type");
+    const initialValue = readInitialValue(variable);
+    variables.push({
+      section: group.name as VariableDeclaration["section"],
+      ...(["true", "1"].includes(constant ?? "") ? { constant: true } : {}),
+      name: attribute(variable, "name"),
+      type: readType(type),
+      ...(variable.attributes.address === undefined
+        ? {}
+        : { address: variable.attributes.address }),
+      ...(initialValue === undefined ? {} : { initialValue }),
+    });
   }
   return variables;
 }
@@ -677,6 +718,20 @@ export function readProject(xml: string): ProjectResult<Project> {
       return source;
     });
     const pouNodes = pous.children.filter((child) => child.name === "pou");
+    const instances = required(root, "instances");
+    shape(instances, [], ["configurations"]);
+    const configurations = required(instances, "configurations");
+    shape(configurations, [], ["configuration"]);
+    const configuration = required(configurations, "configuration");
+    shape(configuration, ["name"], ["resource", "globalVars"]);
+    const resource = required(configuration, "resource");
+    shape(resource, ["name"], ["task", "globalVars"]);
+    const globals = globalConstantScope(
+      [configuration, resource].flatMap((node) =>
+        node.children.filter((n) => n.name === "globalVars").flatMap(readVariableGroup),
+      ),
+      resolved.types,
+    );
     const programs = pouNodes.map((pou) => {
       shape(pou, ["name", "pouType"], ["interface", "body"]);
       const kind = attribute(pou, "pouType");
@@ -710,9 +765,9 @@ export function readProject(xml: string): ProjectResult<Project> {
         variables,
         body: text.text,
       };
-      validateInitializers(split, resolved.types);
+      validateInitializers(split, resolved.types, globals);
       let program = joinProgram(split);
-      const parsed = splitProgram(program, resolved.types);
+      const parsed = splitProgram(program, resolved.types, globals);
       if (!parsed.value) fail("project.invalid", "pou/interface");
       if (
         JSON.stringify(parsed.value) !==
@@ -725,22 +780,22 @@ export function readProject(xml: string): ProjectResult<Project> {
         extensions.sources.get(pou) ??
         (pouNodes.length === 1 ? extensions.sources.get(root) : undefined);
       if (source !== undefined) {
-        const preserved = splitProgram(source, resolved.types);
+        const preserved = splitProgram(source, resolved.types, globals);
         if (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(split))
           program = source;
         else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
       }
       return { split, source: program };
     });
-    const instances = required(root, "instances");
-    shape(instances, [], ["configurations"]);
-    const configurations = required(instances, "configurations");
-    shape(configurations, [], ["configuration"]);
-    const configuration = required(configurations, "configuration");
-    shape(configuration, ["name"], ["resource"]);
-    const resource = required(configuration, "resource");
-    shape(resource, ["name"], ["task"]);
     const structure: ConfigurationStructure = {
+      globals: configuration.children
+        .filter((n) => n.name === "globalVars")
+        .flatMap(readVariableGroup)
+        .map((v) => ({ ...v, section: "localVars" as const })),
+      resourceGlobals: resource.children
+        .filter((n) => n.name === "globalVars")
+        .flatMap(readVariableGroup)
+        .map((v) => ({ ...v, section: "localVars" as const })),
       name: attribute(configuration, "name"),
       resource: attribute(resource, "name"),
       tasks: resource.children
@@ -784,13 +839,22 @@ export function readProject(xml: string): ProjectResult<Project> {
           };
         }),
     };
+    validateInitializers(
+      {
+        kind: "program",
+        name: structure.name,
+        body: "",
+        variables: [...(structure.globals ?? []), ...(structure.resourceGlobals ?? [])],
+      },
+      resolved.types,
+    );
     for (const node of [configuration, resource])
       validateIdentifier(attribute(node, "name"), `${node.name}/@name`);
     const preserved = extensions.sources.get(configuration);
     let configurationSource: string | undefined;
     if (preserved !== undefined) {
       try {
-        if (sameConfiguration(splitConfiguration(preserved), structure))
+        if (sameConfiguration(splitConfiguration(preserved, resolved.types), structure))
           configurationSource = preserved;
       } catch {
         // Standard XML stays authoritative when source text is damaged.
@@ -800,11 +864,15 @@ export function readProject(xml: string): ProjectResult<Project> {
     }
     const task = structure.tasks[0];
     const implicit =
-      structure.tasks.length === 1 && task!.interval !== undefined && task!.instances.length <= 1;
+      !structure.globals?.length &&
+      !structure.resourceGlobals?.length &&
+      structure.tasks.length === 1 &&
+      task!.interval !== undefined &&
+      task!.instances.length <= 1;
     if (configurationSource === undefined && (preserved !== undefined || !implicit)) {
       configurationSource = joinConfiguration(structure);
       // Prevent XML attributes from injecting declarations into generated source.
-      if (!sameConfiguration(splitConfiguration(configurationSource), structure))
+      if (!sameConfiguration(splitConfiguration(configurationSource, resolved.types), structure))
         fail("project.invalid", "configuration");
     }
     const binding = implicit ? task!.instances[0] : undefined;
@@ -917,6 +985,25 @@ function sourceXml(source: string): string {
   );
 }
 
+function globalGroupsXml(variables: VariableDeclaration[]): string {
+  let result = "";
+  let group: VariableDeclaration[] = [];
+  const flush = () => {
+    if (group.length)
+      result += element(
+        "globalVars",
+        group[0]!.constant ? { constant: "true" } : {},
+        group.map(variableXml).join(""),
+      );
+    group = [];
+  };
+  for (const variable of variables) {
+    if (group.length && !!group[0]!.constant !== !!variable.constant) flush();
+    group.push(variable);
+  }
+  flush();
+  return result;
+}
 function variableXml(variable: VariableDeclaration): string {
   return element(
     "variable",
@@ -958,9 +1045,29 @@ export function writeProject(project: Project): ProjectResult<string> {
       ],
     };
   }
+  let structure: ConfigurationStructure | undefined;
+  try {
+    structure =
+      project.configurationSource === undefined
+        ? undefined
+        : splitConfiguration(project.configurationSource, resolved.types);
+  } catch (error) {
+    return {
+      value: null,
+      diagnostics: [
+        error instanceof ConfigurationError
+          ? error.diagnostic
+          : { code: "project.invalid", severity: "error", args: { path: "configuration" } },
+      ],
+    };
+  }
+  const globals = globalConstantScope(
+    [...(structure?.globals ?? []), ...(structure?.resourceGlobals ?? [])],
+    resolved.types,
+  );
   const programs: SplitProgram[] = [];
   for (const source of project.pous) {
-    const parsed = splitProgram(source, resolved.types);
+    const parsed = splitProgram(source, resolved.types, globals);
     if (!parsed.value) return { value: null, diagnostics: parsed.diagnostics };
     programs.push(parsed.value);
   }
@@ -1025,7 +1132,7 @@ export function writeProject(project: Project): ProjectResult<string> {
         element("resource", { name: project.resource }, task),
       );
     } else {
-      const configuration = splitConfiguration(project.configurationSource);
+      const configuration = structure!;
       configurationXml = element(
         "configuration",
         { name: configuration.name },
@@ -1045,8 +1152,10 @@ export function writeProject(project: Project): ProjectResult<string> {
                 task.instances.map((instance) => element("pouInstance", instance)).join(""),
               ),
             )
-            .join(""),
-        ) + element("addData", {}, sourceXml(project.configurationSource)),
+            .join("") + globalGroupsXml(configuration.resourceGlobals ?? []),
+        ) +
+          globalGroupsXml(configuration.globals ?? []) +
+          element("addData", {}, sourceXml(project.configurationSource)),
       );
     }
   } catch (error) {

@@ -1,6 +1,7 @@
 import { isStandardFunction, isFunctionBlockType } from "@benchtop-plc/core";
 import type { CyclicTaskIR, Diagnostic, SourceSpan } from "@benchtop-plc/core";
-import type { Identifier, Program } from "./ast.js";
+import { Parser } from "./parser.js";
+import type { Declaration, Identifier, Program } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
 import { exactNumber } from "./exact.js";
 import { lex, isElementaryTypeName } from "./lexer.js";
@@ -8,6 +9,8 @@ import type { Token } from "./lexer.js";
 import { isReservedStandardName } from "./reserved-names.js";
 
 export interface Configuration {
+  globals: Declaration[];
+  resourceGlobals: Declaration[];
   name: Identifier;
   resource: Identifier;
   task: CyclicTaskIR;
@@ -165,10 +168,31 @@ class ConfigurationParser {
       });
     return { name, intervalMs, priority };
   }
+  private globals(): Declaration[] {
+    const declarations: Declaration[] = [];
+    while (this.at("VAR_GLOBAL")) {
+      this.take();
+      const constant = this.at("CONSTANT");
+      if (constant) this.take();
+      while (!this.at("END_VAR")) {
+        const start = this.cursor;
+        while (!this.at(";") && this.current.kind !== "eof" && !this.at("END_VAR")) this.take();
+        const tokens = this.tokens.slice(start, this.cursor);
+        const end = this.expect(";");
+        const parser = new Parser([...tokens, end, { ...end, kind: "eof", key: "", text: "" }]);
+        const declaration = parser.declaration();
+        if (constant) declaration.constant = true;
+        declarations.push(declaration);
+      }
+      this.expect("END_VAR");
+    }
+    return declarations;
+  }
   parse(): Configuration {
     const start = this.expect("CONFIGURATION");
     const name = this.identifier();
     this.name = name.name;
+    const globals = this.globals();
     if (this.current.key !== "RESOURCE") {
       if (["END_CONFIGURATION", "CONFIGURATION"].includes(this.current.key))
         this.error("config.resource-count");
@@ -177,6 +201,7 @@ class ConfigurationParser {
     const resource = this.identifier();
     this.expect("ON");
     this.identifier();
+    const resourceGlobals = this.globals();
     if (!this.at("TASK")) this.error("config.task-count");
     const task = this.task();
     const programs: Configuration["programs"] = [];
@@ -207,6 +232,8 @@ class ConfigurationParser {
     this.expect("");
     return {
       name,
+      globals,
+      resourceGlobals,
       resource,
       taskName: task.name,
       task: { name: task.name.name, intervalMs: task.intervalMs, priority: task.priority },
@@ -252,6 +279,7 @@ export function checkConfiguration(
     config.resource,
     taskName,
     ...config.programs.map((p) => p.name),
+    ...[...config.globals, ...config.resourceGlobals].flatMap((d) => d.names),
   ]) {
     if (
       names.has(name.key) ||

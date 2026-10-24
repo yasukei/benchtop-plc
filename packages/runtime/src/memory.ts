@@ -385,6 +385,7 @@ export class MemoryFrame implements ScanMemory {
 export class Memory extends MemoryFrame {
   private readonly functionInitialCells: readonly ValueCell[][];
   private readonly instanceCells = new Map<number, UserBlockCell>();
+  private readonly aggregateCells = new Map<string, AggregateCell & { path?: string }>();
 
   constructor(
     readonly ir: ProgramIR | ConfigurationIR,
@@ -467,33 +468,42 @@ export class Memory extends MemoryFrame {
     return undefined;
   }
   private frame(storage: readonly InstanceStorage[]): MemoryFrame {
-    return new MemoryFrame(
-      storage.map((slot) => {
-        if (slot.kind === "inOut") return { kind: "unbound" };
-        if (slot.kind === "variable") return this.cells[slot.variable]!;
-        if (slot.kind === "temporary") return initialCell(slot.variable, this.types);
-        if (slot.kind === "array" || slot.kind === "structure")
-          return {
-            ...this.frame(slot.elements).asAggregateCell(slot.dataType),
-            path: this.storagePath(slot),
-          };
-        let cell = this.instanceCells.get(slot.instance);
+    return new MemoryFrame(this.storageCells(storage), this.types);
+  }
+
+  private storageCells(storage: readonly InstanceStorage[]): Cell[] {
+    return storage.map((slot) => {
+      if (slot.kind === "inOut") return { kind: "unbound" };
+      if (slot.kind === "variable") return this.cells[slot.variable]!;
+      if (slot.kind === "temporary") return initialCell(slot.variable, this.types);
+      if (slot.kind === "array" || slot.kind === "structure") {
+        const path = this.storagePath(slot)!;
+        let cell = this.aggregateCells.get(path);
         if (!cell) {
-          const instance = this.ir.instances![slot.instance]!;
-          const frame = this.frame(instance.storage);
-          cell = {
-            kind: "userFunctionBlock",
-            frame,
-            block: instance.block,
-            path: instance.path,
-            resetTemporaries: () => frame.resetTemporaries(instance.storage),
-          };
-          this.instanceCells.set(slot.instance, cell);
+          cell = { kind: "aggregate", descriptor: slot.dataType, elements: [], path };
+          this.aggregateCells.set(path, cell);
+          cell.elements.push(...this.storageCells(slot.elements));
         }
         return cell;
-      }),
-      this.types,
-    );
+      }
+      let cell = this.instanceCells.get(slot.instance);
+      if (!cell) {
+        const instance = this.ir.instances![slot.instance]!;
+        const cells: Cell[] = [];
+        const frame = new MemoryFrame(cells, this.types);
+        cell = {
+          kind: "userFunctionBlock",
+          frame,
+          block: instance.block,
+          path: instance.path,
+          resetTemporaries: () => frame.resetTemporaries(instance.storage),
+        };
+        // Externals may alias this instance again; publish its identity before following them.
+        this.instanceCells.set(slot.instance, cell);
+        cells.push(...this.storageCells(instance.storage));
+      }
+      return cell;
+    });
   }
 
   private readonly programFrames = new Map<number, MemoryFrame>();

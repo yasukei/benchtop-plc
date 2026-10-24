@@ -1,4 +1,11 @@
-import { check, lex, parsePou, type Declaration, type Expression } from "@benchtop-plc/compiler";
+import {
+  check,
+  lex,
+  parsePou,
+  type Declaration,
+  type Expression,
+  type GlobalScope,
+} from "@benchtop-plc/compiler";
 import {
   MAX_STRING_LENGTH,
   formatType,
@@ -19,7 +26,11 @@ function offset(source: string, span: SourceSpan, end = false): number {
   return lines.slice(0, line - 1).reduce((sum, text) => sum + text.length, 0) + column - 1;
 }
 
-export function splitProgram(source: string, types: TypeTable = []): ProjectResult<SplitProgram> {
+export function splitProgram(
+  source: string,
+  types: TypeTable = [],
+  globals?: GlobalScope,
+): ProjectResult<SplitProgram> {
   const result = parsePou(source);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
@@ -45,7 +56,9 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
 
   const unsupported = ast.sections?.find(
     (section) =>
-      !["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP", "VAR_IN_OUT"].includes(section.name),
+      !["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_TEMP", "VAR_IN_OUT", "VAR_EXTERNAL"].includes(
+        section.name,
+      ),
   )?.name;
   if (unsupported)
     return {
@@ -93,6 +106,7 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
             declaration.initializer,
             ast.declarations.slice(0, ast.declarations.indexOf(declaration)),
             types,
+            globals,
           )
         : undefined;
     } catch (error) {
@@ -111,15 +125,17 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
     for (const name of declaration.names) {
       variables.push({
         section:
-          declaration.section === "VAR_INPUT"
-            ? "inputVars"
-            : declaration.section === "VAR_IN_OUT"
-              ? "inOutVars"
-              : declaration.section === "VAR_OUTPUT"
-                ? "outputVars"
-                : declaration.section === "VAR_TEMP"
-                  ? "tempVars"
-                  : "localVars",
+          declaration.section === "VAR_EXTERNAL"
+            ? "externalVars"
+            : declaration.section === "VAR_INPUT"
+              ? "inputVars"
+              : declaration.section === "VAR_IN_OUT"
+                ? "inOutVars"
+                : declaration.section === "VAR_OUTPUT"
+                  ? "outputVars"
+                  : declaration.section === "VAR_TEMP"
+                    ? "tempVars"
+                    : "localVars",
         ...(declaration.constant ? { constant: true } : {}),
         name: name.name,
         type: declaration.reference
@@ -191,6 +207,8 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
       new Map(),
       new Map(),
       types,
+      new Map(),
+      globals,
     );
     const descriptor = result.checked?.symbols.at(-1)?.descriptor;
     // XML readers canonicalize derived names too; source extensions keep declared spelling.
@@ -233,6 +251,8 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
         new Map(),
         new Map(),
         types,
+        new Map(),
+        globals,
       ).checked?.symbols.at(-1)?.descriptor;
       const restore = (
         syntax: import("@benchtop-plc/compiler").ArrayDeclaration,
@@ -354,7 +374,7 @@ export function joinProgram(program: SplitProgram): string {
       if (section) declarations += "END_VAR\n";
       section = variable.section;
       constant = !!variable.constant;
-      declarations += `${{ localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP", inOutVars: "VAR_IN_OUT" }[section]}${constant ? " CONSTANT" : ""}\n`;
+      declarations += `${{ externalVars: "VAR_EXTERNAL", localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP", inOutVars: "VAR_IN_OUT" }[section]}${constant ? " CONSTANT" : ""}\n`;
     }
     declarations += `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};\n`;
   }
@@ -395,14 +415,15 @@ export function canonicalInitializer(
   node: Expression,
   declarations: Declaration[] = [],
   types: TypeTable = [],
+  globals?: GlobalScope,
 ): string {
   if (node.kind === "structureInitializer")
-    return `(${node.members.map((member) => `${member.name.name} := ${canonicalInitializer(source, member.value, declarations, types)}`).join(", ")})`;
+    return `(${node.members.map((member) => `${member.name.name} := ${canonicalInitializer(source, member.value, declarations, types, globals)}`).join(", ")})`;
   if (node.kind !== "arrayInitializer") return expressionText(source, node.span);
   const items: string[] = [];
   for (const item of node.items) {
     const values = item.values.map((value) =>
-      canonicalInitializer(source, value, declarations, types),
+      canonicalInitializer(source, value, declarations, types, globals),
     );
     if (!item.count) {
       items.push(...values);
@@ -433,6 +454,8 @@ export function canonicalInitializer(
       new Map(),
       new Map(),
       types,
+      new Map(),
+      globals,
     );
     const info = checked.checked?.expressions.get(countExpression);
     const count = Number(info?.constant);

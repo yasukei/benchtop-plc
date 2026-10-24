@@ -2,6 +2,11 @@ import { expect, expectTypeOf, it } from "vitest";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceSpan } from "./index.js";
 
 const examples = {
+  "global.not-found": { name: "g" },
+  "global.type-mismatch": { name: "g" },
+  "global.constant-mismatch": { name: "g" },
+  "global.external-initializer": { name: "g" },
+
   "config.configuration-count": {},
   "config.resource-count": {},
   "config.task-count": {},
