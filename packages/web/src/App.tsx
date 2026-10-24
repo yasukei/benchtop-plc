@@ -1,6 +1,7 @@
 import { compileProject } from "@benchtop-plc/compiler";
 import {
   diagnosticPouIndex,
+  implicitConfiguration,
   diagnosticSourceMatches,
   pouSources,
   sameSources,
@@ -27,9 +28,14 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const loadedIr = useMemo(
     () =>
       state.loadedSources
-        ? compileProject(state.loadedSources, state.loadedDataTypes ?? []).ir
+        ? compileProject(
+            state.loadedSources,
+            state.loadedDataTypes ?? [],
+            undefined,
+            implicitConfiguration(state.project, state.cycleMs),
+          ).ir
         : undefined,
-    [state.loadedSources, state.loadedDataTypes],
+    [state.loadedSources, state.loadedDataTypes, state.project, state.cycleMs],
   );
   const variables = loadedIr?.variables ?? [];
   const disconnected = state.connection !== "connected";
@@ -41,6 +47,10 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
     !sameSources(pouSources(state.dataTypes), state.loadedDataTypes);
   const online = !unapplied && !disconnected;
   const selected = state.selectedDataType === null ? state.pous[state.selectedPou] : undefined;
+  const inlineInstance = loadedIr?.resource.programs.find(
+    (instance) =>
+      loadedIr.programs[instance.program]!.name.toUpperCase() === selected?.name.toUpperCase(),
+  );
   const faultIndex = state.diagnostic
     ? diagnosticPouIndex(state.pous, state.diagnostic)
     : undefined;
@@ -165,6 +175,9 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
           <section className="panel editor" aria-labelledby="editor-title">
             <div className="panel-heading">
               <h2 id="editor-title">{text.editor}</h2>
+              {online && selected?.kind === "PROGRAM" && inlineInstance && (
+                <span>{text.inlineInstance.replace("{name}", inlineInstance.name)}</span>
+              )}
               <span className="apply-status" data-unapplied={unapplied}>
                 {unapplied ? text.unapplied : text.applied}
               </span>
@@ -185,6 +198,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 )}
                 snapshot={selected?.kind === "PROGRAM" ? state.snapshot : null}
                 online={online}
+                pou={selected?.name}
                 fault={
                   state.selectedDataType === null && faultIndex === state.selectedPou
                     ? state.diagnostic

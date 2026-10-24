@@ -21,12 +21,19 @@ describe("data-driven ST conformance", () => {
       .filter((file) => file.endsWith(".st"))
       .sort();
     const sources = files
-      .filter((file) => !file.endsWith(".type.st"))
+      .filter((file) => !file.endsWith(".type.st") && !file.endsWith(".config.st"))
       .map((file) => read(`${name}/${file}`));
     const dataTypes = files
       .filter((file) => file.endsWith(".type.st"))
       .map((file) => read(`${name}/${file}`));
-    runTrace(name, sources, loadTrace(name), dataTypes);
+    const configuration = files.find((file) => file.endsWith(".config.st"));
+    runTrace(
+      name,
+      sources,
+      loadTrace(name),
+      dataTypes,
+      configuration ? read(`${name}/${configuration}`) : undefined,
+    );
   });
 
   it("loads and compiles the blink XML example and passes the reference trace", () => {

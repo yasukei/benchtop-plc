@@ -6,19 +6,19 @@ by `code`: each code has exactly the argument shape listed below. The optional
 type parameter, such as `Diagnostic<"runtime.watchdog">`, selects a subset while
 retaining that correlation. Every diagnostic has `severity: "error" | "warning"`
 and may carry a `SourceSpan` (one-based positions, exclusive end). `pou?: string`
-retains the source POU or data type name and identifies the text to which the span belongs.
+retains the source POU, data type or configuration name and identifies the text to which the span belongs.
 Compiler diagnostics carry it once a header is known, including lexical/syntax
 failures after that header; project-level errors omit it. Runtime execution faults
 name the executing POU, preserving the innermost function through nested calls.
 Faults in a user block body also carry `instance?: string`, the canonical dotted path
-(for example `M1.DELAY`). A function called from a block has no instance path
-while its body runs. The web catalogs include a block path alongside the POU name.
+(for example `mainInstance.M1.DELAY`). A function called from a block identifies the owning program instance
+rather than the nested block path while its body runs. The web catalogs include a block path alongside the POU name.
 
 ## Naming and compatibility
 
 Codes use `<category>.<lower-kebab-case-reason>`. Categories are `lex` (lexing),
 `syntax` (parsing), `pou` (project-wide POU rules), `decl` (declarations), `name` (name resolution), `type` (type
-checking), `flow` (control flow), `fb` (function blocks), `call` (function calls)
+checking), `flow` (control flow), `fb` (function blocks), `call` (function calls), `config` (configuration rules)
 and `runtime` (execution faults and command rejections). Codes and argument keys are stable identifiers:
 do not rename or repurpose an existing code. Add a new code for a new meaning and
 update this table, tests and every UI catalog when catalogs are available.
@@ -344,3 +344,30 @@ that a named or inline subrange cannot be a FOR control variable under ADR 0015.
 It spans the variable in the FOR header and includes its name and declared type.
 Use an unrestricted integer variable instead. Other non-integer control
 variables retain `type.for-variable-not-integer`.
+
+## Configuration sources
+
+Configuration compiler diagnostics use `sourceKind: "configuration"` and
+`sourceIndex: 0`. The `pou` field names the configuration when known. Runtime
+faults from configurations also carry `task`; qualified instance paths identify
+program and nested block storage.
+
+| Code                         | Arguments      | Meaning                                                                                        |
+| ---------------------------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| `config.configuration-count` | `{}`           | More than one configuration source declaration.                                                |
+| `config.resource-count`      | `{}`           | Exactly one resource is required.                                                              |
+| `config.task-count`          | `{}`           | Exactly one cyclic task is currently supported.                                                |
+| `config.no-instances`        | `{}`           | A resource needs at least one program instance.                                                |
+| `config.instance-limit`      | `{}`           | More than 64 instances.                                                                        |
+| `config.name-collision`      | `name: string` | Duplicate configuration/resource/task/instance name or collision with POU/type/standard names. |
+| `config.unknown-task`        | `name: string` | Instance references an unknown task.                                                           |
+| `config.missing-task`        | `name: string` | Instance omits `WITH` and a task.                                                              |
+| `config.program-type`        | `name: string` | Instance type is unknown or is not a PROGRAM.                                                  |
+| `config.interval`            | `{}`           | Missing/nonliteral interval, outside 10 ms–1 h, or not a whole multiple of 10 ms.              |
+| `config.priority`            | `{}`           | Missing/noninteger priority or outside 0–65535.                                                |
+| `config.task-parameter`      | `name: string` | Duplicate or unsupported task parameter.                                                       |
+| `runtime.configured-cycle`   | `{}`           | Nonfatal `setCycle` rejection while an explicit configuration is loaded.                       |
+
+`pou.program-count` still reports `found` when no configuration source is supplied.
+Its localized message explains that a configuration source is needed to run several
+PROGRAMs. `setCycle` joins `force` and `write` in rejection messages' `command` field.

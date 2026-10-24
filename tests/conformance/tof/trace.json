@@ -6,57 +6,57 @@
       "label": "Initial false does not start delay",
       "scans": 1,
       "expect": {
-        "Output": false,
-        "Timer.ET": 0
+        "mainInstance.Output": false,
+        "mainInstance.Timer.ET": 0
       }
     },
     {
       "label": "True turns on immediately",
       "set": {
-        "Input": true
+        "mainInstance.Input": true
       },
       "scans": 1,
       "expect": {
-        "Output": true,
-        "Timer.ET": 0
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 0
       }
     },
     {
       "label": "Falling edge starts delay",
       "set": {
-        "Input": false
+        "mainInstance.Input": false
       },
       "scans": 1,
       "expect": {
-        "Output": true,
-        "Timer.ET": 0
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 0
       }
     },
     {
       "label": "PT minus one",
       "advanceMs": 9,
       "expect": {
-        "Output": true,
-        "Timer.ET": 9
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 9
       }
     },
     {
       "label": "PT boundary",
       "advanceMs": 1,
       "expect": {
-        "Output": false,
-        "Timer.ET": 10
+        "mainInstance.Output": false,
+        "mainInstance.Timer.ET": 10
       }
     },
     {
       "label": "True resets elapsed",
       "set": {
-        "Input": true
+        "mainInstance.Input": true
       },
       "scans": 1,
       "expect": {
-        "Output": true,
-        "Timer.ET": 0
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 0
       }
     }
   ]

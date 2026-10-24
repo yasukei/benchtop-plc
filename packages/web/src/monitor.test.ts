@@ -200,10 +200,19 @@ it("builds nested array rows, watches expanded leaves, and retains collapsed for
     "PROGRAM Main VAR n : ARRAY[1..2] OF ARRAY[1..2] OF INT; sum : INT; END_VAR END_PROGRAM",
   ).ir!;
   const rows = (expanded: string[], forced: number[] = []) =>
-    monitorRows(ir.variables, ir.composites!, new Set(expanded), forced);
+    monitorRows(
+      ir.variables,
+      ir.composites!,
+      new Set(["mainInstance", ...expanded.map((path) => `mainInstance.${path}`)]),
+      forced,
+    );
   expect(
-    rows([]).map((row) => (row.kind === "group" ? row.name : ir.variables[row.id]!.name)),
-  ).toEqual(["N", "sum"]);
+    rows([]).map((row) =>
+      row.kind === "group"
+        ? row.name.replace(/^mainInstance\./, "")
+        : ir.variables[row.id]!.name.replace(/^mainInstance\./, ""),
+    ),
+  ).toEqual(["mainInstance", "N", "sum"]);
   expect(watchedLeaves(rows(["N", "N[1]"]), ir.variables)).toEqual([0, 1]);
   expect(watchedLeaves(rows([], [2]), ir.variables)).toEqual([2]);
 });

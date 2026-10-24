@@ -158,3 +158,28 @@ name, array bounds, string capacity or subrange, including source spans. `REF(x)
 is parsed as a reserved call and `NULL` as its own expression. Postfix `^` creates
 a `dereference` node and composes with member/index selectors, for example
 `r^.x`, `r^[i]` and `rr^^.x`. `REF_TO`, `REF` and `NULL` are reserved identifiers.
+
+## Configuration source parser
+
+`parseConfiguration(source)` returns `{ ast?, diagnostics }` independently of the
+POU and data type parsers. It uses the same lexer and source spans:
+
+```st
+CONFIGURATION Plant
+RESOURCE Station ON SomeCpu
+  TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+  PROGRAM A WITH T : Counter;
+  PROGRAM B WITH T : Counter;
+END_RESOURCE
+END_CONFIGURATION
+```
+
+The AST retains configuration/resource/task/instance/type identifiers and task
+bindings. `ON` consumes any identifier and discards it. The current subset requires
+one resource, one cyclic task and `WITH` on every instance. Duplicate task
+parameters and unsupported parameters (including `SINGLE`) are diagnostics, as
+are a second resource or configuration. Task parameter names are contextual:
+`INTERVAL`, `SINGLE` and `PRIORITY` remain ordinary identifier tokens.
+Both parameter values must be literals; the parser checks their exact numeric
+limits, while project checking resolves task/type names and namespace collisions.
+Global declarations and program parameter connections are not yet parsed.

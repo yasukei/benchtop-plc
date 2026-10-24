@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
-import { formatValue, type TypedValue, type ProgramIR } from "@benchtop-plc/core";
+import { formatValue, type TypedValue, type ConfigurationIR } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
 function program(declarations: string, body = "") {
@@ -18,7 +18,7 @@ function execute(declarations: string, body = "") {
   expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
   const values = Object.fromEntries(
     snapshot.variables.map((cell, i) => [
-      ir.variables[i]!.name,
+      ir.variables[i]!.name.replace(/^mainInstance\./, ""),
       cell.kind === "scalar" ? cell.value : null,
     ]),
   );
@@ -97,7 +97,7 @@ describe("64-bit values and arithmetic", () => {
   });
   it("defaults independent large constants to LINT and requires explicit real conversions", () => {
     const { ir } = execute("x: INT;", "x := TO_INT(9007199254740993);");
-    expect(ir.body[0]).toMatchObject({
+    expect(ir.programs[0]!.body[0]).toMatchObject({
       value: { args: [{ dataType: "LINT", value: "9007199254740993" }] },
     });
     for (const body of ["r := x;", "r := x + 1.0;", "x := x + u;", "u := -u;"])
@@ -254,7 +254,7 @@ it.each(["LINT", "ULINT", "LWORD", "LTIME"] as const)(
       1n,
     ];
     for (const value of invalid) {
-      const initial: ProgramIR = structuredClone(ir);
+      const initial: ConfigurationIR = structuredClone(ir);
       Object.assign(initial.variables[0]!, { initialValue: value });
       expect(() => runtime.load(initial)).toThrow(RangeError);
       for (const method of ["write", "force"] as const)
@@ -274,7 +274,7 @@ it.each(["LINT", "ULINT", "LWORD", "LTIME"] as const)(
 );
 it("rejects a noncanonical literal even in an unexecuted IR branch", () => {
   const { ir, runtime } = execute("x: LINT;", "IF FALSE THEN x := LINT#1; END_IF;");
-  const conditional = ir.body[0]!;
+  const conditional = ir.programs[0]!.body[0]!;
   if (conditional.kind !== "if") throw new Error("Expected IF");
   const assignment = conditional.branches[0].body[0]!;
   if (assignment.kind !== "assignment" || assignment.value.kind !== "literal")
@@ -316,13 +316,13 @@ it("canonicalizes long CASE labels and rejects malformed label payloads", () => 
     "x: LINT; yes: BOOL;",
     "CASE x OF INT#1..INT#2: yes := TRUE; 0: yes := TRUE; END_CASE;",
   );
-  const statement = ir.body[0]!;
+  const statement = ir.programs[0]!.body[0]!;
   if (statement.kind !== "case") throw new Error("Expected CASE");
   expect(statement.branches[0]!.labels[0]).toMatchObject({ lower: "1", upper: "2" });
   expect(statement.branches[1]!.labels[0]).toMatchObject({ value: "0" });
   for (const malformed of ["0x10", "+1", "-0", "9223372036854775808"]) {
     const corrupted = structuredClone(ir);
-    const branch = corrupted.body[0]!;
+    const branch = corrupted.programs[0]!.body[0]!;
     if (branch.kind !== "case") throw new Error("Expected CASE");
     Object.assign(branch.branches[0]!.labels[0]!, { lower: malformed });
     expect(() => runtime.load(corrupted)).toThrow(RangeError);

@@ -24,7 +24,7 @@ describe("overloaded standard function blocks", () => {
         `${body} elapsed := t.ET; t(ET => elapsed);`,
       );
       expect(ir.variables[0]).toMatchObject({ fbType: `${name}_LTIME` });
-      expect(ir.body[0]).toMatchObject(
+      expect(ir.programs[0]!.body[0]).toMatchObject(
         body.startsWith("t(")
           ? { inputs: [{ value: { kind: "functionCall", function: "TIME_TO_LTIME" } }] }
           : { value: { dataType: "LTIME" } },
@@ -216,10 +216,10 @@ describe("overloaded standard function blocks", () => {
     ]);
     expect(result.diagnostics).toEqual([]);
     expect(result.ir!.variables).toMatchObject([
-      { name: "A.PRESET" },
-      { name: "A.C", fbType: "CTU_DINT" },
-      { name: "B.PRESET" },
-      { name: "B.C", fbType: "CTU_DINT" },
+      { name: "mainInstance.A.PRESET" },
+      { name: "mainInstance.A.C", fbType: "CTU_DINT" },
+      { name: "mainInstance.B.PRESET" },
+      { name: "mainInstance.B.C", fbType: "CTU_DINT" },
     ]);
   });
 

@@ -6,11 +6,11 @@
       "label": "Descending loops include endpoint; EXIT leaves innermost loop",
       "scans": 1,
       "expect": {
-        "Sum": 18,
-        "Visits": 3,
-        "NoIterations": 0,
-        "I": 3,
-        "J": 1
+        "mainInstance.Sum": 18,
+        "mainInstance.Visits": 3,
+        "mainInstance.NoIterations": 0,
+        "mainInstance.I": 3,
+        "mainInstance.J": 1
       }
     }
   ]

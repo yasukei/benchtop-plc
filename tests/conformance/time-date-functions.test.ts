@@ -17,7 +17,7 @@ function execute(declarations: string, body: string) {
   expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
   const values = Object.fromEntries(
     snapshot.variables.map((cell, i) => [
-      ir.variables[i]!.name,
+      ir.variables[i]!.name.replace(/^mainInstance\./, ""),
       cell.kind === "scalar" ? cell.value : null,
     ]),
   );

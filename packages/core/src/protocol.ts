@@ -1,12 +1,12 @@
 import type { CommandRejectionCode, Diagnostic } from "./diagnostic.js";
-import type { IoBit, ProgramIR, VariableId } from "./ir.js";
+import type { ConfigurationIR, IoBit, ProgramIR, VariableId } from "./ir.js";
 import type { SourceSpan } from "./source.js";
 import type { TypedValue } from "./values.js";
 
 export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT";
 
 export type UiToRuntimeMessage =
-  | { type: "load"; ir: ProgramIR }
+  | { type: "load"; ir: ConfigurationIR | ProgramIR }
   | { type: "watch"; variables: VariableId[] }
   | { type: "run" }
   | { type: "stop" }
@@ -50,16 +50,16 @@ export interface RuntimeSnapshot {
   /** Variable IDs, encoded as an array rather than a Set for JSON transport. */
   forced: VariableId[];
   /**
-   * Keyed by span.line, sorted by span.column within each line. One entry per executed
+   * Keyed by POU name, then span.line, sorted by span.column within each line. One entry per executed
    * assignment/FB call, retaining only its last execution's values in this scan.
-   * Unexecuted statements and lines with no entries are omitted; no prior-scan values remain.
+   * The first instance of each PROGRAM supplies values. Empty POUs/lines are omitted.
    */
-  annotations: Record<number, StatementAnnotation[]>;
+  annotations: Record<string, Record<number, StatementAnnotation[]>>;
 }
 
 export interface CommandRejectionMessage {
   type: "rejected";
-  command: "force" | "write";
+  command: "force" | "write" | "setCycle";
   diagnostic: Diagnostic<CommandRejectionCode>;
 }
 

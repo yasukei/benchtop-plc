@@ -297,7 +297,7 @@ it("restores the bundled example's source, panel and cycle through the project l
   expect(restored.cycleMs).toBe(10);
   expect(worker.sent.slice(-2)).toMatchObject([
     { type: "setCycle", ms: 10 },
-    { type: "load", ir: { name: "Main" } },
+    { type: "load", ir: { name: "Config", programs: [{ name: "Main" }] } },
   ]);
   // Replacing a project cannot race an unacknowledged load.
   expect(store.restoreExample()).toBe(false);

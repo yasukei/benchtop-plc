@@ -1,8 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
-import { formatType, type ProgramIR, type TypeTable, type Variable } from "@benchtop-plc/core";
+import {
+  formatType,
+  type ConfigurationIR,
+  type TypeTable,
+  type Variable,
+} from "@benchtop-plc/core";
 import type { ShellCatalog } from "./catalog.js";
 import {
   parseWrittenValue,
+  monitorLabel,
   variableValue,
   monitorRows,
   watchedLeaves,
@@ -85,9 +91,11 @@ export function VariableMonitor({
   text: ShellCatalog;
   variables: Variable[];
   types?: TypeTable;
-  composites?: ProgramIR["composites"];
+  composites?: ConfigurationIR["composites"];
 }) {
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(variables.flatMap((variable) => (variable.instance ? [variable.instance] : []))),
+  );
   const values = useMemo(() => snapshotValues(state.snapshot), [state.snapshot]);
   const rows = monitorRows(variables, composites, expanded, state.snapshot?.forced);
   const watchKey = JSON.stringify(watchedLeaves(rows, variables));
@@ -118,7 +126,11 @@ export function VariableMonitor({
                 if (row.kind === "group")
                   return (
                     <tr key={row.name}>
-                      <th scope="row" style={{ paddingLeft: `${row.depth + 1}rem` }}>
+                      <th
+                        scope="row"
+                        title={row.name}
+                        style={{ paddingLeft: `${row.depth + 1}rem` }}
+                      >
                         <button
                           aria-expanded={expanded.has(row.name)}
                           onClick={() =>
@@ -130,11 +142,11 @@ export function VariableMonitor({
                             })
                           }
                         >
-                          {row.name}
+                          {monitorLabel(row.name, row.instance)}
                         </button>
                       </th>
                       <td />
-                      <td>{formatType(row.dataType)}</td>
+                      <td>{row.dataType ? formatType(row.dataType) : text.PROGRAM}</td>
                       <td />
                       <td />
                     </tr>
@@ -144,8 +156,12 @@ export function VariableMonitor({
                 const forced = state.snapshot?.forced.includes(id) ?? false;
                 return (
                   <tr key={id} data-forced={forced}>
-                    <th scope="row" style={{ paddingLeft: `${row.depth + 1}rem` }}>
-                      {variable.name}
+                    <th
+                      scope="row"
+                      title={variable.name}
+                      style={{ paddingLeft: `${row.depth + 1}rem` }}
+                    >
+                      {monitorLabel(variable.name, variable.instance)}
                       {forced && <span className="force-badge">{text.forced}</span>}
                     </th>
                     <td>

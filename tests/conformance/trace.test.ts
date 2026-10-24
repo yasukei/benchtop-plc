@@ -14,15 +14,19 @@ const trace = (step: Record<string, unknown>) =>
   parseTrace({
     kind: "run",
     cycleMs: 10,
-    steps: [{ label: "check", expect: { Count: 1 }, ...step }],
+    steps: [{ label: "check", expect: { "mainInstance.Count": 1 }, ...step }],
   });
 
 describe("conformance trace harness", () => {
   it("reports case, step, variable, expected and actual values on a wrong expectation", () => {
     expect(() =>
-      runTrace("wrong-expectation", source, trace({ scans: 1, expect: { Count: 99 } })),
+      runTrace(
+        "wrong-expectation",
+        source,
+        trace({ scans: 1, expect: { "mainInstance.Count": 99 } }),
+      ),
     ).toThrow(
-      "wrong-expectation: step 1 (check): Error: variable Count: expected 99, actual 1 at 10 ms (scan 1)",
+      "wrong-expectation: step 1 (check): Error: variable mainInstance.Count: expected 99, actual 1 at 10 ms (scan 1)",
     );
   });
 
@@ -36,17 +40,25 @@ describe("conformance trace harness", () => {
         steps: [
           {
             label: "before first scan",
-            set: { Input: true, Count: 5 },
+            set: { "mainInstance.Input": true, "mainInstance.Count": 5 },
             advanceMs: 9,
-            expect: { Count: 0, Output: false },
+            expect: { "mainInstance.Count": 0, "mainInstance.Output": false },
           },
-          { label: "first tick", advanceMs: 1, expect: { Count: 6, Output: true } },
-          { label: "two more scans", scans: 2, expect: { Count: 8, Output: true } },
+          {
+            label: "first tick",
+            advanceMs: 1,
+            expect: { "mainInstance.Count": 6, "mainInstance.Output": true },
+          },
+          {
+            label: "two more scans",
+            scans: 2,
+            expect: { "mainInstance.Count": 8, "mainInstance.Output": true },
+          },
           {
             label: "case insensitive names",
-            set: { input: false },
+            set: { "mainInstance.input": false },
             scans: 1,
-            expect: { count: 9, output: false },
+            expect: { "mainInstance.count": 9, "mainInstance.output": false },
           },
         ],
       }),
@@ -63,9 +75,9 @@ describe("conformance trace harness", () => {
         steps: [
           {
             label: "copy text",
-            set: { inputText: "123" },
+            set: { "mainInstance.inputText": "123" },
             scans: 1,
-            expect: { outputText: "123" },
+            expect: { "mainInstance.outputText": "123" },
           },
         ],
       }),
@@ -80,8 +92,8 @@ describe("conformance trace harness", () => {
     { scans: 1, advanceMs: 1 },
     { scan: 1 },
     { expect: {} },
-    { expect: { Count: ["1"] } },
-    { set: { Input: null } },
+    { expect: { "mainInstance.Count": ["1"] } },
+    { set: { "mainInstance.Input": null } },
     { label: "" },
   ])("rejects malformed steps %j", (step) => {
     expect(() => trace(step)).toThrow("Step 1:");
@@ -108,9 +120,12 @@ describe("conformance trace harness", () => {
     },
   );
 
-  it.each([{ Missing: 1 }, { Output: true }, { Input: 1 }])("rejects invalid writes %j", (set) => {
-    expect(() => runTrace("write", source, trace({ scans: 1, set }))).toThrow("write: step 1");
-  });
+  it.each([{ Missing: 1 }, { "mainInstance.Output": true }, { "mainInstance.Input": 1 }])(
+    "rejects invalid writes %j",
+    (set) => {
+      expect(() => runTrace("write", source, trace({ scans: 1, set }))).toThrow("write: step 1");
+    },
+  );
 
   it("rejects unexpected compilation failures and unexpected successful negative cases", () => {
     expect(() =>

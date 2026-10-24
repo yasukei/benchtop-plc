@@ -50,6 +50,19 @@ export interface DiagnosticArgs {
   "decl.constant-order": { name: string };
   "decl.open-array-section": NoArguments;
   "decl.in-out-initializer": { name: string };
+  "config.configuration-count": NoArguments;
+  "config.resource-count": NoArguments;
+  "config.task-count": NoArguments;
+  "config.no-instances": NoArguments;
+  "config.instance-limit": NoArguments;
+  "config.name-collision": { name: string };
+  "config.unknown-task": { name: string };
+  "config.missing-task": { name: string };
+  "config.program-type": { name: string };
+  "config.interval": NoArguments;
+  "config.priority": NoArguments;
+  "config.task-parameter": { name: string };
+  "runtime.configured-cycle": NoArguments;
   "pou.duplicate": { name: string };
   "pou.name-collision": { name: string };
   "pou.program-count": { found: number };
@@ -129,6 +142,7 @@ export interface DiagnosticArgs {
 
 /** Expected debug command rejections; these never latch a PLC execution fault. */
 export type CommandRejectionCode =
+  | "runtime.configured-cycle"
   | "runtime.debug-target"
   | "runtime.debug-type-mismatch"
   | "runtime.debug-value"
@@ -144,6 +158,7 @@ export type Diagnostic<C extends DiagnosticCode = DiagnosticCode> = {
     severity: DiagnosticSeverity;
     /** Source POU's spelling; absent for project-level errors or unknown headers. */
     pou?: string;
+    task?: string;
     /** Canonical dotted path of the active function block instance. */
     instance?: string;
     span?: SourceSpan;

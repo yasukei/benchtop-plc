@@ -20,3 +20,6 @@ export type { CompileDiagnostic, CompileResult } from "./compile.js";
 export { lower } from "./lower.js";
 
 export { resolveDataTypes } from "./data-types.js";
+
+export { parseConfiguration } from "./configuration.js";
+export type { Configuration, ImplicitConfiguration } from "./configuration.js";

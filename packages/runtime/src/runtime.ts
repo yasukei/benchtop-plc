@@ -3,6 +3,7 @@ import type {
   Diagnostic,
   IoImage,
   ProgramIR,
+  ConfigurationIR,
   RuntimeSnapshot,
   RuntimeState,
   TypedValue,
@@ -35,7 +36,8 @@ export interface RuntimeOptions {
 export interface Runtime {
   readonly state: RuntimeState;
   readonly diagnostic: Diagnostic | null;
-  load(ir: ProgramIR): void;
+  load(ir: ProgramIR | ConfigurationIR): void;
+  setCycle(ms: number): void;
   run(): void;
   stop(): void;
   setEmergencyStop(active: boolean): void;
@@ -78,7 +80,7 @@ class PlcRuntime implements Runtime {
   private readonly forces = new Map<VariableId, TypedValue>();
   private watched = new Set<VariableId>();
   private pendingWrites = new Map<VariableId, TypedValue>();
-  private readonly interval: number;
+  private interval: number;
   private readonly library: RuntimeLibrary;
 
   constructor(private readonly options: RuntimeOptions) {
@@ -111,11 +113,15 @@ class PlcRuntime implements Runtime {
     this.options.stages?.writeOutputs?.([...this.outputs]);
   }
 
-  load(ir: ProgramIR): void {
+  load(ir: ProgramIR | ConfigurationIR): void {
     if (this.scanning) throw new Error("Cannot load during a scan");
     const memory = new Memory(ir, this.library);
     this.halt("STOP");
     this.memory = memory;
+    this.interval =
+      ir.kind === "configuration"
+        ? ir.resource.tasks[0]!.intervalMs
+        : (this.options.intervalMs ?? 10);
     this.watched.clear();
     this.initialize();
   }
@@ -131,9 +137,31 @@ class PlcRuntime implements Runtime {
     this.memory?.clearOutputs();
   }
 
+  setCycle(ms: number): void {
+    if (this.memory?.ir.kind === "configuration" && this.memory.ir.explicit)
+      throw new RuntimeCommandRejected({
+        code: "runtime.configured-cycle",
+        severity: "error",
+        args: {},
+      });
+    checkInterval(ms);
+    const running = this.state === "RUN";
+    if (running) {
+      this.generation++;
+      this.cancel?.();
+      this.cancel = undefined;
+    }
+    this.interval = ms;
+    if (running) this.startTicker();
+  }
+
   run(): void {
     if (this.state !== "STOP" || !this.memory || this.scanning) return;
     this.operatingState = "RUN";
+    this.startTicker();
+  }
+
+  private startTicker(): void {
     const generation = ++this.generation;
     try {
       const cancel = this.options.ticker.start(this.interval, () => {
@@ -261,6 +289,7 @@ class PlcRuntime implements Runtime {
     const interpreter = new Interpreter(memory, start, active, this.library);
     this.scanning = true;
     this.annotations = {};
+    let executingInstance: string | undefined;
     try {
       this.inputs = [...(this.options.stages?.readInputs?.() ?? this.inputs)];
       if (active()) memory.readInputs(this.inputs);
@@ -272,9 +301,38 @@ class PlcRuntime implements Runtime {
       if (active()) this.options.stages?.applyPendingWrites?.(memory);
       if (active()) this.applyForces(memory);
       if (active()) this.options.stages?.applyForces?.(memory);
-      if (active()) interpreter.execute(memory.ir.body);
-      if (active()) this.options.stages?.applyForces?.(memory);
-      if (active()) this.applyForces(memory);
+      const ir = memory.ir;
+      const instances = ir.kind === "configuration" ? ir.resource.programs : [{ program: 0 }];
+      const annotated = new Set<number>();
+      for (const [index, instance] of instances.entries()) {
+        if (!active()) break;
+        if (index > 0) {
+          this.applyForces(memory);
+          this.options.stages?.applyForces?.(memory);
+        }
+        executingInstance =
+          ir.kind === "configuration" ? ir.resource.programs[index]!.name : undefined;
+        try {
+          interpreter.executeProgram(index);
+        } finally {
+          // The editor displays the first instance in resource declaration order.
+          if (!annotated.has(instance.program)) {
+            const name =
+              ir.kind === "configuration" ? ir.programs[instance.program]!.name : ir.name;
+            const lines = interpreter.annotationSnapshot();
+            if (Object.keys(lines).length)
+              Object.defineProperty(this.annotations, name, {
+                value: lines,
+                enumerable: true,
+                configurable: true,
+                writable: true,
+              });
+            annotated.add(instance.program);
+          }
+        }
+        if (active()) this.options.stages?.applyForces?.(memory);
+        if (active()) this.applyForces(memory);
+      }
       if (active() && this.state === "RUN") {
         this.outputs = memory.outputImage();
         this.options.stages?.writeOutputs?.([...this.outputs]);
@@ -282,7 +340,15 @@ class PlcRuntime implements Runtime {
     } catch (error) {
       if (error instanceof RuntimeFault) {
         if (active()) {
-          this.fault = error.diagnostic;
+          this.fault = {
+            ...error.diagnostic,
+            ...(memory.ir.kind === "configuration"
+              ? {
+                  task: memory.ir.resource.tasks[0]!.name,
+                  instance: error.diagnostic.instance ?? executingInstance,
+                }
+              : {}),
+          };
           this.halt("FAULT");
         }
       } else {
@@ -295,7 +361,6 @@ class PlcRuntime implements Runtime {
         memory.clearOutputs();
         this.outputs = emptyImage();
       }
-      this.annotations = interpreter.annotationSnapshot();
       this.count++;
       this.duration = this.options.clock.now() - start;
       this.scanning = false;
@@ -304,17 +369,24 @@ class PlcRuntime implements Runtime {
   }
 
   snapshot(): RuntimeSnapshot {
-    const annotations: RuntimeSnapshot["annotations"] = {};
-    for (const [line, entries] of Object.entries(this.annotations)) {
-      annotations[Number(line)] = entries.map((entry) => ({
-        span: { ...entry.span },
-        values: entry.values.map((value) => ({ ...value })),
-      }));
-    }
-    const compact = this.memory?.ir.variables.some((variable) => variable.path);
+    const annotations = Object.fromEntries(
+      Object.entries(this.annotations).map(([pou, lines]) => [
+        pou,
+        Object.fromEntries(
+          Object.entries(lines).map(([line, entries]) => [
+            line,
+            entries.map((entry) => ({
+              span: { ...entry.span },
+              values: entry.values.map((value) => ({ ...value })),
+            })),
+          ]),
+        ),
+      ]),
+    );
+    const compact = this.memory?.ir.variables.some((variable) => variable.watched);
     const ids = compact
       ? this.memory!.ir.variables.flatMap((variable, id) =>
-          !variable.path || this.watched.has(id) || this.forces.has(id) ? [id] : [],
+          !variable.watched || this.watched.has(id) || this.forces.has(id) ? [id] : [],
         )
       : undefined;
     return {

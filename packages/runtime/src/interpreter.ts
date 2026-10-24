@@ -75,6 +75,23 @@ export class Interpreter {
     this.pou = programMemory.ir.name;
   }
 
+  /** Reuse the task budget while switching to an instance's persistent storage. */
+  executeProgram(index = 0): void {
+    const ir = this.programMemory.ir;
+    this.memory = this.programMemory.programFrame(index);
+    this.annotations.clear();
+    if (ir.kind === "configuration") {
+      const instance = ir.resource.programs[index]!;
+      const definition = ir.programs[instance.program]!;
+      this.pou = definition.name;
+      this.instancePath = instance.name;
+      this.execute(definition.body);
+    } else {
+      this.pou = ir.name;
+      this.execute(ir.body);
+    }
+  }
+
   private base(type: TypeDescriptor) {
     return scalarBase(type, this.programMemory.ir.types);
   }

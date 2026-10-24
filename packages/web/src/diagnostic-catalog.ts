@@ -32,6 +32,22 @@ const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "config.configuration-count": () => `A project supports only one configuration.`,
+  "config.resource-count": () => `A configuration requires exactly one resource.`,
+  "config.task-count": () => `A resource requires exactly one cyclic task.`,
+  "config.no-instances": () => `A resource requires at least one program instance.`,
+  "config.instance-limit": () => `A resource supports at most 64 program instances.`,
+  "config.name-collision": ({ name }) =>
+    `${name} conflicts with another configuration, resource, task, instance, POU, type or standard name.`,
+  "config.unknown-task": ({ name }) => `Unknown task: ${name}.`,
+  "config.missing-task": ({ name }) => `Program instance ${name} requires WITH and a task name.`,
+  "config.program-type": ({ name }) => `${name} is not a known PROGRAM type.`,
+  "config.interval": () =>
+    `INTERVAL requires a TIME or LTIME literal from 10 ms to 1 h in whole multiples of 10 ms.`,
+  "config.priority": () => `PRIORITY requires an integer literal from 0 to 65535.`,
+  "config.task-parameter": ({ name }) => `Unsupported or duplicate task parameter: ${name}.`,
+  "runtime.configured-cycle": () =>
+    `Command rejected: edit the configuration source to change the task interval.`,
   "runtime.null-reference": () => "Cannot dereference NULL.",
   "type.invalid-reference-target": () =>
     "A reference requires a compatible variable with persistent storage.",
@@ -92,7 +108,7 @@ export const diagnosticEn = {
   "pou.duplicate": ({ name }) => `Duplicate POU: ${name}.`,
   "pou.name-collision": ({ name }) => `POU ${name} conflicts with a standard name.`,
   "pou.program-count": ({ found }) =>
-    `A project requires exactly one PROGRAM; found ${typeText(found)}.`,
+    `Without a configuration source a project requires exactly one PROGRAM; found ${typeText(found)}. Add a configuration source to run several programs.`,
   "pou.unsupported-kind": ({ name }) => `User function block ${name} is not supported yet.`,
   "pou.invalid-section": ({ section, kind }) =>
     `${section} is not supported in a ${pouKinds[kind] ?? kind} POU.`,
@@ -190,6 +206,23 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "config.configuration-count": () => `プロジェクトで使用できる構成は1つです。`,
+  "config.resource-count": () => `構成にはリソースが1つ必要です。`,
+  "config.task-count": () => `リソースには周期タスクが1つ必要です。`,
+  "config.no-instances": () => `リソースにはプログラムインスタンスが必要です。`,
+  "config.instance-limit": () => `プログラムインスタンスは64個までです。`,
+  "config.name-collision": ({ name }) =>
+    `${name}は構成、リソース、タスク、インスタンス、POU、型または標準の名前と衝突しています。`,
+  "config.unknown-task": ({ name }) => `不明なタスクです: ${name}。`,
+  "config.missing-task": ({ name }) =>
+    `プログラムインスタンス${name}にはWITHとタスク名が必要です。`,
+  "config.program-type": ({ name }) => `${name}は定義済みのPROGRAM型ではありません。`,
+  "config.interval": () =>
+    `INTERVALには10msから1時間までの10ms単位のTIMEまたはLTIMEリテラルが必要です。`,
+  "config.priority": () => `PRIORITYには0から65535までの整数リテラルが必要です。`,
+  "config.task-parameter": ({ name }) => `未対応または重複したタスクパラメーターです: ${name}。`,
+  "runtime.configured-cycle": () =>
+    `操作を拒否しました。タスク周期を変更するには構成ソースを編集してください。`,
   "runtime.null-reference": () => "NULLを逆参照できません。",
   "type.invalid-reference-target": () => "参照には互換性のある永続変数が必要です。",
   "type.reference-initializer": () => "参照の初期値はNULLにしてください。",
@@ -248,7 +281,7 @@ export const diagnosticJa = {
   "pou.duplicate": ({ name }) => `POUが重複しています: ${name}。`,
   "pou.name-collision": ({ name }) => `POU ${name}は標準の名前と衝突しています。`,
   "pou.program-count": ({ found }) =>
-    `プロジェクトにはPROGRAMが1つ必要ですが、${typeText(found)}個です。`,
+    `構成ソースがないプロジェクトにはPROGRAMが1つ必要ですが、${typeText(found)}個です。複数のプログラムを実行するには構成ソースを追加してください。`,
   "pou.unsupported-kind": ({ name }) => `ユーザー定義ファンクションブロック${name}は未対応です。`,
   "pou.invalid-section": ({ section, kind }) =>
     `${pouKinds[kind] ?? kind}のPOUでは${section}は未対応です。`,

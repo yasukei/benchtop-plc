@@ -10,9 +10,21 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Configuration source compilation with one resource, one cyclic task and up to
+  64 independent program instances sharing their PROGRAM bodies. Configured task
+  intervals drive runtime execution; explicit configurations reject cycle commands.
+  Existing projects use an implicit configuration and keep their cycle control.
+
 - ADR 0016 documents the accepted design for configurations, tasks and scheduling,
   global variables, program parameters, byte, word and memory addresses, retentive
   variables and warm restart for Milestone 6.
+
+### Changed
+
+- Monitor and reference paths are now qualified by program instance, including
+  `mainInstance.LAMP` in existing projects. The monitor groups instances and shows
+  relative paths within each group. Inline values identify their instance and
+  annotations are keyed by POU and line, using the first instance of each PROGRAM.
 
 ## [0.5.0] - 2026-10-24
 

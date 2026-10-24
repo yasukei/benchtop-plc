@@ -11,7 +11,8 @@ function setup(pous: string[], types: string[] = []) {
   const clock = new VirtualClock();
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
-  const id = (name: string) => ir.variables.findIndex((v) => v.key === name.toUpperCase());
+  const id = (name: string) =>
+    ir.variables.findIndex((v) => v.key === `MAININSTANCE.${name.toUpperCase()}`);
   runtime.watch(ir.variables.map((_, i) => i));
   const value = (name: string) => snapshotVariable(runtime.snapshot(), id(name));
   return { runtime, ir, id, value };
@@ -33,20 +34,22 @@ it("traces retargeting between structures, identity comparisons and cold reset",
   expect(value("r")).toEqual({ kind: "reference", target: null });
   runtime.step();
   expect(runtime.diagnostic).toBeNull();
-  expect(value("r")).toEqual({ kind: "reference", target: "P1" });
+  expect(value("r")).toEqual({ kind: "reference", target: "mainInstance.P1" });
   expect(value("p1.x")).toMatchObject({ value: 5 });
   expect(value("p2.x")).toMatchObject({ value: 0 });
   expect(value("equal")).toMatchObject({ value: true });
   expect(value("empty")).toMatchObject({ value: false });
   runtime.step();
-  expect(value("r")).toEqual({ kind: "reference", target: "P2" });
+  expect(value("r")).toEqual({ kind: "reference", target: "mainInstance.P2" });
   expect(value("p1.x")).toMatchObject({ value: 5 });
   expect(value("p2.x")).toMatchObject({ value: 5 });
-  const assignment = ir.body[0]!;
+  const assignment = ir.programs[0]!.body[0]!;
   expect(assignment.kind).toBe("if");
   expect(
-    Object.values(runtime.snapshot().annotations).flatMap((a) => a.flatMap((v) => v.values)),
-  ).toContainEqual({ kind: "reference", target: "P2" });
+    Object.values(runtime.snapshot().annotations.Main ?? {}).flatMap((a) =>
+      a.flatMap((v) => v.values),
+    ),
+  ).toContainEqual({ kind: "reference", target: "mainInstance.P2" });
   expect(JSON.parse(JSON.stringify(runtime.snapshot()))).toEqual(runtime.snapshot());
   expect(() => runtime.write(id("r"), { dataType: "INT", value: 0 })).toThrow();
   expect(() => runtime.force(id("r"), { dataType: "INT", value: 0 })).toThrow();
@@ -72,11 +75,11 @@ it("traces arrays, structure reference members, nested references and aggregate 
   expect(runtime.diagnostic).toBeNull();
   expect(value("points[1].x")).toMatchObject({ value: 7 });
   expect(value("points[2].x")).toMatchObject({ value: 7 });
-  expect(value("refs[1]")).toEqual({ kind: "reference", target: "POINTS[2]" });
-  expect(value("a.link")).toEqual({ kind: "reference", target: "POINTS[2]" });
-  expect(value("b.link")).toEqual({ kind: "reference", target: "POINTS[2]" });
-  expect(value("ar")).toEqual({ kind: "reference", target: "POINTS" });
-  expect(value("rr")).toEqual({ kind: "reference", target: "A.LINK" });
+  expect(value("refs[1]")).toEqual({ kind: "reference", target: "mainInstance.POINTS[2]" });
+  expect(value("a.link")).toEqual({ kind: "reference", target: "mainInstance.POINTS[2]" });
+  expect(value("b.link")).toEqual({ kind: "reference", target: "mainInstance.POINTS[2]" });
+  expect(value("ar")).toEqual({ kind: "reference", target: "mainInstance.POINTS" });
+  expect(value("rr")).toEqual({ kind: "reference", target: "mainInstance.A.LINK" });
 });
 
 it("passes reference inputs, outputs, in-outs and results without copying targets", () => {
@@ -94,7 +97,7 @@ it("passes reference inputs, outputs, in-outs and results without copying target
   expect(runtime.diagnostic).toBeNull();
   expect(value("x")).toMatchObject({ value: 4 });
   expect(value("y")).toMatchObject({ value: 9 });
-  expect(value("r")).toEqual({ kind: "reference", target: "x" });
+  expect(value("r")).toEqual({ kind: "reference", target: "mainInstance.x" });
 });
 
 it("keeps references to each block's own persistent members separate", () => {
@@ -104,8 +107,8 @@ it("keeps references to each block's own persistent members separate", () => {
   ]);
   runtime.step();
   expect(runtime.diagnostic).toBeNull();
-  expect(value("a.r")).toEqual({ kind: "reference", target: "A.X" });
-  expect(value("b.r")).toEqual({ kind: "reference", target: "B.X" });
+  expect(value("a.r")).toEqual({ kind: "reference", target: "mainInstance.A.X" });
+  expect(value("b.r")).toEqual({ kind: "reference", target: "mainInstance.B.X" });
   expect(value("a.q")).toMatchObject({ value: 11 });
   expect(value("b.q")).toMatchObject({ value: 1 });
 });
@@ -126,7 +129,7 @@ it("faults on NULL with the POU and nested instance path", () => {
   expect(nested.runtime.diagnostic).toMatchObject({
     code: "runtime.null-reference",
     pou: "Block",
-    instance: "B",
+    instance: "mainInstance.B",
   });
 });
 
@@ -139,11 +142,11 @@ it("retains reference identity through dynamic indices and standard block port u
   ]);
   runtime.step();
   expect(runtime.diagnostic).toBeNull();
-  expect(value("r")).toEqual({ kind: "reference", target: "TIMERS[1].PT" });
+  expect(value("r")).toEqual({ kind: "reference", target: "mainInstance.TIMERS[1].PT" });
   expect(value("same")).toMatchObject({ value: true });
   expect(value("timers[1]")).toMatchObject({ inputs: [{ value: true }, { value: 2000 }] });
   runtime.step();
-  expect(value("r")).toEqual({ kind: "reference", target: "TIMERS[2].PT" });
+  expect(value("r")).toEqual({ kind: "reference", target: "mainInstance.TIMERS[2].PT" });
   expect(value("same")).toMatchObject({ value: false });
 });
 
@@ -159,7 +162,7 @@ it("walks recursive records and preserves target constraints and force stages", 
   runtime.force(id("b.value"), { dataType: "INT", value: 4 });
   runtime.step();
   expect(runtime.diagnostic).toBeNull();
-  expect(value("a.next")).toEqual({ kind: "reference", target: "B" });
+  expect(value("a.next")).toEqual({ kind: "reference", target: "mainInstance.B" });
   expect(value("seen")).toMatchObject({ value: 7 });
   expect(value("b.value")).toMatchObject({ value: 4 });
   const invalid = setup([
@@ -200,8 +203,8 @@ it("traverses a named recursive array without losing exact reference matching", 
   );
   runtime.step();
   expect(runtime.diagnostic).toBeNull();
-  expect(value("first[1]")).toEqual({ kind: "reference", target: "SECOND" });
-  expect(value("second[2]")).toEqual({ kind: "reference", target: "FIRST" });
+  expect(value("first[1]")).toEqual({ kind: "reference", target: "mainInstance.SECOND" });
+  expect(value("second[2]")).toEqual({ kind: "reference", target: "mainInstance.FIRST" });
   expect(value("equal")).toMatchObject({ value: true });
 });
 
@@ -219,16 +222,16 @@ it("selects reference identities and NULL with MOVE, SEL and MUX", () => {
   expect(runtime.diagnostic).toBeNull();
   expect(value("x")).toMatchObject({ value: 0 });
   expect(value("y")).toMatchObject({ value: 7 });
-  expect(value("t")).toEqual({ kind: "reference", target: "y" });
+  expect(value("t")).toEqual({ kind: "reference", target: "mainInstance.y" });
   expect(value("r")).toEqual({ kind: "reference", target: null });
   expect(value("s")).toEqual({ kind: "reference", target: null });
   expect(value("same")).toMatchObject({ value: true });
   expect(value("empty")).toMatchObject({ value: true });
-  const annotations = Object.values(runtime.snapshot().annotations).flatMap((a) =>
+  const annotations = Object.values(runtime.snapshot().annotations.Main ?? {}).flatMap((a) =>
     a.flatMap((v) => v.values),
   );
   expect(annotations.slice(-3)).toEqual(
-    Array.from({ length: 3 }, () => ({ kind: "reference", target: "y" })),
+    Array.from({ length: 3 }, () => ({ kind: "reference", target: "mainInstance.y" })),
   );
 });
 

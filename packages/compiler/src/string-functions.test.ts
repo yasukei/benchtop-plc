@@ -36,7 +36,9 @@ it("keeps independently typed integer positions outside the string common-type g
   );
   expect(result.diagnostics).toEqual([]);
   expect(
-    result.ir?.body.map((statement) => statement.kind === "assignment" && statement.value.dataType),
+    result.ir?.programs[0]!.body.map(
+      (statement) => statement.kind === "assignment" && statement.value.dataType,
+    ),
   ).toEqual(["STRING", "STRING", "INT"]);
 });
 
@@ -111,7 +113,7 @@ it.each([
 ])("widens string-function character inputs in %s", (body, expected) => {
   const result = program(body);
   expect(result.diagnostics).toEqual([]);
-  const statement = result.ir?.body[0];
+  const statement = result.ir?.programs[0]!.body[0];
   expect(statement?.kind).toBe("assignment");
   if (statement?.kind !== "assignment") throw new Error("Expected assignment");
   expect(statement.value).toMatchObject({ kind: "functionCall", dataType: expected });

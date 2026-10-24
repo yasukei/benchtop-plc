@@ -11,7 +11,8 @@ function setup(sources: string[]) {
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
   runtime.watch(ir.variables.map((_, i) => i));
-  const id = (name: string) => ir.variables.findIndex((v) => v.key === name.toUpperCase());
+  const id = (name: string) =>
+    ir.variables.findIndex((v) => v.key === `MAININSTANCE.${name.toUpperCase()}`);
   const value = (name: string) => snapshotVariable(runtime.snapshot(), id(name));
   return { clock, runtime, value, id, ir };
 }
@@ -113,7 +114,7 @@ it("faults before input side effects on an out-of-bounds call and names its path
   expect(runtime.diagnostic).toMatchObject({
     code: "runtime.index-out-of-range",
     pou: "Main",
-    instance: "T[5]",
+    instance: "mainInstance.T[5]",
   });
   expect(value("count")).toMatchObject({ value: 0 });
   expect(value("t[1]")).toMatchObject({ inputs: [{ value: false }, { value: 0 }] });
@@ -129,7 +130,7 @@ it("names nested element fault paths and preserves persistent state until cold r
   expect(runtime.diagnostic).toMatchObject({
     code: "runtime.division-by-zero",
     pou: "Broken",
-    instance: "M[2].DELAY",
+    instance: "mainInstance.M[2].DELAY",
   });
   expect(value("M[1].DELAY.CALLS")).toMatchObject({ value: 0 });
   expect(value("M[2].DELAY.CALLS")).toMatchObject({ value: 1 });
@@ -150,7 +151,8 @@ it("runs multidimensional user and standard arrays declared inside block element
   expect(value("M[2].T[2]")).toMatchObject({
     inputs: [{ value: true }, { dataType: "LTIME", value: "0" }],
   });
-  expect(ir.composites?.find((c) => c.name === "M[2].NESTED")?.path).toEqual([
+  expect(ir.composites?.find((c) => c.name === "mainInstance.M[2].NESTED")?.path).toEqual([
+    "mainInstance",
     "M",
     "[2]",
     "NESTED",

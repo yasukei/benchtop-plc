@@ -5,158 +5,158 @@
     {
       "label": "Initial outputs are off",
       "expect": {
-        "Running": false,
-        "Lamp": false,
-        "Alarm": false,
-        "Blinks": 0
+        "mainInstance.Running": false,
+        "mainInstance.Lamp": false,
+        "mainInstance.Alarm": false,
+        "mainInstance.Blinks": 0
       }
     },
     {
       "label": "Start latches running and begins timing at 10 ms",
       "set": {
-        "StartPB": true
+        "mainInstance.StartPB": true
       },
       "scans": 1,
       "expect": {
-        "Running": true,
-        "Lamp": false,
-        "tBlinkOn.ET": 0
+        "mainInstance.Running": true,
+        "mainInstance.Lamp": false,
+        "mainInstance.tBlinkOn.ET": 0
       }
     },
     {
       "label": "Release start; one scan before the on delay",
       "set": {
-        "StartPB": false
+        "mainInstance.StartPB": false
       },
       "scans": 49,
       "expect": {
-        "Running": true,
-        "Lamp": false,
-        "tBlinkOn.ET": 490
+        "mainInstance.Running": true,
+        "mainInstance.Lamp": false,
+        "mainInstance.tBlinkOn.ET": 490
       }
     },
     {
       "label": "First rising lamp edge at 510 ms",
       "scans": 1,
       "expect": {
-        "Lamp": true,
-        "Blinks": 1,
-        "Alarm": false
+        "mainInstance.Lamp": true,
+        "mainInstance.Blinks": 1,
+        "mainInstance.Alarm": false
       }
     },
     {
       "label": "Lamp stays on until the off delay",
       "scans": 49,
       "expect": {
-        "Lamp": true,
-        "tBlinkOff.ET": 490
+        "mainInstance.Lamp": true,
+        "mainInstance.tBlinkOff.ET": 490
       }
     },
     {
       "label": "Off timer completes; lamp still reflects this scan on timer",
       "scans": 1,
       "expect": {
-        "Lamp": true,
-        "tBlinkOff.Q": true,
-        "Blinks": 1
+        "mainInstance.Lamp": true,
+        "mainInstance.tBlinkOff.Q": true,
+        "mainInstance.Blinks": 1
       }
     },
     {
       "label": "Next scan clears both timers and the lamp",
       "scans": 1,
       "expect": {
-        "Lamp": false,
-        "tBlinkOn.ET": 0,
-        "tBlinkOff.ET": 0
+        "mainInstance.Lamp": false,
+        "mainInstance.tBlinkOn.ET": 0,
+        "mainInstance.tBlinkOff.ET": 0
       }
     },
     {
       "label": "Ninth blink has no alarm",
       "scans": 765,
       "expect": {
-        "Lamp": true,
-        "Blinks": 9,
-        "Alarm": false
+        "mainInstance.Lamp": true,
+        "mainInstance.Blinks": 9,
+        "mainInstance.Alarm": false
       }
     },
     {
       "label": "One scan before the tenth blink",
       "scans": 101,
       "expect": {
-        "Lamp": false,
-        "Blinks": 9,
-        "Alarm": false
+        "mainInstance.Lamp": false,
+        "mainInstance.Blinks": 9,
+        "mainInstance.Alarm": false
       }
     },
     {
       "label": "Tenth rising edge raises alarm at 9690 ms",
       "scans": 1,
       "expect": {
-        "Lamp": true,
-        "Blinks": 10,
-        "Alarm": true
+        "mainInstance.Lamp": true,
+        "mainInstance.Blinks": 10,
+        "mainInstance.Alarm": true
       }
     },
     {
       "label": "Reset clears the count and alarm while running",
       "set": {
-        "ResetPB": true
+        "mainInstance.ResetPB": true
       },
       "scans": 1,
       "expect": {
-        "Running": true,
-        "Lamp": true,
-        "Blinks": 0,
-        "Alarm": false
+        "mainInstance.Running": true,
+        "mainInstance.Lamp": true,
+        "mainInstance.Blinks": 0,
+        "mainInstance.Alarm": false
       }
     },
     {
       "label": "Reset release does not recount a held-high lamp",
       "set": {
-        "ResetPB": false
+        "mainInstance.ResetPB": false
       },
       "scans": 1,
       "expect": {
-        "Blinks": 0,
-        "Alarm": false
+        "mainInstance.Blinks": 0,
+        "mainInstance.Alarm": false
       }
     },
     {
       "label": "Stop clears latch, lamp and timers",
       "set": {
-        "StopPB": true
+        "mainInstance.StopPB": true
       },
       "scans": 1,
       "expect": {
-        "Running": false,
-        "Lamp": false,
-        "Alarm": false,
-        "tBlinkOn.ET": 0,
-        "tBlinkOff.ET": 0
+        "mainInstance.Running": false,
+        "mainInstance.Lamp": false,
+        "mainInstance.Alarm": false,
+        "mainInstance.tBlinkOn.ET": 0,
+        "mainInstance.tBlinkOff.ET": 0
       }
     },
     {
       "label": "Release stop stays stopped over several blink periods",
       "set": {
-        "StopPB": false
+        "mainInstance.StopPB": false
       },
       "scans": 200,
       "expect": {
-        "Running": false,
-        "Lamp": false,
-        "Blinks": 0
+        "mainInstance.Running": false,
+        "mainInstance.Lamp": false,
+        "mainInstance.Blinks": 0
       }
     },
     {
       "label": "Stop wins over simultaneous start",
       "set": {
-        "StartPB": true,
-        "StopPB": true
+        "mainInstance.StartPB": true,
+        "mainInstance.StopPB": true
       },
       "scans": 1,
       "expect": {
-        "Running": false,
-        "Lamp": false
+        "mainInstance.Running": false,
+        "mainInstance.Lamp": false
       }
     }
   ]

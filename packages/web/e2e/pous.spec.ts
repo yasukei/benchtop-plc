@@ -218,7 +218,7 @@ END_PROGRAM`);
   const seen = monitor
     .getByRole("row")
     .filter({ has: page.getByRole("rowheader", { name: "seen", exact: true }) });
-  await expect(monitor.getByRole("rowheader")).toHaveCount(2);
+  await expect(monitor.getByRole("rowheader")).toHaveCount(3);
   await actual.getByRole("textbox", { name: "Value to write", exact: true }).fill("10");
   await actual.getByRole("button", { name: "Force", exact: true }).click();
   await expect(actual).toHaveAttribute("data-forced", "true");

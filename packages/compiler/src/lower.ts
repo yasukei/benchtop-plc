@@ -670,18 +670,28 @@ export function lowerFunctionBlock(checked: CheckedProgram): IR.UserFunctionBloc
 
 /** Expand storage only: every body remains shared in its POU definition. */
 export function lower(
-  checked: CheckedProgram,
+  programs: readonly CheckedProgram[],
+  configuration: {
+    name: string;
+    resource: string;
+    task: IR.CyclicTaskIR;
+    programs: { name: string; program: number }[];
+    explicit: boolean;
+    span: IR.SourceSpan;
+  },
   blocks: IR.UserFunctionBlockIR[] = [],
-): IR.ProgramIR {
-  const layout = new Lowerer(checked).run();
+): IR.ConfigurationIR {
+  const checked = programs[0]!;
+  const layouts = programs.map((program) => new Lowerer(program).run());
   const variables: IR.Variable[] = [];
   const instances: IR.UserFunctionBlockStorage[] = [];
-  const composites: NonNullable<IR.ProgramIR["composites"]> = [];
+  const composites: NonNullable<IR.ConfigurationIR["composites"]> = [];
   const allocate = (
     locals: IR.LocalVariable[],
     temporaries: readonly number[],
     inOuts: readonly number[],
     prefix: string,
+    programRoot = false,
   ): IR.InstanceStorage[] =>
     locals.map((variable, slot) => {
       if (inOuts.includes(slot)) return { kind: "inOut" };
@@ -695,7 +705,14 @@ export function lower(
           throw new Error("Checked temporary is an instance");
         return { kind: "temporary", variable };
       }
-      const path = prefix + variable.key;
+      const path =
+        prefix +
+        (programRoot &&
+        variable.kind !== "array" &&
+        variable.kind !== "structure" &&
+        variable.kind !== "userFunctionBlock"
+          ? variable.name
+          : variable.key);
       if (variable.kind === "userFunctionBlock") {
         const definition = required(blocks[variable.block]);
         const instance = instances.length;
@@ -760,6 +777,7 @@ export function lower(
             name,
             key: name.toUpperCase(),
             path: segments,
+            watched: segments.some((segment) => segment.startsWith("[")),
             dataType: type,
             initialValue: initial,
             span: span(variable),
@@ -776,33 +794,51 @@ export function lower(
       const segments = path.match(/[^.[\]]+|\[[^\]]+\]/g)!;
       variables.push(
         path.includes("[")
-          ? { ...variable, name: path, key: path, path: segments }
+          ? { ...variable, name: path, key: path.toUpperCase(), path: segments, watched: true }
           : prefix
-            ? { ...variable, name: path, key: path }
+            ? { ...variable, name: path, key: path.toUpperCase(), path: segments }
             : variable,
       );
       return { kind: "variable", variable: id };
     });
-  const temporarySlots = sections(checked).flatMap((section, index) =>
-    section === "VAR_TEMP" ? [index] : [],
-  );
-  const storage = allocate(layout.variables, temporarySlots, [], "");
+  const programInstances = configuration.programs.map((instance): IR.ProgramInstanceIR => {
+    const definition = programs[instance.program]!;
+    const temporarySlots = sections(definition).flatMap((section, index) =>
+      section === "VAR_TEMP" ? [index] : [],
+    );
+    const first = variables.length;
+    const storage = allocate(
+      layouts[instance.program]!.variables,
+      temporarySlots,
+      [],
+      `${instance.name}.`,
+      true,
+    );
+    for (let id = first; id < variables.length; id++) variables[id]!.instance = instance.name;
+    return { ...instance, task: 0, storage };
+  });
   return {
-    kind: "program",
-    name: layout.name,
-    span: layout.span,
-    ...(checked.types.length
+    kind: "configuration",
+    name: configuration.name,
+    span: { ...configuration.span },
+    explicit: configuration.explicit,
+    resource: {
+      name: configuration.resource,
+      tasks: [{ ...configuration.task }],
+      programs: programInstances,
+    },
+    programs: layouts.map((layout) => ({
+      name: layout.name,
+      span: layout.span,
+      body: layout.body,
+    })),
+    ...(checked?.types.length
       ? { types: JSON.parse(JSON.stringify(checked.types)) as IR.TypeTable }
       : {}),
     variables,
     ...(composites.length ? { composites } : {}),
-    body: layout.body,
     ...(blocks.length ? { functionBlocks: blocks } : {}),
-    ...(instances.length ||
-    temporarySlots.length ||
-    layout.variables.some((v) => v.kind === "array" || v.kind === "structure")
-      ? { storage, instances }
-      : {}),
+    ...(instances.length ? { instances } : {}),
   };
 }
 

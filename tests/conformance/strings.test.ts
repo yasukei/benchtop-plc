@@ -15,7 +15,8 @@ function setup(pous: string[], types: string[] = []) {
   const clock = new VirtualClock();
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
-  const id = (name: string) => ir.variables.findIndex((v) => v.key === name.toUpperCase());
+  const id = (name: string) =>
+    ir.variables.findIndex((v) => v.key === `MAININSTANCE.${name.toUpperCase()}`);
   const value = (snapshot: RuntimeSnapshot, name: string) => snapshot.variables[id(name)];
   return { runtime, ir, id, value };
 }
@@ -42,7 +43,7 @@ it("traces string assignment, runtime truncation and code-unit comparisons", () 
     });
   expect(runtime.diagnostic).toBeNull();
   expect(
-    Object.values(runtime.snapshot().annotations)
+    Object.values(runtime.snapshot().annotations.Main ?? {})
       .flat()
       .flatMap((a) => a.values),
   ).toContainEqual({ dataType: "STRING", value: "Hello" });

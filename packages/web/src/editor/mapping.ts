@@ -2,7 +2,7 @@ import { formatMonitoredValue } from "../monitor.js";
 import {
   formatValue,
   type RuntimeSnapshot,
-  type ProgramIR,
+  type ConfigurationIR,
   type TypeDescriptor,
   type Statement,
   type SourceSpan,
@@ -37,7 +37,8 @@ export function mapAnnotations(
   source: string,
   snapshot: RuntimeSnapshot | null,
   online: boolean,
-  ir?: ProgramIR,
+  ir?: ConfigurationIR,
+  pou?: string,
 ): InlineAnnotation[] {
   if (!online || !snapshot) return [];
   const descriptors = new Map<string, TypeDescriptor>();
@@ -60,7 +61,10 @@ export function mapAnnotations(
         visit(statement.body);
     }
   };
-  if (ir) visit(ir.body);
+  const program =
+    ir?.programs.find((program) => program.name.toUpperCase() === pou?.toUpperCase()) ??
+    (pou === undefined ? ir?.programs[0] : undefined);
+  if (program) visit(program.body);
   const lines = source.split("\n");
   const positions: number[] = [];
   let offset = 0;
@@ -68,7 +72,9 @@ export function mapAnnotations(
     positions.push(offset + line.replace(/\r$/, "").length);
     offset += line.length + 1;
   }
-  return Object.entries(snapshot.annotations)
+  return Object.entries(
+    snapshot.annotations[program?.name ?? pou ?? Object.keys(snapshot.annotations)[0] ?? ""] ?? {},
+  )
     .sort(([a], [b]) => Number(a) - Number(b))
     .flatMap(([key, entries]) => {
       const line = Number(key);

@@ -1,0 +1,4 @@
+PROGRAM Counter
+VAR n : INT; END_VAR
+n := n + 1;
+END_PROGRAM

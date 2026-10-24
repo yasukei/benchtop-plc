@@ -129,7 +129,7 @@ describe("standard numeric, bit and elementary functions", () => {
   it("infers generic values separately from selectors, counts and destinations", () => {
     const { result, ir } = execute("INT", "LIMIT(0, x_int, 1000)", "x_int: INT := 4;");
     expect(result).toBe(4);
-    expect(ir.body[0]).toMatchObject({
+    expect(ir.programs[0]!.body[0]).toMatchObject({
       value: {
         dataType: "INT",
         args: [{ dataType: "INT" }, { dataType: "INT" }, { dataType: "INT" }],

@@ -36,7 +36,7 @@ it("executes typed constants in every POU without allocating storage or shifting
   ]);
   expect(compiled.diagnostics).toEqual([]);
   const ir = compiled.ir!;
-  expect(ir.variables.map((variable) => variable.name)).toEqual([
+  expect(ir.variables.map((variable) => variable.name.replace(/^mainInstance\./, ""))).toEqual([
     "selected",
     "x",
     "wrapped",

@@ -148,7 +148,7 @@ describe("runtime scans over hand-written IR", () => {
     expect(order).toEqual(["read", "writes", "forces", "forces", "output"]);
     expect(value(runtime.snapshot(), 2)).toBe(true);
     expect(
-      (runtime.snapshot().annotations[2]?.[0]?.values[0] as TypedValue | undefined)?.value,
+      (runtime.snapshot().annotations.Test?.[2]?.[0]?.values[0] as TypedValue | undefined)?.value,
     ).toBe(false);
   });
 
@@ -524,7 +524,7 @@ describe("runtime scans over hand-written IR", () => {
     );
     const snapshot = runtime.scanOnce();
     expect(
-      snapshot.annotations[5]?.map((entry) => [
+      snapshot.annotations.Test?.[5]?.map((entry) => [
         entry.span.column,
         (entry.values[0] as TypedValue | undefined)?.value,
       ]),
@@ -532,9 +532,9 @@ describe("runtime scans over hand-written IR", () => {
       [2, 4],
       [20, 3],
     ]);
-    (snapshot.annotations[5]![0]!.values[0]! as TypedValue).value = 99;
+    (snapshot.annotations.Test![5]![0]!.values[0]! as TypedValue).value = 99;
     expect(
-      (runtime.snapshot().annotations[5]?.[0]?.values[0] as TypedValue | undefined)?.value,
+      (runtime.snapshot().annotations.Test?.[5]?.[0]?.values[0] as TypedValue | undefined)?.value,
     ).toBe(4);
     expect(runtime.scanOnce().annotations).toEqual({});
     expect(JSON.parse(JSON.stringify(runtime.snapshot()))).toEqual(runtime.snapshot());
@@ -623,7 +623,7 @@ describe("runtime scans over hand-written IR", () => {
     expect(times).toEqual([10, 10, 20, 20]);
     expect(value(runtime.snapshot())).toBe(3);
     expect(value(runtime.snapshot(), 2)).toBe(4);
-    expect(runtime.snapshot().annotations[3]?.[0]?.values).toEqual([
+    expect(runtime.snapshot().annotations.Test?.[3]?.[0]?.values).toEqual([
       { dataType: "BOOL", value: true },
       { dataType: "TIME", value: 3 },
     ]);
@@ -808,7 +808,9 @@ it("keeps closure-owned FB outputs live across scans while coercing and annotati
   for (const expected of [-32768, -32767, -32766]) {
     const snapshot = runtime.scanOnce();
     expect(value(snapshot)).toBe(expected);
-    expect(snapshot.annotations[2]?.[0]?.values).toEqual([{ dataType: "INT", value: expected }]);
+    expect(snapshot.annotations.Test?.[2]?.[0]?.values).toEqual([
+      { dataType: "INT", value: expected },
+    ]);
     expect(snapshot.variables[1]).toMatchObject({
       outputs: [{ dataType: "INT", value: expected }],
     });

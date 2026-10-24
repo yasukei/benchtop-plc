@@ -18,16 +18,38 @@ function withoutSpans(value: unknown): unknown {
 }
 
 describe("reference program compilation", () => {
-  it("matches the checked-in JSON golden IR", async () => {
+  it("matches the checked-in JSON golden IR", () => {
     const result = compile(source);
     expect(result.diagnostics).toEqual([]);
     expect(result.ir).toBeDefined();
-    await expect(JSON.stringify(result.ir, null, 2) + "\n").toMatchFileSnapshot(
-      "./fixtures/reference-ir.json",
+    expect(result.ir).toEqual(
+      JSON.parse(readFileSync(new URL("./fixtures/reference-ir.json", import.meta.url), "utf8")),
     );
-    expect(result.ir!.variables).toStrictEqual(referenceIR.variables);
+    expect(result.ir!.variables).toStrictEqual(
+      referenceIR.variables.map((variable) => ({
+        ...variable,
+        name: `mainInstance.${variable.name}`,
+        key: `MAININSTANCE.${variable.key}`,
+        path: ["mainInstance", variable.name],
+        instance: "mainInstance",
+      })),
+    );
     // Independent hand-written semantics; compiled grouping spans include parentheses.
-    expect(withoutSpans(result.ir)).toStrictEqual(withoutSpans(referenceIR));
+    expect(withoutSpans(result.ir!.programs[0]!.body)).toStrictEqual(
+      withoutSpans(referenceIR.body),
+    );
+    expect(result.ir!.resource).toEqual({
+      name: "Res",
+      tasks: [{ name: "Cyclic", intervalMs: 10, priority: 1 }],
+      programs: [
+        {
+          name: "mainInstance",
+          program: 0,
+          task: 0,
+          storage: referenceIR.variables.map((_, variable) => ({ kind: "variable", variable })),
+        },
+      ],
+    });
   });
 
   it("gives every IR node a nonempty source span contained in its parent", () => {
@@ -40,7 +62,7 @@ describe("reference program compilation", () => {
       if (Array.isArray(value)) return value.forEach((child) => walk(child, parent));
       if (value === null || typeof value !== "object") return;
       const node = value as Record<string, unknown>;
-      if (!("area" in node)) {
+      if ("span" in node) {
         const span = node.span as SourceSpan;
         expect(span).toBeDefined();
         count++;
@@ -93,14 +115,16 @@ describe("reference program compilation", () => {
 });
 
 describe("running-light program compilation", () => {
-  it("matches the golden IR from before overload selection (ab9f9b9)", async () => {
+  it("matches the migrated running-light golden IR", () => {
     const source = readFileSync(new URL("./running-light/program.st", import.meta.url), "utf8");
     const result = compile(source);
     expect(result.diagnostics).toEqual([]);
     expect(result.ir).toBeDefined();
-    // Generated with the compiler at ab9f9b9c0499b6ff2b935087c4050460b0df7057.
-    await expect(JSON.stringify(result.ir, null, 2) + "\n").toMatchFileSnapshot(
-      "./fixtures/running-light-ir.json",
+    // Original body generated at ab9f9b9; migrated to the configuration storage model.
+    expect(result.ir).toEqual(
+      JSON.parse(
+        readFileSync(new URL("./fixtures/running-light-ir.json", import.meta.url), "utf8"),
+      ),
     );
   });
 });

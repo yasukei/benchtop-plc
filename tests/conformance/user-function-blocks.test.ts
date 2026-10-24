@@ -11,7 +11,7 @@ function setup(sources: string[]) {
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
   const id = (name: string) =>
-    ir.variables.findIndex((variable) => variable.key === name.toUpperCase());
+    ir.variables.findIndex((variable) => variable.key === `MAININSTANCE.${name.toUpperCase()}`);
   const value = (snapshot: RuntimeSnapshot, name: string) => snapshot.variables[id(name)];
   const scalar = (snapshot: RuntimeSnapshot, name: string) => {
     const cell = value(snapshot, name);
@@ -117,10 +117,12 @@ it("widens input/output durations, handles public input assignment and RETURN, a
   ]);
   const snapshot = runtime.scanOnce();
   expect(scalar(snapshot, "elapsed")).toBe("1000000000");
-  expect(Object.values(snapshot.annotations).flat()).toHaveLength(2);
-  expect(Object.values(snapshot.annotations).flat().at(-1)?.values).toEqual([
-    { dataType: "TIME", value: 1000 },
-  ]);
+  expect(Object.values(snapshot.annotations.Main ?? {}).flat()).toHaveLength(2);
+  expect(
+    Object.values(snapshot.annotations.Main ?? {})
+      .flat()
+      .at(-1)?.values,
+  ).toEqual([{ dataType: "TIME", value: 1000 }]);
 });
 
 it("names the faulting POU and nested instance, keeping all persistent state in FAULT", () => {
@@ -134,7 +136,7 @@ it("names the faulting POU and nested instance, keeping all persistent state in 
   expect(runtime.diagnostic).toMatchObject({
     code: "runtime.division-by-zero",
     pou: "Broken",
-    instance: "M1.DELAY",
+    instance: "mainInstance.M1.DELAY",
   });
   expect(scalar(snapshot, "M1.DELAY.COUNT")).toBe(6);
   runtime.stop();
@@ -174,7 +176,7 @@ it("widens user block input durations and transports long output annotations as 
   ]);
   const snapshot = runtime.scanOnce();
   expect(scalar(snapshot, "elapsed")).toBe("1000000000");
-  expect(Object.values(snapshot.annotations).flat()[0]?.values).toEqual([
+  expect(Object.values(snapshot.annotations.Main ?? {}).flat()[0]?.values).toEqual([
     { dataType: "LTIME", value: "1000000000" },
   ]);
   expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
@@ -195,7 +197,7 @@ it("annotates user block outputs in declaration order despite reversed output bi
   expect(runtime.diagnostic).toBeNull();
   expect(scalar(snapshot, "number")).toBe(42);
   expect(scalar(snapshot, "flag")).toBe(true);
-  expect(Object.values(snapshot.annotations).flat()).toEqual([
+  expect(Object.values(snapshot.annotations.Main ?? {}).flat()).toEqual([
     expect.objectContaining({
       span: expect.objectContaining({ line: 3 }),
       values: [
@@ -215,7 +217,7 @@ it("shares the scan watchdog across several block invocations", () => {
   expect(runtime.diagnostic).toMatchObject({
     code: "runtime.watchdog",
     pou: "Work",
-    instance: "SECOND",
+    instance: "mainInstance.SECOND",
   });
 });
 
@@ -228,7 +230,7 @@ it("reports function faults without the calling block's instance path", () => {
   ]);
   runtime.scanOnce();
   expect(runtime.diagnostic).toMatchObject({ code: "runtime.division-by-zero", pou: "Divide" });
-  expect(runtime.diagnostic).not.toHaveProperty("instance");
+  expect(runtime.diagnostic).toHaveProperty("instance", "mainInstance");
 });
 
 it("restores a block's instance path after a successful function call", () => {
@@ -241,6 +243,6 @@ it("restores a block's instance path after a successful function call", () => {
   expect(runtime.diagnostic).toMatchObject({
     code: "runtime.division-by-zero",
     pou: "B",
-    instance: "M1",
+    instance: "mainInstance.M1",
   });
 });

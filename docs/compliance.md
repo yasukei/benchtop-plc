@@ -147,9 +147,12 @@ benchtop-plc restriction pending IEC edition verification (see #92).
 
 ## Configuration elements
 
-| Feature                                       | Status | Notes                                                  |
-| --------------------------------------------- | ------ | ------------------------------------------------------ |
-| `CONFIGURATION`, `RESOURCE`, `TASK` in source | No     | One cyclic task is implied; the cycle is set in the UI |
+| Feature                   | Status  | Notes                                                                                                                                                      |
+| ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONFIGURATION` in source | Partial | One optional source; implicit configuration for a single PROGRAM. No source editor/XML exchange yet. ADR 0016, based on 3rd edition and secondary sources. |
+| `RESOURCE`                | Partial | Exactly one; arbitrary `ON` identifier is ignored. No globals yet.                                                                                         |
+| `TASK`                    | Partial | One cyclic task; TIME/LTIME interval literal, 10 ms–1 h in 10 ms steps; priority 0–65535. Both parameters required. No event tasks or multiple tasks yet.  |
+| Program instances         | Partial | 1–64, `WITH` required; same/different PROGRAM bodies, separate memory, declaration order. No program parameter connections yet.                            |
 
 ## Implementation-dependent parameters
 
@@ -178,7 +181,7 @@ benchtop-plc restriction pending IEC edition verification (see #92).
 | Reaction to non-finite REAL results       | FAULT (ADR 0010)                                                                                                                                                                                                                                               |
 | Constant evaluation budget                | Decimal scales within ±10,000; larger powers are rejected as `type.invalid-constant` before allocation, including underflows                                                                                                                                   |
 | Maximum loop iterations per scan          | 200,000, then FAULT (ADR 0010)                                                                                                                                                                                                                                 |
-| Task cycle times                          | 10, 20, 50 and 100 ms                                                                                                                                                                                                                                          |
+| Task cycle times                          | Explicit configuration: whole multiples of 10 ms, 10 ms–1 h; implicit configuration UI: 10, 20, 50 and 100 ms                                                                                                                                                  |
 | Direct-address ranges                     | `%IX0.0`–`%IX0.7`, `%QX0.0`–`%QX0.7`                                                                                                                                                                                                                           |
 
 Bit-string conversions follow the IEC binary-transfer rules (based on the 3rd

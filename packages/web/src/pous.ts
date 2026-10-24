@@ -1,3 +1,4 @@
+import type { Project } from "@benchtop-plc/project";
 import { compileProject, lex, type CompileDiagnostic } from "@benchtop-plc/compiler";
 import { spanRange } from "./editor/mapping.js";
 import type { Diagnostic } from "@benchtop-plc/core";
@@ -17,7 +18,9 @@ export type EditorDiagnostic = CompileDiagnostic;
 
 /** Source indexes belong to separate lists for POUs and data types. */
 export function diagnosticPouSourceIndex(diagnostic: EditorDiagnostic): number | undefined {
-  return diagnostic.sourceKind === "dataType" ? undefined : diagnostic.sourceIndex;
+  return diagnostic.sourceKind === "dataType" || diagnostic.sourceKind === "configuration"
+    ? undefined
+    : diagnostic.sourceIndex;
 }
 
 function headerTokens(source: string) {
@@ -51,6 +54,7 @@ export function diagnosticSourceMatches(
   selectedDataType: number | null,
 ): boolean {
   return (
+    diagnostic.sourceKind !== "configuration" &&
     diagnostic.sourceIndex === (selectedDataType ?? selectedPou) &&
     (diagnostic.sourceKind === "dataType") === (selectedDataType !== null)
   );
@@ -119,8 +123,30 @@ export function deletePou(pous: EditorPou[], index: number): EditorPou[] {
 }
 
 /** Give even a broken header's diagnostics a stable editor location. */
-export function compilePous(pous: readonly EditorPou[], dataTypes: readonly string[] = []) {
-  return compileProject(pouSources(pous), dataTypes);
+export function implicitConfiguration(project: Project | null, intervalMs = 10) {
+  return {
+    name: project?.configuration,
+    resource: project?.resource,
+    task: {
+      name: project?.task.name ?? "Cyclic",
+      priority: project?.task.priority ?? 1,
+      intervalMs,
+    },
+    instance: project?.instance?.name,
+  };
+}
+export function compilePous(
+  pous: readonly EditorPou[],
+  dataTypes: readonly string[] = [],
+  project: Project | null = null,
+  intervalMs = 10,
+) {
+  return compileProject(
+    pouSources(pous),
+    dataTypes,
+    undefined,
+    implicitConfiguration(project, intervalMs),
+  );
 }
 
 export function diagnosticPouIndex(

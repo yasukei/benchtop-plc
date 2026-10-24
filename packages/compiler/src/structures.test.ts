@@ -35,13 +35,15 @@ describe("structures", () => {
       ],
     );
     expect(result.diagnostics).toEqual([]);
-    expect(result.ir?.variables.map((v) => [v.name, v.initialValue])).toEqual([
+    expect(
+      result.ir?.variables.map((v) => [v.name.replace(/^mainInstance\./, ""), v.initialValue]),
+    ).toEqual([
       ["R.STEPS[1].X", 2],
       ["R.STEPS[1].Y", 1],
       ["R.STEPS[2].X", 0],
       ["R.STEPS[2].Y", 1],
     ]);
-    expect(result.ir?.composites?.map((v) => v.name)).toEqual([
+    expect(result.ir?.composites?.map((v) => v.name.replace(/^mainInstance\./, ""))).toEqual([
       "R",
       "R.STEPS",
       "R.STEPS[1]",
@@ -58,7 +60,7 @@ describe("structures", () => {
       ["TYPE Settings : STRUCT x : BOOL; flags : WORD; END_STRUCT; END_TYPE"],
     );
     expect(result.diagnostics).toEqual([]);
-    expect(result.ir?.body).toMatchObject([
+    expect(result.ir?.programs[0]!.body).toMatchObject([
       { target: { kind: "structureMember", member: 0 }, value: { kind: "bit", bit: 3 } },
       { target: { kind: "elementBit", bit: 3 }, value: { kind: "structureMember", member: 0 } },
     ]);

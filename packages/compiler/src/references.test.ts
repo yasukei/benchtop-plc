@@ -14,12 +14,12 @@ describe("references", () => {
       "r := REF(p); a[1] := r; rr := REF(r); rr^^.x := a[1]^.x;",
     );
     expect(result.diagnostics).toEqual([]);
-    expect(result.ir?.variables.find((v) => v.key === "R")).toMatchObject({
+    expect(result.ir?.variables.find((v) => v.key === "MAININSTANCE.R")).toMatchObject({
       kind: "reference",
       initialValue: null,
       dataType: { kind: "reference", target: { kind: "named", name: "Point" } },
     });
-    expect(result.ir?.body[0]).toMatchObject({ value: { kind: "referenceOf" } });
+    expect(result.ir?.programs[0]!.body[0]).toMatchObject({ value: { kind: "referenceOf" } });
     expect(JSON.parse(JSON.stringify(result.ir))).toEqual(result.ir);
   });
 

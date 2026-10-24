@@ -70,7 +70,12 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     emergencyReleased: false,
     loadedSources: null,
     loadedDataTypes: null,
-    diagnostics: compilePous(pous, pouSources(dataTypes)).diagnostics,
+    diagnostics: compilePous(
+      pous,
+      pouSources(dataTypes),
+      typeof initial === "string" ? null : initial.project,
+      typeof initial === "string" ? 10 : initial.cycleMs,
+    ).diagnostics,
     runtimeState: "STOP",
     snapshot: null,
     diagnostic: null,
@@ -116,7 +121,12 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   });
   const compileEditor = () => {
     clearTimeout(compileTimer);
-    const result = compilePous(state.pous, pouSources(state.dataTypes));
+    const result = compilePous(
+      state.pous,
+      pouSources(state.dataTypes),
+      state.project,
+      state.cycleMs,
+    );
     update({ diagnostics: result.diagnostics });
     return result;
   };
@@ -159,7 +169,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       source: pous[selectedPou]?.source ?? "",
       layout: opened.layout,
       project: opened.project,
-      diagnostics: compilePous(pous, opened.project.dataTypes).diagnostics,
+      diagnostics: compilePous(pous, opened.project.dataTypes, opened.project, ms).diagnostics,
       cycleMs: ms as CycleMs,
       // Identical editor text can belong to a different project-wide compilation.
       loadedSources: null,
@@ -241,7 +251,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         source: dataTypes.at(-1)!.source,
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
-        diagnostics: compilePous(state.pous, pouSources(dataTypes)).diagnostics,
+        diagnostics: compilePous(state.pous, pouSources(dataTypes), state.project, state.cycleMs)
+          .diagnostics,
       });
     },
     deleteDataType(index: number) {
@@ -264,7 +275,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
             ?.source ?? "",
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
-        diagnostics: compilePous(state.pous, pouSources(dataTypes)).diagnostics,
+        diagnostics: compilePous(state.pous, pouSources(dataTypes), state.project, state.cycleMs)
+          .diagnostics,
       });
     },
     addFunction() {
@@ -277,7 +289,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         selectedPou: pous.length - 1,
         selectedDataType: null,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous, pouSources(state.dataTypes)).diagnostics,
+        diagnostics: compilePous(pous, pouSources(state.dataTypes), state.project, state.cycleMs)
+          .diagnostics,
       });
     },
     addFunctionBlock() {
@@ -290,7 +303,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         selectedPou: pous.length - 1,
         selectedDataType: null,
         source: pous.at(-1)!.source,
-        diagnostics: compilePous(pous, pouSources(state.dataTypes)).diagnostics,
+        diagnostics: compilePous(pous, pouSources(state.dataTypes), state.project, state.cycleMs)
+          .diagnostics,
       });
     },
     deletePou(index: number) {
@@ -311,7 +325,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
             ? pous[selectedPou]
             : state.dataTypes[state.selectedDataType]
           )?.source ?? "",
-        diagnostics: compilePous(pous, pouSources(state.dataTypes)).diagnostics,
+        diagnostics: compilePous(pous, pouSources(state.dataTypes), state.project, state.cycleMs)
+          .diagnostics,
       });
     },
     loadEditor,

@@ -27,14 +27,17 @@ describe("named constants", () => {
     const compiled = compile(source);
     expect(compiled.diagnostics).toEqual([]);
     expect(
-      compiled.ir!.variables.map((variable) => [variable.name, variable.initialValue]),
+      compiled.ir!.variables.map((variable) => [
+        variable.name.replace(/^mainInstance\./, ""),
+        variable.initialValue,
+      ]),
     ).toEqual([
       ["a", -5536],
       ["b", "0"],
       ["c", false],
       ["d", 0],
     ]);
-    expect(compiled.ir!.body[0]).toMatchObject({
+    expect(compiled.ir!.programs[0]!.body[0]).toMatchObject({
       kind: "assignment",
       target: { variable: 0 },
       value: { kind: "literal", dataType: "INT", value: -5536 },
@@ -52,15 +55,15 @@ describe("named constants", () => {
       ),
     );
     expect(compiled.diagnostics).toEqual([]);
-    expect(compiled.ir!.body[0]).toMatchObject({
+    expect(compiled.ir!.programs[0]!.body[0]).toMatchObject({
       kind: "case",
       branches: [{ labels: [{ kind: "range", lower: 1, upper: 3 }] }],
     });
-    expect(compiled.ir!.body[1]).toMatchObject({
+    expect(compiled.ir!.programs[0]!.body[1]).toMatchObject({
       kind: "assignment",
       target: { kind: "bit", variable: 2, bit: 7 },
     });
-    expect(compiled.ir!.body[2]).toMatchObject({
+    expect(compiled.ir!.programs[0]!.body[2]).toMatchObject({
       kind: "for",
       variable: { variable: 1 },
       from: { value: 1 },
@@ -77,8 +80,8 @@ describe("named constants", () => {
     const declarations =
       "VAR CONSTANT Mask : LWORD := LWORD#16#8000000000000000; Index : INT := 63; END_VAR VAR flag : BOOL := Mask.Index; END_VAR";
     expect(compile(program(declarations, "flag := Mask.Index;")).ir).toMatchObject({
-      variables: [{ name: "flag", initialValue: true }],
-      body: [{ kind: "assignment", value: { kind: "literal", value: true } }],
+      variables: [{ name: "mainInstance.flag", initialValue: true }],
+      programs: [{ body: [{ kind: "assignment", value: { kind: "literal", value: true } }] }],
     });
     expect(compile(program(declarations, "Mask.Index := FALSE;")).diagnostics).toContainEqual(
       expect.objectContaining({ code: "decl.constant-not-writable" }),

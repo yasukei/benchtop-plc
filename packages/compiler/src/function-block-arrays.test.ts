@@ -22,16 +22,19 @@ it("allocates standard and user elements with shared code and grouped monitor pa
   ]);
   expect(result.diagnostics).toEqual([]);
   expect(result.ir?.functionBlocks).toHaveLength(1);
-  expect(result.ir?.instances?.map((instance) => instance.path)).toEqual(["M[1]", "M[2]"]);
-  expect(result.ir?.variables.find((v) => v.key === "M[2].RUNNING")?.path).toEqual([
+  expect(
+    result.ir?.instances?.map((instance) => instance.path.replace(/^mainInstance\./, "")),
+  ).toEqual(["M[1]", "M[2]"]);
+  expect(result.ir?.variables.find((v) => v.key === "MAININSTANCE.M[2].RUNNING")?.path).toEqual([
+    "mainInstance",
     "M",
     "[2]",
     "RUNNING",
   ]);
-  expect(result.ir?.variables.find((v) => v.key === "T[4]")).toMatchObject({
+  expect(result.ir?.variables.find((v) => v.key === "MAININSTANCE.T[4]")).toMatchObject({
     kind: "functionBlock",
     fbType: "TON",
-    path: ["T", "[4]"],
+    path: ["mainInstance", "T", "[4]"],
   });
   expect(JSON.parse(JSON.stringify(result.ir))).toEqual(result.ir);
 });
@@ -130,10 +133,10 @@ it("selects independent variants for arrays sharing a multi-name declaration", (
   ]);
   expect(result.diagnostics).toEqual([]);
   expect(result.ir?.variables).toMatchObject([
-    { key: "A[1]", fbType: "CTU_DINT" },
-    { key: "A[2]", fbType: "CTU_DINT" },
-    { key: "B[1]", fbType: "CTU_ULINT" },
-    { key: "B[2]", fbType: "CTU_ULINT" },
+    { key: "MAININSTANCE.A[1]", fbType: "CTU_DINT" },
+    { key: "MAININSTANCE.A[2]", fbType: "CTU_DINT" },
+    { key: "MAININSTANCE.B[1]", fbType: "CTU_ULINT" },
+    { key: "MAININSTANCE.B[2]", fbType: "CTU_ULINT" },
   ]);
 });
 

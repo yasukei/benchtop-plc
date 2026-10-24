@@ -1,4 +1,4 @@
-import type { Diagnostic, ProgramIR, RuntimeSnapshot, SourceSpan } from "@benchtop-plc/core";
+import type { Diagnostic, ConfigurationIR, RuntimeSnapshot, SourceSpan } from "@benchtop-plc/core";
 import { defaultKeymap, history, historyKeymap, indentLess } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { setDiagnostics } from "@codemirror/lint";
@@ -28,10 +28,11 @@ export interface EditorProps {
   online: boolean;
   fault: Diagnostic | null;
   language: Language;
-  ir?: ProgramIR;
+  ir?: ConfigurationIR;
   sources?: readonly string[];
   dataTypes?: readonly string[];
   sourceIndex?: number;
+  pou?: string;
 }
 
 class ValuesWidget extends WidgetType {
@@ -148,11 +149,16 @@ export function createStEditor(
       if (view.state.doc.toString() !== props.source) {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: props.source } });
       }
-      const decorations = mapAnnotations(props.source, props.snapshot, props.online, props.ir).map(
-        (annotation) =>
-          Decoration.widget({ widget: new ValuesWidget(annotation), side: 1 }).range(
-            annotation.position,
-          ),
+      const decorations = mapAnnotations(
+        props.source,
+        props.snapshot,
+        props.online,
+        props.ir,
+        props.pou,
+      ).map((annotation) =>
+        Decoration.widget({ widget: new ValuesWidget(annotation), side: 1 }).range(
+          annotation.position,
+        ),
       );
       if (props.online && props.fault?.span) {
         const position = spanRange(props.source, props.fault.span).from;

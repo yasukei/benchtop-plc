@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { Expression, ProgramIR } from "@benchtop-plc/core";
+import type { Expression, ConfigurationIR } from "@benchtop-plc/core";
 import { check, compile, lower, parse } from "./index.js";
 
-function valid(declarations: string, body = ""): ProgramIR {
+function valid(declarations: string, body = ""): ConfigurationIR {
   const result = compile(`PROGRAM Main\nVAR\n${declarations}\nEND_VAR\n${body}\nEND_PROGRAM`);
   expect(result.diagnostics).toEqual([]);
   expect(result.ir).toBeDefined();
   return result.ir!;
 }
 
-function values(ir: ProgramIR): Expression[] {
-  return ir.body.map((node) => {
+function values(ir: ConfigurationIR): Expression[] {
+  return ir.programs[0]!.body.map((node) => {
     if (node.kind !== "assignment") throw new Error("Expected assignment");
     return node.value;
   });
@@ -36,7 +36,7 @@ describe("compile entry point", () => {
   it("supports empty programs and independent repeated compilations", () => {
     const source = "PROGRAM Empty END_PROGRAM";
     expect(compile(source)).toMatchObject({
-      ir: { name: "Empty", variables: [], body: [] },
+      ir: { name: "Config", variables: [], programs: [{ name: "Empty", body: [] }] },
       diagnostics: [],
     });
     compile("invalid");
@@ -47,15 +47,38 @@ describe("compile entry point", () => {
     const ast = parse("PROGRAM P VAR x : INT; END_VAR x := (1 + 2); END_PROGRAM").ast!;
     const before: unknown = JSON.parse(JSON.stringify(ast));
     const checked = check(ast).checked!;
-    const ir = lower(checked);
+    const ir = lower([checked], {
+      name: "Config",
+      resource: "Res",
+      task: { name: "Cyclic", intervalMs: 10, priority: 1 },
+      programs: [{ name: "mainInstance", program: 0 }],
+      explicit: false,
+      span: ast.span,
+    });
     expect(ast).toStrictEqual(before);
-    const again = lower(checked);
+    const again = lower([checked], {
+      name: "Config",
+      resource: "Res",
+      task: { name: "Cyclic", intervalMs: 10, priority: 1 },
+      programs: [{ name: "mainInstance", program: 0 }],
+      explicit: false,
+      span: ast.span,
+    });
     expect(ir).toStrictEqual(again);
     ir.span.line = 99;
     ir.variables[0]!.span.line = 99;
-    ir.body[0]!.span.line = 99;
+    ir.programs[0]!.body[0]!.span.line = 99;
     expect(ast).toStrictEqual(before);
-    expect(lower(checked)).toStrictEqual(again);
+    expect(
+      lower([checked], {
+        name: "Config",
+        resource: "Res",
+        task: { name: "Cyclic", intervalMs: 10, priority: 1 },
+        programs: [{ name: "mainInstance", program: 0 }],
+        explicit: false,
+        span: ast.span,
+      }),
+    ).toStrictEqual(again);
   });
 
   it("keeps enormous TIME literals JSON-safe while checking their exact text", () => {
@@ -92,7 +115,13 @@ t : TIME := T#1s500ms;
 flag AT %IX0.7 : BOOL;
 out AT %QX0.0 : BOOL := TRUE;
 timer : tOn;`);
-    expect(ir.variables.map((node) => [node.name, node.key, node.initialValue])).toEqual([
+    expect(
+      ir.variables.map((node) => [
+        node.name.replace(/^mainInstance\./, ""),
+        node.key.replace(/^MAININSTANCE\./, ""),
+        node.initialValue,
+      ]),
+    ).toEqual([
       ["a", "A", -32768],
       ["B", "B", -32768],
       ["u", "U", 65535],
@@ -155,7 +184,7 @@ timer : tOn;`);
       "Value : INT; flag : BOOL;",
       "vAlUe := abs(INT#-2); flag := TRUE & NOT FALSE; Value := max(value, 32767);",
     );
-    expect(ir.body[0]).toMatchObject({
+    expect(ir.programs[0]!.body[0]).toMatchObject({
       target: { kind: "variable", variable: 0, dataType: "INT" },
       value: { kind: "functionCall", function: "ABS", dataType: "INT" },
     });
@@ -177,14 +206,16 @@ timer : tOn;`);
       "timer : TON; counter : CTU; b : BOOL; x : INT;",
       "timer.pt := T#1s; b := timer.IN; b := timer.q; timer(pT := T#500ms, iN := b); counter(pv := x, cu := b); x := counter.cv;",
     );
-    expect(ir.body[0]).toMatchObject({
+    expect(ir.programs[0]!.body[0]).toMatchObject({
       target: { kind: "fbMember", variable: 0, port: "input", member: 1, dataType: "TIME" },
     });
-    expect(values({ ...ir, body: ir.body.slice(1, 3) })).toMatchObject([
+    expect(
+      values({ ...ir, programs: [{ ...ir.programs[0]!, body: ir.programs[0]!.body.slice(1, 3) }] }),
+    ).toMatchObject([
       { kind: "fbMember", variable: 0, port: "input", member: 0, dataType: "BOOL" },
       { kind: "fbMember", variable: 0, port: "output", member: 0, dataType: "BOOL" },
     ]);
-    expect(ir.body[3]).toMatchObject({
+    expect(ir.programs[0]!.body[3]).toMatchObject({
       kind: "fbCall",
       variable: 0,
       inputs: [
@@ -192,14 +223,14 @@ timer : tOn;`);
         { name: "IN", input: 0 },
       ],
     });
-    expect(ir.body[4]).toMatchObject({
+    expect(ir.programs[0]!.body[4]).toMatchObject({
       variable: 1,
       inputs: [
         { name: "PV", input: 2 },
         { name: "CU", input: 0 },
       ],
     });
-    expect(ir.body[5]).toMatchObject({
+    expect(ir.programs[0]!.body[5]).toMatchObject({
       value: { kind: "fbMember", variable: 1, port: "output", member: 1, dataType: "INT" },
     });
   });
@@ -212,7 +243,7 @@ describe("control flow and source constructs", () => {
       `IF b THEN x := 1; ELSIF NOT b THEN x := 2; ELSE x := 3; END_IF;
 CASE x OF 1 + 1, 3..5: x := 6; -1: RETURN; ELSE x := 0; END_CASE;`,
     );
-    expect(ir.body[0]).toMatchObject({
+    expect(ir.programs[0]!.body[0]).toMatchObject({
       kind: "if",
       branches: [
         { condition: { variable: 1 }, body: [{ value: { value: 1 } }] },
@@ -220,7 +251,7 @@ CASE x OF 1 + 1, 3..5: x := 6; -1: RETURN; ELSE x := 0; END_CASE;`,
       ],
       elseBody: [{ value: { value: 3 } }],
     });
-    expect(ir.body[1]).toMatchObject({
+    expect(ir.programs[0]!.body[1]).toMatchObject({
       kind: "case",
       selector: { variable: 0, dataType: "INT" },
       branches: [
@@ -243,7 +274,7 @@ CASE x OF 1 + 1, 3..5: x := 6; -1: RETURN; ELSE x := 0; END_CASE;`,
 FOR j := 3 TO 1 BY -1 DO REPEAT b := FALSE; UNTIL b END_REPEAT; END_FOR;
 RETURN;`,
     );
-    expect(ir.body[0]).toMatchObject({
+    expect(ir.programs[0]!.body[0]).toMatchObject({
       kind: "for",
       variable: { variable: 0, dataType: "UINT" },
       from: { value: 1 },
@@ -251,22 +282,22 @@ RETURN;`,
       step: { kind: "literal", dataType: "UINT", value: 1 },
       body: [{ kind: "while", condition: { variable: 2 }, body: [{ kind: "exit" }] }],
     });
-    if (ir.body[0]!.kind !== "for") throw new Error("Expected FOR");
-    expect(ir.body[0]!.step.span).toEqual(ir.body[0]!.variable.span);
-    expect(ir.body[1]).toMatchObject({
+    if (ir.programs[0]!.body[0]!.kind !== "for") throw new Error("Expected FOR");
+    expect(ir.programs[0]!.body[0]!.step.span).toEqual(ir.programs[0]!.body[0]!.variable.span);
+    expect(ir.programs[0]!.body[1]).toMatchObject({
       kind: "for",
       variable: { variable: 1, dataType: "DINT" },
       step: { kind: "literal", dataType: "DINT", value: -1 },
       body: [{ kind: "repeat", body: [{ kind: "assignment" }], until: { variable: 2 } }],
     });
-    expect(ir.body[2]).toMatchObject({ kind: "return" });
+    expect(ir.programs[0]!.body[2]).toMatchObject({ kind: "return" });
   });
 
   it("uses complete grouping spans while preserving child and per-statement locations", () => {
     const source =
       "PROGRAM P\r\nVAR x : INT; timer : TON; END_VAR\r\nx := ((x + 2)); x := 3;\r\ntimer(\r\n IN := TRUE\r\n);\r\nEND_PROGRAM";
     const ir = compile(source).ir!;
-    expect(ir.body[0]).toMatchObject({
+    expect(ir.programs[0]!.body[0]).toMatchObject({
       span: { line: 3, column: 1, endLine: 3, endColumn: 16 },
       value: {
         kind: "binary",
@@ -274,7 +305,12 @@ RETURN;`,
         left: { span: { line: 3, column: 8, endLine: 3, endColumn: 9 } },
       },
     });
-    expect(ir.body[1]!.span).toEqual({ line: 3, column: 17, endLine: 3, endColumn: 24 });
-    expect(ir.body[2]!.span).toEqual({ line: 4, column: 1, endLine: 6, endColumn: 3 });
+    expect(ir.programs[0]!.body[1]!.span).toEqual({
+      line: 3,
+      column: 17,
+      endLine: 3,
+      endColumn: 24,
+    });
+    expect(ir.programs[0]!.body[2]!.span).toEqual({ line: 4, column: 1, endLine: 6, endColumn: 3 });
   });
 });

@@ -16,7 +16,9 @@ function setup(declarations: string, body: string) {
     stages: {
       applyPendingWrites(memory) {
         for (const [name, value] of Object.entries(writes)) {
-          const index = ir.variables.findIndex((variable) => variable.name === name);
+          const index = ir.variables.findIndex(
+            (variable) => variable.name === `mainInstance.${name}`,
+          );
           if (index < 0) throw new Error(`Unknown variable ${name}`);
           memory.write(index, value);
         }
@@ -32,7 +34,9 @@ function setup(declarations: string, body: string) {
     return Object.fromEntries(
       ir.variables.flatMap((variable, index) => {
         const cell = snapshot.variables[index]!;
-        return cell.kind === "scalar" ? [[variable.name, cell.value]] : [];
+        return cell.kind === "scalar"
+          ? [[variable.name.replace(/^mainInstance\./, ""), cell.value]]
+          : [];
       }),
     );
   }

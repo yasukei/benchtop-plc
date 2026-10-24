@@ -10,7 +10,7 @@ import type {
   ValueByType,
 } from "./values.js";
 
-/** Zero-based index into ProgramIR.variables, stable for the lifetime of a loaded program. */
+/** Zero-based index into the loaded IR variable table, stable for the lifetime of a loaded program. */
 export type VariableId = number;
 /** Declaration index in the executing frame; storage mappings resolve monitored VariableIds. */
 export type FrameSlot = number;
@@ -180,6 +180,10 @@ interface VariableBase extends SourceNode {
   name: string;
   /** Display path segments; aggregate leaves are sent only when watched or forced. */
   path?: string[];
+  /** Only leaves beneath an array require watching; instance qualification does not. */
+  watched?: boolean;
+  /** Owning program instance, absent for globals. */
+  instance?: string;
   /** Upper-case ST identifier, for compilation and display lookup only. */
   key: string;
 }
@@ -230,6 +234,41 @@ export interface ProgramIR extends SourceNode {
   /** Declaration slots mapped to monitored storage, temporaries or user instances. */
   composites?: { name: string; path: string[]; dataType: TypeDescriptor }[];
   storage?: InstanceStorage[];
+  instances?: UserFunctionBlockStorage[];
+}
+
+/** Shared PROGRAM code, referenced by resource instances in declaration order. */
+export interface ProgramBodyIR extends SourceNode {
+  name: string;
+  body: Statement[];
+}
+export interface ProgramInstanceIR {
+  name: string;
+  program: number;
+  task: number;
+  storage: InstanceStorage[];
+}
+export interface CyclicTaskIR {
+  name: string;
+  intervalMs: number;
+  priority: number;
+}
+/** One configuration and resource, with one flat monitored storage table. */
+export interface ConfigurationIR extends SourceNode {
+  kind: "configuration";
+  name: string;
+  explicit: boolean;
+  resource: {
+    name: string;
+    tasks: CyclicTaskIR[];
+    programs: ProgramInstanceIR[];
+  };
+  programs: ProgramBodyIR[];
+  variables: Variable[];
+  types?: TypeTable;
+  functions?: UserFunctionIR[];
+  functionBlocks?: UserFunctionBlockIR[];
+  composites?: { name: string; path: string[]; dataType: TypeDescriptor }[];
   instances?: UserFunctionBlockStorage[];
 }
 

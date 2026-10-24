@@ -17,7 +17,9 @@ function setup(declarations: string, body: string) {
     stages: {
       applyPendingWrites(memory: ScanMemory) {
         for (const [name, value] of Object.entries(writes)) {
-          const index = ir.variables.findIndex((variable) => variable.name === name);
+          const index = ir.variables.findIndex(
+            (variable) => variable.name === `mainInstance.${name}`,
+          );
           if (index < 0) throw new Error(`Unknown variable ${name}`);
           memory.write(index, value);
         }
@@ -29,7 +31,10 @@ function setup(declarations: string, body: string) {
     return Object.fromEntries(
       ir.variables.map((variable, index): [string, ScalarValue | VariableSnapshot] => {
         const value = snapshot.variables[index]!;
-        return [variable.name, value.kind === "scalar" ? value.value : value];
+        return [
+          variable.name.replace(/^mainInstance\./, ""),
+          value.kind === "scalar" ? value.value : value,
+        ];
       }),
     );
   }
@@ -83,7 +88,9 @@ describe("standard-library ST conformance", () => {
         expect([state.q, state.elapsed]).toEqual(expected[index]);
       }
       expect(
-        runtime.snapshot().annotations[1]?.some((annotation) => annotation.values.length === 2),
+        runtime
+          .snapshot()
+          .annotations.StandardTest?.[1]?.some((annotation) => annotation.values.length === 2),
       ).toBe(true);
       runtime.coldReset();
       expect(runtime.snapshot().variables[0]).toMatchObject({

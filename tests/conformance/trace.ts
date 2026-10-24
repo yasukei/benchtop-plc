@@ -1,7 +1,7 @@
 import { snapshotVariable } from "@benchtop-plc/core";
-import { compile, compileProject } from "@benchtop-plc/compiler";
+import { compileProject } from "@benchtop-plc/compiler";
 import { standardFunctionBlocks } from "@benchtop-plc/core";
-import type { IoImage, ProgramIR, RuntimeSnapshot, ScalarValue } from "@benchtop-plc/core";
+import type { IoImage, ConfigurationIR, RuntimeSnapshot, ScalarValue } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
 export interface TraceStep {
@@ -90,7 +90,7 @@ export function parseTrace(value: unknown): Trace {
   return { kind: trace.kind, cycleMs, steps };
 }
 
-function readValue(ir: ProgramIR, snapshot: RuntimeSnapshot, path: string): ScalarValue {
+function readValue(ir: ConfigurationIR, snapshot: RuntimeSnapshot, path: string): ScalarValue {
   const key = path.toUpperCase();
   const scalarIndex = ir.variables.findIndex((variable) => variable.key === key);
   const scalar = snapshotVariable(snapshot, scalarIndex);
@@ -118,8 +118,14 @@ export function runTrace(
   source: string | readonly string[],
   trace: Trace,
   dataTypes: readonly string[] = [],
+  configurationSource?: string,
 ): void {
-  const result = typeof source === "string" ? compile(source) : compileProject(source, dataTypes);
+  const result = compileProject(
+    typeof source === "string" ? [source] : source,
+    dataTypes,
+    configurationSource,
+    { task: { intervalMs: trace.kind === "run" ? trace.cycleMs : 10 } },
+  );
   const codes = result.diagnostics.map((diagnostic) => diagnostic.code).sort();
   if (trace.kind === "compile-error") {
     const expected = [...trace.diagnostics].sort();

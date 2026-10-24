@@ -30,7 +30,7 @@ describe("project-wide POU compilation", () => {
     expect(result.diagnostics).toEqual([]);
     expect(result.ir?.functions).toHaveLength(1);
     expect(result.ir?.functions?.[0]?.inputs).toEqual([0, 1]);
-    expect(result.ir?.body[0]).toMatchObject({
+    expect(result.ir?.programs[0]!.body[0]).toMatchObject({
       value: {
         left: { kind: "userFunctionCall", function: 0 },
         right: { kind: "userFunctionCall", function: 0 },

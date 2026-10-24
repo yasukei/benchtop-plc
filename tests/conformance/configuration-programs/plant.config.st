@@ -1,0 +1,7 @@
+CONFIGURATION Plant
+RESOURCE Station ON ArbitraryCpu
+  TASK T (PRIORITY := 0, INTERVAL := T#10ms);
+  PROGRAM First WITH T : Counter;
+  PROGRAM Second WITH T : DoubleCounter;
+END_RESOURCE
+END_CONFIGURATION
