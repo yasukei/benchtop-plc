@@ -396,10 +396,13 @@ project restrictions below are tracked in
 
 - Keeping retentive values in the browser:
   - A stored set has two kinds of records: a leaf record (path, data type, value) for
-    each retained scalar leaf, and a block record for each retained counter, edge
-    detector or bistable, with its path, its exact block type including the variant
-    (`CTU_DINT`), its ports and its private state as listed above. Timers have no
-    records.
+    each retained scalar leaf that is not a port of a standard function block, and a
+    block record for each retained counter, edge detector or bistable, with its path,
+    its exact block type including the variant (`CTU_DINT`), its ports and its private
+    state as listed above. Timers have no records, neither for their ports nor for
+    their state. So every retained value is in at most one record: `ctr.CV` of a
+    retained `CTU` is only in the block record of `ctr`, and a scalar member of a
+    retained user function block instance is in a leaf record.
   - The Worker host sends all records, as one complete set rather than only the changed
     ones, to the page at most once per second while any of them changes, and after
     every command that changes the state. The page replaces the stored set with the
@@ -415,10 +418,11 @@ project restrictions below are tracked in
     in the loaded program; a string longer than the leaf's length is truncated as
     ADR 0015 stores do. A block record is restored, ports and private state together,
     only if a retained standard block with the same exact type exists at that path;
-    otherwise the whole block keeps its initial state. Every other retained leaf and
-    block keeps its initial value, and the app tells the user how many were not
-    restored and which paths. This matters because autosave keeps source text that
-    may not have been applied.
+    otherwise the whole block keeps its initial state. For example, if `ctr` changes
+    from `CTU` to `CTD`, nothing of `ctr` is restored, not even `CV`. Every other
+    retained leaf and block keeps its initial value, and the app tells the user how
+    many were not restored and which paths. This matters because autosave keeps source
+    text that may not have been applied.
   - If the autosaved sources do not compile, the stored values stay in storage until a
     program loads. Storage that is unavailable or full produces a warning; the PLC
     keeps running.
