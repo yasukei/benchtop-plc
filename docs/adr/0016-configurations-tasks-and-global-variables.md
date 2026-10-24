@@ -130,11 +130,30 @@ project restrictions below are tracked in
 - I/O image timing: before each task run, the runtime copies the current input image
   into the `%I` area; after each task run, it publishes the `%Q` area as the output
   image. Every task therefore sees fresh inputs, and because scheduling is
-  non-preemptive, a task never sees a half-written image. The scan stages of
-  `docs/runtime.md` apply per task run: read inputs, copy program parameters in, apply
-  pending writes, apply forces, execute the task's instances, apply forces, copy
-  program parameters out, publish outputs. Pending writes are consumed by the first
-  task run that follows them.
+  non-preemptive, a task never sees a half-written image.
+- The scan stages of `docs/runtime.md` become nested: image transfers stay at the task
+  boundaries, and parameter transfers and forces surround each program instance. A
+  task run is:
+  1. copy the input image into the `%I` area;
+  2. apply pending writes (they are consumed by the first task run that follows them);
+  3. for each program instance of the task, in declaration order:
+     1. copy its connected inputs in;
+     2. apply every force;
+     3. execute the instance;
+     4. apply every force again;
+     5. copy its connected outputs out;
+  4. publish the `%Q` area as the output image.
+
+  Forces are applied around every instance, not only around the task, so no instance
+  sees a value that an earlier instance wrote to a forced variable. Inside one
+  instance, ADR 0014's behavior is unchanged: a statement can read a value its own
+  instance wrote to a forced variable earlier in the same run.
+
+  Example: in one task, `A` (connected `Out => g`) runs before `B` (connected
+  `In := g`). In one run, `B.In` receives the value `A` produced in that run. With
+  `A.Out` forced to TRUE while `A`'s body assigns FALSE, the force after `A`'s
+  execution restores TRUE before the copy, so `g` and `B.In` are TRUE in that run.
+
 - Single scan (`step`) in STOP runs one pass in which every cyclic task runs once and
   every event task with a rising edge runs once, in the order above, regardless of due
   times.
@@ -213,17 +232,18 @@ project restrictions below are tracked in
   parameter's type (see Direct addresses): `%IW0` connects to an `INT`, `UINT` or
   `WORD` input.
 - Inputs are copied in immediately before the instance runs, and outputs are copied
-  out immediately after it, so a later instance in the same task sees the outputs of an
-  earlier one through globals. An unconnected input keeps its value between runs (its
-  initial value, or a value written from the monitor); an unconnected output is not
-  copied anywhere. Under the implicit configuration every parameter is unconnected.
+  out immediately after it, in the order given under Tasks and scheduling, so a later
+  instance in the same task sees the outputs of an earlier one through globals. An
+  unconnected input keeps its value between runs (its initial value, or a value
+  written from the monitor); an unconnected output is not copied anywhere. Under the
+  implicit configuration every parameter is unconnected.
 - An unknown parameter, a type mismatch, an input connected with `=>` or an output with
   `:=`, an output connected to a constant, a constant global or an `%I` address, and a
   parameter connected twice are compile errors.
-- Forces apply to the parameter at the force stages, so a forced input is not
-  overwritten by its connection and a forced output is copied out with the forced
-  value. A connected input rejects monitor writes, as an input-mapped variable does
-  today, because the next copy would overwrite them; it accepts forces.
+- Forces apply to the parameter at the force stages around its instance, so a forced
+  input is not overwritten by its connection and a forced output is copied out with
+  the forced value. A connected input rejects monitor writes, as an input-mapped
+  variable does today, because the next copy would overwrite them; it accepts forces.
 
 ### Direct addresses
 
@@ -257,6 +277,21 @@ project restrictions below are tracked in
   after `%MW0 := 16#0102`, `%MB0` is 2 and `%MB1` is 1. Two variables that write
   overlapping `%Q` bytes (located variables or output connections) produce a compiler
   warning; overlaps in `%I` and `%M` are normal and produce none.
+- A `REAL` or `LREAL` view can hold a bit pattern that is not a finite number, written
+  through an overlapping view (`bits AT %MD0 : DWORD` beside `sample AT %MD0 : REAL`,
+  then `bits := 16#7FC00000`) or through `setInput` with a `DWORD` value on an input
+  read as `REAL`. ADR 0010 keeps such values out of variables, so the bytes are
+  checked when the view is decoded:
+  - A program read of the view, including the copy of a connected input, faults with
+    `runtime.invalid-value` at the reading expression or the instance declaration.
+    `x := sample;` in the example above faults.
+  - Snapshots never decode it to a number: the leaf is reported as a new
+    `VariableSnapshot` variant `{ kind: "invalidReal"; bits: string }` with the raw
+    pattern (`"16#7FC00000"`). The monitor shows it as invalid with those bits, and a
+    numeric display shows it as invalid. Neither faults nor throws in the host.
+  - The bytes themselves are accepted: storing them, `setInput` and writes through
+    other views never fault. Writing or forcing a finite value through the `REAL` view
+    replaces them.
 - `AT` is allowed on `PROGRAM` `VAR` and on `VAR_GLOBAL`. It stays a compile error in
   function blocks and functions (ADR 0014), in `VAR_TEMP`, with `CONSTANT`, and with
   `RETAIN` or `NON_RETAIN` (restriction).
@@ -299,11 +334,18 @@ project restrictions below are tracked in
   `VAR RETAIN m : Pump; END_VAR`, `m`'s unqualified members are retained and its
   `NON_RETAIN` members are not; a `RETAIN` member of a `Pump` instance declared in an
   unqualified section is retained.
-- A retained standard function block keeps its ports and private state, except that a
-  timer's elapsed time restarts from zero: a `TON` whose `IN` is TRUE at a warm restart
-  starts timing again from the restart. References are never retained; they become
-  `NULL` (restriction), because their targets are not guaranteed to exist after a
-  restore.
+- A retained counter (`CTU`, `CTD`, `CTUD` and their variants), edge detector
+  (`R_TRIG`, `F_TRIG`) or bistable (`SR`, `RS`) keeps its ports and its private state:
+  the previous `CU` and `CD` of a counter, and the previous `CLK` of an edge detector,
+  including whether it has been called yet. So a `CTU` with `CU` held TRUE and
+  `CV = 1` still has `CV = 1` after a warm restart or a reload and the next call,
+  because `CU` did not rise.
+- Timers (`TON`, `TOF`, `TP` and their variants) are initialized by every warm restart
+  and reload, even in a retained section (restriction): their start time refers to a
+  clock that does not survive a reload. A `TON` whose `IN` is TRUE after the restart
+  sees a rising edge at its next call and times again from there.
+- References are never retained; they become `NULL` (restriction), because their
+  targets are not guaranteed to exist after a restore.
 - **Warm restart** is a new command, allowed in every state, including while the
   emergency stop is active. It initializes every variable that is not retained (and
   the `%M` area), keeps retained ones, clears a pending fault, clears forces and
@@ -324,33 +366,41 @@ project restrictions below are tracked in
   reinitializes `RETAIN` variables.
 
 - Keeping retentive values in the browser:
-  - The Worker host sends the values of all retained leaves, as one complete set rather
-    than only the changed ones, to the page at most once per second while any of them
-    changes, and after every command that changes the state. The page replaces the
-    stored set with the latest one in the autosave record, so each stored set restores
-    on its own. A reload can therefore lose up
-    to about one second of changes (restriction); the page cannot wait for the Worker
-    while it is being unloaded.
+  - A stored set has two kinds of records: a leaf record (path, data type, value) for
+    each retained scalar leaf, and a block record for each retained counter, edge
+    detector or bistable, with its path, its exact block type including the variant
+    (`CTU_DINT`), its ports and its private state as listed above. Timers have no
+    records.
+  - The Worker host sends all records, as one complete set rather than only the changed
+    ones, to the page at most once per second while any of them changes, and after
+    every command that changes the state. The page replaces the stored set with the
+    latest one in the autosave record, so each stored set restores on its own. A reload
+    can therefore lose up to about one second of changes (restriction); the page
+    cannot wait for the Worker while it is being unloaded.
   - A page reload counts as a power loss followed by a warm restart: the app compiles
     the autosaved sources, loads them (which initializes everything), restores the
     stored retained values and stays in STOP. It never starts in RUN automatically, so
     an accidental reload cannot switch outputs on.
-  - Values are matched to the loaded program by leaf path (case-insensitive) and data
-    type. A value is restored only if the leaf exists, has the same data type and is
-    retained in the loaded program; a string longer than the leaf's length is
-    truncated as ADR 0015 stores do. Every other retained leaf keeps its initial value,
-    and the app tells the user how many values were not restored and which paths. This
-    matters because autosave keeps source text that may not have been applied.
+  - Records are matched to the loaded program by path (case-insensitive). A leaf
+    record is restored only if the leaf exists, has the same data type and is retained
+    in the loaded program; a string longer than the leaf's length is truncated as
+    ADR 0015 stores do. A block record is restored, ports and private state together,
+    only if a retained standard block with the same exact type exists at that path;
+    otherwise the whole block keeps its initial state. Every other retained leaf and
+    block keeps its initial value, and the app tells the user how many were not
+    restored and which paths. This matters because autosave keeps source text that
+    may not have been applied.
   - If the autosaved sources do not compile, the stored values stay in storage until a
     program loads. Storage that is unavailable or full produces a warning; the PLC
     keeps running.
 - Rows added to the run-time error table of ADR 0010:
 
-  | Condition                                               | Reaction                                  |
-  | ------------------------------------------------------- | ----------------------------------------- |
-  | Cyclic task activation missed (overrun)                 | Counted in the task's telemetry, no fault |
-  | Stored retained value missing or not matching on reload | Initial value, user told, no fault        |
-  | Retained values cannot be stored in the browser         | Warning, no fault                         |
+  | Condition                                                              | Reaction                                  |
+  | ---------------------------------------------------------------------- | ----------------------------------------- |
+  | Cyclic task activation missed (overrun)                                | Counted in the task's telemetry, no fault |
+  | Stored retained value missing or not matching on reload                | Initial value, user told, no fault        |
+  | Retained values cannot be stored in the browser                        | Warning, no fault                         |
+  | Program read of a `REAL`/`LREAL` view holding a non-finite bit pattern | FAULT `runtime.invalid-value`             |
 
 ### Monitoring and protocol
 
@@ -398,9 +448,14 @@ project restrictions below are tracked in
   source text; other tools see unconnected instances (restriction).
 - On open, a configuration with the source extension uses that text, checked against
   the TC6 structure like a POU source (`project.stale-source` when they disagree). A
-  configuration without it that has more than one task, more than one instance or any
-  `globalVars` becomes a configuration source generated from the structure, as
-  `joinProgram` does for POUs; otherwise it opens as the implicit configuration.
+  configuration without it opens as the implicit configuration only when the implicit
+  configuration can represent it: exactly one task, which has an `interval` and no
+  `single`, at most one `pouInstance`, and no `globalVars`. Anything else becomes a
+  configuration source generated from the structure, as `joinProgram` does for POUs.
+  So a file with only `<task name="OnAck" single="%IX0.1" priority="0">` and one
+  instance opens with a generated source containing
+  `TASK OnAck (SINGLE := %IX0.1, PRIORITY := 0);`, and its program still runs only
+  on rising edges.
 - POUs gain `externalVars`, and `localVars`, `inputVars`, `outputVars` gain the
   `retain` and `nonretain` attributes. Addresses keep the `address` attribute, now with
   every size and area.
@@ -466,7 +521,11 @@ forbids other behavior:
   overlapping `%Q` writers produce a warning.
 - `AT` cannot be combined with `RETAIN`, `NON_RETAIN` or `CONSTANT`; `%M` is never
   retentive.
-- References are never retained; a retained timer's elapsed time restarts from zero.
+- References are never retained; timers are initialized by every warm restart and
+  reload; retained counters, edge detectors and bistables keep their private state,
+  stored as block records matched by path and exact block type.
+- A `REAL` or `LREAL` view whose bytes are not a finite number faults when the program
+  reads it and is shown as invalid in the monitor.
 - One warm restart command, which is also the acknowledge-fault command.
 - A page reload is a power loss followed by a warm restart into STOP; retained values
   are stored at most once per second; loading a program initializes `RETAIN` variables.
