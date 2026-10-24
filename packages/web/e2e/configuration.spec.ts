@@ -58,7 +58,7 @@ END_RESOURCE END_CONFIGURATION\r
       await expect(monitor.getByRole("button", { name: "A", exact: true })).toBeVisible();
       await expect(monitor.getByRole("button", { name: "B", exact: true })).toBeVisible();
     }
-    await expect(page.getByLabel("Cycle (ms)")).toBeDisabled();
+    await expect(page.getByLabel("Cycle (ms)")).toHaveCount(0);
     await expect
       .poll(() =>
         page.evaluate(
@@ -71,6 +71,7 @@ END_RESOURCE END_CONFIGURATION\r
     await expect(diagnostics).toContainText(
       multiple ? "A resource requires exactly one cyclic task." : "No diagnostics",
     );
+    await expect(page.getByLabel("Cycle (ms)")).toHaveCount(0);
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Save project", exact: true }).click();
     const download = await downloadPromise;

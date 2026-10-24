@@ -129,6 +129,40 @@ describe("configuration exchange", () => {
     },
   );
 
+  it.each([
+    ["T#10.5ms", "PT0.0105S"],
+    ["TIME#0.0105s", "PT0.0105S"],
+    ["T#+0.010_5s", "PT0.0105S"],
+    ["T#1s10.5ms", "PT1.0105S"],
+    ["T#0.5ms", "PT0.0005S"],
+    ["LT#10.5ms", "PT0.0105S"],
+  ])("keeps the exact interval and compile error for %s", (literal, duration) => {
+    const text = `CONFIGURATION Plant RESOURCE Station ON Cpu
+TASK Fast (INTERVAL := ${literal}, PRIORITY := 0);
+PROGRAM A WITH Fast : Main; PROGRAM B WITH Fast : Main;
+END_RESOURCE END_CONFIGURATION`;
+    const xml = save(text);
+    expect(xml).toContain(`interval="${duration}"`);
+    const preserved = readProject(xml);
+    expect(preserved.diagnostics).toEqual([]);
+    expect(preserved.value?.configurationSource).toBe(text);
+    for (const input of [xml, withoutSource(xml)]) {
+      const opened = readProject(input);
+      expect(opened.diagnostics).toEqual([]);
+      expect(
+        compileProject(opened.value!.pous, [], opened.value!.configurationSource).diagnostics,
+      ).toContainEqual(expect.objectContaining({ code: "config.interval" }));
+      expect(readProject(writeProject(opened.value!).value!)).toEqual(opened);
+    }
+    const edited = readProject(xml.replace(`interval="${duration}"`, 'interval="PT0.01S"'));
+    expect(edited.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "project.stale-source" }),
+    );
+    expect(
+      compileProject(edited.value!.pous, [], edited.value!.configurationSource).diagnostics,
+    ).toEqual([]);
+  });
+
   it.each(["INT#0", "DINT#0", "UDINT#0", "BYTE#0", "LINT#65535", "16#FF"])(
     "preserves compiler-valid priority %s",
     (literal) => {
@@ -147,6 +181,7 @@ describe("configuration exchange", () => {
 
   it.each([
     source.replace("T#10ms", "T#30d"),
+    source.replace("T#10ms", "LT#0.5ns"),
     source.replace("PRIORITY := 0", "PRIORITY := 65536"),
     source.replace("PRIORITY := 0", "PRIORITY := TRUE"),
     source.replace("PRIORITY := 0", "PRIORITY := 0,"),

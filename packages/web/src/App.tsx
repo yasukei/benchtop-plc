@@ -125,22 +125,24 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             <button disabled={disconnected} onClick={() => store.send({ type: "coldReset" })}>
               {text.reset}
             </button>
-            <label>
-              {text.cycle}
-              <select
-                disabled={disconnected || state.project?.configurationSource !== undefined}
-                value={state.cycleMs}
-                onChange={(event) =>
-                  store.send({ type: "setCycle", ms: Number(event.target.value) })
-                }
-              >
-                {cycleOptions.map((ms) => (
-                  <option value={ms} key={ms}>
-                    {ms}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {state.project?.configurationSource === undefined && (
+              <label>
+                {text.cycle}
+                <select
+                  disabled={disconnected}
+                  value={state.cycleMs}
+                  onChange={(event) =>
+                    store.send({ type: "setCycle", ms: Number(event.target.value) })
+                  }
+                >
+                  {cycleOptions.map((ms) => (
+                    <option value={ms} key={ms}>
+                      {ms}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           <div className="telemetry">
             <output aria-label={text.state} className="state" data-state={state.runtimeState}>

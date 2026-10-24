@@ -129,7 +129,9 @@ is a `pouInstance` with `name` and `typeName` nested in its task. The configurat
 `addData` holds its exact source text, including resource type, comments, declaration
 order and line endings. When XML disagrees with that source, `project.stale-source`
 warns and canonical configuration text is rebuilt from the standard structure.
-Equivalent ISO duration spellings compare by duration.
+Equivalent ISO duration spellings compare by duration. Fractional TIME intervals
+keep their exact duration in XML even though TIME storage truncates milliseconds;
+nonintegral nanosecond intervals cannot be represented and are rejected.
 
 A file without the source extension stays implicit only with exactly one cyclic
 task (an `interval` and no `single`) and at most one instance, without globals.
@@ -151,7 +153,7 @@ values cannot be saved. Global variables, parameter connections, retain attribut
 resource-level `pouInstance`, `accessVars` and `configVars` are unsupported here.
 
 The web app compiles imported configuration sources, preserves them through
-save/open and browser autosave, and disables the implicit cycle control for them.
+save/open and browser autosave, and hides the implicit cycle control for them.
 Several tasks and event tasks can be exchanged before the compiler can execute
 them; compilation reports diagnostics and does not load invalid code. Configuration
 source editing is not yet available in the web app.

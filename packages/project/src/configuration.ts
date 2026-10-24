@@ -113,8 +113,10 @@ export function splitConfiguration(source: string): ConfigurationStructure {
     let trigger: { interval: string } | { single: string };
     if (interval) {
       if (interval.length !== 1 || interval[0]!.kind !== "time") invalid("task/interval");
-      const value = scalar(interval, interval[0]!.dataType === "LTIME" ? "LTIME" : "TIME");
-      const nanoseconds = typeof value === "string" ? BigInt(value) : BigInt(value) * 1000000n;
+      scalar(interval, interval[0]!.dataType === "LTIME" ? "LTIME" : "TIME");
+      // Scalar storage truncates fractional milliseconds/nanoseconds. Exchange must
+      // use the validated literal's exact duration so XML keeps its semantic errors.
+      const nanoseconds = intervalNanoseconds(interval[0]!);
       if (nanoseconds <= 0n) invalid("task/interval");
       const seconds = nanoseconds / 1000000000n;
       const fraction = String(nanoseconds % 1000000000n)
@@ -163,6 +165,34 @@ export function joinConfiguration(configuration: ConfigurationStructure): string
     "END_CONFIGURATION",
     "",
   ].join("\n");
+}
+
+/** The lexer has already validated unit order and scalar() has checked range. */
+function intervalNanoseconds(token: Token): bigint {
+  const text = token.text.slice(token.text.indexOf("#") + 1).replaceAll("_", "");
+  const units: Record<string, bigint> = {
+    d: 86400000000000n,
+    h: 3600000000000n,
+    m: 60000000000n,
+    s: 1000000000n,
+    ms: 1000000n,
+    us: 1000n,
+    ns: 1n,
+  };
+  let total = 0n;
+  for (const part of text.matchAll(/(\d+)(?:\.(\d+))?(ms|us|ns|d|h|m|s)/gi)) {
+    const fraction = part[2] ?? "";
+    const scale = 10n ** BigInt(fraction.length);
+    const numerator = BigInt(part[1]! + fraction) * units[part[3]!.toLowerCase()]!;
+    if (numerator % scale !== 0n)
+      throw new ConfigurationError({
+        code: "project.invalid",
+        severity: "error",
+        args: { path: "task/interval" },
+      });
+    total += numerator / scale;
+  }
+  return text.startsWith("-") ? -total : total;
 }
 
 function durationNanoseconds(value: string): bigint {

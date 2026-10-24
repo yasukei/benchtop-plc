@@ -13,7 +13,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 - PLCopen XML save/open for exact configuration sources, multiple tasks and program
   instances, and event task inputs. Imports without preserved text reconstruct
   configuration source when the implicit model cannot represent the structure.
-  The web app compiles imported configurations and keeps them through autosave;
+  The web app compiles imported configurations, keeps them through autosave and
+  hides the implicit cycle selector while a configuration source is present;
   execution still requires the compiler's supported single cyclic task.
 
 - Configuration source compilation with one resource, one cyclic task and up to
