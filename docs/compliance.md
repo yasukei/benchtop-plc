@@ -252,7 +252,8 @@ Partial support of the standard's non-formal parameter list.
 
 Project restrictions: functions cannot declare VAR_TEMP or FB instances; PROGRAM
 cannot declare VAR_INPUT, VAR_OUTPUT or VAR_IN_OUT; direct addresses are allowed
-only in PROGRAM, and are forbidden in both functions and function blocks.
+in PROGRAM VAR and configuration/resource globals, and are forbidden in both
+functions and function blocks.
 EN/ENO remains deferred. CONSTANT is supported on VAR, VAR_GLOBAL and matching VAR_EXTERNAL, with elementary, string, character, alias, enum and subrange types and no AT. VAR_IN_OUT supports exact-type scalar/array/structure/reference caller variables, elements, members and dereferenced storage in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
 Function locals, outputs and results are fresh per call. Operands and arguments
 evaluate left to right; the 200,000-iteration limit is shared by all calls in a scan.
