@@ -104,6 +104,19 @@ motor 1 priority. STOP or overload clears the motor's latch and timer. Clear an
 overload and press START again to restart. Save/reopen keeps all three POU texts
 and the panel. The bundled startup example remains blink.
 
+Try the [batch mixer example](../examples/batch-mixer/) to run one of three
+recipes. Open `examples/batch-mixer/project.xml`, press **RUN**, select a recipe
+with **STANDARD RECIPE** or **GENTLE RECIPE** (both OFF selects Quick; Gentle
+wins if both are ON), then press and release **START**. The FILL VALVE, MIXER and
+DRAIN VALVE lamps follow the timed steps; DONE stays on after completion.
+The monitor shows `State` by enumeration name, `ActiveRecipe` as a recipe array
+path, and `Status` as quoted text such as `'Quick: Mixing'`. Expand `RECIPES`
+and its elements to inspect structure members. Selection is latched for a batch;
+changing switches applies to the next START. The panel's STOP button aborts to
+Idle, clears the reference and resets timers. A fresh START edge begins a complete
+batch. Save/reopen preserves both TYPE texts, the PROGRAM, recipe initializers
+and panel; runtime state is reset.
+
 ## Structured Text editor
 
 A thin React wrapper owns a CodeMirror 6 editor controller. Highlighting is a

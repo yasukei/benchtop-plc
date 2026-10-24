@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Batch mixer reference project combines an enumerated CASE state machine, three
+  initialized recipe structures in an array, a latched recipe reference, TON step
+  timers and CONCAT status messages. Includes panel controls and lamps,
+  virtual-clock traces for every recipe and STOP/restart, and a browser test for
+  operation, monitor values and exact text preservation on save/reopen.
+
 - References (`REF_TO`, `REF`, `^`, `NULL`) to persistent variables, elements and
   members, including reference parameters/results, `MOVE`/`SEL`/`MUX` selection,
   dereferenced in-out arguments and recursive structures.

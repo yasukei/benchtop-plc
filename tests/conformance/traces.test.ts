@@ -20,8 +20,13 @@ describe("data-driven ST conformance", () => {
     const files = readdirSync(new URL(`${name}/`, root))
       .filter((file) => file.endsWith(".st"))
       .sort();
-    const sources = files.map((file) => read(`${name}/${file}`));
-    runTrace(name, sources, loadTrace(name));
+    const sources = files
+      .filter((file) => !file.endsWith(".type.st"))
+      .map((file) => read(`${name}/${file}`));
+    const dataTypes = files
+      .filter((file) => file.endsWith(".type.st"))
+      .map((file) => read(`${name}/${file}`));
+    runTrace(name, sources, loadTrace(name), dataTypes);
   });
 
   it("loads and compiles the blink XML example and passes the reference trace", () => {
@@ -54,5 +59,26 @@ describe("data-driven ST conformance", () => {
     const reopened = readProject(saved.value!);
     expect(reopened).toEqual(result);
     runTrace("examples/motor-starters", reopened.value!.pous, loadTrace("motor-starters"));
+  });
+  it("preserves the batch mixer texts on save/reopen and passes all recipe timings", () => {
+    const result = readProject(read("../../examples/batch-mixer/project.xml"));
+    expect(result.diagnostics).toEqual([]);
+    if (!result.value) throw new Error("Expected the batch mixer project");
+    expect(result.value.pous).toEqual([read("batch-mixer/program.st")]);
+    expect(result.value.dataTypes).toEqual(
+      ["mixer-state", "recipe"].map((name) => read(`batch-mixer/${name}.type.st`)),
+    );
+    expect(result.value.task.interval).toBe("PT0.01S");
+    const saved = writeProject(result.value);
+    expect(saved.diagnostics).toEqual([]);
+    expect(saved.value).not.toBeNull();
+    const reopened = readProject(saved.value!);
+    expect(reopened).toEqual(result);
+    runTrace(
+      "examples/batch-mixer",
+      reopened.value!.pous,
+      loadTrace("batch-mixer"),
+      reopened.value!.dataTypes,
+    );
   });
 });
