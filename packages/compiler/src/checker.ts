@@ -54,6 +54,8 @@ import type * as AST from "./ast.js";
 import { rootName } from "./ast.js";
 import type {
   CheckedProgram,
+  ConstantSymbol,
+  GlobalScope,
   ExpressionInfo,
   ResolvedReference,
   VariableSymbol,
@@ -108,16 +110,7 @@ class Checker {
   private readonly diagnostics: Diagnostic[] = [];
   private readonly symbols: VariableSymbol[] = [];
   private readonly names = new Map<string, VariableSymbol>();
-  private readonly constants = new Map<
-    string,
-    {
-      name: AST.Identifier;
-      type: DataType;
-      descriptor?: TypeDescriptor;
-      initializerProcessed: boolean;
-      value?: ScalarValue;
-    }
-  >();
+  private readonly constants = new Map<string, ConstantSymbol>();
   private readonly declaredNames = new Set<string>();
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
   private readonly references = new Map<AST.Identifier, ResolvedReference>();
@@ -133,6 +126,7 @@ class Checker {
   >();
   private readonly userCalls = new Map<AST.FunctionCall | AST.FunctionBlockCall, UserCallInfo>();
   private readonly blockInputTypes = new Map<AST.Identifier, DataType>();
+  private readonly blockCalls = new Map<AST.FunctionCall, number>();
   private readonly failedBlockSelections = new Set<string>();
   private result?: VariableSymbol;
   private collectingDeclarations = true;
@@ -147,6 +141,7 @@ class Checker {
     private readonly blockIds: ReadonlyMap<string, number>,
     private readonly types: TypeTable,
     private readonly interfaces: ReadonlyMap<AST.Program, CheckedProgram> = new Map(),
+    private readonly globals?: GlobalScope,
   ) {}
 
   private report<C extends DiagnosticCode>(
@@ -166,11 +161,14 @@ class Checker {
 
   run(ast: AST.Program, declarationsOnly = false): CheckResult {
     for (const section of ast.sections ?? []) {
-      if (section.constant && section.name !== "VAR")
+      if (section.constant && section.name !== "VAR" && section.name !== "VAR_EXTERNAL")
         this.report("decl.constant-section", { section: section.name }, section.span);
       if (
-        (ast.kind === "program" && section.name !== "VAR" && section.name !== "VAR_TEMP") ||
-        (ast.kind === "function" && section.name === "VAR_TEMP")
+        (ast.kind === "program" &&
+          section.name !== "VAR" &&
+          section.name !== "VAR_TEMP" &&
+          section.name !== "VAR_EXTERNAL") ||
+        (ast.kind === "function" && ["VAR_TEMP", "VAR_EXTERNAL"].includes(section.name))
       )
         this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
     }
@@ -238,6 +236,7 @@ class Checker {
         ast,
         types: this.types,
         symbols: this.symbols,
+        constants: this.constants,
         expressions: this.expressions,
         references: this.references,
         arrayBounds: this.arrayBounds,
@@ -245,6 +244,7 @@ class Checker {
         functionArguments: this.functionArguments,
         userCalls: this.userCalls,
         blockInputTypes: this.blockInputTypes,
+        blockCalls: this.blockCalls,
         blockInOuts: this.blockInOuts,
         ...(this.result ? { result: this.result } : {}),
       },
@@ -282,7 +282,14 @@ class Checker {
       bindings.set(symbol, types);
     });
     // Resolve only after collecting every selecting type, independently of source order.
-    for (const [symbol, types] of bindings) {
+    for (const symbol of instances.values()) {
+      let types = bindings.get(symbol) ?? [];
+      if (symbol.external && this.globals) {
+        const shared = this.globals.bindings.get(symbol.external) ?? [];
+        types = [...new Set([...shared, ...types])];
+        this.globals.bindings.set(symbol.external, types);
+      }
+      if (!types.length) continue;
       const variant = blockVariant(symbol.type, types);
       if (variant) {
         symbol.type = variant;
@@ -645,6 +652,22 @@ class Checker {
     return { dataType: enumeration!.base, descriptor: type, constant: member.value };
   }
 
+  private sameExternalType(left: TypeDescriptor, right: TypeDescriptor): boolean {
+    const a = arrayType(left, this.types),
+      b = arrayType(right, this.types);
+    if (a || b)
+      return (
+        !!a &&
+        !!b &&
+        JSON.stringify(a.dimensions) === JSON.stringify(b.dimensions) &&
+        this.sameExternalType(a.element, b.element)
+      );
+    if (typeof left !== "string" && left.kind === "functionBlock")
+      return (
+        typeof right !== "string" && right.kind === "functionBlock" && left.name === right.name
+      );
+    return sameScalarType(left, right, this.types);
+  }
   private declare(declaration: AST.Declaration): void {
     const descriptor = this.descriptor(
       declaration.typeName,
@@ -686,7 +709,7 @@ class Checker {
         { name: declaration.names[0].name },
         declaration.initializer.span,
       );
-    if (block && declaration.section)
+    if (block && declaration.section && declaration.section !== "VAR_EXTERNAL")
       this.report(
         "fb.invalid-instance-section",
         { name: declaration.names[0].name },
@@ -713,6 +736,37 @@ class Checker {
           { name: declaration.names[0].name, type },
           address.span,
         );
+    }
+    if (declaration.section === "VAR_EXTERNAL") {
+      if (declaration.initializer || declaration.address)
+        this.report(
+          "global.external-initializer",
+          { name: declaration.names[0].name },
+          declaration.span,
+        );
+      for (const name of declaration.names) {
+        if (this.declaredNames.has(name.key)) {
+          this.report("decl.duplicate", { name: name.name }, name.span);
+          continue;
+        }
+        this.declaredNames.add(name.key);
+        const global = this.globals?.symbols.find((s) => s.name.key === name.key);
+        const constant = this.globals?.constants.get(name.key);
+        if (!global && !constant) {
+          this.report("global.not-found", { name: name.name }, name.span);
+          continue;
+        }
+        if (!!declaration.constant !== !!constant)
+          this.report("global.constant-mismatch", { name: name.name }, name.span);
+        if (constant) this.constants.set(name.key, { ...constant, name });
+        else if (global) {
+          const symbol = { ...global, id: this.symbols.length, name, external: name.key };
+          this.symbols.push(symbol);
+          this.names.set(name.key, symbol);
+          this.references.set(name, { variable: symbol.id });
+        }
+      }
+      return;
     }
     for (const name of declaration.names) {
       const duplicate = this.declaredNames.has(name.key);
@@ -753,6 +807,30 @@ class Checker {
   }
 
   private initializer(declaration: AST.Declaration): void {
+    if (declaration.section === "VAR_EXTERNAL") {
+      const descriptor = this.descriptor(
+        declaration.typeName,
+        declaration.subrange,
+        declaration.stringLength,
+        declaration.array,
+        declaration.reference,
+      );
+      for (const name of declaration.names) {
+        const global = this.globals?.symbols.find((s) => s.name.key === name.key);
+        const constant = this.globals?.constants.get(name.key);
+        if (!global && !constant) continue;
+        const actual = global?.descriptor ?? constant?.descriptor ?? global?.type ?? constant!.type;
+        const type = declarationType(declaration.typeName.key);
+        const block = isBlock(type) || this.blockIds.has(type);
+        const same =
+          block && !declaration.array
+            ? !global?.aggregateValues && type === global?.type
+            : descriptor && this.sameExternalType(descriptor, actual as TypeDescriptor);
+        if (!same)
+          this.report("global.type-mismatch", { name: name.name }, declaration.typeName.span);
+      }
+      return;
+    }
     const descriptor = this.descriptor(
       declaration.typeName,
       declaration.subrange,
@@ -2125,6 +2203,7 @@ class Checker {
       this.report("fb.unsupported-call", { name: node.name.name }, node.span);
       return;
     }
+    if (symbol.userBlock !== undefined) this.blockCalls.set(node, symbol.userBlock);
     const inOuts =
       symbol.userBlock === undefined
         ? []
@@ -2416,8 +2495,9 @@ export function check(
   blockIds: ReadonlyMap<string, number> = new Map(),
   types: TypeTable = [],
   interfaces: ReadonlyMap<AST.Program, CheckedProgram> = new Map(),
+  globals?: GlobalScope,
 ): CheckResult {
-  return new Checker(ast, pous, functionIds, blockIds, types, interfaces).run(ast);
+  return new Checker(ast, pous, functionIds, blockIds, types, interfaces, globals).run(ast);
 }
 
 /** Resolve POU signatures in their own constant scope before checking call sites. */
@@ -2426,6 +2506,7 @@ export function checkDeclarations(
   types: TypeTable,
   pous: ReadonlyMap<string, AST.Program>,
   blockIds: ReadonlyMap<string, number>,
+  globals?: GlobalScope,
 ): CheckResult {
-  return new Checker(ast, pous, new Map(), blockIds, types).run(ast, true);
+  return new Checker(ast, pous, new Map(), blockIds, types, new Map(), globals).run(ast, true);
 }

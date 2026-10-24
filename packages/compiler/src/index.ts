@@ -10,6 +10,7 @@ export { check } from "./checker.js";
 export type { CheckResult } from "./checker.js";
 export type {
   CheckedProgram,
+  GlobalScope,
   ExpressionInfo,
   ResolvedReference,
   VariableSymbol,

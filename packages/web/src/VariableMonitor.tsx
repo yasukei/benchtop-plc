@@ -94,7 +94,11 @@ export function VariableMonitor({
   composites?: ConfigurationIR["composites"];
 }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    () => new Set(variables.flatMap((variable) => (variable.instance ? [variable.instance] : []))),
+    () =>
+      new Set([
+        "$globals",
+        ...variables.flatMap((variable) => (variable.instance ? [variable.instance] : [])),
+      ]),
   );
   const values = useMemo(() => snapshotValues(state.snapshot), [state.snapshot]);
   const rows = monitorRows(variables, composites, expanded, state.snapshot?.forced);
@@ -128,7 +132,7 @@ export function VariableMonitor({
                     <tr key={row.name}>
                       <th
                         scope="row"
-                        title={row.name}
+                        title={row.name === "$globals" ? text.globals : row.name}
                         style={{ paddingLeft: `${row.depth + 1}rem` }}
                       >
                         <button
@@ -142,11 +146,19 @@ export function VariableMonitor({
                             })
                           }
                         >
-                          {monitorLabel(row.name, row.instance)}
+                          {row.name === "$globals"
+                            ? text.globals
+                            : monitorLabel(row.name, row.instance)}
                         </button>
                       </th>
                       <td />
-                      <td>{row.dataType ? formatType(row.dataType) : text.PROGRAM}</td>
+                      <td>
+                        {row.dataType
+                          ? formatType(row.dataType)
+                          : row.name === "$globals"
+                            ? text.globals
+                            : text.PROGRAM}
+                      </td>
                       <td />
                       <td />
                     </tr>

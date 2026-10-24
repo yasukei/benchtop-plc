@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
-import { parseWrittenValue, variableValue, snapshotValues } from "./monitor.js";
+import { parseWrittenValue, variableValue, snapshotValues, monitorRows } from "./monitor.js";
 
 describe("monitor values", () => {
   it("accepts finite typed values and TIME literals or milliseconds", () => {
@@ -246,4 +246,40 @@ it("indexes dense and compact snapshots by variable ID and refreshes changed wat
   expect(next.has(10000)).toBe(false);
   expect(next.get(2)).toMatchObject({ value: 30 });
   expect(compact.get(2)).toMatchObject({ value: 20 });
+});
+
+it("groups globals beside program instances while keeping their original paths", () => {
+  const span = { line: 1, column: 1, endLine: 1, endColumn: 2 };
+  const variables = [
+    {
+      kind: "scalar",
+      dataType: "INT",
+      name: "gCount",
+      key: "GCOUNT",
+      initialValue: 0,
+      global: true,
+      span,
+    },
+    {
+      kind: "scalar",
+      dataType: "INT",
+      name: "A.n",
+      key: "A.N",
+      initialValue: 0,
+      instance: "A",
+      path: ["A", "n"],
+      span,
+    },
+  ] satisfies import("@benchtop-plc/core").Variable[];
+  expect(monitorRows(variables, [], new Set(["$globals", "A"]))).toEqual([
+    { kind: "group", name: "$globals", depth: 0, dataType: undefined, instance: undefined },
+    { kind: "leaf", id: 0, depth: 1 },
+    { kind: "group", name: "A", depth: 0, dataType: undefined, instance: "A" },
+    { kind: "leaf", id: 1, depth: 1 },
+  ]);
+  expect(monitorRows(variables, [], new Set(), [0])).toContainEqual({
+    kind: "leaf",
+    id: 0,
+    depth: 0,
+  });
 });

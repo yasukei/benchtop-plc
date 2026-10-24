@@ -10,6 +10,8 @@ import type { Program } from "./ast.js";
 import type { CheckedProgram, VariableSymbol } from "./checked.js";
 import { check, checkDeclarations } from "./checker.js";
 import { lower, lowerFunction, lowerFunctionBlock } from "./lower.js";
+import { blockVariant } from "./overloaded-blocks.js";
+import { arrayType } from "@benchtop-plc/core";
 import { isElementaryTypeName } from "./lexer.js";
 import { resolveDataTypes } from "./data-types.js";
 import { parseDataType, parsePou } from "./parser.js";
@@ -167,14 +169,39 @@ export function compileProject(
     });
   const functions = asts.filter((ast) => ast.kind === "function");
   const functionIds = new Map(functions.map((ast, index) => [ast.name.key, index]));
+  const config = parsedConfig?.ast;
+  let globals: CheckedProgram | undefined;
+  if (config) {
+    const ast: Program = {
+      kind: "program",
+      name: config.name,
+      span: config.span,
+      declarations: [...config.globals, ...config.resourceGlobals],
+      body: [],
+    };
+    const result = check(ast, pous, functionIds, blockIds, resolved.types);
+    diagnostics.push(...result.diagnostics.map(configDiagnostic));
+    globals = result.checked ?? undefined;
+  }
+  const scope = globals
+    ? {
+        symbols: globals.symbols,
+        constants: globals.constants,
+        bindings: new Map<string, import("@benchtop-plc/core").DataType[]>(),
+      }
+    : undefined;
   const interfaces = new Map<Program, CheckedProgram>();
   for (const ast of asts) {
-    const result = checkDeclarations(ast, resolved.types, pous, blockIds);
+    const result = checkDeclarations(ast, resolved.types, pous, blockIds, scope);
     if (result.checked) interfaces.set(ast, result.checked);
   }
+  // Discover overload bindings in every body before selecting a shared global FB variant.
+  if (scope)
+    for (const ast of asts)
+      check(ast, pous, functionIds, blockIds, resolved.types, interfaces, scope);
   const checked = new Map<Program, CheckedProgram>();
   for (const ast of asts) {
-    const result = check(ast, pous, functionIds, blockIds, resolved.types, interfaces);
+    const result = check(ast, pous, functionIds, blockIds, resolved.types, interfaces, scope);
     diagnostics.push(
       ...result.diagnostics.map((diagnostic) => ({
         ...diagnostic,
@@ -199,10 +226,16 @@ export function compileProject(
         node,
         callee: functions[call.function]!,
       })),
-      ...ast.declarations.flatMap((node) => {
-        const callee = pous.get((node.array?.typeName ?? node.typeName).key);
-        return callee?.kind === "functionBlock" ? [{ node, callee }] : [];
-      }),
+      ...[...checked.get(ast)!.blockCalls].map(([node, block]) => ({
+        node,
+        callee: blocks[block]!,
+      })),
+      ...ast.declarations
+        .filter((node) => node.section !== "VAR_EXTERNAL")
+        .flatMap((node) => {
+          const callee = pous.get((node.array?.typeName ?? node.typeName).key);
+          return callee?.kind === "functionBlock" ? [{ node, callee }] : [];
+        }),
     ];
     for (const { node, callee } of edges) {
       if (visiting.has(callee))
@@ -235,7 +268,8 @@ export function compileProject(
         (declaration) =>
           !declaration.constant &&
           declaration.section !== "VAR_TEMP" &&
-          declaration.section !== "VAR_IN_OUT",
+          declaration.section !== "VAR_IN_OUT" &&
+          declaration.section !== "VAR_EXTERNAL",
       )
       .flatMap((declaration) => declaration.names)
       .reduce(
@@ -246,21 +280,34 @@ export function compileProject(
     blockLeafCounts.set(block, count);
     return count;
   };
-  for (const ast of asts) {
-    for (const symbol of checked.get(ast)!.symbols) {
+  for (const definition of [...checked.values(), ...(globals ? [globals] : [])]) {
+    const ast = definition.ast;
+    for (const symbol of definition.symbols) {
       if (symbol.userBlock !== undefined && symbol.descriptor && variableLeaves(symbol) > 10000)
         diagnostics.push({
           code: "type.invalid-constant",
           severity: "error",
           pou: ast.name.name,
           sourceIndex: sourceIndexes.get(ast),
+          ...(definition === globals
+            ? { sourceKind: "configuration" as const, sourceIndex: 0 }
+            : {}),
           span: symbol.name.span,
           args: {},
         });
     }
   }
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
-  const config = parsedConfig?.ast;
+  if (scope)
+    for (const symbol of scope.symbols) {
+      const variant = blockVariant(symbol.type, scope.bindings.get(symbol.name.key) ?? []);
+      if (variant) {
+        symbol.type = variant;
+        const array = symbol.descriptor && arrayType(symbol.descriptor, resolved.types);
+        if (array)
+          symbol.descriptor = { ...array, element: { kind: "functionBlock", name: variant } };
+      }
+    }
   const ir = lower(
     programs.map((ast) => checked.get(ast)!),
     config
@@ -284,6 +331,7 @@ export function compileProject(
           span: programs[0]!.span,
         },
     blocks.map((ast) => lowerFunctionBlock(checked.get(ast)!)),
+    globals,
   );
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));
   return { ir, diagnostics };

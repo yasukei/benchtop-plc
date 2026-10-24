@@ -46,7 +46,7 @@ const precedence: Partial<Record<string, number>> = {
 const isFunction = (name: string): boolean =>
   isStandardFunction(name) || name === "LOWER_BOUND" || name === "UPPER_BOUND";
 
-class Parser {
+export class Parser {
   private cursor = 0;
 
   constructor(private readonly tokens: Token[]) {}
@@ -174,9 +174,10 @@ class Parser {
     const declarations: Declaration[] = [];
     const sections: NonNullable<Program["sections"]> = [];
     while (
-      (pou ? ["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR_TEMP"] : ["VAR"]).includes(
-        this.current.key,
-      )
+      (pou
+        ? ["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR_TEMP", "VAR_EXTERNAL"]
+        : ["VAR"]
+      ).includes(this.current.key)
     ) {
       const section = this.take();
       const constant = this.accept("CONSTANT");
@@ -323,7 +324,7 @@ class Parser {
     };
   }
 
-  private declaration(): Declaration {
+  declaration(): Declaration {
     const names: [Identifier, ...Identifier[]] = [this.identifier()];
     while (this.accept(",")) names.push(this.identifier());
     let address: Address | undefined;

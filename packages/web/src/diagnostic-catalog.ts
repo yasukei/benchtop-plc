@@ -32,6 +32,13 @@ const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "global.not-found": ({ name }) => `No global variable matches external ${name}.`,
+  "global.type-mismatch": ({ name }) =>
+    `External ${name} must have exactly the global variable's type.`,
+  "global.constant-mismatch": ({ name }) =>
+    `External ${name} must match the global variable's CONSTANT qualifier.`,
+  "global.external-initializer": ({ name }) =>
+    `External ${name} cannot have an initializer or a direct address.`,
   "config.configuration-count": () => `A project supports only one configuration.`,
   "config.resource-count": () => `A configuration requires exactly one resource.`,
   "config.task-count": () => `A resource requires exactly one cyclic task.`,
@@ -206,6 +213,13 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "global.not-found": ({ name }) => `外部変数 ${name} に対応するグローバル変数がありません。`,
+  "global.type-mismatch": ({ name }) =>
+    `外部変数 ${name} の型はグローバル変数の型と一致する必要があります。`,
+  "global.constant-mismatch": ({ name }) =>
+    `外部変数 ${name} の CONSTANT 指定はグローバル変数と一致する必要があります。`,
+  "global.external-initializer": ({ name }) =>
+    `外部変数 ${name} に初期値や直接アドレスは指定できません。`,
   "config.configuration-count": () => `プロジェクトで使用できる構成は1つです。`,
   "config.resource-count": () => `構成にはリソースが1つ必要です。`,
   "config.task-count": () => `リソースには周期タスクが1つ必要です。`,

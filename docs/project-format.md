@@ -149,7 +149,7 @@ is projected into the first task in XML while the source extension retains the
 original binding and its error. Removing the extension loses that invalid binding.
 Instances with no task declaration cannot be represented and are rejected.
 Task literals must fit their scalar types; malformed sources and out-of-range
-values cannot be saved. Global variables, parameter connections, retain attributes,
+values cannot be saved. Parameter connections, retain attributes,
 resource-level `pouInstance`, `accessVars` and `configVars` are unsupported here.
 
 The web app compiles imported configuration sources, preserves them through
@@ -293,3 +293,18 @@ Source extensions preserve exact editor text; imports without them reconstruct
 `REF_TO` syntax. Self-referencing structures are representable through named
 pointer targets. This maps references only: pointer arithmetic, address functions
 and allocation are unsupported.
+
+## Global and external declarations
+
+Configuration globals map to `configuration/globalVars`, resource globals to
+`resource/globalVars`, and POU externals to `interface/externalVars`. Constant
+sections carry `constant="true"`; groups retain declaration order. Variables use
+the existing type, address and initialValue representations. Array bounds and
+initializer repetition counts fold with earlier global constants or imported
+external constants in scope.
+
+The configuration source extension preserves exact global text. Without it, the
+reader rebuilds configuration text whenever globals exist, even for one task and
+one program. Standard XML remains authoritative when an initial value, type or
+constant attribute differs from the extension. Unsupported retention attributes
+remain errors. Existing files without globals open unchanged.

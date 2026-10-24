@@ -197,7 +197,7 @@ END_RESOURCE END_CONFIGURATION`;
     '<pouInstance name="Unscheduled" typeName="Main"/>',
     "<accessVars/>",
     "<configVars/>",
-    "<globalVars/>",
+    '<globalVars retain="true"/>',
   ])("rejects unsupported structure %s", (extra) => {
     const xml = save().replace(
       extra.startsWith("<resource") ? "</configuration>" : "</resource>",
@@ -210,4 +210,109 @@ END_RESOURCE END_CONFIGURATION`;
       ]),
     });
   });
+});
+
+it("round trips configuration/resource globals and POU externals with constants", () => {
+  const configurationSource = `CONFIGURATION Plant
+VAR_GLOBAL CONSTANT N : INT := 2; END_VAR
+VAR_GLOBAL g : INT := 7; END_VAR
+RESOURCE Station ON Cpu
+VAR_GLOBAL lamp AT %QX0.1 : BOOL := TRUE; END_VAR
+TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM A WITH T : Main;
+END_RESOURCE END_CONFIGURATION`;
+  const project = {
+    ...sampleProject(),
+    configurationSource,
+    pous: [
+      "PROGRAM Main VAR_EXTERNAL CONSTANT N : INT; END_VAR VAR_EXTERNAL g : INT; lamp : BOOL; END_VAR g := N; END_PROGRAM",
+    ],
+  };
+  const written = writeProject(project);
+  expect(written.diagnostics).toEqual([]);
+  expect(written.value).toContain('<globalVars constant="true">');
+  expect(written.value).toContain('<externalVars constant="true">');
+  expect(written.value).toContain('<variable name="lamp" address="%QX0.1">');
+  const opened = readProject(written.value!);
+  expect(opened.diagnostics).toEqual([]);
+  expect(opened.value?.configurationSource).toBe(configurationSource);
+  expect(opened.value?.pous).toEqual(project.pous);
+  for (const xml of [written.value!, withoutSource(written.value!)]) {
+    const reread = readProject(xml);
+    expect(reread.diagnostics).toEqual([]);
+    expect(
+      compileProject(reread.value!.pous, [], reread.value!.configurationSource).diagnostics,
+    ).toEqual([]);
+    expect(readProject(writeProject(reread.value!).value!).diagnostics).toEqual([]);
+  }
+});
+
+it("uses changed standard global values/constant attributes over stale source", () => {
+  const configurationSource = `CONFIGURATION Plant VAR_GLOBAL g : INT := 7; END_VAR
+RESOURCE Station ON Cpu TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM A WITH T : Main; END_RESOURCE END_CONFIGURATION`;
+  const xml = writeProject({ ...sampleProject(), configurationSource }).value!;
+  for (const changed of [
+    xml.replace('value="7"', 'value="9"'),
+    xml.replace("<globalVars>", '<globalVars constant="true">'),
+  ]) {
+    const opened = readProject(changed);
+    expect(opened.value).not.toBeNull();
+    expect(opened.diagnostics).toEqual([
+      { code: "project.stale-source", severity: "warning", args: {} },
+    ]);
+    expect(opened.value!.configurationSource).not.toBe(configurationSource);
+    expect(writeProject(opened.value!).value).not.toBeNull();
+  }
+});
+
+it("accepts empty global groups as supported TC6 structure", () => {
+  const opened = readProject(save().replace("</resource>", "<globalVars/></resource>"));
+  expect(opened.diagnostics).toEqual([]);
+  expect(opened.value).not.toBeNull();
+});
+
+it("folds external constants in POU bounds and resource declarations for XML", () => {
+  const configurationSource = `CONFIGURATION Plant VAR_GLOBAL CONSTANT N : INT := 2; END_VAR
+RESOURCE Station ON Cpu VAR_GLOBAL g : ARRAY[1..N] OF INT := [N(3)]; END_VAR
+TASK T (INTERVAL := T#10ms, PRIORITY := 1); PROGRAM A WITH T : Main;
+END_RESOURCE END_CONFIGURATION`;
+  const project = {
+    ...sampleProject(),
+    configurationSource,
+    pous: [
+      "PROGRAM Main VAR_EXTERNAL CONSTANT N : INT; END_VAR VAR_EXTERNAL g : ARRAY[1..N] OF INT; END_VAR VAR a : ARRAY[1..N] OF INT := [N(4)]; END_VAR END_PROGRAM",
+    ],
+  };
+  const written = writeProject(project);
+  expect(written.diagnostics).toEqual([]);
+  expect(written.value).toContain('<dimension lower="1" upper="2"/>');
+  const opened = readProject(written.value!);
+  expect(opened.diagnostics).toEqual([]);
+  expect(opened.value!.pous).toEqual(project.pous);
+  expect(opened.value!.configurationSource).toEqual(configurationSource);
+  expect(
+    compileProject(opened.value!.pous, [], opened.value!.configurationSource).diagnostics,
+  ).toEqual([]);
+});
+
+it("rejects out-of-range global initializers when saving and opening", () => {
+  const configurationSource = `CONFIGURATION Plant VAR_GLOBAL g : INT := 7; END_VAR
+RESOURCE Station ON Cpu TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM A WITH T : Main; END_RESOURCE END_CONFIGURATION`;
+  const xml = writeProject({ ...sampleProject(), configurationSource }).value!;
+  const invalidSource = writeProject({
+    ...sampleProject(),
+    configurationSource: configurationSource.replace("INT := 7", "INT := 40000"),
+  });
+  const invalidXml = readProject(xml.replace('value="7"', 'value="40000"'));
+  for (const result of [invalidSource, invalidXml]) {
+    expect(result.value).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "project.invalid",
+        args: { path: "variable/g/initialValue" },
+      }),
+    );
+  }
 });

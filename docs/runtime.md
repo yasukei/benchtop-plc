@@ -561,3 +561,19 @@ reference to `NULL`. Stop/run retains references. Snapshots and inline annotatio
 serialize only `{ kind: "reference", target: string | null }`, using the target's
 display path. References reject monitor writes and forces; target values remain
 monitored at their own paths.
+
+## Global storage
+
+Each non-constant configuration/resource global has one storage tree, shared by
+all importing program and function block instances. External frame slots reference
+the same scalar cells, aggregates or FB instance; there is no per-instance copy.
+Load and cold reset initialize configuration globals first, then resource globals,
+each in declaration order, before program instance storage. Global constants have
+no VariableId and appear in neither snapshots nor the monitor.
+
+Global snapshot paths are their own names (and flattened element/member paths),
+without a program-instance prefix. Writes and forces use the global leaf's VariableId.
+Programs execute in resource declaration order, so later programs see earlier writes
+in the same task run. Forces are restored around each program instance, including
+before a later instance reads a forced global. Located globals use the same input
+refresh, output publication and STOP safety rules as located PROGRAM variables.

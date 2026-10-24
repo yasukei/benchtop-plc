@@ -38,7 +38,12 @@ class Lowerer {
       span: span(ast),
       variables: ast.declarations
         .filter((declaration) => !declaration.constant)
-        .flatMap((declaration) => declaration.names.map((name) => this.variable(declaration, name)))
+        .flatMap((declaration) =>
+          declaration.names.map((name) => ({
+            ...this.variable(declaration, name),
+            ...(declaration.section === "VAR_EXTERNAL" ? { external: name.key } : {}),
+          })),
+        )
         .concat(
           this.checked.result
             ? [
@@ -680,12 +685,15 @@ export function lower(
     span: IR.SourceSpan;
   },
   blocks: IR.UserFunctionBlockIR[] = [],
+  globals?: CheckedProgram,
 ): IR.ConfigurationIR {
   const checked = programs[0]!;
   const layouts = programs.map((program) => new Lowerer(program).run());
   const variables: IR.Variable[] = [];
   const instances: IR.UserFunctionBlockStorage[] = [];
   const composites: NonNullable<IR.ConfigurationIR["composites"]> = [];
+  const globalStorage = new Map<string, IR.InstanceStorage>();
+  const aliases: { slot: IR.InstanceStorage; key: string }[] = [];
   const allocate = (
     locals: IR.LocalVariable[],
     temporaries: readonly number[],
@@ -694,6 +702,11 @@ export function lower(
     programRoot = false,
   ): IR.InstanceStorage[] =>
     locals.map((variable, slot) => {
+      if (variable.external) {
+        const alias: IR.InstanceStorage = { kind: "inOut" };
+        aliases.push({ slot: alias, key: variable.external });
+        return alias;
+      }
       if (inOuts.includes(slot)) return { kind: "inOut" };
       if (temporaries.includes(slot)) {
         if (
@@ -801,6 +814,12 @@ export function lower(
       );
       return { kind: "variable", variable: id };
     });
+  if (globals) {
+    const layout = new Lowerer(globals).run();
+    const storage = allocate(layout.variables, [], [], "", true);
+    layout.variables.forEach((variable, index) => globalStorage.set(variable.key, storage[index]!));
+    for (const variable of variables) variable.global = true;
+  }
   const programInstances = configuration.programs.map((instance): IR.ProgramInstanceIR => {
     const definition = programs[instance.program]!;
     const temporarySlots = sections(definition).flatMap((section, index) =>
@@ -817,6 +836,8 @@ export function lower(
     for (let id = first; id < variables.length; id++) variables[id]!.instance = instance.name;
     return { ...instance, task: 0, storage };
   });
+  // Resolve after every allocation so an FB global may refer to a later global.
+  for (const alias of aliases) Object.assign(alias.slot, required(globalStorage.get(alias.key)));
   return {
     kind: "configuration",
     name: configuration.name,

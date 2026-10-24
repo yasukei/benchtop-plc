@@ -1,7 +1,11 @@
 import { check, lex, parsePou, type Token } from "@benchtop-plc/compiler";
-import type { DataType, Diagnostic } from "@benchtop-plc/core";
+import { splitProgram, joinProgram } from "./text.js";
+import type { VariableDeclaration } from "./model.js";
+import type { DataType, Diagnostic, TypeTable } from "@benchtop-plc/core";
 
 export interface ConfigurationStructure {
+  globals?: VariableDeclaration[];
+  resourceGlobals?: VariableDeclaration[];
   name: string;
   resource: string;
   tasks: {
@@ -20,7 +24,7 @@ export class ConfigurationError extends Error {
 }
 
 /** Exchange accepts representable declarations even before the compiler can run them. */
-export function splitConfiguration(source: string): ConfigurationStructure {
+export function splitConfiguration(source: string, types: TypeTable = []): ConfigurationStructure {
   const scanned = lex(source);
   if (!scanned.tokens) throw new ConfigurationError(scanned.diagnostics[0]);
   const tokens = scanned.tokens;
@@ -65,12 +69,30 @@ export function splitConfiguration(source: string): ConfigurationStructure {
       return invalid(`task/${type}`);
     return value;
   };
+  const globalSections = (): string => {
+    const sections: string[] = [];
+    while (current().key === "VAR_GLOBAL") {
+      const section: Token[] = [take()];
+      while (current().key !== "END_VAR" && current().kind !== "eof") section.push(take());
+      section.push(expect("END_VAR"));
+      sections.push(
+        "VAR " +
+          section
+            .slice(1)
+            .map((t) => t.text)
+            .join(" "),
+      );
+    }
+    return sections.join(" ");
+  };
   expect("CONFIGURATION");
   const name = identifier();
+  const globalSource = globalSections();
   expect("RESOURCE");
   const resource = identifier();
   expect("ON");
   identifier(); // TC6 does not store the resource type.
+  const resourceGlobalSource = globalSections();
   const tasks: ConfigurationStructure["tasks"] = [];
   const instances: { name: string; typeName: string; task?: string }[] = [];
   while (["TASK", "PROGRAM"].includes(current().key)) {
@@ -144,14 +166,39 @@ export function splitConfiguration(source: string): ConfigurationStructure {
     if (!task) return invalid("resource/pouInstance");
     task.instances.push({ name: instance.name, typeName: instance.typeName });
   }
-  return { name, resource, tasks };
+  const combined = splitProgram(
+    `PROGRAM __GLOBALS ${globalSource} ${resourceGlobalSource} END_PROGRAM`,
+    types,
+  );
+  if (!combined.value) throw new ConfigurationError(combined.diagnostics[0]!);
+  const count =
+    parsePou(`PROGRAM __GLOBALS ${globalSource} END_PROGRAM`).ast?.declarations.reduce(
+      (n, d) => n + d.names.length,
+      0,
+    ) ?? 0;
+  return {
+    name,
+    resource,
+    tasks,
+    globals: combined.value.variables.slice(0, count),
+    resourceGlobals: combined.value.variables.slice(count),
+  };
 }
 
 /** Rebuild editable text when no matching source extension is available. */
 export function joinConfiguration(configuration: ConfigurationStructure): string {
+  const globalsText = (variables: VariableDeclaration[] = []): string => {
+    const source = joinProgram({ kind: "program", name: "__GLOBALS", variables, body: "" });
+    return source
+      .replace(/^PROGRAM __GLOBALS\n?/, "")
+      .replace(/END_PROGRAM\n$/, "")
+      .replace(/^VAR(?= |$)/gm, "VAR_GLOBAL");
+  };
   return [
     `CONFIGURATION ${configuration.name}`,
+    globalsText(configuration.globals),
     `RESOURCE ${configuration.resource} ON BENCHTOP`,
+    globalsText(configuration.resourceGlobals),
     ...configuration.tasks.map(
       (task) =>
         `TASK ${task.name} (${task.single === undefined ? `INTERVAL := ${durationLiteral(task.interval!)}` : `SINGLE := ${task.single}`}, PRIORITY := ${task.priority});`,
@@ -223,7 +270,10 @@ function durationLiteral(value: string): string {
 /** Duration spellings in foreign XML may differ from the source's TIME literal. */
 export function sameConfiguration(a: ConfigurationStructure, b: ConfigurationStructure): boolean {
   const normalize = (value: ConfigurationStructure) => ({
-    ...value,
+    name: value.name,
+    resource: value.resource,
+    globals: value.globals ?? [],
+    resourceGlobals: value.resourceGlobals ?? [],
     tasks: value.tasks.map((task) => ({
       ...task,
       interval:

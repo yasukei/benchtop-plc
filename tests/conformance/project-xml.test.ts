@@ -356,3 +356,31 @@ it("validates reference pointers, recursive members and NULL initializers agains
     schema.dispose();
   }
 });
+
+it("validates global and external constant groups against TC6 v2.01", () => {
+  const value: Project = {
+    ...project,
+    configurationSource: `CONFIGURATION Plant
+VAR_GLOBAL CONSTANT N : INT := 2; END_VAR
+VAR_GLOBAL g : INT := 7; END_VAR
+RESOURCE Station ON Cpu VAR_GLOBAL lamp AT %QX0.1 : BOOL; END_VAR
+TASK T (INTERVAL := T#10ms, PRIORITY := 1); PROGRAM A WITH T : Main;
+END_RESOURCE END_CONFIGURATION`,
+    pous: [
+      "PROGRAM Main VAR_EXTERNAL CONSTANT N : INT; END_VAR VAR_EXTERNAL g : INT; lamp : BOOL; END_VAR g := N; END_PROGRAM",
+    ],
+  };
+  const written = writeProject(value);
+  expect(written.diagnostics).toEqual([]);
+  const schema = XmlDocument.fromString(loadSchema());
+  const validator = XsdValidator.fromDoc(schema);
+  const document = XmlDocument.fromString(written.value!);
+  try {
+    expect(() => validator.validate(document)).not.toThrow();
+    expect(readProject(written.value!).value?.configurationSource).toBe(value.configurationSource);
+  } finally {
+    document.dispose();
+    validator.dispose();
+    schema.dispose();
+  }
+});
