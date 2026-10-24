@@ -176,6 +176,26 @@ describe("configuration diagnostics", () => {
       ).toEqual([]);
     },
   );
+  it.each([
+    ["INTERVAL := T#20ms PRIORITY := 1", "PRIORITY"],
+    ["PRIORITY := 1 INTERVAL := T#20ms", "INTERVAL"],
+  ])("reports the missing comma in %s at %s", (parameters, found) => {
+    const source = config(undefined, parameters);
+    const result = compile(source);
+    const column = source.indexOf(found) + 1;
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toEqual([
+      {
+        code: "syntax.expected-token",
+        severity: "error",
+        args: { expected: ",", found },
+        sourceKind: "configuration",
+        sourceIndex: 0,
+        pou: "Plant",
+        span: { line: 1, column, endLine: 1, endColumn: column + found.length },
+      },
+    ]);
+  });
   it.each(["INTERVAL := T#10ms", "PRIORITY := 0"])("requires both parameters: %s", (parameters) => {
     expect(compile(config(undefined, parameters)).ir).toBeUndefined();
   });

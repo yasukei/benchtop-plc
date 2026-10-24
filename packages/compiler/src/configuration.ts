@@ -89,8 +89,12 @@ class ConfigurationParser {
       const parameter = this.identifier();
       this.expect(":=");
       const values: Token[] = [];
-      while (![",", ")"].includes(this.current.key) && this.current.kind !== "eof")
+      while (![",", ")"].includes(this.current.key) && this.current.kind !== "eof") {
+        // Do not swallow the next parameter when its separating comma is missing.
+        if (this.current.kind === "identifier" && this.tokens[this.cursor + 1]?.key === ":=")
+          this.expect(",");
         values.push(this.take());
+      }
       if (parameters.has(parameter.key) || !["INTERVAL", "PRIORITY"].includes(parameter.key))
         this.report({
           code: "config.task-parameter",
