@@ -5,9 +5,9 @@
     {
       "scans": 1,
       "expect": {
-        "Wrapped": -147767296,
-        "Initial": -147767296,
-        "Rounded": 2
+        "mainInstance.Wrapped": -147767296,
+        "mainInstance.Initial": -147767296,
+        "mainInstance.Rounded": 2
       },
       "label": "Variable arithmetic matches constant initialization"
     }

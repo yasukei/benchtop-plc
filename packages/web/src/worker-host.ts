@@ -9,9 +9,7 @@ export function createWorkerHost(
   scheduler: Ticker,
   post: (message: RuntimeToUiMessage) => void,
 ) {
-  let cycleMs: CycleMs = 10;
-  let activeTick: (() => void) | undefined;
-  let cancel: (() => void) | undefined;
+  let configured = false;
   const inputs: IoImage = [false, false, false, false, false, false, false, false];
   const publish = () => {
     post({ type: "state", state: runtime.state });
@@ -19,23 +17,14 @@ export function createWorkerHost(
     post({ type: "snapshot", snapshot: { ...runtime.snapshot(), inputs: [...inputs] } });
     if (runtime.diagnostic) post({ type: "fault", diagnostic: runtime.diagnostic });
   };
-  const start = () => {
-    cancel = scheduler.start(cycleMs, () => {
-      activeTick?.();
-      publish();
-    });
-  };
   const runtime = createRuntime({
     clock,
     ticker: {
-      start(_interval, onTick) {
-        activeTick = onTick;
-        start();
-        return () => {
-          cancel?.();
-          cancel = undefined;
-          activeTick = undefined;
-        };
+      start(interval, onTick) {
+        return scheduler.start(interval, () => {
+          onTick();
+          publish();
+        });
       },
     },
     stages: { readInputs: () => inputs },
@@ -45,6 +34,7 @@ export function createWorkerHost(
       switch (message.type) {
         case "load":
           runtime.load(message.ir);
+          configured = message.ir.kind === "configuration" && message.ir.explicit;
           inputs.fill(false);
           break;
         case "watch":
@@ -70,12 +60,13 @@ export function createWorkerHost(
           inputs[message.bit] = message.value;
           break;
         case "setCycle":
-          if (!cycleOptions.includes(message.ms as CycleMs))
+          if (!configured && !cycleOptions.includes(message.ms as CycleMs))
             throw new RangeError("Unsupported cycle");
-          cycleMs = message.ms as CycleMs;
-          if (activeTick) {
-            cancel?.();
-            start();
+          try {
+            runtime.setCycle(message.ms);
+          } catch (error) {
+            if (!(error instanceof RuntimeCommandRejected)) throw error;
+            post({ type: "rejected", command: "setCycle", diagnostic: error.diagnostic });
           }
           break;
         case "force":

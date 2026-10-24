@@ -17,7 +17,7 @@ function execute(declarations: string, body = "") {
   expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
   const values = Object.fromEntries(
     snapshot.variables.map((cell, i) => [
-      ir.variables[i]!.name,
+      ir.variables[i]!.name.replace(/^mainInstance\./, ""),
       cell.kind === "scalar" ? cell.value : null,
     ]),
   );
@@ -253,7 +253,7 @@ it.each(["DATE", "TOD", "DT"] as const)(
     const literal =
       type === "DATE" ? "D#1970-01-01" : type === "TOD" ? "TOD#00:00:00" : "DT#1970-01-01-00:00:00";
     const { runtime, ir } = execute(`x: ${type};`, `IF FALSE THEN x := ${literal}; END_IF;`);
-    const conditional = ir.body[0]!;
+    const conditional = ir.programs[0]!.body[0]!;
     if (conditional.kind !== "if") throw new Error("Expected IF");
     const assignment = conditional.branches[0].body[0]!;
     if (assignment.kind !== "assignment" || assignment.value.kind !== "literal")

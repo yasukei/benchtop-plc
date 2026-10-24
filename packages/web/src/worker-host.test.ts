@@ -196,3 +196,33 @@ it("publishes panel inputs immediately while STOP or ESTOP prevents scan samplin
     expect(snapshot()?.inputs[0]).toBe(false);
   }
 });
+
+it("uses a configured interval and reports setCycle rejection without stopping execution", async () => {
+  const { compileProject } = await import("@benchtop-plc/compiler");
+  const { host, clock, snapshot, state, messages } = setup();
+  const ir = compileProject(
+    ["PROGRAM P VAR n : INT; END_VAR n := n + 1; END_PROGRAM"],
+    [],
+    "CONFIGURATION Plant RESOURCE Station ON Cpu TASK T (INTERVAL := T#30ms, PRIORITY := 1); PROGRAM A WITH T : P; PROGRAM B WITH T : P; END_RESOURCE END_CONFIGURATION",
+  ).ir!;
+  host.handle({ type: "load", ir });
+  host.handle({ type: "run" });
+  clock.advance(29);
+  expect(snapshot()?.scanCount).toBe(0);
+  host.handle({ type: "setCycle", ms: 10 });
+  expect(messages).toContainEqual({
+    type: "rejected",
+    command: "setCycle",
+    diagnostic: { code: "runtime.configured-cycle", severity: "error", args: {} },
+  });
+  expect(state()).toBe("RUN");
+  clock.advance(1);
+  expect(snapshot()?.variables).toEqual([
+    { kind: "scalar", dataType: "INT", value: 1 },
+    { kind: "scalar", dataType: "INT", value: 1 },
+  ]);
+  clock.advance(29);
+  expect(snapshot()?.scanCount).toBe(1);
+  clock.advance(1);
+  expect(snapshot()?.scanCount).toBe(2);
+});

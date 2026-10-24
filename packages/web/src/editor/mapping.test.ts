@@ -24,17 +24,19 @@ describe("annotation mapping", () => {
       {
         ...snapshot,
         annotations: {
-          2: [
-            {
-              ...entry(2, 1, 0),
-              span: { line: 2, column: 1, endLine: 3, endColumn: 15 },
-              values: [
-                { dataType: "BOOL", value: true },
-                { dataType: "TIME", value: 1500 },
-              ],
-            },
-          ],
-          1: [entry(1, 9, 2), entry(1, 1, 1)],
+          Main: {
+            2: [
+              {
+                ...entry(2, 1, 0),
+                span: { line: 2, column: 1, endLine: 3, endColumn: 15 },
+                values: [
+                  { dataType: "BOOL", value: true },
+                  { dataType: "TIME", value: 1500 },
+                ],
+              },
+            ],
+            1: [entry(1, 9, 2), entry(1, 1, 1)],
+          },
         },
       },
       true,
@@ -65,18 +67,20 @@ describe("annotation mapping", () => {
         {
           ...snapshot,
           annotations: {
-            1: [
-              {
-                ...entry(1, 1, 0),
-                values: [
-                  { dataType: "BOOL", value: false },
-                  { dataType: "REAL", value: Math.fround(0.1) },
-                  { dataType: "LREAL", value: 2 },
-                  { dataType: "UINT", value: 65535 },
-                  { dataType: "DINT", value: -2 },
-                ],
-              },
-            ],
+            Main: {
+              1: [
+                {
+                  ...entry(1, 1, 0),
+                  values: [
+                    { dataType: "BOOL", value: false },
+                    { dataType: "REAL", value: Math.fround(0.1) },
+                    { dataType: "LREAL", value: 2 },
+                    { dataType: "UINT", value: 65535 },
+                    { dataType: "DINT", value: -2 },
+                  ],
+                },
+              ],
+            },
           },
         },
         true,
@@ -94,7 +98,10 @@ describe("annotation mapping", () => {
     });
   });
   it("hides offline values and drops missing or invalid lines without keeping old scans", () => {
-    const annotated = { ...snapshot, annotations: { 1: [entry(1, 1, 1)], 99: [entry(99, 1, 1)] } };
+    const annotated = {
+      ...snapshot,
+      annotations: { Main: { 1: [entry(1, 1, 1)], 99: [entry(99, 1, 1)] } },
+    };
     expect(mapAnnotations("x", annotated, false)).toEqual([]);
     expect(mapAnnotations("x", null, true)).toEqual([]);
     expect(mapAnnotations("x", annotated, true)).toHaveLength(1);
@@ -132,4 +139,24 @@ it("formats enum inline values through the assignment target descriptor and type
   expect(mapAnnotations(source, runtime.step(), true, ir)[0]?.values).toEqual([
     { text: "Running", dataType: "INT" },
   ]);
+});
+
+it("selects the displayed POU and omits an uninstantiated PROGRAM", async () => {
+  const { compileProject } = await import("@benchtop-plc/compiler");
+  const { createRuntime, VirtualClock, VirtualTicker } = await import("@benchtop-plc/runtime");
+  const source = (name: string, value: number) =>
+    `PROGRAM ${name} VAR n : INT; END_VAR n := ${value}; END_PROGRAM`;
+  const ir = compileProject(
+    [source("One", 1), source("Two", 2), source("Unused", 3)],
+    [],
+    "CONFIGURATION Plant RESOURCE Station ON Cpu TASK T (INTERVAL := T#10ms, PRIORITY := 0); PROGRAM A WITH T : One; PROGRAM B WITH T : Two; END_RESOURCE END_CONFIGURATION",
+  ).ir!;
+  const clock = new VirtualClock();
+  const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
+  runtime.load(ir);
+  const snapshot = runtime.step();
+  expect(mapAnnotations(source("Two", 2), snapshot, true, ir, "two")[0]?.values).toEqual([
+    { text: "2", dataType: "INT" },
+  ]);
+  expect(mapAnnotations(source("Unused", 3), snapshot, true, ir, "Unused")).toEqual([]);
 });

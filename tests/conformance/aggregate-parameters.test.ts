@@ -11,7 +11,8 @@ function setup(pous: string[], types: string[] = []) {
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
   runtime.watch(ir.variables.map((_, i) => i));
-  const id = (name: string) => ir.variables.findIndex((v) => v.key === name.toUpperCase());
+  const id = (name: string) =>
+    ir.variables.findIndex((v) => v.key === `MAININSTANCE.${name.toUpperCase()}`);
   const value = (name: string) => {
     const cell = snapshotVariable(runtime.snapshot(), id(name));
     if (cell?.kind !== "scalar") throw new Error(`Missing scalar ${name}`);

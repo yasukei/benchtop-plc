@@ -17,7 +17,8 @@ function execute(declarations: string, body = "") {
   const snapshot = runtime.scanOnce();
   const values: Record<string, ScalarValue> = {};
   snapshot.variables.forEach((cell, index) => {
-    if (cell.kind === "scalar") values[result.ir!.variables[index]!.name] = cell.value;
+    if (cell.kind === "scalar")
+      values[result.ir!.variables[index]!.name.replace(/^mainInstance\./, "")] = cell.value;
   });
   return { runtime, values, ir: result.ir! };
 }
@@ -134,7 +135,9 @@ describe("ADR 0013 conversions and constants", () => {
     (args) => {
       const { values, ir } = execute("i: INT := 1; result: LREAL;", `result := MAX(${args});`);
       expect(values.result).toBe(40000);
-      expect(ir.body[0]).toMatchObject({ value: { kind: "functionCall", dataType: "LREAL" } });
+      expect(ir.programs[0]!.body[0]).toMatchObject({
+        value: { kind: "functionCall", dataType: "LREAL" },
+      });
     },
   );
   it("marks the literal rather than the assignment for a local range failure", () => {

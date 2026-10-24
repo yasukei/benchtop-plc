@@ -4,24 +4,43 @@
   "steps": [
     {
       "label": "Constant MOD zero initializes to zero",
-      "expect": { "InitialSmall": 0, "InitialLarge": 0, "SmallRemainder": 99, "LargeRemainder": 99 }
+      "expect": {
+        "mainInstance.InitialSmall": 0,
+        "mainInstance.InitialLarge": 0,
+        "mainInstance.SmallRemainder": 99,
+        "mainInstance.LargeRemainder": 99
+      }
     },
     {
       "label": "Positive INT and DINT dividends with a zero divisor stay in RUN",
       "scans": 1,
-      "expect": { "SmallRemainder": 0, "LargeRemainder": 0 }
+      "expect": {
+        "mainInstance.SmallRemainder": 0,
+        "mainInstance.LargeRemainder": 0
+      }
     },
     {
       "label": "Negative INT and DINT dividends with a zero divisor stay in RUN",
-      "set": { "Small": -7, "Large": -40000 },
+      "set": {
+        "mainInstance.Small": -7,
+        "mainInstance.Large": -40000
+      },
       "scans": 2,
-      "expect": { "SmallRemainder": 0, "LargeRemainder": 0 }
+      "expect": {
+        "mainInstance.SmallRemainder": 0,
+        "mainInstance.LargeRemainder": 0
+      }
     },
     {
       "label": "Nonzero divisors still use the dividend sign",
-      "set": { "Divisor": 3 },
+      "set": {
+        "mainInstance.Divisor": 3
+      },
       "scans": 1,
-      "expect": { "SmallRemainder": -1, "LargeRemainder": -1 }
+      "expect": {
+        "mainInstance.SmallRemainder": -1,
+        "mainInstance.LargeRemainder": -1
+      }
     }
   ]
 }

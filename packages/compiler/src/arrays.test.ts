@@ -10,7 +10,7 @@ describe("arrays", () => {
       `PROGRAM Main VAR CONSTANT N : INT := 3; END_VAR VAR a : ARRAY[-1..N, 0..1] OF INT := [2(1, 2)]; END_VAR a[N, 1] := a[-1, 0]; END_PROGRAM`,
     );
     expect(result.diagnostics).toEqual([]);
-    expect(result.ir?.variables.map((v) => v.name)).toEqual([
+    expect(result.ir?.variables.map((v) => v.name.replace(/^mainInstance\./, ""))).toEqual([
       "A[-1,0]",
       "A[-1,1]",
       "A[0,0]",

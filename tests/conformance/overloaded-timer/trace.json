@@ -5,17 +5,26 @@
     {
       "label": "Start the inferred LTIME timer",
       "scans": 1,
-      "expect": { "timer.Q": false, "elapsedIsPreset": false }
+      "expect": {
+        "mainInstance.timer.Q": false,
+        "mainInstance.elapsedIsPreset": false
+      }
     },
     {
       "label": "One millisecond has elapsed",
       "scans": 2,
-      "expect": { "timer.Q": false, "elapsedIsPreset": false }
+      "expect": {
+        "mainInstance.timer.Q": false,
+        "mainInstance.elapsedIsPreset": false
+      }
     },
     {
       "label": "Reach the 1.5 ms preset exactly",
       "scans": 1,
-      "expect": { "timer.Q": true, "elapsedIsPreset": true }
+      "expect": {
+        "mainInstance.timer.Q": true,
+        "mainInstance.elapsedIsPreset": true
+      }
     }
   ]
 }

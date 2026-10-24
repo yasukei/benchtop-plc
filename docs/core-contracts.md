@@ -100,7 +100,7 @@ short/long operands. Implicit assignment and selection widening uses conversion 
 
 `TypeDescriptor` describes a declared or expression type. Elementary descriptors
 are the existing `DataType` strings. `{ kind: "named", name: "State" }` refers to
-an entry of the optional, ordered `ProgramIR.types` table. An inline subrange is
+an entry of the optional, ordered `ConfigurationIR.types` table. An inline subrange is
 `{ kind: "subrange", base: "INT", lower: 0, upper: 100 }`; it has no table entry.
 Bounded strings use `{ kind: "string", base: "STRING" | "WSTRING", length }`;
 characters use `{ kind: "character", base: "CHAR" | "WCHAR" }`. Arrays use
@@ -164,7 +164,7 @@ The compiler checks operand types, index validity, writable inputs, integer CASE
 labels/ranges, integer FOR bounds/step and BOOL conditions. An omitted FOR step
 lowers to a literal 1. ELSIF is represented by subsequent conditional branches.
 
-`ProgramIR.functions`, when present, stores shared user function bodies with local
+`ConfigurationIR.functions`, when present, stores shared user function bodies with local
 scalar variables, input/output indices, optional in-out slots and an optional result-variable index.
 `userFunctionCall.function` indexes this table; its input/output `variable` fields
 index the callee's local table, while argument expressions and output targets use
@@ -173,21 +173,21 @@ always have an elementary type. Function locals are fresh per call and never app
 in snapshots. Standard formal calls may carry an `evaluationOrder` permutation of
 `args` indices so source order is preserved independently of descriptor order.
 
-`ProgramIR.functionBlocks` holds shared `UserFunctionBlockIR` bodies with local
+`ConfigurationIR.functionBlocks` holds shared `UserFunctionBlockIR` bodies with local
 `variables` (scalar, array, structure, standard FB or user FB declaration), input/output slot arrays
 and temporary slots, plus optional in-out slots. `userFbCall` and `userFbMember` reference a caller frame slot;
 member/input/output indices are slots in the callee definition. Standard `fbCall`
 now also accepts `outputs` with descriptor output indices and writable targets.
 
-When present, PROGRAM `storage` maps each declaration slot to a monitored
+Each `resource.programs[i].storage` maps each declaration slot to a monitored
 `VariableId` (an index into monitored storage/snapshots), a temporary scalar initializer, or an `instances` index. Each
 `UserFunctionBlockStorage` contains the block index, canonical `path`, and its own
 storage mapping. An in-out slot uses `{ kind: "inOut" }` without a VariableId.
 All persistent scalar leaves and standard FBs live in
-`ProgramIR.variables`; user instance objects and temporaries do not appear in
+`ConfigurationIR.variables`; user instance objects and temporaries do not appear in
 snapshots. Frames alias those monitored cells, so writes and forces address the
-same state the shared body executes against. Without `storage`, PROGRAM references
-continue to index `ProgramIR.variables` directly. Load/cold reset rebuilds all
+same state the shared body executes against. The runtime also accepts the earlier
+standalone `ProgramIR` form for hand-authored low-level fixtures. Load/cold reset rebuilds all
 persistent cells, including nested standard FB private state.
 
 User function and block calls may carry `inOuts: InOutBinding[]`. Each binding's
@@ -226,7 +226,8 @@ are covered by later milestone issues.
 `UiToRuntimeMessage` and `RuntimeToUiMessage` are discriminated by `type`. A variable
 ID always refers to the currently loaded program. `force` takes a typed value or
 null to clear the force; `write` takes a typed value. Hosts validate that the
-value matches the loaded declaration. `setCycle.ms` is a positive finite interval.
+value matches the loaded declaration. `setCycle.ms` is a positive finite interval, rejected with
+`runtime.configured-cycle` when the loaded configuration is explicit.
 `setInput.bit` indexes the eight-bit input image. `step` requests one complete scan.
 Emergency-stop state and single-scan behavior are implemented in the runtime
 issues, not in the transport types.
@@ -234,7 +235,7 @@ issues, not in the transport types.
 Snapshots contain scan count, last execution time in milliseconds, eight-bit input
 and output tuples, values aligned with the variable table (including FB input and
 output arrays in descriptor order), forced variable IDs, and annotations keyed by
-one-based source line. Each annotation contains the full `span` of its assignment,
+POU name and then one-based source line. Each annotation contains the full `span` of its assignment,
 function statement or FB call, so consumers identify statements by source location
 rather than array position. Entries are grouped by `span.line` and sorted by `span.column` on each
 line. Only statements executed in the current scan are included; unexecuted
@@ -330,3 +331,28 @@ contain runtime objects in IR.
 storage's display path, such as `P1`, `POINTS[2]` or `M1.SPEED`, or `null` for
 `NULL`. `TypedValue` continues to describe elementary values. Reference variables
 cannot be written or forced; dereferenced values retain their target's identity.
+
+## Configuration and resource IR
+
+`ConfigurationIR` is the compiler result (`kind: "configuration"`, configuration
+`name`, source `span`, and `explicit`). It contains:
+
+- `programs`: shared PROGRAM names, spans and statement bodies, once per POU;
+- `resource`: its name, cyclic `tasks` (`name`, `intervalMs`, `priority`) and
+  `programs` in declaration order (`name`, zero-based `program` and `task` indexes,
+  and per-instance `storage`);
+- `variables`: one flat monitored table across every program instance;
+- optional `types`, `functions`, `functionBlocks`, nested block `instances` and
+  aggregate `composites`.
+
+Every monitored variable has an instance-qualified `name`, uppercase `key`, path
+segments and owning `instance`, for example `A.n` / `A.N` / `["A", "n"]`.
+Only array descendants have `watched: true`; adding an instance path never makes
+an ordinary scalar disappear from snapshots. Writes and forces still address a
+unique `VariableId`. References publish the qualified target path.
+
+Annotations have shape `Record<POUName, Record<Line, StatementAnnotation[]>>`.
+Each PROGRAM uses its first instance in resource declaration order. Uninstantiated
+PROGRAMs have no entries; an earlier instance's values cannot be overwritten by
+another instance of the same body. Runtime faults carry `task` and a qualified
+`instance` path as well as the executing `pou`.

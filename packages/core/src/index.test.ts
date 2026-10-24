@@ -127,16 +127,18 @@ it("describes every protocol command and event as plain data", () => {
         ],
         forced: [0],
         annotations: {
-          1: [
-            {
-              span: { line: 1, column: 1, endLine: 1, endColumn: 8 },
-              values: [{ dataType: "BOOL", value: true }],
-            },
-            {
-              span: { line: 1, column: 9, endLine: 1, endColumn: 16 },
-              values: [{ dataType: "INT", value: 2 }],
-            },
-          ],
+          Main: {
+            1: [
+              {
+                span: { line: 1, column: 1, endLine: 1, endColumn: 8 },
+                values: [{ dataType: "BOOL", value: true }],
+              },
+              {
+                span: { line: 1, column: 9, endLine: 1, endColumn: 16 },
+                values: [{ dataType: "INT", value: 2 }],
+              },
+            ],
+          },
         },
       },
     },

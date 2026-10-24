@@ -6,31 +6,37 @@
       "label": "results, omitted input default and fresh locals",
       "scans": 1,
       "expect": {
-        "value": 4,
-        "defaulted": 12,
-        "first": 5,
-        "second": 5,
-        "output": 8,
-        "nested": 24,
-        "scans": 1
+        "mainInstance.value": 4,
+        "mainInstance.defaulted": 12,
+        "mainInstance.first": 5,
+        "mainInstance.second": 5,
+        "mainInstance.output": 8,
+        "mainInstance.nested": 24,
+        "mainInstance.scans": 1
       }
     },
     {
       "label": "output starts from its initializer again",
       "scans": 1,
-      "expect": { "value": 7, "first": 5, "second": 5, "output": 9, "scans": 2 }
+      "expect": {
+        "mainInstance.value": 7,
+        "mainInstance.first": 5,
+        "mainInstance.second": 5,
+        "mainInstance.output": 9,
+        "mainInstance.scans": 2
+      }
     },
     {
       "label": "several scans retain only program storage",
       "scans": 3,
       "expect": {
-        "value": 16,
-        "defaulted": 12,
-        "first": 5,
-        "second": 5,
-        "output": 12,
-        "nested": 24,
-        "scans": 5
+        "mainInstance.value": 16,
+        "mainInstance.defaulted": 12,
+        "mainInstance.first": 5,
+        "mainInstance.second": 5,
+        "mainInstance.output": 12,
+        "mainInstance.nested": 24,
+        "mainInstance.scans": 5
       }
     }
   ]

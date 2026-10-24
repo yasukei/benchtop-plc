@@ -6,6 +6,7 @@ test("switches the whole shell without reload and remembers the choice", async (
   await page.goto("/");
   await page.getByRole("button", { name: "Single scan", exact: true }).click();
   await expect(page.getByLabel("Scans", { exact: true })).toHaveText("1");
+  await expect(page.getByText("Instance: mainInstance", { exact: true })).toBeVisible();
   await page.evaluate(() => document.body.setAttribute("data-no-reload", "true"));
   await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
   await expect(page.locator("html")).toHaveAttribute("lang", "ja");
@@ -23,6 +24,7 @@ test("switches the whole shell without reload and remembers the choice", async (
   await expect(page.locator(".banner")).toContainText("プログラムを読み込みました");
   await expect(page.getByText("ブラウザーPLCワークベンチ", { exact: true })).toBeVisible();
   await expect(page.getByText("プログラム適用済み", { exact: true })).toBeVisible();
+  await expect(page.getByText("インスタンス: mainInstance", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("combobox", { name: "言語", exact: true })).toHaveValue("ja");
   await page.getByRole("combobox", { name: "言語", exact: true }).selectOption("en");

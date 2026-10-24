@@ -1,6 +1,6 @@
 # Headless runtime
 
-`@benchtop-plc/runtime` executes compiler-checked, plain-data `ProgramIR` without
+`@benchtop-plc/runtime` executes compiler-checked, plain-data `ConfigurationIR` without
 host APIs. The caller owns the program and must not mutate it while loaded.
 
 ```ts
@@ -17,7 +17,11 @@ runtime.stop();
 
 The host injects a monotonic `Clock.now()` in milliseconds and a
 `Ticker.start(intervalMs, callback)` returning an idempotent cancellation function.
-The cycle is configured with a positive finite `intervalMs` at construction.
+Loading a configuration sets the cycle from its task's `intervalMs`. Standalone
+legacy `ProgramIR` uses the positive finite `intervalMs` construction option.
+`setCycle(ms)` changes an implicit configuration's cycle, preserving memory and
+restarting the ticker when running. An explicit configuration rejects it with
+`runtime.configured-cycle`; edit its source to change the interval.
 RUN is idempotent and starts scans on ticks, without an immediate initial scan.
 The virtual clock dispatches every due callback chronologically, breaking ties by
 registration order. Cancellation and registrations during callbacks take effect
@@ -33,8 +37,12 @@ program initializes it. Outputs remain subject to the state rules below.
 
 `ScanStages` supplies the input/output image boundary and extension points for
 pending writes and forces. The sequence is read inputs, copy mapped inputs into
-memory, apply pending writes, apply forces, interpret the body, apply forces again,
-then publish mapped outputs. `ScanMemory.write` uses the declaration's core
+memory, apply pending writes, apply forces, execute each program instance in resource
+declaration order with forces applied before and after each instance, then publish
+mapped outputs. Each instance aliases its own persistent storage onto a shared
+PROGRAM body, refreshing only that instance's temporaries. A single task budget
+counts loop iterations across all its instances. A fault stops later instances
+and faults the whole resource, naming its task, POU and qualified instance path. `ScanMemory.write` uses the declaration's core
 coercion helper. Built-in debug writes run before the pending-write extension;
 built-in forces run before the pre-execution force extension and after the
 post-execution force extension, so the built-in force wins in the final image.
@@ -149,7 +157,7 @@ then propagate to the host; they are not PLC-language diagnostics.
 
 ## User functions
 
-Each user call references a shared definition in `ProgramIR.functions`. Supplied
+Each user call references a shared definition in `ConfigurationIR.functions`. Supplied
 input expressions are evaluated left to right in caller storage, then copied into
 fresh local storage cloned from a template validated at load. Function bodies and
 local initial values are validated once when loading; calls do not walk the body
@@ -361,7 +369,9 @@ Snapshots are detached, JSON-serializable copies with images, scalar values, FB
 inputs/outputs, the active forced IDs, count,
 and execution duration measured by the injected clock. Annotations follow the
 [core protocol](core-contracts.md): one entry per executed assignment, function statement or FB call,
-using its last execution's values, grouped by line and sorted by column. Only
+using its last execution's values, grouped by POU name and then line, sorted by
+column. Only the first instance of each PROGRAM supplies annotations; an
+uninstantiated PROGRAM supplies none. Only
 PROGRAM statements have annotations. A function statement shows its result;
 a function without a result shows nothing. Values
 reflect that statement's execution, before any later assignment or force. Each

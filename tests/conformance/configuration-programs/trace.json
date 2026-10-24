@@ -1,0 +1,16 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "different bodies execute",
+      "scans": 1,
+      "expect": { "First.n": 1, "Second.n": 102 }
+    },
+    {
+      "label": "each body keeps its own state",
+      "scans": 4,
+      "expect": { "First.n": 5, "Second.n": 110 }
+    }
+  ]
+}

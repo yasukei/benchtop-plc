@@ -2,6 +2,20 @@ import { expect, expectTypeOf, it } from "vitest";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceSpan } from "./index.js";
 
 const examples = {
+  "config.configuration-count": {},
+  "config.resource-count": {},
+  "config.task-count": {},
+  "config.no-instances": {},
+  "config.instance-limit": {},
+  "config.name-collision": { name: "TON" },
+  "config.unknown-task": { name: "Missing" },
+  "config.missing-task": { name: "A" },
+  "config.program-type": { name: "Counter" },
+  "config.interval": {},
+  "config.priority": {},
+  "config.task-parameter": { name: "SINGLE" },
+  "runtime.configured-cycle": {},
+
   "project.invalid-xml": {},
   "project.missing": { path: "project/types" },
   "project.unsupported": { path: "project/types/dataTypes" },

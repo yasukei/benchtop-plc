@@ -34,6 +34,7 @@ import type {
   InstanceStorage,
   IoImage,
   ProgramIR,
+  ConfigurationIR,
   ScalarValue,
   ScalarVariable,
   TypedValue,
@@ -386,7 +387,7 @@ export class Memory extends MemoryFrame {
   private readonly instanceCells = new Map<number, UserBlockCell>();
 
   constructor(
-    readonly ir: ProgramIR,
+    readonly ir: ProgramIR | ConfigurationIR,
     library?: RuntimeLibrary,
   ) {
     // Check literals even in branches that are not executed. No untrusted long value
@@ -431,7 +432,9 @@ export class Memory extends MemoryFrame {
       }
       for (const child of Object.values(node)) validateLiterals(child);
     };
-    validateLiterals(ir.body);
+    if (ir.kind === "configuration")
+      ir.programs.forEach((program) => validateLiterals(program.body));
+    else validateLiterals(ir.body);
     const functionInitialCells = (ir.functions ?? []).map((fn) => {
       validateLiterals(fn.body);
       return fn.variables.map((variable) => initialCell(variable, ir.types ?? []));
@@ -493,14 +496,21 @@ export class Memory extends MemoryFrame {
     );
   }
 
-  private persistentProgramFrame?: MemoryFrame;
+  private readonly programFrames = new Map<number, MemoryFrame>();
 
-  /** Keep aggregate storage identity stable while refreshing PROGRAM temporaries. */
-  programFrame(): MemoryFrame {
-    if (!this.ir.storage) return this;
-    if (!this.persistentProgramFrame) this.persistentProgramFrame = this.frame(this.ir.storage);
-    else this.persistentProgramFrame.resetTemporaries(this.ir.storage);
-    return this.persistentProgramFrame;
+  /** Each instance keeps aggregate identity while refreshing its own temporaries. */
+  programFrame(index = 0): MemoryFrame {
+    const storage =
+      this.ir.kind === "configuration"
+        ? this.ir.resource.programs[index]!.storage
+        : this.ir.storage;
+    if (!storage) return this;
+    let frame = this.programFrames.get(index);
+    if (!frame) {
+      frame = this.frame(storage);
+      this.programFrames.set(index, frame);
+    } else frame.resetTemporaries(storage);
+    return frame;
   }
 
   /** Clone validated initial cells, keeping each invocation independent. */

@@ -10,7 +10,8 @@ function setup(pous: string[], types: string[] = []) {
   const clock = new VirtualClock();
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
-  const id = (name: string) => ir.variables.findIndex((v) => v.key === name.toUpperCase());
+  const id = (name: string) =>
+    ir.variables.findIndex((v) => v.key === `MAININSTANCE.${name.toUpperCase()}`);
   runtime.watch(ir.variables.map((_, i) => i));
   const value = (name: string) => snapshotVariable(runtime.snapshot(), id(name));
   return { runtime, ir, id, value };
@@ -54,7 +55,7 @@ it("faults on a dynamic index and names the block and instance", () => {
   expect(runtime.diagnostic).toMatchObject({
     code: "runtime.index-out-of-range",
     pou: "Block",
-    instance: "M1",
+    instance: "mainInstance.M1",
     args: { index: "6", lower: 1, upper: 5 },
   });
 });

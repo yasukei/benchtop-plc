@@ -15,8 +15,12 @@ it("shares block code and allocates dotted scalar and standard FB identities", (
   const result = compileProject([main("m1(enable := TRUE, Q => x); m2();"), block]);
   expect(result.diagnostics).toEqual([]);
   expect(result.ir?.functionBlocks).toHaveLength(1);
-  expect(result.ir?.instances?.map((instance) => instance.path)).toEqual(["M1", "M2"]);
-  expect(result.ir?.variables.map((variable) => variable.name)).toEqual([
+  expect(
+    result.ir?.instances?.map((instance) => instance.path.replace(/^mainInstance\./, "")),
+  ).toEqual(["M1", "M2"]);
+  expect(
+    result.ir?.variables.map((variable) => variable.name.replace(/^mainInstance\./, "")),
+  ).toEqual([
     "M1.ENABLE",
     "M1.Q",
     "M1.RUNNING",

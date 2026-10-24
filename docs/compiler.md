@@ -1,11 +1,11 @@
 # Compiling Structured Text
 
 `@benchtop-plc/compiler` exports `compile(source): CompileResult` for existing
-single-program callers and `compileProject(sources: readonly string[], dataTypeSources?: readonly string[]): CompileResult`
+single-program callers and `compileProject(sources, dataTypeSources?, configurationSource?, implicit?): CompileResult`
 for an ordered list of POU texts and a separate ordered list of data type texts.
 Each source contains exactly one declaration. Data types are resolved before POUs. It runs the
 [parser](compiler-parser.md), [semantic checker](type-checking.md) and IR lowering
-in order. Success returns `{ ir: ProgramIR, diagnostics }`, with any portability warnings. Failure returns
+in order. Success returns `{ ir: ConfigurationIR, diagnostics }`, with any portability warnings. Failure returns
 `{ diagnostics: CompileDiagnostic[] }` with the `ir` property omitted; no partially valid
 IR is exposed. Diagnostics retain the earlier stage's codes, arguments and spans,
 and carry the source POU name in `pou` when its header is known. Every `compileProject` diagnostic
@@ -14,14 +14,14 @@ including lexer errors and diagnostics for duplicated names. Project-level
 program-count errors omit `pou`, `sourceIndex` and `span`. The single-source
 `compile` entry point preserves its existing diagnostic shape without `sourceIndex`.
 
-A project requires exactly one `PROGRAM`. `parsePou(source)` parses a `PROGRAM` or
+Without a configuration source a project requires exactly one `PROGRAM`; the diagnostic recommends a configuration source for several programs. `parsePou(source)` parses a `PROGRAM` or
 `FUNCTION` or `FUNCTION_BLOCK`; `parse(source)` remains the single-program parser.
 Project-wide compilation collects signatures before checking any bodies, so forward
 calls work, and checks function calls and block containment for direct or indirect recursion.
 See [ADR 0014](adr/0014-user-defined-pous.md). The web editor manages the ordered POU list and PLCopen XML preserves each text.
 
-`lower(checked): ProgramIR` is also available for callers that already have a
-successful `check(ast)` result. It expects the AST and its semantic side tables
+`lower(checkedPrograms, configuration, blocks?): ConfigurationIR` is also available for callers that already have a
+successful checking results. It expects the AST and its semantic side tables
 to remain intact. It produces a fresh plain-data tree without mutating or sharing
 mutable objects with the AST. Maps, source identifier objects and unneeded parser
 fields never appear in the IR.
@@ -40,7 +40,7 @@ The second list defaults to empty, preserving existing callers. Each source uses
 other supported named types, enumerations, and integer subranges. Forward type
 references resolve case-insensitively; cycles, duplicate names, unknown types and
 clashes with POUs or standard names are errors. Type declarations cannot appear
-inside a POU. `ProgramIR.types` preserves declaration order; inline subranges do
+inside a POU. `ConfigurationIR.types` preserves declaration order; inline subranges do
 not add entries. POU signatures resolve bounds in their own constant scope before
 call sites are checked.
 
@@ -85,7 +85,7 @@ runtime protocol without a separate annotation table or redundant line property.
 
 ## User functions
 
-`ProgramIR.functions` contains each function body once, in project function order.
+`ConfigurationIR.functions` contains each function body once, in project function order.
 A `userFunctionCall` references that table by index; its inputs retain source
 evaluation order and use resolved local variable indices. Outputs likewise bind a
 callee local index to a writable caller target. Each definition has its own local
@@ -97,15 +97,15 @@ calls include `evaluationOrder` when signature order differs from source order.
 
 ## User function blocks and storage
 
-`ProgramIR.functionBlocks` holds each block body once. `userFbCall.variable` selects
+`ConfigurationIR.functionBlocks` holds each block body once. `userFbCall.variable` selects
 an instance slot in the caller's frame, and `userFbMember` selects a public scalar
 input/output by its declaration slot in that instance. User and standard FB calls
 support named `:=` inputs and `=>` output bindings, with assignment widening.
 
-`ProgramIR.variables` is the flat monitored storage table: program scalars and
+`ConfigurationIR.variables` is the flat monitored storage table: program scalars and
 standard FBs, plus every persistent scalar or standard FB below a user instance.
-Nested entries use canonical dotted names, such as `M1.RUNNING` and `M1.DELAY`.
-`storage` maps PROGRAM declaration slots to those VariableIds, temporary scalar
+Nested entries use canonical dotted names, such as `mainInstance.M1.RUNNING` and `mainInstance.M1.DELAY`.
+`resource.programs[i].storage` maps each PROGRAM instance's declaration slots to those VariableIds, temporary scalar
 initial values or indices into `instances`. Each instance records its block index,
 path and the same storage mapping for its own declaration slots. No code is copied
 while allocating the instance tree. PROGRAM and block `VAR_TEMP` declarations have
@@ -137,3 +137,47 @@ from outside the block. User block private members and in-outs remain inaccessib
 Every element shares its block's code and has its own persistent instance tree.
 Overloaded timer/counter selection combines eligible PT/PV bindings across all
 elements of the declaration; use a typed block name to fix the variant explicitly.
+
+## Configuration source
+
+The optional third argument contains one configuration source. For example:
+
+```ts
+const result = compileProject(
+  ["PROGRAM Counter VAR n : INT; END_VAR n := n + 1; END_PROGRAM"],
+  [],
+  `CONFIGURATION Plant
+   RESOURCE Station ON BENCHTOP
+     TASK T (INTERVAL := T#20ms, PRIORITY := 1);
+     PROGRAM A WITH T : Counter;
+     PROGRAM B WITH T : Counter;
+   END_RESOURCE
+   END_CONFIGURATION`,
+);
+```
+
+One configuration, one resource, one cyclic task and 1–64 program instances are
+supported. `ON` accepts an arbitrary identifier and has no execution effect.
+Every instance requires `WITH` and a known task; its type must name a `PROGRAM`.
+The configuration, resource, task and instance names share a case-insensitive
+namespace excluding POU, data type and standard names. Every POU is checked, even
+when no instance references it; an uninstantiated PROGRAM has no storage and does
+not execute.
+
+`INTERVAL` and `PRIORITY` are both required, in either order. The interval is a
+TIME/LTIME literal from 10 ms to 1 h in whole multiples of 10 ms; exact literal
+arithmetic prevents rounding fractional values into range. Priority is an integer
+literal from 0 to 65535. `INTERVAL`, `SINGLE` and `PRIORITY` remain ordinary
+identifiers outside task parameter positions. Event tasks, multiple tasks, globals
+and program connections remain deferred.
+
+Configuration diagnostics carry `sourceKind: "configuration"`, `sourceIndex: 0`,
+and the configuration name in `pou` when its header is known. The source index is
+separate from POU and data type indexes.
+
+With no source the fourth argument supplies existing project metadata:
+`{ name?, resource?, task?: { name?, intervalMs?, priority? }, instance? }`.
+Defaults are `Config`, `Res`, `Cyclic` (10 ms, priority 1) and `mainInstance`.
+The result always contains a configuration, with `explicit: false` for this
+implicit form. Its instance variables already use paths such as
+`mainInstance.LAMP`; adding an explicit source need not change their identity.

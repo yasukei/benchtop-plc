@@ -33,7 +33,7 @@ END_PROGRAM`;
   await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Single scan", exact: true }).click();
   const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
-  await expect(monitor.getByRole("row")).toHaveCount(4);
+  await expect(monitor.getByRole("row")).toHaveCount(5);
   for (const [name, value] of [
     ["A", "10"],
     ["Wrapped", "-5536"],

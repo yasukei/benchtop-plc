@@ -18,7 +18,7 @@ function setup(pous: string[], types = [state, percent]) {
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
   const id = (name: string) =>
-    ir.variables.findIndex((variable) => variable.key === name.toUpperCase());
+    ir.variables.findIndex((variable) => variable.key === `MAININSTANCE.${name.toUpperCase()}`);
   const value = (snapshot: RuntimeSnapshot, name: string) => snapshot.variables[id(name)];
   return { ir, runtime, clock, id, value };
 }

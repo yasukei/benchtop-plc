@@ -5,13 +5,27 @@
     {
       "label": "Sum initialized elements, access two dimensions and nested arrays, and copy independently",
       "scans": 1,
-      "expect": { "Sum": 3, "V[4]": 0, "M[1,2]": 2.5, "N[2][3]": 3, "Copy[1]": 99, "V[1]": 1 }
+      "expect": {
+        "mainInstance.Sum": 3,
+        "mainInstance.V[4]": 0,
+        "mainInstance.M[1,2]": 2.5,
+        "mainInstance.N[2][3]": 3,
+        "mainInstance.Copy[1]": 99,
+        "mainInstance.V[1]": 1
+      }
     },
     {
       "label": "Persistent leaves survive into the next scan",
-      "set": { "V[2]": 4 },
+      "set": {
+        "mainInstance.V[2]": 4
+      },
       "scans": 1,
-      "expect": { "Sum": 5, "N[2][3]": 5, "Copy[2]": 4, "V[1]": 1 }
+      "expect": {
+        "mainInstance.Sum": 5,
+        "mainInstance.N[2][3]": 5,
+        "mainInstance.Copy[2]": 4,
+        "mainInstance.V[1]": 1
+      }
     }
   ]
 }

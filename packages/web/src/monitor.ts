@@ -173,7 +173,7 @@ export function variableValue(
 }
 
 export type MonitorRow =
-  | { kind: "group"; name: string; depth: number; dataType: TypeDescriptor }
+  | { kind: "group"; name: string; depth: number; dataType?: TypeDescriptor; instance?: string }
   | { kind: "leaf"; id: number; depth: number };
 
 /** Build visible rows and the watch list from the IR paths, independent of React. */
@@ -185,7 +185,16 @@ export function monitorRows(
 ): MonitorRow[] {
   const rows: MonitorRow[] = [];
   const emitted = new Set<string>();
-  const groups = new Map(composites.map((group) => [JSON.stringify(group.path), group]));
+  const groups = new Map<string, { name: string; path: string[]; dataType?: TypeDescriptor }>(
+    composites.map((group) => [JSON.stringify(group.path), group]),
+  );
+  for (const variable of variables) {
+    if (variable.instance)
+      groups.set(JSON.stringify([variable.instance]), {
+        name: variable.instance,
+        path: [variable.instance],
+      });
+  }
   for (const [id, variable] of variables.entries()) {
     const parents = (variable.path ?? []).flatMap((_, i) => {
       const group = groups.get(JSON.stringify(variable.path!.slice(0, i)));
@@ -195,7 +204,13 @@ export function monitorRows(
     for (const [depth, parent] of parents.entries()) {
       if (!visible) break;
       if (!emitted.has(parent.name)) {
-        rows.push({ kind: "group", name: parent.name, depth, dataType: parent.dataType });
+        rows.push({
+          kind: "group",
+          name: parent.name,
+          depth,
+          dataType: parent.dataType,
+          instance: variable.instance,
+        });
         emitted.add(parent.name);
       }
       visible = expanded.has(parent.name);
@@ -206,7 +221,7 @@ export function monitorRows(
   return rows;
 }
 export function watchedLeaves(rows: readonly MonitorRow[], variables: Variable[]): number[] {
-  return rows.flatMap((row) => (row.kind === "leaf" && variables[row.id]?.path ? [row.id] : []));
+  return rows.flatMap((row) => (row.kind === "leaf" && variables[row.id]?.watched ? [row.id] : []));
 }
 
 /** Index a received snapshot once so rendering many watched rows stays linear. */
@@ -219,4 +234,9 @@ export function snapshotValues(
     if (id !== undefined) values.set(id, value);
   });
   return values;
+}
+
+/** Grouped rows show paths relative to their program instance. */
+export function monitorLabel(path: string, instance?: string): string {
+  return instance && path.startsWith(`${instance}.`) ? path.slice(instance.length + 1) : path;
 }

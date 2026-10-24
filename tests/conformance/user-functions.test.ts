@@ -15,7 +15,7 @@ function setup(sources: string[]) {
       ir.variables.map((variable, index) => {
         const value = snapshot.variables[index]!;
         if (value.kind !== "scalar") throw new Error("Expected scalar");
-        return [variable.name, value.value];
+        return [variable.name.replace(/^mainInstance\./, ""), value.value];
       }),
     );
   return { ir, runtime, values };
@@ -137,8 +137,8 @@ it("annotates statement results only in the PROGRAM and omits no-result calls", 
   ]);
   const snapshot = runtime.scanOnce();
   expect(snapshot.variables).toEqual([]);
-  expect(snapshot.annotations).toEqual({
-    2: [{ span: ir.body[0]!.span, values: [{ dataType: "INT", value: 42 }] }],
+  expect(snapshot.annotations.Main).toEqual({
+    2: [{ span: ir.programs[0]!.body[0]!.span, values: [{ dataType: "INT", value: 42 }] }],
   });
 });
 

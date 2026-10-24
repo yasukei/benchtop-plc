@@ -2,10 +2,11 @@
 
 Run `pnpm test` to include all cases, or
 `pnpm test tests/conformance/traces.test.ts` to run only the data-driven suite.
-Each immediate subdirectory except `fixtures/` is a case containing `program.st`
-and `trace.json`, optionally with further `.st` files for function POUs. The
+Each immediate subdirectory except `fixtures/` is a case containing `trace.json`
+and one or more `.st` POU sources. The
 runner compiles every `.st` file together in filename order (one POU per file),
-with `*.type.st` files supplied separately as data type sources (one TYPE per file).
+with `*.type.st` files supplied separately as data type sources (one TYPE per file),
+and an optional `*.config.st` file supplied as the configuration source.
 Cases are discovered in name order; a missing trace fails the suite. Existing TypeScript conformance tests and golden IR stay alongside them.
 
 ## Execution traces
@@ -17,15 +18,15 @@ Cases are discovered in name order; a missing trace fails the suite. Existing Ty
   "steps": [
     {
       "label": "Start the controller",
-      "set": { "StartPB": true },
+      "set": { "mainInstance.StartPB": true },
       "scans": 1,
-      "expect": { "Running": true, "tBlinkOn.ET": 0 }
+      "expect": { "mainInstance.Running": true, "mainInstance.tBlinkOn.ET": 0 }
     },
     {
       "label": "Complete the on delay",
-      "set": { "StartPB": false },
+      "set": { "mainInstance.StartPB": false },
       "advanceMs": 500,
-      "expect": { "Lamp": true, "Blinks": 1 }
+      "expect": { "mainInstance.Lamp": true, "mainInstance.Blinks": 1 }
     }
   ]
 }
@@ -33,7 +34,8 @@ Cases are discovered in name order; a missing trace fails the suite. Existing Ty
 
 The harness compiles the source without diagnostics, creates a fresh runtime with
 a `VirtualClock` and `VirtualTicker`, and enters RUN at virtual time zero. The
-first scan occurs at `cycleMs`, not at zero. The cycle must be positive and finite.
+first scan occurs at `cycleMs`, not at zero. The cycle must be positive and finite. With a configuration source, its task interval
+drives execution; `cycleMs` remains the unit used by trace `scans` fields.
 Every due scan executes chronologically; advancing time never skips scans.
 No wall clock or real-time waits are involved.
 
@@ -51,8 +53,8 @@ Steps execute in array order:
    including durations between ticks. Ticker phase is preserved between steps.
    With neither field, time does not advance (useful for initial expectations).
 3. `expect` checks the snapshot after the advance. It must be nonempty. Keys are
-   case-insensitive scalar names or FB members such as `Timer.Q`, `Timer.ET`,
-   `Up.CV` or `Timer.IN`. Booleans, strings and numbers compare exactly; TIME uses integer
+   case-insensitive instance-qualified scalar paths or FB members such as
+   `mainInstance.Timer.Q`, `A.Timer.ET`, `B.Up.CV` or `A.Timer.IN`. Booleans, strings and numbers compare exactly; TIME uses integer
    milliseconds. Expectations only inspect values and never execute a scan.
 
 Every step needs a nonempty `label`. Unknown fields, names, FB members, invalid
@@ -61,7 +63,7 @@ are mutually exclusive. A mismatch includes the case, one-based step number,
 label, variable, expected/actual values, virtual time and scan count, for example:
 
 ```text
-wrong-expectation: step 1 (check): Error: variable Count: expected 99, actual 1 at 10 ms (scan 1)
+wrong-expectation: step 1 (check): Error: variable mainInstance.Count: expected 99, actual 1 at 10 ms (scan 1)
 ```
 
 `trace.test.ts` verifies this failure path with an intentionally wrong expectation.

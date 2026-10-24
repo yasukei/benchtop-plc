@@ -16,7 +16,8 @@ function execute(declarations: string, body = "") {
   const snapshot = runtime.scanOnce();
   const values: Record<string, ScalarValue> = {};
   snapshot.variables.forEach((cell, index) => {
-    if (cell.kind === "scalar") values[result.ir!.variables[index]!.name] = cell.value;
+    if (cell.kind === "scalar")
+      values[result.ir!.variables[index]!.name.replace(/^mainInstance\./, "")] = cell.value;
   });
   return { values, snapshot, runtime, ir: result.ir! };
 }
@@ -171,7 +172,9 @@ describe("bit-string operators and bit access", () => {
       read := w.15; copied := b.0; w.0 := d.30;`,
     );
     expect(result.values).toEqual({ b: 43, w: 32769, d: 2147483646, read: true, copied: true });
-    expect(result.ir.body[2]).toMatchObject({ target: { kind: "bit", bit: 15, dataType: "BOOL" } });
+    expect(result.ir.programs[0]!.body[2]).toMatchObject({
+      target: { kind: "bit", bit: 15, dataType: "BOOL" },
+    });
     expect(execute("w: WORD;", "w.15 := TRUE;").values.w).toBe(32768);
     expect(execute("d: DWORD;", "d.31 := TRUE;").values.d).toBe(2147483648);
   });

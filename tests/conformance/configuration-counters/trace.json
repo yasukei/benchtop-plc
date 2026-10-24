@@ -1,0 +1,14 @@
+{
+  "kind": "run",
+  "cycleMs": 20,
+  "steps": [
+    { "label": "both instances run", "scans": 1, "expect": { "A.n": 1, "B.n": 1 } },
+    {
+      "label": "write only A",
+      "set": { "A.n": 10 },
+      "scans": 1,
+      "expect": { "A.n": 11, "B.n": 2 }
+    },
+    { "label": "independent counters persist", "scans": 3, "expect": { "A.n": 14, "B.n": 5 } }
+  ]
+}

@@ -5,72 +5,72 @@
     {
       "label": "Initially high starts pulse",
       "set": {
-        "Input": true
+        "mainInstance.Input": true
       },
       "scans": 1,
       "expect": {
-        "Output": true,
-        "Timer.ET": 0
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 0
       }
     },
     {
       "label": "Falling edge does not end pulse",
       "set": {
-        "Input": false
+        "mainInstance.Input": false
       },
       "scans": 1,
       "expect": {
-        "Output": true,
-        "Timer.ET": 1
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 1
       }
     },
     {
       "label": "PT minus one",
       "advanceMs": 8,
       "expect": {
-        "Output": true,
-        "Timer.ET": 9
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 9
       }
     },
     {
       "label": "PT boundary with input high",
       "set": {
-        "Input": true
+        "mainInstance.Input": true
       },
       "scans": 1,
       "expect": {
-        "Output": false,
-        "Timer.ET": 10
+        "mainInstance.Output": false,
+        "mainInstance.Timer.ET": 10
       }
     },
     {
       "label": "Held high does not retrigger",
       "scans": 5,
       "expect": {
-        "Output": false,
-        "Timer.ET": 10
+        "mainInstance.Output": false,
+        "mainInstance.Timer.ET": 10
       }
     },
     {
       "label": "False rearms",
       "set": {
-        "Input": false
+        "mainInstance.Input": false
       },
       "scans": 1,
       "expect": {
-        "Output": false,
-        "Timer.ET": 0
+        "mainInstance.Output": false,
+        "mainInstance.Timer.ET": 0
       }
     },
     {
       "label": "Next rising edge starts a new pulse",
       "set": {
-        "Input": true
+        "mainInstance.Input": true
       },
       "scans": 1,
       "expect": {
-        "Output": true,
-        "Timer.ET": 0
+        "mainInstance.Output": true,
+        "mainInstance.Timer.ET": 0
       }
     }
   ]

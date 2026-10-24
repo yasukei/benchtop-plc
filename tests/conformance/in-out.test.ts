@@ -11,7 +11,7 @@ function setup(sources: string[]) {
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
   runtime.load(ir);
   const id = (name: string) =>
-    ir.variables.findIndex((variable) => variable.key === name.toUpperCase());
+    ir.variables.findIndex((variable) => variable.key === `MAININSTANCE.${name.toUpperCase()}`);
   const value = (snapshot: RuntimeSnapshot, name: string) => snapshot.variables[id(name)];
   const scalar = (snapshot: RuntimeSnapshot, name: string) => {
     const cell = value(snapshot, name);
@@ -47,7 +47,10 @@ it("traces a block incrementing its actual and rebinding between calls without e
      inst(n := x); inst(n := y); END_PROGRAM`,
     `FUNCTION_BLOCK B VAR_IN_OUT n : INT; END_VAR n := n + 1; END_FUNCTION_BLOCK`,
   ]);
-  expect(ir.variables.map((variable) => variable.key)).toEqual(["X", "Y"]);
+  expect(ir.variables.map((variable) => variable.key)).toEqual([
+    "MAININSTANCE.X",
+    "MAININSTANCE.Y",
+  ]);
   expect(
     [1, 2, 3].map(() => {
       const snapshot = runtime.scanOnce();

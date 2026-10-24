@@ -13,7 +13,7 @@ it.each([
   );
   expect(result.diagnostics).toEqual([]);
   const ir = result.ir!;
-  const statement = ir.body[0]!;
+  const statement = ir.programs[0]!.body[0]!;
   if (statement.kind !== "assignment") throw new Error("Expected assignment");
   const clock = new VirtualClock();
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
@@ -24,6 +24,8 @@ it.each([
   expect(runtime.diagnostic).toEqual({
     code: "runtime.division-by-zero",
     severity: "error",
+    instance: "mainInstance",
+    task: "Cyclic",
     pou: "Division",
     span: statement.value.span,
     args: {},

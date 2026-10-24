@@ -26,11 +26,11 @@ END_PROGRAM`);
   const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
   const row = (name: string) =>
     monitor.getByRole("row").filter({ has: page.getByRole("rowheader", { name, exact: true }) });
-  await expect(row("R").locator("td").nth(2)).toHaveText("P1");
+  await expect(row("R").locator("td").nth(2)).toHaveText("mainInstance.P1");
   await expect(row("R").getByRole("button")).toHaveCount(0);
   await expect(row("R").getByLabel("Value to write")).toHaveCount(0);
   await page.getByRole("button", { name: "Single scan", exact: true }).click();
-  await expect(row("R").locator("td").nth(2)).toHaveText("P2");
+  await expect(row("R").locator("td").nth(2)).toHaveText("mainInstance.P2");
   await monitor.getByRole("button", { name: "P1", exact: true }).click();
   await monitor.getByRole("button", { name: "P2", exact: true }).click();
   await expect(row("P1.X").locator("td").nth(2)).toHaveText("5.0");

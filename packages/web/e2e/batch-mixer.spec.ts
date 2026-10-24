@@ -46,7 +46,7 @@ test("runs the batch mixer and preserves its type and program texts on save/reop
   await expect(lamp("FILL VALVE")).toHaveAttribute("data-on", "true");
   await page.keyboard.up("Space");
   await expect(value("State")).toHaveText("Filling");
-  await expect(value("ActiveRecipe")).toHaveText("RECIPES[3]");
+  await expect(value("ActiveRecipe")).toHaveText("mainInstance.RECIPES[3]");
   await expect(value("Status")).toHaveText("'Gentle: Filling'");
   await expect(lamp("MIXER")).toHaveAttribute("data-on", "true");
   await expect(lamp("FILL VALVE")).toHaveAttribute("data-on", "false");

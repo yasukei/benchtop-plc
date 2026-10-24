@@ -1,6 +1,11 @@
+import {
+  parseConfiguration,
+  checkConfiguration,
+  type ImplicitConfiguration,
+} from "./configuration.js";
 import { isReservedStandardName } from "./reserved-names.js";
 import { isFunctionBlockType, isStandardFunction, leafCount } from "@benchtop-plc/core";
-import type { Diagnostic, ProgramIR } from "@benchtop-plc/core";
+import type { Diagnostic, ConfigurationIR } from "@benchtop-plc/core";
 import type { Program } from "./ast.js";
 import type { CheckedProgram, VariableSymbol } from "./checked.js";
 import { check, checkDeclarations } from "./checker.js";
@@ -12,10 +17,10 @@ import { parseDataType, parsePou } from "./parser.js";
 /** Source order identifies a POU even when its header is missing or its name is duplicated. */
 export type CompileDiagnostic = Diagnostic & {
   sourceIndex?: number;
-  sourceKind?: "dataType" | "pou";
+  sourceKind?: "dataType" | "pou" | "configuration";
 };
 export type CompileResult =
-  | { ir: ProgramIR; diagnostics: CompileDiagnostic[] }
+  | { ir: ConfigurationIR; diagnostics: CompileDiagnostic[] }
   | { ir?: never; diagnostics: CompileDiagnostic[] };
 
 /** Compatibility entry point for the single-program editor and project codec. */
@@ -36,8 +41,18 @@ export function compile(source: string): CompileResult {
 export function compileProject(
   sources: readonly string[],
   dataTypeSources: readonly string[] = [],
+  configurationSource?: string,
+  implicit: ImplicitConfiguration = {},
 ): CompileResult {
   const diagnostics: CompileDiagnostic[] = [];
+  const configDiagnostic = (diagnostic: Diagnostic): CompileDiagnostic => ({
+    ...diagnostic,
+    sourceKind: "configuration",
+    sourceIndex: 0,
+  });
+  const parsedConfig =
+    configurationSource === undefined ? undefined : parseConfiguration(configurationSource);
+  diagnostics.push(...(parsedConfig?.diagnostics.map(configDiagnostic) ?? []));
   const dataTypes: import("./ast.js").DataTypeDeclaration[] = [];
   const typeIndexes = new Map<string, number>();
   for (const [sourceIndex, source] of dataTypeSources.entries()) {
@@ -140,7 +155,11 @@ export function compileProject(
   if (resolved.diagnostics.some((diagnostic) => diagnostic.severity === "error"))
     return { diagnostics };
   const programs = asts.filter((ast) => ast.kind === "program");
-  if (programs.length !== 1)
+  if (parsedConfig?.ast)
+    diagnostics.push(
+      ...checkConfiguration(parsedConfig.ast, pous, typeIndexes.keys()).map(configDiagnostic),
+    );
+  if (configurationSource === undefined && programs.length !== 1)
     diagnostics.push({
       code: "pou.program-count",
       severity: "error",
@@ -241,8 +260,29 @@ export function compileProject(
     }
   }
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
+  const config = parsedConfig?.ast;
   const ir = lower(
-    checked.get(programs[0]!)!,
+    programs.map((ast) => checked.get(ast)!),
+    config
+      ? {
+          name: config.name.name,
+          resource: config.resource.name,
+          task: config.task,
+          programs: config.programs.map((instance) => ({
+            name: instance.name.name,
+            program: programs.findIndex((ast) => ast.name.key === instance.type.key),
+          })),
+          explicit: true,
+          span: config.span,
+        }
+      : {
+          name: implicit.name ?? "Config",
+          resource: implicit.resource ?? "Res",
+          task: { name: "Cyclic", intervalMs: 10, priority: 1, ...implicit.task },
+          programs: [{ name: implicit.instance ?? "mainInstance", program: 0 }],
+          explicit: false,
+          span: programs[0]!.span,
+        },
     blocks.map((ast) => lowerFunctionBlock(checked.get(ast)!)),
   );
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));

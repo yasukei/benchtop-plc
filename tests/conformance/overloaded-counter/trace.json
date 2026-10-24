@@ -5,12 +5,18 @@
     {
       "label": "Count the first 20000 edges",
       "scans": 1,
-      "expect": { "counter.CV": 20000, "counter.Q": false }
+      "expect": {
+        "mainInstance.counter.CV": 20000,
+        "mainInstance.counter.Q": false
+      }
     },
     {
       "label": "Count past INT maximum and reach the DINT preset",
       "scans": 1,
-      "expect": { "counter.CV": 40000, "counter.Q": true }
+      "expect": {
+        "mainInstance.counter.CV": 40000,
+        "mainInstance.counter.Q": true
+      }
     }
   ]
 }

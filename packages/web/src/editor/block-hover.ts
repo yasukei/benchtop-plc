@@ -30,13 +30,18 @@ export function blockTypeAt(
     ast.kind === "program"
       ? ir.variables
       : ir.functionBlocks?.find((block) => block.name.toUpperCase() === ast.name.key)?.variables;
-  const variable = variables?.find((item) => item.key === token.key);
+  const instance = ir.resource.programs.find(
+    (instance) => ir.programs[instance.program]!.name.toUpperCase() === ast.name.key,
+  );
+  const qualified =
+    ast.kind === "program" && instance ? `${instance.name.toUpperCase()}.${token.key}` : token.key;
+  const variable = variables?.find((item) => item.key === qualified);
   const declaration = ast.declarations.find((declaration) =>
     declaration.names.some((name) => name.key === token.key),
   );
   if (!declaration) return null;
   if (declaration.array) {
-    const composite = ir.composites?.find((item) => item.name === token.key);
+    const composite = ir.composites?.find((item) => item.name.toUpperCase() === qualified);
     const dataType = variable?.kind === "array" ? variable.dataType : composite?.dataType;
     return {
       ...spanRange(source, token.span),
