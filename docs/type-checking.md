@@ -567,4 +567,13 @@ and parameters, in-out parameters, constants, bit selectors and expressions are
 rejected with `type.invalid-reference-target`. Function block instances and open
 arrays cannot be reference target types. `type.reference-initializer` rejects
 non-NULL reference initializers. Reference inputs/outputs are copied as references,
-in-outs alias the reference cell, and functions can return references.
+in-outs alias the reference cell, and functions can return references. `MOVE`,
+`SEL` and `MUX` copy/select reference identities with exact matching target types;
+`NULL` is accepted as a value operand. All arguments are evaluated eagerly in
+source order. Selectors retain their ordinary BOOL/integer requirements.
+
+Dereferenced storage (`r^`, `r^.member`, `r^[index]`) can be passed to a matching
+in-out parameter, including whole arrays and structures. The location is evaluated
+once per call, and writes retain the target storage's constraints. A NULL actual
+faults before the callee runs. Direct block ports and bit selectors remain invalid
+in-out actuals.

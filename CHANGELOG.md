@@ -11,7 +11,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 ### Added
 
 - References (`REF_TO`, `REF`, `^`, `NULL`) to persistent variables, elements and
-  members, including reference parameters/results and recursive structures.
+  members, including reference parameters/results, `MOVE`/`SEL`/`MUX` selection,
+  dereferenced in-out arguments and recursive structures.
   Reference targets match exactly; NULL dereferences fault with POU/instance
   diagnostics. Monitoring displays target paths or NULL without write/force
   controls, and PLCopen XML exchanges references as pointer types.

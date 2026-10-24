@@ -57,8 +57,8 @@ describe("references", () => {
     ["x : INT;", "x^ := 2;", "type.invalid-reference-target"],
     ["r : REF_TO INT; x : INT;", "r := x;", "type.assign-mismatch"],
     ["r : REF_TO INT; x : INT;", "x := r;", "type.assign-mismatch"],
-    ["x : INT;", "x := NULL;", "type.assign-mismatch"],
-    ["r : REF_TO INT; b : BOOL;", "b := r < NULL;", "type.operand-mismatch"],
+    ["x : INT;", "x := NULL;", "type.invalid-reference-target"],
+    ["r : REF_TO INT; b : BOOL;", "b := r < NULL;", "type.invalid-reference-target"],
     ["r : REF_TO INT; b : BOOL;", "b := r = 1;", "type.operand-mismatch"],
     ["r : REF_TO INT; b : BOOL;", "b := -r = NULL;", "type.operand-mismatch"],
     ["r : REF_TO INT; s : REF_TO REAL; b : BOOL;", "b := r = s;", "type.operand-mismatch"],
@@ -182,4 +182,97 @@ it("reports by-value cycles without publishing cyclic storage descriptors", () =
       );
     }
   }
+});
+
+it.each(["r := SEL(TRUE, REF(x), REF(y));", "r := MUX(0, REF(x), REF(y));", "r := MOVE(REF(y));"])(
+  "rejects selection between distinct reference targets: %s",
+  (body) => {
+    const result = compile("x : INT (0..10); y : INT; r : REF_TO INT (0..10);", body);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: body.includes("MOVE") ? "type.assign-mismatch" : "call.argument-type",
+      }),
+    );
+  },
+);
+
+it.each(["r := SEL(r, r, r);", "r := MUX(r, r, r);", "r := ADD(r, r);"])(
+  "rejects reference selectors and arithmetic: %s",
+  (body) => {
+    expect(compile("r : REF_TO INT;", body).ir).toBeUndefined();
+  },
+);
+
+it("rejects mismatched dereferenced in-outs and bit actuals", () => {
+  for (const [declarations, actual, code] of [
+    ["r : REF_TO INT (0..10);", "r^", "call.in-out-type"],
+    ["r : REF_TO WORD;", "r^.1", "call.in-out-variable"],
+  ]) {
+    const result = compileProject([
+      program(declarations!, `Inc(v := ${actual});`),
+      "FUNCTION Inc VAR_IN_OUT v : INT; END_VAR v := v + 1; END_FUNCTION",
+    ]);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code }));
+  }
+});
+
+it.each([
+  "REF_TO MissingType",
+  "REF_TO REF_TO MissingType",
+  "REF_TO ARRAY[1..2] OF MissingType",
+  "ARRAY[1..2] OF REF_TO MissingType",
+])("reports the unknown reference target once: %s", (type) => {
+  const source = `TYPE BadR : ${type}; END_TYPE`;
+  const result = compileProject([program("")], [source]);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics).toEqual([
+    expect.objectContaining({
+      code: "decl.unknown-type",
+      args: { name: "MissingType" },
+      span: expect.objectContaining({
+        column: source.indexOf("MissingType") + 1,
+        endColumn: source.indexOf("MissingType") + 12,
+      }),
+    }),
+  ]);
+});
+
+it.each(["TON", "Block"])("reports a known block reference target as unsupported: %s", (target) => {
+  const result = compileProject(
+    [program(""), "FUNCTION_BLOCK Block END_FUNCTION_BLOCK"],
+    [`TYPE BadR : REF_TO ${target}; END_TYPE`],
+  );
+  expect(result.diagnostics).toEqual([
+    expect.objectContaining({ code: "type.invalid-reference-target", args: {} }),
+  ]);
+});
+
+it("reports failed reference variable and result types without synthetic unknown types", () => {
+  for (const source of [
+    program("r : REF_TO MissingType;"),
+    "FUNCTION F : REF_TO MissingType END_FUNCTION",
+  ]) {
+    const result = compileProject(source.startsWith("PROGRAM") ? [source] : [program(""), source]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "decl.unknown-type", args: { name: "MissingType" } }),
+    ]);
+  }
+});
+
+it.each([
+  "x := NULL;",
+  "x := -NULL;",
+  "b := NULL < r;",
+  "x := MOVE(NULL);",
+  "r := SEL(TRUE, NULL, 1);",
+  "x := a[NULL];",
+])("rejects invalid NULL contexts without inventing a BOOL target: %s", (body) => {
+  const result = compile("x : INT; b : BOOL; r : REF_TO INT; a : ARRAY[1..2] OF INT;", body);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "type.invalid-reference-target", args: {} }),
+  );
+  expect(JSON.stringify(result.diagnostics)).not.toContain('"target":"BOOL"');
 });

@@ -199,6 +199,21 @@ export class Interpreter {
       const location = this.location(expr.target);
       return location.frame.address(location.variable);
     }
+    if (expr.kind === "functionCall") {
+      const args: (ReferenceAddress | null | ScalarValue)[] = [];
+      for (const i of expr.evaluationOrder ?? expr.args.map((_, i) => i)) {
+        const arg = expr.args[i]!;
+        args[i] = referenceType(arg.dataType, this.programMemory.ir.types)
+          ? this.referenceExpression(arg)
+          : this.expression(arg);
+      }
+      if (expr.function === "MOVE") return args[0] as ReferenceAddress | null;
+      if (expr.function === "SEL") return args[args[0] ? 2 : 1] as ReferenceAddress | null;
+      const selector = BigInt(args[0] as ScalarValue);
+      if (selector < 0n || selector >= BigInt(args.length - 1))
+        throw new RangeError("MUX selector");
+      return args[Number(selector) + 1] as ReferenceAddress | null;
+    }
     if (expr.kind === "userFunctionCall") {
       const value = this.userCall(expr);
       if (value === null || isReferenceAddress(value)) return value;
@@ -473,6 +488,12 @@ export class Interpreter {
             this.annotate(statement, [
               { dataType: this.base(statement.call.dataType), value: result } as TypedValue,
             ]);
+          break;
+        }
+        if (referenceType(statement.call.dataType, this.programMemory.ir.types)) {
+          this.annotate(statement, [
+            this.memory.referenceValue(this.referenceExpression(statement.call)),
+          ]);
           break;
         }
         if (isAggregateType(statement.call.dataType, this.programMemory.ir.types)) {

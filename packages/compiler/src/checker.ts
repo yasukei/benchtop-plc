@@ -136,6 +136,8 @@ class Checker {
   private readonly failedBlockSelections = new Set<string>();
   private result?: VariableSymbol;
   private collectingDeclarations = true;
+  private readonly failedReferenceTypes = new Set<AST.Identifier>();
+  private readonly failedReferenceTargets = new Set<AST.TypeSyntax>();
   private readonly unsupportedBlockArrays = new Set<AST.ArrayDeclaration>();
 
   constructor(
@@ -187,9 +189,10 @@ class Checker {
       const type = descriptor
         ? this.base(descriptor, this.types)
         : declarationType(ast.resultType.key);
-      if (!isScalar(type))
-        this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
-      else {
+      if (!isScalar(type)) {
+        if (!this.failedReferenceTypes.has(ast.resultType))
+          this.report("decl.unknown-type", { name: ast.resultType.name }, ast.resultType.span);
+      } else {
         this.result = {
           id: this.symbols.length,
           name: ast.name,
@@ -496,6 +499,20 @@ class Checker {
     reference?: AST.TypeSyntax,
   ): TypeDescriptor | undefined {
     if (reference) {
+      const fail = () => {
+        this.failedReferenceTypes.add(name);
+        this.failedReferenceTargets.add(reference);
+        return undefined;
+      };
+      if (this.failedReferenceTargets.has(reference)) return fail();
+      if (
+        !reference.reference &&
+        !reference.array &&
+        (isBlock(reference.typeName.key) || this.blockIds.has(reference.typeName.key))
+      ) {
+        this.report("type.invalid-reference-target", {}, reference.typeName.span);
+        return fail();
+      }
       const target = this.descriptor(
         reference.typeName,
         reference.subrange,
@@ -504,12 +521,12 @@ class Checker {
         reference.reference,
       );
       if (!target) {
-        this.report(
-          "decl.unknown-type",
-          { name: reference.typeName.name },
-          reference.typeName.span,
-        );
-        return undefined;
+        if (!this.failedReferenceTypes.has(reference.typeName)) {
+          let leaf = reference;
+          while (leaf.reference || leaf.array) leaf = (leaf.reference ?? leaf.array)!;
+          this.report("decl.unknown-type", { name: leaf.typeName.name }, leaf.typeName.span);
+        }
+        return fail();
       }
       const seen = new Set<TypeDescriptor>();
       const valid = (type: TypeDescriptor): boolean => {
@@ -525,11 +542,16 @@ class Checker {
       };
       if (!valid(target)) {
         this.report("type.invalid-reference-target", {}, reference.typeName.span);
-        return undefined;
+        return fail();
       }
       return { kind: "reference", target };
     }
-    if (array) return this.arrayDeclaration(array);
+    if (array) {
+      const descriptor = this.arrayDeclaration(array);
+      if (!descriptor && this.failedReferenceTypes.has(array.typeName))
+        this.failedReferenceTypes.add(name);
+      return descriptor;
+    }
     const key = declarationType(name.key);
     let type: TypeDescriptor;
     if (isScalar(key)) type = key;
@@ -672,7 +694,7 @@ class Checker {
       );
     if (this.ast.kind === "function" && block)
       this.report("pou.function-block-in-function", {}, declaration.typeName.span);
-    if (!known)
+    if (!known && !this.failedReferenceTypes.has(declaration.typeName))
       this.report(
         "decl.unknown-type",
         { name: declaration.typeName.name },
@@ -944,6 +966,10 @@ class Checker {
         const info = this.expression(index);
         if (!info) return;
         const type = info.descriptor ?? info.dataType;
+        if (info.nullReference) {
+          this.report("type.invalid-reference-target", {}, index.span);
+          return;
+        }
         if (
           !isIntegerType(info.dataType) ||
           this.enum(info) ||
@@ -1225,6 +1251,10 @@ class Checker {
             ? null
             : unaryType(node.operator, operand.dataType);
         if (!dataType) {
+          if (operand.nullReference) {
+            this.report("type.invalid-reference-target", {}, node.span);
+            return null;
+          }
           this.report(
             "type.operand-mismatch",
             { operator: node.operator, left: operand.descriptor ?? operand.dataType, right: null },
@@ -1264,6 +1294,10 @@ class Checker {
               !right.nullReference &&
               !sameScalarType(lr.target, rr.target, this.types))
           ) {
+            if (left.nullReference || right.nullReference) {
+              this.report("type.invalid-reference-target", {}, node.span);
+              return null;
+            }
             this.report(
               "type.operand-mismatch",
               {
@@ -1626,12 +1660,62 @@ class Checker {
       const accepted = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
       return { ...arg, dataType: stringArgumentType(arg.dataType, accepted) };
     });
-    const reference = args.find(
-      (arg) => arg && referenceType(arg.descriptor ?? arg.dataType, this.types),
-    );
+    const reference =
+      args.find(
+        (arg) =>
+          arg && !arg.nullReference && referenceType(arg.descriptor ?? arg.dataType, this.types),
+      ) ?? args.find((arg) => arg?.nullReference);
     if (reference) {
-      this.report("type.invalid-reference-target", {}, node.span);
-      return null;
+      if (!["MOVE", "SEL", "MUX"].includes(name)) {
+        this.report("type.invalid-reference-target", {}, node.span);
+        return null;
+      }
+      const firstValue = name === "MOVE" ? 0 : 1;
+      if (
+        reference.nullReference &&
+        args.slice(firstValue).some((arg) => arg && !arg.nullReference)
+      ) {
+        this.report("type.invalid-reference-target", {}, node.span);
+        return null;
+      }
+      const descriptor =
+        reference.nullReference && expectedType && referenceType(expectedType, this.types)
+          ? expectedType
+          : reference.descriptor!;
+      args.forEach((arg, index) => {
+        if (!arg) return;
+        const expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
+        const accepted =
+          index >= firstValue
+            ? arg.nullReference ||
+              sameScalarType(descriptor, arg.descriptor ?? arg.dataType, this.types)
+            : !referenceType(arg.descriptor ?? arg.dataType, this.types) &&
+              !isAggregateType(arg.descriptor ?? arg.dataType, this.types) &&
+              !this.enum(arg) &&
+              expected.includes(arg.dataType);
+        if (!accepted) {
+          if (arg.nullReference)
+            this.report("type.invalid-reference-target", {}, inputs[index]!.span);
+          else
+            this.report(
+              "call.argument-type",
+              {
+                name,
+                index,
+                expected: index >= firstValue ? [descriptor] : expected,
+                found: arg.descriptor ?? arg.dataType,
+              },
+              inputs[index]!.span,
+            );
+        }
+      });
+      return {
+        dataType: "INT",
+        descriptor,
+        ...(args.slice(firstValue).every((arg) => arg?.nullReference)
+          ? { nullReference: true }
+          : {}),
+      };
     }
     const aggregate = args.find(
       (arg) => arg?.descriptor && isAggregateType(arg.descriptor, this.types),
@@ -1961,7 +2045,7 @@ class Checker {
   }
 
   private inOutActual(value: AST.Expression, type: TypeDescriptor): value is AST.AssignmentTarget {
-    if (!["name", "member", "field", "index"].includes(value.kind)) {
+    if (!["name", "member", "field", "index", "dereference"].includes(value.kind)) {
       this.report("call.in-out-variable", {}, value.span);
       return false;
     }
@@ -1971,7 +2055,8 @@ class Checker {
     const forbiddenSelector = (node: AST.AssignmentTarget): boolean => {
       if (node.kind === "name") return false;
       if (node.kind === "index") return forbiddenSelector(node.array);
-      if (node.kind === "elementBit" || node.kind === "dereference") return true;
+      if (node.kind === "dereference") return false;
+      if (node.kind === "elementBit") return true;
       const selector = this.references.get(node.member);
       return (
         !!selector?.port ||
@@ -2103,6 +2188,10 @@ class Checker {
 
   private assignment(target: TypeDescriptor, info: ExpressionInfo, span: SourceSpan): boolean {
     const source = info.descriptor ?? info.dataType;
+    if (info.nullReference && !referenceType(target, this.types)) {
+      this.report("type.invalid-reference-target", {}, span);
+      return false;
+    }
     if (referenceType(target, this.types) || referenceType(source, this.types)) {
       if (
         referenceType(target, this.types) &&

@@ -213,7 +213,8 @@ export class MemoryFrame implements ScanMemory {
       (cell.kind !== "scalar" &&
         cell.kind !== "long" &&
         cell.kind !== "aggregate" &&
-        cell.kind !== "reference")
+        cell.kind !== "reference" &&
+        cell.kind !== "port")
     )
       throw new Error("Expected value in-out actual");
     this.cells[variable] = cell;

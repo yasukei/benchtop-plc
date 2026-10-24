@@ -291,7 +291,7 @@ export interface UserFunctionIR extends SourceNode {
 
 export interface InOutBinding {
   variable: FrameSlot;
-  actual: VariableReference | IndexReference | StructureMemberReference;
+  actual: VariableReference | IndexReference | StructureMemberReference | Dereference;
 }
 
 export interface UserFunctionCall extends SourceNode {

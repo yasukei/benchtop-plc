@@ -204,3 +204,122 @@ it("traverses a named recursive array without losing exact reference matching", 
   expect(value("second[2]")).toEqual({ kind: "reference", target: "FIRST" });
   expect(value("equal")).toMatchObject({ value: true });
 });
+
+it("selects reference identities and NULL with MOVE, SEL and MUX", () => {
+  const { runtime, value } = setup([
+    `PROGRAM Main VAR x,y : INT; r,s,t : REF_TO INT; empty,same : BOOL; END_VAR
+     r := MOVE(REF(x)); s := SEL(TRUE, r, REF(y));
+     t := MUX(1, r, s, NULL); t^ := 7;
+     same := MOVE(r) = REF(x); empty := SEL(FALSE, NULL, r) = NULL;
+     r := MOVE(NULL); s := MUX(2, REF(x), REF(y), NULL);
+     MOVE(t); SEL(TRUE, NULL, t); MUX(0, t, NULL);
+     END_PROGRAM`,
+  ]);
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  expect(value("x")).toMatchObject({ value: 0 });
+  expect(value("y")).toMatchObject({ value: 7 });
+  expect(value("t")).toEqual({ kind: "reference", target: "y" });
+  expect(value("r")).toEqual({ kind: "reference", target: null });
+  expect(value("s")).toEqual({ kind: "reference", target: null });
+  expect(value("same")).toMatchObject({ value: true });
+  expect(value("empty")).toMatchObject({ value: true });
+  const annotations = Object.values(runtime.snapshot().annotations).flatMap((a) =>
+    a.flatMap((v) => v.values),
+  );
+  expect(annotations.slice(-3)).toEqual(
+    Array.from({ length: 3 }, () => ({ kind: "reference", target: "y" })),
+  );
+});
+
+it("evaluates all reference selection arguments once in source order", () => {
+  const { runtime, value } = setup([
+    `PROGRAM Main VAR x,y : INT; r : REF_TO INT; trace : INT; END_VAR
+     r := SEL(FALSE, Mark(p := REF(x), digit := 1, trace := trace), Mark(p := REF(y), digit := 2, trace := trace));
+     r^ := 5;
+     r := MUX(0, Mark(p := REF(x), digit := 3, trace := trace), Mark(p := REF(y), digit := 4, trace := trace));
+     END_PROGRAM`,
+    `FUNCTION Mark : REF_TO INT VAR_INPUT p : REF_TO INT; digit : INT; END_VAR
+     VAR_IN_OUT trace : INT; END_VAR trace := trace * 10 + digit; Mark := p; END_FUNCTION`,
+  ]);
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  expect(value("trace")).toMatchObject({ value: 1234 });
+  expect(value("x")).toMatchObject({ value: 5 });
+  expect(value("y")).toMatchObject({ value: 0 });
+});
+
+it.each([-1, 2])("faults for an out-of-range reference MUX selector %s", (selector) => {
+  const { runtime } = setup([
+    `PROGRAM Main VAR x : INT; r : REF_TO INT; END_VAR r := MUX(${selector}, REF(x), NULL); END_PROGRAM`,
+  ]);
+  runtime.step();
+  expect(runtime.diagnostic).toMatchObject({ code: "runtime.invalid-value" });
+});
+
+it("aliases dereferenced scalar, structure and array storage in functions and blocks", () => {
+  const { runtime, value } = setup(
+    [
+      `PROGRAM Main VAR x : INT; p : RecordType; a : ARRAY[1..2] OF INT;
+     r : REF_TO INT; rp : REF_TO RecordType; ra : REF_TO ARRAY[1..2] OF INT; b : Increment; END_VAR
+     r := REF(x); rp := REF(p); ra := REF(a);
+     Inc(v := r^); b(v := rp^.n); Inc(v := ra^[2]);
+     Update(p := rp^, a := ra^);
+     END_PROGRAM`,
+      "FUNCTION Inc VAR_IN_OUT v : INT; END_VAR v := v + 1; END_FUNCTION",
+      "FUNCTION_BLOCK Increment VAR_IN_OUT v : INT; END_VAR v := v + 2; END_FUNCTION_BLOCK",
+      "FUNCTION Update VAR_IN_OUT p : RecordType; a : ARRAY[*] OF INT; END_VAR p.n := p.n + 3; a[2] := a[2] + 4; END_FUNCTION",
+    ],
+    ["TYPE RecordType : STRUCT n : INT; END_STRUCT; END_TYPE"],
+  );
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  expect(value("x")).toMatchObject({ value: 1 });
+  expect(value("p.n")).toMatchObject({ value: 5 });
+  expect(value("a[2]")).toMatchObject({ value: 5 });
+});
+
+it("evaluates a dereferenced in-out location once and retains storage capacity", () => {
+  const { runtime, value } = setup([
+    `PROGRAM Main VAR texts : ARRAY[1..2] OF STRING[3]; r : REF_TO ARRAY[1..2] OF STRING[3]; i : INT; END_VAR
+     r := REF(texts); Append(v := r^[Next(i := i)]); END_PROGRAM`,
+    "FUNCTION Next : INT VAR_IN_OUT i : INT; END_VAR i := i + 1; Next := i; END_FUNCTION",
+    "FUNCTION Append VAR_IN_OUT v : STRING[10]; END_VAR v := 'abcdef'; END_FUNCTION",
+  ]);
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  expect(value("i")).toMatchObject({ value: 1 });
+  expect(value("texts[1]")).toMatchObject({ value: "abc" });
+  expect(value("texts[2]")).toMatchObject({ value: "" });
+});
+
+it("faults on a NULL dereferenced in-out actual before entering the callee", () => {
+  const { runtime, value } = setup([
+    "PROGRAM Main VAR r : REF_TO INT; called : BOOL; END_VAR Inc(v := r^, called := called); END_PROGRAM",
+    "FUNCTION Inc VAR_IN_OUT v : INT; called : BOOL; END_VAR called := TRUE; v := 1; END_FUNCTION",
+  ]);
+  runtime.step();
+  expect(runtime.diagnostic).toMatchObject({ code: "runtime.null-reference", pou: "Main" });
+  expect(value("called")).toMatchObject({ value: false });
+});
+
+it("aliases referenced standard block ports through nested in-out calls", () => {
+  const { runtime, value } = setup([
+    `PROGRAM Main VAR t : TON; r,s : REF_TO TIME; b : SetTimeBlock; seen : TIME; END_VAR
+     r := REF(t.PT); s := REF(t.ET); Forward(v := r^);
+     t(IN := TRUE); b(v := s^); seen := s^;
+     END_PROGRAM`,
+    "FUNCTION SetTime VAR_IN_OUT v : TIME; END_VAR v := T#2s; END_FUNCTION",
+    "FUNCTION Forward VAR_IN_OUT v : TIME; END_VAR SetTime(v := v); END_FUNCTION",
+    "FUNCTION_BLOCK SetTimeBlock VAR_IN_OUT v : TIME; END_VAR v := T#3s; END_FUNCTION_BLOCK",
+  ]);
+  for (let scan = 0; scan < 2; scan++) {
+    runtime.step();
+    expect(runtime.diagnostic).toBeNull();
+    expect(value("t")).toMatchObject({
+      inputs: [{ value: true }, { value: 2000 }],
+      outputs: [{ value: false }, { value: 3000 }],
+    });
+    expect(value("seen")).toMatchObject({ value: 3000 });
+  }
+});

@@ -88,7 +88,8 @@ class Lowerer {
       if (
         reference.kind !== "variable" &&
         reference.kind !== "index" &&
-        reference.kind !== "structureMember"
+        reference.kind !== "structureMember" &&
+        reference.kind !== "dereference"
       )
         throw new Error("Checked in-out is not storage");
       return { variable, actual: reference };

@@ -12,7 +12,7 @@ test("shows reference targets changing from P1 to P2 without write or force cont
   await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
   await editor.fill(`PROGRAM Main
 VAR P1,P2 : Point; R : REF_TO Point; second : BOOL; END_VAR
-IF second THEN R := REF(P2); ELSE R := REF(P1); END_IF;
+R := MOVE(SEL(second, REF(P1), REF(P2)));
 R^.x := R^.x + 5.0;
 second := TRUE;
 END_PROGRAM`);
