@@ -148,13 +148,18 @@ export function resolveDataTypes(
       return undefined;
     }
     visiting.add(ast.name.key);
+    const resolveDependency = (other: DataTypeDeclaration): TypeEntry | undefined => {
+      const entry = resolve(other);
+      if (failedCycles.has(other.name.key)) failedCycles.add(ast.name.key);
+      return entry;
+    };
     if (ast.members) {
       const dependencies = (syntax: import("./ast.js").TypeSyntax, indirect = false): void => {
         if (syntax.reference) dependencies(syntax.reference, true);
         else if (syntax.array) dependencies(syntax.array, indirect);
         else {
           const other = pending.get(syntax.typeName.key);
-          if (other && !(indirect && placeholders.has(other.name.key))) resolve(other);
+          if (other && !(indirect && placeholders.has(other.name.key))) resolveDependency(other);
         }
       };
       for (const member of ast.members) dependencies(member);
@@ -259,7 +264,7 @@ export function resolveDataTypes(
         else if (syntax.array) resolveTarget(syntax.array);
         else {
           const other = pending.get(syntax.typeName.key);
-          if (other && !placeholders.has(other.name.key)) resolve(other);
+          if (other && !placeholders.has(other.name.key)) resolveDependency(other);
         }
       };
       resolveTarget(ast.reference);
@@ -307,10 +312,9 @@ export function resolveDataTypes(
       if (scalarTypes.some((type) => type === key)) base = key as (typeof scalarTypes)[number];
       else {
         const other = pending.get(key);
-        const entry = other ? resolve(other) : undefined;
+        const entry = other ? resolveDependency(other) : undefined;
         if (!entry) {
-          if (other && failedCycles.has(other.name.key)) {
-            failedCycles.add(ast.name.key);
+          if (failedCycles.has(ast.name.key)) {
             visiting.delete(ast.name.key);
             return undefined;
           }
@@ -342,14 +346,14 @@ export function resolveDataTypes(
             else if (syntax.array) target(syntax.array);
             else {
               const other = pending.get(syntax.typeName.key);
-              if (other && !placeholders.has(other.name.key)) resolve(other);
+              if (other && !placeholders.has(other.name.key)) resolveDependency(other);
             }
           };
           target(node.reference);
         } else if (node.array) resolveElements(node.array);
         else {
           const other = pending.get(node.typeName.key);
-          if (other) resolve(other);
+          if (other) resolveDependency(other);
         }
       };
       resolveElements(ast.array);

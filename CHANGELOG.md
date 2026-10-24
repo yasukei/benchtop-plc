@@ -8,13 +8,6 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
-### Fixed
-
-- Compiler diagnostics name the actual standard or user function block type in
-  structure array members, identify containment and alias cycles without
-  cascading unknown-type errors, and explain the restriction on subrange FOR
-  control variables in English and Japanese.
-
 ### Added
 
 - Batch mixer reference project combines an enumerated CASE state machine, three
@@ -108,6 +101,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   `<type>_TO_WSTRING`, `STRING_TO_<type>` and `WSTRING_TO_<type>`. Existing identifiers
   using these names must be renamed. STRING and WSTRING remain reserved; string
   functions/conversions and references are available.
+
+### Fixed
+
+- Compiler diagnostics name the actual standard or user function block type in
+  structure array members, identify containment and alias cycles without
+  cascading unknown-type errors, and explain the restriction on subrange FOR
+  control variables in English and Japanese.
 
 ## [0.4.0] - 2026-10-23
 

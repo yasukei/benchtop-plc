@@ -88,6 +88,29 @@ describe("type cycle diagnostics", () => {
     ]);
   });
 
+  it.each([
+    "STRUCT x : A; END_STRUCT",
+    "STRUCT x : ARRAY[1..2] OF A; END_STRUCT",
+    "ARRAY[1..2] OF A",
+    "ARRAY[1..2] OF ARRAY[1..3] OF A",
+    "STRUCT x : REF_TO A; END_STRUCT",
+    "REF_TO A",
+    "ARRAY[1..2] OF REF_TO A",
+  ])("does not cascade alias cycle errors through %s in any declaration order", (type) => {
+    const cycle = ["TYPE A : B; END_TYPE", "TYPE B : A; END_TYPE"];
+    const dependent = `TYPE C : ${type}; END_TYPE`;
+    for (const types of [
+      [dependent, ...cycle],
+      [...cycle, dependent],
+    ]) {
+      const result = compileProject([program()], types);
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({ code: "decl.type-cycle", args: { name: "A" } }),
+      ]);
+    }
+  });
+
   it("still reports genuinely unknown alias targets", () => {
     expect(compileProject([program()], ["TYPE A : Missing; END_TYPE"]).diagnostics).toEqual([
       expect.objectContaining({ code: "decl.unknown-type", args: { name: "Missing" } }),
