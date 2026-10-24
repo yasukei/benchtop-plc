@@ -39,26 +39,27 @@ test("runs the batch mixer and preserves its type and program texts on save/reop
   await page.getByRole("button", { name: "RUN", exact: true }).click();
   await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
   await expect(page.getByLabel("Scans", { exact: true })).not.toHaveText("0");
-  // Select Quick by leaving both recipe switches OFF.
+  // Gentle gives the real-time assertions at least three seconds per step.
+  await panel.getByRole("switch", { name: "GENTLE RECIPE", exact: true }).click();
   await panel.getByRole("button", { name: "START", exact: true }).focus();
   await page.keyboard.down("Space");
   await expect(lamp("FILL VALVE")).toHaveAttribute("data-on", "true");
   await page.keyboard.up("Space");
   await expect(value("State")).toHaveText("Filling");
-  await expect(value("ActiveRecipe")).toHaveText("RECIPES[1]");
-  await expect(value("Status")).toHaveText("'Quick: Filling'");
+  await expect(value("ActiveRecipe")).toHaveText("RECIPES[3]");
+  await expect(value("Status")).toHaveText("'Gentle: Filling'");
   await expect(lamp("MIXER")).toHaveAttribute("data-on", "true");
   await expect(lamp("FILL VALVE")).toHaveAttribute("data-on", "false");
   await expect(value("State")).toHaveText("Mixing");
-  await expect(value("Status")).toHaveText("'Quick: Mixing'");
+  await expect(value("Status")).toHaveText("'Gentle: Mixing'");
   await expect(lamp("DRAIN VALVE")).toHaveAttribute("data-on", "true");
   await expect(lamp("MIXER")).toHaveAttribute("data-on", "false");
   await expect(value("State")).toHaveText("Draining");
-  await expect(value("Status")).toHaveText("'Quick: Draining'");
+  await expect(value("Status")).toHaveText("'Gentle: Draining'");
   await expect(lamp("DONE")).toHaveAttribute("data-on", "true");
   await expect(lamp("DRAIN VALVE")).toHaveAttribute("data-on", "false");
   await expect(value("State")).toHaveText("Done");
-  await expect(value("Status")).toHaveText("'Quick: Done'");
+  await expect(value("Status")).toHaveText("'Gentle: Done'");
 
   await panel.getByRole("button", { name: "STOP", exact: true }).focus();
   await page.keyboard.down("Space");

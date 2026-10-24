@@ -62,7 +62,7 @@ The exact sources live in
 saved/reopened XML against the same virtual-clock trace: all recipe timing
 boundaries, messages, selection latching and priority, STOP in every active step,
 and complete restarts. `pnpm exec playwright test batch-mixer.spec.ts` opens the
-XML, runs Quick, checks lamps and monitor values, and saves/reopens all texts.
+XML, runs Gentle, checks lamps and monitor values, and saves/reopens all texts.
 
 The checked-in `fileHeader.productVersion` represents the current release. Update
 it alongside package versions when releasing, as for the other examples.
