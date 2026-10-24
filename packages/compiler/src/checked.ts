@@ -35,6 +35,7 @@ export interface VariableSymbol {
 }
 
 export interface ExpressionInfo {
+  nullReference?: boolean;
   dataType: DataType;
   descriptor?: TypeDescriptor;
   /** Untyped arithmetic is folded exactly before materialization at its typed position. */

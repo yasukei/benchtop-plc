@@ -243,6 +243,14 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
       fail("project.invalid", `dataType/${ast.name.name}/struct`);
     type = `STRUCT ${split.value.variables.map((variable) => `${variable.name} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};`).join(" ")} END_STRUCT`;
   }
+  if (ast.reference) {
+    const split = splitProgram(
+      `PROGRAM __TYPE_SOURCE VAR __VALUE : REF_TO ${expressionText(source, ast.reference.span)}; END_VAR END_PROGRAM`,
+      resolved.types,
+    );
+    if (!split.value) fail("project.invalid", `dataType/${ast.name.name}/baseType`);
+    type = split.value.variables[0]!.type;
+  }
   if (ast.array) {
     if (definition?.kind === "alias") type = formatType(definition.type);
     else {
@@ -386,6 +394,7 @@ function readType(type: XmlNode, enumeration = false): string {
       "wstring",
       "derived",
       "array",
+      "pointer",
       "subrangeSigned",
       "subrangeUnsigned",
       ...(enumeration ? ["enum", "struct"] : []),
@@ -394,6 +403,10 @@ function readType(type: XmlNode, enumeration = false): string {
   const choices = type.children.filter((child) => child.name !== "addData");
   if (choices.length !== 1) fail("project.invalid", `${type.name}/type`);
   const choice = choices[0]!;
+  if (choice.name === "pointer") {
+    shape(choice, [], ["baseType"]);
+    return `REF_TO ${readType(required(choice, "baseType"))}`;
+  }
   if (choice.name === "struct") {
     shape(choice, [], ["variable"]);
     const members = choice.children
@@ -777,6 +790,8 @@ export function readProject(xml: string): ProjectResult<Project> {
 }
 
 function typeXml(type: string): string {
+  if (type.startsWith("REF_TO "))
+    return element("pointer", {}, element("baseType", {}, typeXml(type.slice(7))));
   if (type.startsWith("STRUCT ")) {
     const ast = parseType(`TYPE __STRUCT_XML : ${type}; END_TYPE`);
     const source = `TYPE __STRUCT_XML : ${type}; END_TYPE`;

@@ -1,5 +1,11 @@
 import {
   coerceValue,
+  standardFunctionBlocks,
+  type FunctionBlockType,
+  referenceType,
+  type ReferenceVariable,
+  type InlineValue,
+  type ReferenceValue,
   arrayType,
   structureType,
   sameScalarType,
@@ -61,26 +67,48 @@ interface UserBlockCell {
   path: string;
   resetTemporaries(): void;
 }
+export interface ReferenceAddress {
+  kind: "address";
+  frame: MemoryFrame;
+  variable: number;
+}
+export type StoredValue = ScalarValue | AggregateValue | ReferenceAddress | null;
+export function isReferenceAddress(value: StoredValue): value is ReferenceAddress {
+  return value !== null && typeof value === "object" && "kind" in value && value.kind === "address";
+}
 export interface AggregateValue {
   dataType: TypeDescriptor;
-  elements: (ScalarValue | AggregateValue)[];
+  elements: StoredValue[];
 }
-export function isAggregateValue(
-  value: ScalarValue | AggregateValue | null,
-): value is AggregateValue {
-  return value !== null && typeof value === "object";
+export function isAggregateValue(value: StoredValue): value is AggregateValue {
+  return value !== null && typeof value === "object" && "elements" in value;
 }
 type AggregateCell = { kind: "aggregate"; descriptor: TypeDescriptor; elements: Cell[] };
-type ValueCell = ScalarCell | AggregateCell;
-type Cell =
+type ReferenceCell = {
+  kind: "reference";
+  descriptor: TypeDescriptor;
+  target: ReferenceAddress | null;
+};
+type PortCell = {
+  kind: "port";
+  descriptor: TypeDescriptor;
+  instance: FunctionBlockInstance;
+  port: "input" | "output";
+  member: number;
+};
+type ValueCell = ScalarCell | ReferenceCell | AggregateCell;
+type Cell = (
+  | ReferenceCell
+  | PortCell
   | AggregateCell
   | { kind: "unbound" }
   | ScalarCell
-  | { kind: "functionBlock"; instance: FunctionBlockInstance }
-  | UserBlockCell;
+  | { kind: "functionBlock"; fbType: FunctionBlockType; instance: FunctionBlockInstance }
+  | UserBlockCell
+) & { path?: string };
 
 function initialCell(
-  variable: ScalarVariable | ArrayVariable | StructureVariable,
+  variable: ScalarVariable | ReferenceVariable | ArrayVariable | StructureVariable,
   types: TypeTable,
 ): ValueCell {
   if (variable.kind === "array" || variable.kind === "structure") {
@@ -102,6 +130,11 @@ function initialCell(
     };
     return create(variable.dataType, variable.initialValue);
   }
+  if (variable.kind === "reference" || referenceType(variable.dataType, types)) {
+    if (variable.initialValue !== null) throw new RangeError("Reference initializer must be NULL");
+    return { kind: "reference", descriptor: variable.dataType, target: null };
+  }
+  if (variable.initialValue === null) throw new RangeError("Unexpected NULL initializer");
   const dataType = scalarBase(variable.dataType, types);
   validateValue(dataType, variable.initialValue);
   validateDeclaredValue(variable.dataType, variable.initialValue, types);
@@ -126,7 +159,7 @@ export class MemoryFrame implements ScanMemory {
     protected readonly types: TypeTable = [],
   ) {}
 
-  asAggregateCell(descriptor: TypeDescriptor): Cell {
+  asAggregateCell(descriptor: TypeDescriptor): AggregateCell & { path?: string } {
     return { kind: "aggregate", descriptor, elements: this.cells };
   }
 
@@ -150,7 +183,11 @@ export class MemoryFrame implements ScanMemory {
       dataType: cell.descriptor,
       elements: cell.elements.map((child, i) => {
         const frame = this.element(variable, i);
-        return child.kind === "aggregate" ? frame.aggregateValue(0) : frame.read(0);
+        return child.kind === "aggregate"
+          ? frame.aggregateValue(0)
+          : child.kind === "reference"
+            ? frame.readReference(0)
+            : frame.read(0);
       }),
     };
   }
@@ -163,6 +200,7 @@ export class MemoryFrame implements ScanMemory {
     values.elements.forEach((value, i) => {
       const frame = this.element(variable, i);
       if (isAggregateValue(value)) frame.assignAggregate(0, value);
+      else if (value === null || isReferenceAddress(value)) frame.writeReference(0, value);
       else frame.write(0, value);
     });
   }
@@ -170,7 +208,14 @@ export class MemoryFrame implements ScanMemory {
   /** Share the actual cell, including when it is already an in-out alias. */
   bind(variable: number, caller: MemoryFrame, actual: number): void {
     const cell = caller.cells[actual];
-    if (!cell || (cell.kind !== "scalar" && cell.kind !== "long" && cell.kind !== "aggregate"))
+    if (
+      !cell ||
+      (cell.kind !== "scalar" &&
+        cell.kind !== "long" &&
+        cell.kind !== "aggregate" &&
+        cell.kind !== "reference" &&
+        cell.kind !== "port")
+    )
       throw new Error("Expected value in-out actual");
     this.cells[variable] = cell;
   }
@@ -179,8 +224,71 @@ export class MemoryFrame implements ScanMemory {
     for (const variable of variables) this.cells[variable] = { kind: "unbound" };
   }
 
+  address(variable: number): ReferenceAddress {
+    return { kind: "address", frame: this, variable };
+  }
+  sameLocation(variable: number, other: ReferenceAddress): boolean {
+    return this.cells[variable] === other.frame.cells[other.variable];
+  }
+  referenceValue(address: ReferenceAddress | null): ReferenceValue {
+    return {
+      kind: "reference",
+      target: address ? address.frame.cells[address.variable]!.path! : null,
+    };
+  }
+  readReference(variable: number): ReferenceAddress | null {
+    const cell = this.cells[variable];
+    if (cell?.kind !== "reference") throw new Error("Expected reference cell");
+    return cell.target;
+  }
+  writeReference(variable: number, target: ReferenceAddress | null): ReferenceValue {
+    const cell = this.cells[variable];
+    if (cell?.kind !== "reference") throw new Error("Expected reference cell");
+    cell.target = target;
+    return this.referenceValue(target);
+  }
+  inlineValue(variable: number): InlineValue {
+    const cell = this.cells[variable];
+    return cell?.kind === "reference"
+      ? this.referenceValue(cell.target)
+      : { ...this.scalar(variable) };
+  }
+  private static readonly ports = new WeakMap<Cell, Map<string, MemoryFrame>>();
+  portFrame(variable: number, port: "input" | "output", member: number): MemoryFrame {
+    const cell = this.cells[variable]!;
+    if (cell.kind !== "functionBlock") throw new Error("Expected function block");
+    let ports = MemoryFrame.ports.get(cell);
+    if (!ports) {
+      ports = new Map();
+      MemoryFrame.ports.set(cell, ports);
+    }
+    const name =
+      standardFunctionBlocks[cell.fbType][port === "input" ? "inputs" : "outputs"][member]![0];
+    const key = `${port}:${member}`;
+    let frame = ports.get(key);
+    if (!frame) {
+      const value = (port === "input" ? cell.instance.inputs : cell.instance.outputs)[member]!;
+      frame = new MemoryFrame(
+        [
+          {
+            kind: "port",
+            descriptor: value.dataType,
+            instance: cell.instance,
+            port,
+            member,
+            path: `${cell.path}.${name}`,
+          },
+        ],
+        this.types,
+      );
+      ports.set(key, frame);
+    }
+    return frame;
+  }
   private scalar(variable: number): TypedValue {
     const cell = this.cells[variable];
+    if (cell?.kind === "port")
+      return (cell.port === "input" ? cell.instance.inputs : cell.instance.outputs)[cell.member]!;
     if (cell?.kind === "long") return typed(cell.dataType, cell.value);
     if (!cell || cell.kind !== "scalar") throw new Error("Expected scalar variable");
     return cell.value;
@@ -248,7 +356,10 @@ export class MemoryFrame implements ScanMemory {
   }
 
   assign(
-    target: Exclude<AssignmentTarget, { kind: "index" | "elementBit" | "structureMember" }>,
+    target: Exclude<
+      AssignmentTarget,
+      { kind: "index" | "elementBit" | "structureMember" | "dereference" }
+    >,
     value: ScalarValue,
   ): TypedValue {
     if (target.kind === "bit") {
@@ -327,9 +438,15 @@ export class Memory extends MemoryFrame {
     });
     super(
       ir.variables.map((variable): Cell => {
-        if (variable.kind === "scalar") return initialCell(variable, ir.types ?? []);
+        if (variable.kind === "scalar" || variable.kind === "reference")
+          return { ...initialCell(variable, ir.types ?? []), path: variable.name };
         if (!library) throw new Error("A runtime library is required for function blocks");
-        return { kind: "functionBlock", instance: library.createFunctionBlock(variable.fbType) };
+        return {
+          kind: "functionBlock",
+          fbType: variable.fbType,
+          instance: library.createFunctionBlock(variable.fbType),
+          path: variable.name,
+        };
       }),
       ir.types ?? [],
     );
@@ -337,6 +454,15 @@ export class Memory extends MemoryFrame {
     this.functionInitialCells = functionInitialCells;
   }
 
+  private storagePath(slot: InstanceStorage): string | undefined {
+    if (slot.kind === "variable") return this.ir.variables[slot.variable]!.name;
+    if (slot.kind === "instance") return this.ir.instances![slot.instance]!.path;
+    if (slot.kind === "array" || slot.kind === "structure") {
+      const child = slot.elements[0] && this.storagePath(slot.elements[0]);
+      return child?.replace(/(\[[^\]]*\]|\.[^.[]+)$/, "");
+    }
+    return undefined;
+  }
   private frame(storage: readonly InstanceStorage[]): MemoryFrame {
     return new MemoryFrame(
       storage.map((slot) => {
@@ -344,7 +470,10 @@ export class Memory extends MemoryFrame {
         if (slot.kind === "variable") return this.cells[slot.variable]!;
         if (slot.kind === "temporary") return initialCell(slot.variable, this.types);
         if (slot.kind === "array" || slot.kind === "structure")
-          return this.frame(slot.elements).asAggregateCell(slot.dataType);
+          return {
+            ...this.frame(slot.elements).asAggregateCell(slot.dataType),
+            path: this.storagePath(slot),
+          };
         let cell = this.instanceCells.get(slot.instance);
         if (!cell) {
           const instance = this.ir.instances![slot.instance]!;
@@ -364,9 +493,14 @@ export class Memory extends MemoryFrame {
     );
   }
 
-  /** Fresh PROGRAM temporaries; persistent instance frames alias monitored cells. */
+  private persistentProgramFrame?: MemoryFrame;
+
+  /** Keep aggregate storage identity stable while refreshing PROGRAM temporaries. */
   programFrame(): MemoryFrame {
-    return this.ir.storage ? this.frame(this.ir.storage) : this;
+    if (!this.ir.storage) return this;
+    if (!this.persistentProgramFrame) this.persistentProgramFrame = this.frame(this.ir.storage);
+    else this.persistentProgramFrame.resetTemporaries(this.ir.storage);
+    return this.persistentProgramFrame;
   }
 
   /** Clone validated initial cells, keeping each invocation independent. */
@@ -381,7 +515,7 @@ export class Memory extends MemoryFrame {
             descriptor: cell.descriptor,
             elements: cell.elements.map(clone),
           };
-        if (cell.kind === "long") return { ...cell };
+        if (cell.kind === "long" || cell.kind === "reference") return { ...cell };
         if (cell.kind === "scalar") return { ...cell, value: { ...cell.value } };
         throw new Error("Instance in function initial storage");
       }),
@@ -416,6 +550,7 @@ export class Memory extends MemoryFrame {
   snapshot(ids = this.cells.map((_, i) => i)): VariableSnapshot[] {
     return ids.map((id): VariableSnapshot => {
       const cell = this.cells[id]!;
+      if (cell.kind === "reference") return this.referenceValue(cell.target);
       if (cell.kind === "long") return { kind: "scalar", ...typed(cell.dataType, cell.value) };
       if (cell.kind === "scalar") return { kind: "scalar", ...cell.value };
       if (cell.kind !== "functionBlock") throw new Error("User instance in monitored storage");

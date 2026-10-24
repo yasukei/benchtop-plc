@@ -10,6 +10,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- References (`REF_TO`, `REF`, `^`, `NULL`) to persistent variables, elements and
+  members, including reference parameters/results, `MOVE`/`SEL`/`MUX` selection,
+  dereferenced in-out arguments and recursive structures.
+  Reference targets match exactly; NULL dereferences fault with POU/instance
+  diagnostics. Monitoring displays target paths or NULL without write/force
+  controls, and PLCopen XML exchanges references as pointer types.
+
 - Arrays and structures as copied input/output parameters, in-out aliases and whole
   function results. Open `ARRAY[*]` in-outs accept caller arrays with different
   bounds, with DINT `LOWER_BOUND`/`UPPER_BOUND` queries. Element/member aliases
@@ -87,7 +94,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   ADR 0015 character/string conversion names, including `<type>_TO_STRING`,
   `<type>_TO_WSTRING`, `STRING_TO_<type>` and `WSTRING_TO_<type>`. Existing identifiers
   using these names must be renamed. STRING and WSTRING remain reserved; string
-  functions/conversions are available; reference implementations follow separately.
+  functions/conversions and references are available.
 
 ## [0.4.0] - 2026-10-23
 

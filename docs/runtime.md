@@ -535,3 +535,19 @@ and alias locations are evaluated together in source order, with each index
 evaluated once before entering the callee. Aliases add no monitoring identities.
 A forced element follows the ordinary before/after scan force stages through an
 alias, so a write is visible during execution and the force is restored afterward.
+
+## References
+
+Reference cells contain `NULL` or a location in persistent storage. Assignment,
+aggregate copying and POU parameter/result passing copy that location, preserving
+the referenced cell. Postfix dereference resolves it before further member or
+index access. Writes through it apply the target's normal coercion, string
+capacity and subrange checks. Forces apply at the existing scan stages to the
+target's own monitored variable. Equality compares storage identity.
+
+Dereferencing `NULL` raises `runtime.null-reference` with the executing POU,
+source span and, inside a block, instance path. Load and cold reset restore every
+reference to `NULL`. Stop/run retains references. Snapshots and inline annotations
+serialize only `{ kind: "reference", target: string | null }`, using the target's
+display path. References reject monitor writes and forces; target values remain
+monitored at their own paths.

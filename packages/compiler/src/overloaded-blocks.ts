@@ -8,6 +8,9 @@ export const selectingPort = (type: string): "PT" | "PV" | null =>
 /** Reads of inferred ports exclude the whole expression, even inside a fixed-result call. */
 export function readsInferredMember(node: Expression, instances: ReadonlySet<string>): boolean {
   switch (node.kind) {
+    case "dereference":
+      return readsInferredMember(node.reference, instances);
+    case "null":
     case "structureInitializer":
     case "arrayInitializer":
       return false;

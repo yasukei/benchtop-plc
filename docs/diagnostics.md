@@ -316,3 +316,15 @@ multidimensional instance arrays remain supported.
 Indexing a scalar function block instance uses `type.not-array` with a
 `functionBlock` descriptor naming the actual block, rather than a scalar
 placeholder type.
+
+## Reference diagnostics
+
+| Code                            | Meaning                                                                                        | Arguments |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- | --------- |
+| `type.invalid-reference-target` | REF requires persistent mutable variable storage, or the reference operation/target is invalid | None      |
+| `type.reference-initializer`    | A reference initializer must be NULL                                                           | None      |
+| `runtime.null-reference`        | Postfix dereference of NULL                                                                    | None      |
+
+Reference assignments and comparisons also use `type.assign-mismatch` and
+`type.operand-mismatch` with reference descriptors. NULL faults name the executing
+POU and the instance path when inside a function block.

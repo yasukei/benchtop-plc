@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
+  TypedValue,
   BinaryOperator,
   DataType,
   Expression,
@@ -146,7 +147,9 @@ describe("runtime scans over hand-written IR", () => {
     clock.advance(10);
     expect(order).toEqual(["read", "writes", "forces", "forces", "output"]);
     expect(value(runtime.snapshot(), 2)).toBe(true);
-    expect(runtime.snapshot().annotations[2]?.[0]?.values[0]?.value).toBe(false);
+    expect(
+      (runtime.snapshot().annotations[2]?.[0]?.values[0] as TypedValue | undefined)?.value,
+    ).toBe(false);
   });
 
   it.each([
@@ -521,13 +524,18 @@ describe("runtime scans over hand-written IR", () => {
     );
     const snapshot = runtime.scanOnce();
     expect(
-      snapshot.annotations[5]?.map((entry) => [entry.span.column, entry.values[0]?.value]),
+      snapshot.annotations[5]?.map((entry) => [
+        entry.span.column,
+        (entry.values[0] as TypedValue | undefined)?.value,
+      ]),
     ).toEqual([
       [2, 4],
       [20, 3],
     ]);
-    snapshot.annotations[5]![0]!.values[0]!.value = 99;
-    expect(runtime.snapshot().annotations[5]?.[0]?.values[0]?.value).toBe(4);
+    (snapshot.annotations[5]![0]!.values[0]! as TypedValue).value = 99;
+    expect(
+      (runtime.snapshot().annotations[5]?.[0]?.values[0] as TypedValue | undefined)?.value,
+    ).toBe(4);
     expect(runtime.scanOnce().annotations).toEqual({});
     expect(JSON.parse(JSON.stringify(runtime.snapshot()))).toEqual(runtime.snapshot());
   });

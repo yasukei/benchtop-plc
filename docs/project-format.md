@@ -238,3 +238,15 @@ an open dimension. The compiler restricts open arrays to direct VAR_IN_OUT
 parameters; the XML codec preserves representable section errors for editing.
 Source extensions preserve exact POU text, and files without them reconstruct
 canonical open-array declarations and aggregate function result types.
+
+## References
+
+`REF_TO T` maps to `<pointer><baseType>…T…</baseType></pointer>` in TC6 v2.01,
+including aliases, array elements, structure members and POU interfaces/results.
+A pointer requires exactly one base type. Explicit `NULL` initializers use
+`<initialValue><simpleValue value="NULL"/></initialValue>`; omitted initializers
+remain omitted. Other reference initializers are rejected on save and open.
+Source extensions preserve exact editor text; imports without them reconstruct
+`REF_TO` syntax. Self-referencing structures are representable through named
+pointer targets. This maps references only: pointer arithmetic, address functions
+and allocation are unsupported.

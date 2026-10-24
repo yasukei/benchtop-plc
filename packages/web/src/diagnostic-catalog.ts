@@ -32,6 +32,10 @@ const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "runtime.null-reference": () => "Cannot dereference NULL.",
+  "type.invalid-reference-target": () =>
+    "A reference requires a compatible variable with persistent storage.",
+  "type.reference-initializer": () => "A reference initializer must be NULL.",
   "project.invalid-xml": () => "Invalid XML, a DTD, or excessive XML nesting.",
   "project.missing": ({ path }) => `Required project data is missing: ${path}.`,
   "project.unsupported": ({ path }) => `Unsupported project data: ${path}.`,
@@ -182,6 +186,9 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "runtime.null-reference": () => "NULLを逆参照できません。",
+  "type.invalid-reference-target": () => "参照には互換性のある永続変数が必要です。",
+  "type.reference-initializer": () => "参照の初期値はNULLにしてください。",
   "project.invalid-xml": () => "XMLが不正、DTDが存在、またはXMLの入れ子が深すぎます。",
   "project.missing": ({ path }) => `必須のプロジェクトデータがありません: ${path}。`,
   "project.unsupported": ({ path }) => `未対応のプロジェクトデータです: ${path}。`,

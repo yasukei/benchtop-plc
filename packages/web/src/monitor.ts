@@ -158,6 +158,7 @@ export function variableValue(
   types: TypeTable = [],
 ): string {
   if (!value) return "—";
+  if (value.kind === "reference") return value.target ?? "NULL";
   if (value.kind === "scalar")
     return variable.kind === "scalar"
       ? formatMonitoredValue(variable.dataType, value, types)

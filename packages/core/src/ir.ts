@@ -209,8 +209,13 @@ export interface FunctionBlockVariable extends VariableBase {
   initialValue: null;
 }
 
-/** Scalar `initialValue` is already coerced (including the default). */
-export type Variable = ScalarVariable | FunctionBlockVariable;
+/** References start unbound; targets are established only by executing REF assignments. */
+export interface ReferenceVariable extends VariableBase {
+  kind: "reference";
+  dataType: TypeDescriptor;
+  initialValue: null;
+}
+export type Variable = ScalarVariable | ReferenceVariable | FunctionBlockVariable;
 
 export interface ProgramIR extends SourceNode {
   kind: "program";
@@ -248,7 +253,10 @@ export type LocalVariable =
     });
 export type InstanceStorage =
   | { kind: "variable"; variable: VariableId }
-  | { kind: "temporary"; variable: ScalarVariable | ArrayVariable | StructureVariable }
+  | {
+      kind: "temporary";
+      variable: ScalarVariable | ReferenceVariable | ArrayVariable | StructureVariable;
+    }
   | { kind: "array"; dataType: TypeDescriptor; elements: InstanceStorage[] }
   | { kind: "structure"; dataType: TypeDescriptor; elements: InstanceStorage[] }
   | { kind: "instance"; instance: number }
@@ -271,7 +279,7 @@ export interface UserFunctionBlockIR extends SourceNode {
 
 export interface UserFunctionIR extends SourceNode {
   name: string;
-  variables: (ScalarVariable | ArrayVariable | StructureVariable)[];
+  variables: (ScalarVariable | ReferenceVariable | ArrayVariable | StructureVariable)[];
   inputs: FrameSlot[];
   outputs: FrameSlot[];
   /** Alias slots, bound to caller storage on every invocation. */
@@ -283,7 +291,7 @@ export interface UserFunctionIR extends SourceNode {
 
 export interface InOutBinding {
   variable: FrameSlot;
-  actual: VariableReference | IndexReference | StructureMemberReference;
+  actual: VariableReference | IndexReference | StructureMemberReference | Dereference;
 }
 
 export interface UserFunctionCall extends SourceNode {
@@ -341,21 +349,13 @@ export interface IndexReference extends SourceNode {
   kind: "index";
   /** Declaration name for instance bounds diagnostics. */
   instanceName?: string;
-  array:
-    | VariableReference
-    | IndexReference
-    | StructureMemberReference
-    | UserFunctionBlockMemberReference;
+  array: StorageReference;
   indices: Expression[];
   dataType: TypeDescriptor;
 }
 export interface StructureMemberReference extends SourceNode {
   kind: "structureMember";
-  object:
-    | VariableReference
-    | IndexReference
-    | StructureMemberReference
-    | UserFunctionBlockMemberReference;
+  object: StorageReference;
   member: number;
   dataType: TypeDescriptor;
 }
@@ -365,7 +365,19 @@ export interface ElementBitReference extends SourceNode {
   bit: number;
   dataType: "BOOL";
 }
+export interface Dereference extends SourceNode {
+  kind: "dereference";
+  reference: Expression;
+  dataType: TypeDescriptor;
+}
+export type StorageReference =
+  | VariableReference
+  | IndexReference
+  | StructureMemberReference
+  | UserFunctionBlockMemberReference
+  | Dereference;
 export type AssignmentTarget =
+  | Dereference
   | StructureMemberReference
   | IndexReference
   | ElementBitReference
@@ -438,6 +450,13 @@ export interface ArrayBoundExpression extends SourceNode {
 }
 
 export type Expression =
+  | Dereference
+  | (SourceNode & {
+      kind: "referenceOf";
+      target: StorageReference | FunctionBlockMemberReference;
+      dataType: TypeDescriptor;
+    })
+  | (SourceNode & { kind: "null"; dataType: TypeDescriptor })
   | ArrayBoundExpression
   | StructureMemberReference
   | IndexReference

@@ -21,7 +21,13 @@ export type UiToRuntimeMessage =
 /** Bit n corresponds to %IX0.n or %QX0.n. */
 export type IoImage = [boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean];
 
+export interface ReferenceValue {
+  kind: "reference";
+  target: string | null;
+}
+export type InlineValue = TypedValue | ReferenceValue;
 export type VariableSnapshot =
+  | ReferenceValue
   | (TypedValue & { kind: "scalar" })
   | { kind: "functionBlock"; inputs: TypedValue[]; outputs: TypedValue[] };
 
@@ -29,7 +35,7 @@ export interface StatementAnnotation {
   /** Full span of the assignment or FB call, independent of its position in the line's array. */
   span: SourceSpan;
   /** Last execution in this scan: one assignment result, or FB outputs in descriptor order. */
-  values: TypedValue[];
+  values: InlineValue[];
 }
 
 export interface RuntimeSnapshot {

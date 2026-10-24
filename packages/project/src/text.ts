@@ -29,10 +29,13 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
       !Number.isInteger(length) ||
       length < 1 ||
       length > MAX_STRING_LENGTH);
+  const invalidTypeCapacity = (type: import("@benchtop-plc/compiler").TypeSyntax): boolean =>
+    invalidCapacity(type.typeName.key, type.stringLength) ||
+    !!(type.reference && invalidTypeCapacity(type.reference)) ||
+    !!(type.array && invalidTypeCapacity(type.array));
   if (
-    ast.declarations.some((declaration) =>
-      invalidCapacity(declaration.typeName.key, declaration.stringLength),
-    ) ||
+    ast.declarations.some(invalidTypeCapacity) ||
+    !!(ast.resultReference && invalidTypeCapacity(ast.resultReference)) ||
     (ast.resultType && invalidCapacity(ast.resultType.key, ast.resultStringLength))
   )
     return {
@@ -56,6 +59,7 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
   const start =
     endVars.at(-1)?.span ??
+    (ast.resultReference ? ast.resultReference.span : undefined) ??
     ast.resultArray?.span ??
     ast.resultSubrange?.span ??
     (ast.resultStringLength !== undefined
@@ -118,9 +122,10 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
                   : "localVars",
         ...(declaration.constant ? { constant: true } : {}),
         name: name.name,
-        type:
-          normalizeType(declaration.typeName.key) +
-          (declaration.stringLength === undefined ? "" : `[${declaration.stringLength}]`),
+        type: declaration.reference
+          ? ""
+          : normalizeType(declaration.typeName.key) +
+            (declaration.stringLength === undefined ? "" : `[${declaration.stringLength}]`),
         ...(declaration.address ? { address: declaration.address.text } : {}),
         ...(initialValue === undefined ? {} : { initialValue }),
       });
@@ -199,6 +204,7 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
         typeName: { ...array.typeName, name: "INT", key: "INT" },
         subrange: undefined,
         stringLength: undefined,
+        reference: undefined,
         ...(array.array ? { array: eraseElement(array.array) } : {}),
       });
       const folded = check(
@@ -235,19 +241,48 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
         const array = arrayType(type, types)!;
         const element = syntax.array
           ? restore(syntax.array, array.element)
-          : normalizeType(syntax.typeName.key) +
-            (syntax.stringLength === undefined ? "" : `[${syntax.stringLength}]`) +
-            (syntax.subrange
-              ? ` (${expressionText(source, syntax.subrange.lower.span)}..${expressionText(source, syntax.subrange.upper.span)})`
-              : "");
+          : syntax.reference
+            ? `REF_TO ${referenceText(syntax.reference, before)}`
+            : normalizeType(syntax.typeName.key) +
+              (syntax.stringLength === undefined ? "" : `[${syntax.stringLength}]`) +
+              (syntax.subrange
+                ? ` (${expressionText(source, syntax.subrange.lower.span)}..${expressionText(source, syntax.subrange.upper.span)})`
+                : "");
         return `ARRAY[${array.dimensions.map((d) => (d === "*" ? "*" : `${d.lower}..${d.upper}`)).join(", ")}] OF ${element}`;
       };
       if (folded) return restore(range, folded);
     }
     return undefined;
   };
+  const referenceText = (
+    syntax: import("@benchtop-plc/compiler").TypeSyntax,
+    before: number,
+  ): string | undefined => {
+    if (syntax.reference) {
+      const target = referenceText(syntax.reference, before);
+      return target && `REF_TO ${target}`;
+    }
+    if (syntax.array || syntax.subrange)
+      return rangeType(syntax.typeName, (syntax.array ?? syntax.subrange)!, before);
+    return (
+      normalizeType(syntax.typeName.key) +
+      (syntax.stringLength === undefined ? "" : `[${syntax.stringLength}]`)
+    );
+  };
   let index = 0;
   for (const [position, declaration] of ast.declarations.entries()) {
+    if (declaration.reference) {
+      const target = referenceText(declaration.reference, position);
+      if (!target)
+        return {
+          value: null,
+          diagnostics: [
+            { code: "project.invalid", severity: "error", args: { path: "pointer/baseType" } },
+          ],
+        };
+      for (let n = 0; n < declaration.names.length; n++)
+        variables[index + n]!.type = `REF_TO ${target}`;
+    }
     if (declaration.subrange || declaration.array) {
       const type = rangeType(
         declaration.typeName,
@@ -263,12 +298,27 @@ export function splitProgram(source: string, types: TypeTable = []): ProjectResu
     }
     index += declaration.names.length;
   }
+  const referenceResult =
+    ast.resultReference && referenceText(ast.resultReference, ast.declarations.length);
+  if (ast.resultReference && !referenceResult)
+    return {
+      value: null,
+      diagnostics: [
+        { code: "project.invalid", severity: "error", args: { path: "returnType/pointer" } },
+      ],
+    };
   const returnType =
     ast.resultType &&
-    (ast.resultSubrange || ast.resultArray
-      ? rangeType(ast.resultType, (ast.resultArray ?? ast.resultSubrange)!, ast.declarations.length)
-      : normalizeType(ast.resultType.key) +
-        (ast.resultStringLength === undefined ? "" : `[${ast.resultStringLength}]`));
+    (ast.resultReference
+      ? `REF_TO ${referenceResult}`
+      : ast.resultSubrange || ast.resultArray
+        ? rangeType(
+            ast.resultType,
+            (ast.resultArray ?? ast.resultSubrange)!,
+            ast.declarations.length,
+          )
+        : normalizeType(ast.resultType.key) +
+          (ast.resultStringLength === undefined ? "" : `[${ast.resultStringLength}]`));
   if ((ast.resultSubrange || ast.resultArray) && !returnType)
     return {
       value: null,

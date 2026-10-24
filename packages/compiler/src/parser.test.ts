@@ -18,6 +18,10 @@ function expression(source: string): Expression {
 
 function shape(node: Expression): unknown {
   switch (node.kind) {
+    case "null":
+      return "NULL";
+    case "dereference":
+      return ["^", shape(node.reference)];
     case "index":
       return [shape(node.array), ...node.indices.map(shape)];
     case "field":

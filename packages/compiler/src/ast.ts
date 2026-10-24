@@ -18,6 +18,7 @@ export interface Program extends SourceNode {
   kind: "program" | "function" | "functionBlock";
   name: Identifier;
   resultType?: Identifier;
+  resultReference?: TypeSyntax;
   resultArray?: ArrayDeclaration;
   resultSubrange?: Subrange;
   resultStringLength?: number;
@@ -26,7 +27,15 @@ export interface Program extends SourceNode {
   body: Statement[];
 }
 
+export interface TypeSyntax extends SourceNode {
+  typeName: Identifier;
+  subrange?: Subrange;
+  stringLength?: number;
+  array?: ArrayDeclaration;
+  reference?: TypeSyntax;
+}
 export interface Declaration extends SourceNode {
+  reference?: TypeSyntax;
   kind: "declaration";
   names: [Identifier, ...Identifier[]];
   address?: Address;
@@ -72,6 +81,7 @@ export interface ArrayInitializer extends SourceNode {
   items: { count?: Expression; values: Expression[] }[];
 }
 export interface ArrayDeclaration extends SourceNode {
+  reference?: TypeSyntax;
   dimensions: (Subrange | "*")[];
   typeName: Identifier;
   subrange?: Subrange;
@@ -87,8 +97,12 @@ export interface StructureInitializer extends SourceNode {
   kind: "structureInitializer";
   members: { name: Identifier; value: Expression }[];
 }
+export interface Dereference extends SourceNode {
+  kind: "dereference";
+  reference: AssignmentTarget;
+}
 export type AssignmentTarget =
-  NameReference | MemberReference | ArrayAccess | ElementBit | FieldReference;
+  NameReference | MemberReference | ArrayAccess | ElementBit | FieldReference | Dereference;
 
 export interface UnaryExpression extends SourceNode {
   kind: "unary";
@@ -129,6 +143,7 @@ export interface Subrange extends SourceNode {
   upper: Expression;
 }
 export interface DataTypeDeclaration extends SourceNode {
+  reference?: TypeSyntax;
   members?: Declaration[];
   array?: ArrayDeclaration;
   name: Identifier;
@@ -140,6 +155,7 @@ export interface DataTypeDeclaration extends SourceNode {
 }
 
 export type Expression =
+  | (SourceNode & { kind: "null" })
   | StructureInitializer
   | ArrayInitializer
   | EnumerationLiteral
@@ -239,6 +255,7 @@ export type Statement =
 
 /** Return the declaration identifier at the root of an access chain. */
 export function rootName(node: AssignmentTarget): Identifier {
+  if (node.kind === "dereference") return rootName(node.reference);
   if (node.kind === "name") return node.name;
   if (node.kind === "member") return node.instance;
   return rootName(

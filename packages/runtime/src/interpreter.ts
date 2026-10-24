@@ -2,12 +2,12 @@ import {
   coerceValue,
   arrayType,
   isAggregateType,
-  type StructureMemberReference,
   type AssignmentTarget,
-  type IndexReference,
-  type VariableReference,
   internalValue,
   scalarBase,
+  referenceType,
+  type StorageReference,
+  type InlineValue,
   SubrangeViolation,
   convertValue,
   isCalendarType,
@@ -37,7 +37,9 @@ import type {
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
 import {
-  typed,
+  isReferenceAddress,
+  type ReferenceAddress,
+  type StoredValue,
   isAggregateValue,
   type Memory,
   type MemoryFrame,
@@ -99,7 +101,10 @@ export class Interpreter {
     });
   }
 
-  private fault(code: "runtime.division-by-zero" | "runtime.for-by-zero", span: SourceSpan): never {
+  private fault(
+    code: "runtime.division-by-zero" | "runtime.for-by-zero" | "runtime.null-reference",
+    span: SourceSpan,
+  ): never {
     throw new RuntimeFault({
       code,
       severity: "error",
@@ -132,16 +137,15 @@ export class Interpreter {
     }
   }
 
-  private location(
-    ref:
-      | VariableReference
-      | IndexReference
-      | StructureMemberReference
-      | import("@benchtop-plc/core").UserFunctionBlockMemberReference,
-  ): {
+  private location(ref: StorageReference): {
     frame: MemoryFrame;
     variable: number;
   } {
+    if (ref.kind === "dereference") {
+      const address = this.referenceExpression(ref.reference);
+      if (!address) this.fault("runtime.null-reference", ref.span);
+      return address;
+    }
     if (ref.kind === "variable") return { frame: this.memory, variable: ref.variable };
     if (ref.kind === "userFbMember") {
       const parent = ref.instance
@@ -182,12 +186,58 @@ export class Interpreter {
     return { frame: parent.frame.element(parent.variable, offset), variable: 0 };
   }
 
+  private referenceExpression(expr: Expression): ReferenceAddress | null {
+    if (expr.kind === "null") return null;
+    if (expr.kind === "referenceOf") {
+      if (expr.target.kind === "fbMember") {
+        const target = expr.target;
+        const location = target.instance
+          ? this.location(target.instance)
+          : { frame: this.memory, variable: target.variable };
+        return location.frame.portFrame(location.variable, target.port, target.member).address(0);
+      }
+      const location = this.location(expr.target);
+      return location.frame.address(location.variable);
+    }
+    if (expr.kind === "functionCall") {
+      const args: (ReferenceAddress | null | ScalarValue)[] = [];
+      for (const i of expr.evaluationOrder ?? expr.args.map((_, i) => i)) {
+        const arg = expr.args[i]!;
+        args[i] = referenceType(arg.dataType, this.programMemory.ir.types)
+          ? this.referenceExpression(arg)
+          : this.expression(arg);
+      }
+      if (expr.function === "MOVE") return args[0] as ReferenceAddress | null;
+      if (expr.function === "SEL") return args[args[0] ? 2 : 1] as ReferenceAddress | null;
+      const selector = BigInt(args[0] as ScalarValue);
+      if (selector < 0n || selector >= BigInt(args.length - 1))
+        throw new RangeError("MUX selector");
+      return args[Number(selector) + 1] as ReferenceAddress | null;
+    }
+    if (expr.kind === "userFunctionCall") {
+      const value = this.userCall(expr);
+      if (value === null || isReferenceAddress(value)) return value;
+      throw new Error("Expected reference result");
+    }
+    if (
+      expr.kind === "variable" ||
+      expr.kind === "index" ||
+      expr.kind === "structureMember" ||
+      expr.kind === "userFbMember" ||
+      expr.kind === "dereference"
+    ) {
+      const location = this.location(expr);
+      return location.frame.readReference(location.variable);
+    }
+    throw new Error("Unsupported reference expression");
+  }
   private aggregateExpression(expr: Expression): AggregateValue {
     if (
       expr.kind === "variable" ||
       expr.kind === "index" ||
       expr.kind === "structureMember" ||
-      expr.kind === "userFbMember"
+      expr.kind === "userFbMember" ||
+      expr.kind === "dereference"
     ) {
       const { frame, variable } = this.location(expr);
       return frame.aggregateValue(variable);
@@ -217,6 +267,7 @@ export class Interpreter {
 
   private assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
     if (
+      target.kind === "dereference" ||
       target.kind === "index" ||
       target.kind === "structureMember" ||
       target.kind === "elementBit"
@@ -262,6 +313,10 @@ export class Interpreter {
         if (dimension === "*") throw new Error("Unbound open array");
         return expr.upper ? dimension.upper : dimension.lower;
       }
+      case "null":
+      case "referenceOf":
+        throw new Error("Reference used as scalar");
+      case "dereference":
       case "structureMember":
       case "index": {
         const { frame, variable } = this.location(expr);
@@ -290,6 +345,18 @@ export class Interpreter {
         return coerceValue(this.base(expr.dataType), result);
       }
       case "binary": {
+        if (
+          referenceType(expr.left.dataType, this.programMemory.ir.types) ||
+          referenceType(expr.right.dataType, this.programMemory.ir.types)
+        ) {
+          const left = this.referenceExpression(expr.left),
+            right = this.referenceExpression(expr.right);
+          const equal =
+            left === null
+              ? right === null
+              : right !== null && left.frame.sameLocation(left.variable, right);
+          return expr.operator === "=" ? equal : !equal;
+        }
         const left = this.expression(expr.left),
           right = this.expression(expr.right);
         if (expr.operator === "/" && Number(right) === 0) {
@@ -354,14 +421,14 @@ export class Interpreter {
       }
       case "userFunctionCall": {
         const result = this.userCall(expr);
-        if (result === null || isAggregateValue(result))
+        if (result === null || isAggregateValue(result) || isReferenceAddress(result))
           throw new Error("Expected scalar function result");
         return result;
       }
     }
   }
 
-  private annotate(statement: Statement, values: TypedValue[]): void {
+  private annotate(statement: Statement, values: InlineValue[]): void {
     if (this.callDepth) return;
     this.annotations.set(statement, {
       span: { ...statement.span },
@@ -387,6 +454,12 @@ export class Interpreter {
   private statement(statement: Statement): Flow {
     switch (statement.kind) {
       case "assignment":
+        if (referenceType(statement.target.dataType, this.programMemory.ir.types)) {
+          const value = this.referenceExpression(statement.value);
+          const location = this.location(statement.target as StorageReference);
+          this.annotate(statement, [location.frame.writeReference(location.variable, value)]);
+          break;
+        }
         if (isAggregateType(statement.target.dataType, this.programMemory.ir.types)) {
           const values = this.aggregateExpression(statement.value);
           this.assignAggregate(statement.target, values);
@@ -397,10 +470,30 @@ export class Interpreter {
       case "call": {
         if (statement.call.kind === "userFunctionCall") {
           const result = this.userCall(statement.call);
-          if (statement.call.dataType !== null && result !== null && !isAggregateValue(result))
+          if (
+            statement.call.dataType !== null &&
+            referenceType(statement.call.dataType, this.programMemory.ir.types)
+          ) {
+            if (result !== null && !isReferenceAddress(result))
+              throw new Error("Expected reference result");
+            this.annotate(statement, [this.memory.referenceValue(result)]);
+            break;
+          }
+          if (
+            statement.call.dataType !== null &&
+            result !== null &&
+            !isAggregateValue(result) &&
+            !isReferenceAddress(result)
+          )
             this.annotate(statement, [
               { dataType: this.base(statement.call.dataType), value: result } as TypedValue,
             ]);
+          break;
+        }
+        if (referenceType(statement.call.dataType, this.programMemory.ir.types)) {
+          this.annotate(statement, [
+            this.memory.referenceValue(this.referenceExpression(statement.call)),
+          ]);
           break;
         }
         if (isAggregateType(statement.call.dataType, this.programMemory.ir.types)) {
@@ -488,21 +581,25 @@ export class Interpreter {
       target.kind !== "variable" &&
       target.kind !== "index" &&
       target.kind !== "structureMember" &&
-      target.kind !== "userFbMember"
+      target.kind !== "userFbMember" &&
+      target.kind !== "dereference"
     )
       throw new Error("Invalid aggregate target");
     const { frame, variable } = this.location(target);
     frame.assignAggregate(variable, values);
   }
 
-  private argumentValue(expr: Expression): ScalarValue | AggregateValue {
+  private argumentValue(expr: Expression): StoredValue {
+    if (referenceType(expr.dataType, this.programMemory.ir.types))
+      return this.referenceExpression(expr);
     return isAggregateType(expr.dataType, this.programMemory.ir.types)
       ? this.aggregateExpression(expr)
       : this.expression(expr);
   }
 
-  private store(frame: MemoryFrame, variable: number, value: ScalarValue | AggregateValue): void {
+  private store(frame: MemoryFrame, variable: number, value: StoredValue): void {
     if (isAggregateValue(value)) frame.assignAggregate(variable, value);
+    else if (value === null || isReferenceAddress(value)) frame.writeReference(variable, value);
     else frame.write(variable, value);
   }
 
@@ -510,7 +607,7 @@ export class Interpreter {
     inputs: { variable: number; value: Expression }[],
     inOuts: readonly import("@benchtop-plc/core").InOutBinding[],
   ) {
-    const values = new Map<number, ScalarValue | AggregateValue>();
+    const values = new Map<number, StoredValue>();
     const aliases = new Map<number, { frame: MemoryFrame; variable: number }>();
     const argumentsInOrder = [
       ...inputs.map((input) => ({
@@ -536,6 +633,11 @@ export class Interpreter {
     slot: number,
     type: import("@benchtop-plc/core").TypeDescriptor,
   ): void {
+    if (referenceType(type, this.programMemory.ir.types)) {
+      const destination = this.location(target as StorageReference);
+      destination.frame.writeReference(destination.variable, frame.readReference(slot));
+      return;
+    }
     if (isAggregateType(type, this.programMemory.ir.types)) {
       this.assignAggregate(target, frame.aggregateValue(slot));
       return;
@@ -615,14 +717,14 @@ export class Interpreter {
       call,
       definition.outputs.flatMap((slot) => {
         const variable = definition.variables[slot]!;
-        return variable.kind === "scalar"
-          ? [typed(this.base(variable.dataType), instance.frame.read(slot))]
+        return variable.kind === "scalar" || variable.kind === "reference"
+          ? [instance.frame.inlineValue(slot)]
           : [];
       }),
     );
   }
 
-  private userCall(call: UserFunctionCall): ScalarValue | AggregateValue | null {
+  private userCall(call: UserFunctionCall): StoredValue {
     const definition = this.functions[call.function];
     if (!definition) throw new Error("Missing function body");
     const args = this.arguments(call.inputs, call.inOuts ?? []);
@@ -632,7 +734,7 @@ export class Interpreter {
     const locals = this.programMemory.functionFrame(call.function);
     for (const [slot, value] of args.values) this.store(locals, slot, value);
     for (const [slot, actual] of args.aliases) locals.bind(slot, actual.frame, actual.variable);
-    let result: ScalarValue | AggregateValue | null;
+    let result: StoredValue;
     this.memory = locals;
     this.pou = definition.name;
     this.instancePath = undefined;
@@ -642,12 +744,17 @@ export class Interpreter {
       result =
         definition.result === undefined
           ? null
-          : isAggregateType(
+          : referenceType(
                 definition.variables[definition.result]!.dataType,
                 this.programMemory.ir.types,
               )
-            ? locals.aggregateValue(definition.result)
-            : locals.read(definition.result);
+            ? locals.readReference(definition.result)
+            : isAggregateType(
+                  definition.variables[definition.result]!.dataType,
+                  this.programMemory.ir.types,
+                )
+              ? locals.aggregateValue(definition.result)
+              : locals.read(definition.result);
     } finally {
       this.callDepth--;
       this.memory = caller;

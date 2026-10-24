@@ -18,6 +18,9 @@ const examples = {
   "project.invalid-xml": {},
   "project.missing": { path: "project/types" },
   "project.unsupported": { path: "project/types/dataTypes" },
+  "runtime.null-reference": {},
+  "type.invalid-reference-target": {},
+  "type.reference-initializer": {},
   "project.invalid": { path: "project/task/@interval" },
   "project.dropped-data": { name: "https://vendor.example/data" },
   "project.stale-source": {},
@@ -228,4 +231,8 @@ describe("translation catalogs", () => {
       }
     }
   });
+});
+
+it("describes NULL dereferencing as a runtime failure in Japanese", () => {
+  expect(diagnosticJa["runtime.null-reference"]()).toBe("NULLを逆参照できません。");
 });

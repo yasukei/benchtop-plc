@@ -44,9 +44,17 @@ export type TypeDefinition =
       kind: "structure";
       members: { name: string; dataType: TypeDescriptor; initialValue: InitialValue }[];
     };
-export type InitialValue = TypedValue["value"] | InitialValue[];
+export type InitialValue = TypedValue["value"] | null | InitialValue[];
 export function cloneInitialValue<T>(value: T): T {
   return (Array.isArray(value) ? value.map((item) => cloneInitialValue(item)) : value) as T;
+}
+export type ReferenceType = Extract<TypeDescriptor, { kind: "reference" }>;
+export function referenceType(
+  type: TypeDescriptor,
+  table: readonly TypeEntry[] = [],
+): ReferenceType | undefined {
+  const resolved = resolveType(type, table);
+  return typeof resolved !== "string" && resolved.kind === "reference" ? resolved : undefined;
 }
 export type ArrayType = Extract<TypeDescriptor, { kind: "array" }>;
 export function arrayType(
@@ -152,30 +160,41 @@ export function sameScalarType(
   b: TypeDescriptor,
   table: readonly TypeEntry[] = [],
 ): boolean {
-  const left = resolveType(a, table),
-    right = resolveType(b, table);
-  const la = arrayType(a, table),
-    ra = arrayType(b, table);
-  if (la || ra)
+  const seen = new Map<ReturnType<typeof resolveType>, Set<ReturnType<typeof resolveType>>>();
+  const compare = (a: TypeDescriptor, b: TypeDescriptor): boolean => {
+    const left = resolveType(a, table),
+      right = resolveType(b, table);
+    if (left === right) return true;
+    if (seen.get(left)?.has(right)) return true;
+    if (!seen.has(left)) seen.set(left, new Set());
+    seen.get(left)!.add(right);
+    const la = arrayType(a, table),
+      ra = arrayType(b, table);
+    if (la || ra)
+      return (
+        !!la &&
+        !!ra &&
+        JSON.stringify(la.dimensions) === JSON.stringify(ra.dimensions) &&
+        compare(la.element, ra.element)
+      );
+    if (structureType(a, table) || structureType(b, table)) return left === right;
+    const lr = referenceType(a, table),
+      rr = referenceType(b, table);
+    if (lr || rr) return !!lr && !!rr && compare(lr.target, rr.target);
+    const leftBase = scalarBase(a, table),
+      rightBase = scalarBase(b, table);
+    if (isCharacterType(leftBase) || isCharacterType(rightBase)) return leftBase === rightBase;
+    if (typeof left === "string" || typeof right === "string") return left === right;
+    if (left.kind === "enumeration" || right.kind === "enumeration") return left === right;
     return (
-      !!la &&
-      !!ra &&
-      JSON.stringify(la.dimensions) === JSON.stringify(ra.dimensions) &&
-      sameScalarType(la.element, ra.element, table)
+      left.kind === "subrange" &&
+      right.kind === "subrange" &&
+      left.base === right.base &&
+      BigInt(left.lower) === BigInt(right.lower) &&
+      BigInt(left.upper) === BigInt(right.upper)
     );
-  if (structureType(a, table) || structureType(b, table)) return left === right;
-  const leftBase = scalarBase(a, table),
-    rightBase = scalarBase(b, table);
-  if (isCharacterType(leftBase) || isCharacterType(rightBase)) return leftBase === rightBase;
-  if (typeof left === "string" || typeof right === "string") return left === right;
-  if (left.kind === "enumeration" || right.kind === "enumeration") return left === right;
-  return (
-    left.kind === "subrange" &&
-    right.kind === "subrange" &&
-    left.base === right.base &&
-    BigInt(left.lower) === BigInt(right.lower) &&
-    BigInt(left.upper) === BigInt(right.upper)
-  );
+  };
+  return compare(a, b);
 }
 /** Validate storage constraints before coercion, including monitor writes and forces. */
 export function validateDeclaredValue(

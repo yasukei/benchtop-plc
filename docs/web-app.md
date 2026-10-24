@@ -210,3 +210,12 @@ Scalar user member writes and forces use their usual controls and affect the
 same persistent state used by indexed calls. Forced members remain visible when
 the array is collapsed. Inline values in PROGRAM show indexed call outputs;
 function block bodies still have no inline values.
+
+## Reference monitoring
+
+The variable monitor displays a reference's type (`REF_TO Point`) and its target
+path, or `NULL`. Reference rows have no write or force controls. Array elements
+and structure members that contain references use the same display when expanded.
+A value changed through `r^` is monitored at its target's existing path. Inline
+assignment and POU call values also show reference paths or `NULL`. NULL faults
+use the English/Japanese diagnostic catalog and navigate to the executing POU.
