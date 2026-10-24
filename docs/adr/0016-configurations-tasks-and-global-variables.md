@@ -251,8 +251,9 @@ project restrictions below are tracked in
 - Forces apply to the parameter at the force stages around its instance, so a forced
   input is not overwritten by its connection, a forced output is copied out with the
   forced value, and a forced global or address connected to an output keeps its
-  forced value after the copy. A connected input rejects monitor writes, as an input-mapped
-  variable does today, because the next copy would overwrite them; it accepts forces.
+  forced value after the copy. A connected input rejects monitor writes, as an
+  input-mapped variable does today, because the next copy would overwrite them; it
+  accepts forces.
 
 ### Direct addresses
 
