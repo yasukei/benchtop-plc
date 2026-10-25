@@ -818,9 +818,13 @@ export function readProject(xml: string): ProjectResult<Project> {
         (pouNodes.length === 1 ? extensions.sources.get(root) : undefined);
       if (source !== undefined) {
         const preserved = splitProgram(source, resolved.types, globals);
+        const comparable =
+          parsePou(source).ast?.kind === "class" && !split.body.trim()
+            ? { ...split, body: "" }
+            : split;
         if (
           legacyDraft(source, "pou") ||
-          (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(split))
+          (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(comparable))
         )
           program = source;
         else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });

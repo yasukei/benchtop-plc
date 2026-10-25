@@ -1,4 +1,4 @@
-import { formatType, type TypeDescriptor } from "@benchtop-plc/core";
+import { formatType, isFunctionBlockType, type TypeDescriptor } from "@benchtop-plc/core";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode } from "@benchtop-plc/core";
 import type { Language } from "./catalog.js";
 
@@ -27,11 +27,15 @@ const pouKinds: Record<string, string> = {
   program: "PROGRAM",
   function: "FUNCTION",
   functionBlock: "FUNCTION_BLOCK",
+  class: "CLASS",
 };
 const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "class.body": () => "A class has no body; put statements inside methods.",
+  "class.not-callable": ({ name }) =>
+    `Class instance ${name} cannot be called; call a method instead.`,
   "decl.retention-conflict": () => "RETAIN and NON_RETAIN cannot qualify the same section.",
   "decl.retention-section": () =>
     "Retention qualifiers are not allowed on VAR_TEMP, VAR_IN_OUT or VAR_EXTERNAL.",
@@ -106,7 +110,9 @@ export const diagnosticEn = {
       ? "Named function block array types are not supported; declare the instance array directly in a PROGRAM or FUNCTION_BLOCK VAR section."
       : "Function block instances are not supported inside nested array types; use a multidimensional instance array instead.",
   "decl.structure-member-type": ({ name }) =>
-    `Function block type ${name} is not supported in a structure.`,
+    isFunctionBlockType(name.toUpperCase())
+      ? `Function block type ${name} is not supported in a structure.`
+      : `Function block or class type ${name} is not supported in a structure.`,
   "decl.duplicate": ({ name }) => `Duplicate declaration: ${name}.`,
   "decl.name-collision": ({ name, kind }) =>
     `${name} conflicts with a ${kind === "type" ? "type" : "function"} name.`,
@@ -121,7 +127,7 @@ export const diagnosticEn = {
   "decl.nonconstant-initializer": ({ name }) =>
     `Initializer for ${name} must be a constant expression.`,
   "decl.fb-initializer": ({ name }) =>
-    `Function block instance ${name} cannot have an initializer.`,
+    `Function block or class instance ${name} cannot have an initializer.`,
   "decl.constant-section": ({ section }) => `CONSTANT is allowed only on VAR; found ${section}.`,
   "decl.constant-type": () => `CONSTANT requires an elementary type.`,
   "decl.constant-address": () => `CONSTANT cannot be combined with AT.`,
@@ -140,16 +146,17 @@ export const diagnosticEn = {
   "pou.invalid-section": ({ section, kind }) =>
     `${section} is not supported in a ${pouKinds[kind] ?? kind} POU.`,
   "pou.direct-address": () => "Direct addresses are allowed only in the PROGRAM.",
-  "pou.function-block-in-function": () => "A function cannot declare a function block instance.",
+  "pou.function-block-in-function": () =>
+    "A function or method cannot declare a function block or class instance.",
   "access.duplicate": () => "Only one access specifier is allowed.",
   "access.invalid-section": () => "An access specifier is not allowed on this section.",
   "access.hidden": ({ name }) => `Member or method ${name} is inaccessible here.`,
-  "method.invalid-owner": () => "Methods can only be declared in a function block.",
+  "method.invalid-owner": () => "Methods can only be declared in a function block or class.",
   "method.name-collision": ({ name }) =>
     `Method or local name ${name} conflicts with an instance member or method.`,
   "method.unknown": ({ name }) => `Unknown method ${name}.`,
   "method.instance-in-out": ({ name }) => `Instance VAR_IN_OUT ${name} is unavailable in methods.`,
-  "method.this-outside": () => "THIS requires a function block context.",
+  "method.this-outside": () => "THIS requires a function block or class context.",
   "method.this-call": () => "A method cannot call the instance body through THIS.",
   "pou.recursion": ({ name }) => `Recursive call to ${name}.`,
   "call.program": ({ name }) => `PROGRAM ${name} cannot be called.`,
@@ -182,7 +189,7 @@ export const diagnosticEn = {
   "type.invalid-constant": () => "Invalid constant or value outside the supported range.",
   "type.case-label-not-constant": () => "CASE label must be an integer constant expression.",
   "fb.invalid-instance-section": ({ name }) =>
-    `Function block instance ${name} must be declared in VAR.`,
+    `Function block or class instance ${name} must be declared in VAR.`,
   "fb.duplicate-input": ({ name, member }) => `Input ${name}.${member} is supplied more than once.`,
   "type.assign-mismatch": ({ from, to, hint }) =>
     `Cannot assign ${typeText(from)} to ${typeText(to)}.${hint === "explicit-conversion" ? " Use an explicit conversion." : ""}`,
@@ -245,6 +252,9 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "class.body": () => "クラスには本体を記述できません。文はメソッド内に記述してください。",
+  "class.not-callable": ({ name }) =>
+    `クラスのインスタンス ${name} は呼び出せません。メソッドを呼び出してください。`,
   "decl.retention-conflict": () => "同じセクションに RETAIN と NON_RETAIN は指定できません。",
   "decl.retention-section": () =>
     "VAR_TEMP、VAR_IN_OUT、VAR_EXTERNAL に保持修飾子は指定できません。",
@@ -318,7 +328,9 @@ export const diagnosticJa = {
       ? "ファンクションブロックの配列に名前付きの型は使用できません。PROGRAM または FUNCTION_BLOCK の VAR セクションで配列を直接宣言してください。"
       : "入れ子の配列型にはファンクションブロックを含められません。多次元のインスタンス配列を使用してください。",
   "decl.structure-member-type": ({ name }) =>
-    `${name} はファンクションブロック型のため、構造体のメンバーには使用できません。`,
+    isFunctionBlockType(name.toUpperCase())
+      ? `${name} はファンクションブロック型のため、構造体のメンバーには使用できません。`
+      : `${name} はファンクションブロックまたはクラス型のため、構造体のメンバーには使用できません。`,
   "decl.duplicate": ({ name }) => `宣言が重複しています: ${name}。`,
   "decl.name-collision": ({ name, kind }) =>
     `${name}は${kind === "type" ? "型" : "関数"}の名前と衝突しています。`,
@@ -333,7 +345,7 @@ export const diagnosticJa = {
   "decl.address-out-of-range": ({ address }) => `対応するI/Oの範囲外のアドレスです: ${address}。`,
   "decl.nonconstant-initializer": ({ name }) => `${name}の初期値には定数式が必要です。`,
   "decl.fb-initializer": ({ name }) =>
-    `ファンクションブロックのインスタンス${name}には初期値を指定できません。`,
+    `ファンクションブロックまたはクラスのインスタンス${name}には初期値を指定できません。`,
   "decl.constant-section": ({ section }) => `CONSTANT は VAR でのみ使用できます: ${section}。`,
   "decl.constant-type": () => `CONSTANT には基本データ型が必要です。`,
   "decl.constant-address": () => `CONSTANT と AT は併用できません。`,
@@ -353,17 +365,18 @@ export const diagnosticJa = {
     `${pouKinds[kind] ?? kind}のPOUでは${section}は未対応です。`,
   "pou.direct-address": () => "直接アドレスはPROGRAMでのみ使用できます。",
   "pou.function-block-in-function": () =>
-    "関数ではファンクションブロックのインスタンスを宣言できません。",
+    "関数やメソッドではファンクションブロックまたはクラスのインスタンスを宣言できません。",
   "access.duplicate": () => "アクセス指定子は1つだけ指定できます。",
   "access.invalid-section": () => "このセクションにアクセス指定子は指定できません。",
   "access.hidden": ({ name }) => `メンバーまたはメソッド${name}にはここからアクセスできません。`,
-  "method.invalid-owner": () => "メソッドはファンクションブロック内でのみ宣言できます。",
+  "method.invalid-owner": () =>
+    "メソッドはファンクションブロックまたはクラス内でのみ宣言できます。",
   "method.name-collision": ({ name }) =>
     `メソッドまたはローカル変数${name}がインスタンスのメンバーまたはメソッドと重複しています。`,
   "method.unknown": ({ name }) => `不明なメソッド${name}です。`,
   "method.instance-in-out": ({ name }) =>
     `インスタンスのVAR_IN_OUT ${name}はメソッド内では使用できません。`,
-  "method.this-outside": () => "THISはファンクションブロック内でのみ使用できます。",
+  "method.this-outside": () => "THISはファンクションブロックまたはクラス内でのみ使用できます。",
   "method.this-call": () => "THISでインスタンス本体を呼び出すことはできません。",
   "pou.recursion": ({ name }) => `${name}への再帰呼び出しです。`,
   "call.program": ({ name }) => `PROGRAM ${name}は呼び出せません。`,
@@ -395,7 +408,7 @@ export const diagnosticJa = {
   "type.invalid-constant": () => "定数が不正、または値が対応範囲外です。",
   "type.case-label-not-constant": () => "CASEラベルには整数の定数式が必要です。",
   "fb.invalid-instance-section": ({ name }) =>
-    `ファンクションブロックのインスタンス${name}はVARで宣言してください。`,
+    `ファンクションブロックまたはクラスのインスタンス${name}はVARで宣言してください。`,
   "fb.duplicate-input": ({ name, member }) => `入力${name}.${member}が複数回指定されています。`,
   "type.assign-mismatch": ({ from, to, hint }) =>
     `${typeText(from)}を${typeText(to)}に代入することはできません。${hint === "explicit-conversion" ? "明示的な型変換を使用してください。" : ""}`,

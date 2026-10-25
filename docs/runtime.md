@@ -686,3 +686,18 @@ same scan watchdog budget as their callers. Faults retain the original source sp
 name the method as `Counter.Increment` and include the receiver path when known.
 Nested method calls restore the caller's instance context on return. Method locals
 are absent from snapshots and cannot be written or forced through the protocol.
+
+## Class instances
+
+Class instances use user-block storage and method invocation, including nested
+blocks/classes and arrays of instances. The definition's `kind: "class"` marks an
+empty body; compiled code invokes only its methods. Each instance's definition
+index records its actual type. Load and cold reset initialize all class members.
+Warm restart and reload follow ADR 0016: instance qualifiers pass to unqualified
+members, while explicit RETAIN/NON_RETAIN members override them. Scalar retained
+members restore by dotted path and type just as block members do.
+
+Every scalar non-CONSTANT member appears in snapshots and supports writes and
+forces, including PRIVATE and PROTECTED members. Constants and method locals have
+no monitored IDs. Faults inside class methods carry `Type.Method`, the class source
+span and the receiver path, with the caller's shared watchdog budget.

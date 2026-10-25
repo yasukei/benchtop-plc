@@ -147,7 +147,7 @@ export function compileProject(
   }
   if (dataTypeSources.length && diagnostics.some((diagnostic) => diagnostic.severity === "error"))
     return { diagnostics };
-  const blocks = asts.filter((ast) => ast.kind === "functionBlock");
+  const blocks = asts.filter((ast) => ast.kind === "functionBlock" || ast.kind === "class");
   const blockIds = new Map(blocks.map((ast, index) => [ast.name.key, index]));
   const resolved = resolveDataTypes(dataTypes, blockIds);
   diagnostics.push(
@@ -252,7 +252,9 @@ export function compileProject(
         .filter((node) => node.section !== "VAR_EXTERNAL")
         .flatMap((node) => {
           const callee = pous.get((node.array?.typeName ?? node.typeName).key);
-          return callee?.kind === "functionBlock" ? [{ node, callee }] : [];
+          return callee?.kind === "functionBlock" || callee?.kind === "class"
+            ? [{ node, callee }]
+            : [];
         }),
     ];
     for (const { node, callee } of edges) {

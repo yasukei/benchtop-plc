@@ -507,7 +507,13 @@ class Lowerer {
     return {
       ...(inOuts.length ? { inOuts: this.inOutBindings(inOuts) } : {}),
       span: span(node),
-      kind: symbol.userBlock === undefined ? "fbCall" : "userFbCall",
+      kind: (
+        node.kind === "functionCall" && node.instance
+          ? this.checked.blockCalls.has(node)
+          : symbol.userBlock !== undefined
+      )
+        ? "userFbCall"
+        : "fbCall",
       variable,
       ...(node.kind === "functionCall" && node.instance
         ? { instance: this.reference(node.instance) as IR.IndexReference }
@@ -665,6 +671,7 @@ export function lowerFunctionBlock(checked: CheckedProgram): IR.UserFunctionBloc
   const ir = new Lowerer(checked).run();
   const parameters = sections(checked);
   return {
+    ...(checked.ast.kind === "class" ? { kind: "class" as const } : {}),
     name: ir.name,
     span: ir.span,
     body: ir.body,

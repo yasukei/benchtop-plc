@@ -168,7 +168,7 @@ export class Parser {
 
   run(pou = false, method = false): Program {
     if (method) this.expect("METHOD");
-    else if (!pou || !["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(this.current.key))
+    else if (!pou || !["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS"].includes(this.current.key))
       this.expect("PROGRAM");
     else this.take();
     const header = this.previous;
@@ -199,7 +199,10 @@ export class Parser {
     ) {
       const section = this.take();
       const sectionAccess = this.access();
-      if (sectionAccess && (header.key !== "FUNCTION_BLOCK" || section.key !== "VAR"))
+      if (
+        sectionAccess &&
+        (!["FUNCTION_BLOCK", "CLASS"].includes(header.key) || section.key !== "VAR")
+      )
         this.fail({
           code: "access.invalid-section",
           severity: "error",
@@ -243,7 +246,7 @@ export class Parser {
     }
     const methods: Program[] = [];
     while (this.current.kind === "keyword" && this.at("METHOD") && !method) {
-      if (header.key !== "FUNCTION_BLOCK")
+      if (!["FUNCTION_BLOCK", "CLASS"].includes(header.key))
         this.fail({
           code: "method.invalid-owner",
           severity: "error",
@@ -253,6 +256,8 @@ export class Parser {
       methods.push(this.run(true, true));
     }
     const end = `END_${header.key}` as `END_${string}`;
+    if (header.key === "CLASS" && !this.at(end))
+      this.fail({ code: "class.body", severity: "error", span: this.current.span, args: {} });
     const body = this.body([end], end);
     this.expect(end);
     const span = this.spanFrom(start);
@@ -265,9 +270,11 @@ export class Parser {
       kind:
         method || header.key === "FUNCTION"
           ? "function"
-          : header.key === "FUNCTION_BLOCK"
-            ? "functionBlock"
-            : "program",
+          : header.key === "CLASS"
+            ? "class"
+            : header.key === "FUNCTION_BLOCK"
+              ? "functionBlock"
+              : "program",
       name,
       declarations,
       body,
@@ -889,8 +896,9 @@ function parseSource(source: string, pou: boolean, legacyNames = false): ParseRe
       const name = result.tokens[1];
       const diagnostic = {
         ...error.diagnostic,
-        ...(["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(result.tokens[0]?.key ?? "") &&
-        name?.kind === "identifier"
+        ...(["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS"].includes(
+          result.tokens[0]?.key ?? "",
+        ) && name?.kind === "identifier"
           ? { pou: name.text }
           : {}),
       };

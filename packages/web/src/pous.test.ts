@@ -8,6 +8,7 @@ import {
   diagnosticPouIndex,
   addFunction,
   addFunctionBlock,
+  addClass,
   compilePous,
   createPous,
   deletePou,
@@ -200,4 +201,13 @@ it("locates method faults in the owning function block text", () => {
       pou: "Counter.Increment",
     }),
   ).toBe(1);
+});
+
+it("adds uniquely named classes with one public method", () => {
+  const pous = createPous([main, "CLASS Class1 END_CLASS"]);
+  const added = addClass(pous, createDataTypes(["TYPE Class2 : INT; END_TYPE"]));
+  expect(added.at(-1)).toMatchObject({ name: "Class3", kind: "CLASS" });
+  expect(added.at(-1)?.source).toContain("METHOD PUBLIC Run");
+  expect(compilePous(added).diagnostics).toEqual([]);
+  expect(deletePou(added, 2)).toEqual(pous);
 });

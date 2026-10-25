@@ -49,7 +49,7 @@ const keywords = new Set([
   ...`PROGRAM END_PROGRAM VAR END_VAR AT IF THEN ELSIF ELSE END_IF CASE OF END_CASE
    FOR TO BY DO END_FOR WHILE END_WHILE REPEAT UNTIL END_REPEAT EXIT RETURN
    NOT MOD AND XOR OR
-   FUNCTION END_FUNCTION FUNCTION_BLOCK END_FUNCTION_BLOCK VAR_INPUT VAR_OUTPUT
+   FUNCTION END_FUNCTION FUNCTION_BLOCK END_FUNCTION_BLOCK CLASS END_CLASS VAR_INPUT VAR_OUTPUT
    VAR_IN_OUT VAR_TEMP VAR_GLOBAL VAR_EXTERNAL VAR_ACCESS VAR_CONFIG RETAIN NON_RETAIN
    CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE REF_TO REF NULL
    EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE
@@ -393,7 +393,9 @@ class Lexer {
       } catch (error) {
         if (
           error instanceof FrontendError &&
-          ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "TYPE"].includes(tokens[0]?.key ?? "") &&
+          ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS", "TYPE"].includes(
+            tokens[0]?.key ?? "",
+          ) &&
           tokens[1]?.kind === "identifier"
         )
           throw new FrontendError({ ...error.diagnostic, pou: tokens[1].text });
@@ -406,6 +408,8 @@ class Lexer {
 
 /** Tokenize one source file, reporting the first lexical error as data. */
 export const newlyReservedWords = new Set([
+  "CLASS",
+  "END_CLASS",
   "METHOD",
   "END_METHOD",
   "THIS",

@@ -16,7 +16,7 @@ export interface Program extends SourceNode {
   access?: Access;
   /** Compiler-local owner for a method checked as a function with instance storage. */
   owner?: Program;
-  kind: "program" | "function" | "functionBlock";
+  kind: "program" | "function" | "functionBlock" | "class";
   name: Identifier;
   resultType?: Identifier;
   resultReference?: TypeSyntax;

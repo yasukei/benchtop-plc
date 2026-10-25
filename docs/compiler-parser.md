@@ -203,3 +203,13 @@ sections are errors. These seven new keywords are reserved: `METHOD`, `END_METHO
 The optional `legacyNames` parser/lexer argument is used only to validate syntax
 when importing older project files. Compilation and editor parsing always use the
 current reserved words. Import does not make such source executable.
+
+## Class syntax
+
+`parsePou` accepts `CLASS Name` followed by variable sections, methods and
+`END_CLASS`, with an optional closing semicolon. Its AST has `kind: "class"` and
+an empty `body`. Statements outside methods report `class.body`. Section legality
+is checked semantically, including empty forbidden sections. VAR access specifiers
+use the method/block grammar and precede CONSTANT, RETAIN or NON_RETAIN.
+CLASS and END_CLASS are reserved; both also join `newlyReservedWords`, so the
+legacy project-opening parser can recover older identifier uses as drafts.
