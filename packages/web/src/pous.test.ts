@@ -221,3 +221,14 @@ it("adds an interface before POUs with one public prototype and a unique name", 
   expect(compilePous(added).diagnostics).toEqual([]);
   expect(deletePou(added, 0)).toEqual(pous);
 });
+
+it("derives qualified source names through namespace, USING and INTERNAL headers", () => {
+  expect(
+    createPous(["NAMESPACE A.B USING Common; CLASS INTERNAL FINAL C END_CLASS END_NAMESPACE"])[0],
+  ).toMatchObject({ name: "A.B.C", kind: "CLASS" });
+  expect(
+    createDataTypes([
+      "NAMESPACE A.B USING Common; TYPE INTERNAL T : INT; END_TYPE END_NAMESPACE",
+    ])[0],
+  ).toMatchObject({ name: "A.B.T" });
+});

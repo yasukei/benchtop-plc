@@ -270,7 +270,7 @@ Calls accept formal or positional arguments as
 user functions do, and can appear as statements or, with a result type, expressions.
 The recursion graph includes methods as distinct nodes, including unreachable
 methods and cycles through functions or block bodies. Member and method access is
-checked by declaring type; all types currently share the global namespace.
+checked by declaring type and namespace.
 
 ## Classes
 
@@ -288,7 +288,7 @@ or indirect containment cycle is allowed. Class names join the shared namespace;
 a variable with a class name reports `decl.name-collision` with kind `"type"`.
 `v()` reports `class.not-callable`; call `v.Open()` instead. Definitions and methods
 are shared in the IR, while each instance has independent storage.
-Namespaces remain unsupported.
+Namespaces follow the source and lookup rules below.
 
 ## Inheritance (ADR 0017)
 
@@ -333,3 +333,24 @@ Derived references convert upward on assignment and parameter passing; downcasts
 require `?=`. Assignment attempts accept interface variables, instance references
 and NULL sources. Recursion edges include every possible derived method or body,
 including inherited implementations, so unreachable dynamic cycles are rejected.
+
+## Namespaces (ADR 0017)
+
+Each source can wrap its one declaration in `NAMESPACE A.B ... END_NAMESPACE`.
+`USING A, B.C;` appears before the declaration, just after the namespace header
+when present. Configurations cannot have namespaces or imports; program instance
+bindings accept qualified names such as `PROGRAM P WITH T : Plant.Main;`.
+
+The namespace pass runs before inheritance and type checking. It qualifies names
+of data types, POUs, bases, interfaces and function calls while retaining lexical
+source spans. A qualified name always starts at the global namespace. A simple
+name searches the own namespace, then enclosing namespaces, nearest first; if
+none declares it, imports and the global namespace are searched together and
+multiple matches are an error. Local variables take precedence at call sites.
+
+`INTERNAL` after a declaration keyword restricts use to its namespace and
+descendants. It requires a namespace. INTERNAL members and methods use the
+declaring type's namespace; on a global type they remain project-wide. Namespace
+roots reserve names throughout the project, qualified declarations cannot equal
+namespaces, and standard simple declaration names remain reserved. Diagnostics
+and monitor type names use qualified names; variable paths keep instance names.

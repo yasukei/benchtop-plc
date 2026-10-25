@@ -33,6 +33,10 @@ const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "namespace.unknown": ({ name }) => `Unknown namespace or qualified name ${name}.`,
+  "namespace.ambiguous": ({ name }) => `Name ${name} is ambiguous.`,
+  "namespace.internal": ({ name }) => `Element ${name} is INTERNAL to another namespace.`,
+  "namespace.internal-global": ({ name }) => `INTERNAL declaration ${name} requires a namespace.`,
   "interface.unknown": ({ name }) => `Interface ${name} is unknown.`,
   "interface.cycle": ({ name }) => `Interface inheritance through ${name} forms a cycle.`,
   "interface.signature": ({ name }) => `Inherited prototype ${name} has incompatible signatures.`,
@@ -288,6 +292,10 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "namespace.unknown": ({ name }) => `名前空間または修飾名${name}が見つかりません。`,
+  "namespace.ambiguous": ({ name }) => `名前${name}は曖昧です。`,
+  "namespace.internal": ({ name }) => `${name}は別の名前空間のINTERNAL要素です。`,
+  "namespace.internal-global": ({ name }) => `INTERNAL宣言${name}には名前空間が必要です。`,
   "interface.unknown": ({ name }) => `インターフェース${name}が見つかりません。`,
   "interface.cycle": ({ name }) => `インターフェース${name}の継承が循環しています。`,
   "interface.signature": ({ name }) => `継承したプロトタイプ${name}のシグネチャが一致しません。`,

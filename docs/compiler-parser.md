@@ -231,9 +231,24 @@ body call; the checker restricts their contexts and targets.
 A source may contain `INTERFACE Name [EXTENDS I1, I2] ... END_INTERFACE`. Its body
 contains METHOD prototypes with an optional result type and VAR_INPUT, VAR_OUTPUT
 and VAR_IN_OUT sections only. Prototypes have no statements or access specifiers;
-their access is public. INTERNAL interface headers belong to namespace support.
+their access is public. INTERNAL interface headers require a namespace.
 
 Function block and class headers accept `IMPLEMENTS I1, I2` after EXTENDS.
 INTERFACE, END_INTERFACE and IMPLEMENTS are reserved; the existing legacy-name
 import path preserves affected 0.6.0 drafts. The lexer recognizes `?=` as one token.
 It is accepted only in statement assignment position, never inside an expression.
+
+## Namespace source envelopes
+
+The parser accepts `[NAMESPACE A.B] [USING A, B.C; ...] declaration
+[END_NAMESPACE]`, with exactly one declaration and no nested namespace blocks.
+The declaration may be a TYPE, FUNCTION, FUNCTION_BLOCK, PROGRAM, CLASS or
+INTERFACE. INTERNAL follows its declaration keyword, before ABSTRACT/FINAL.
+Qualified identifiers are accepted in every type position, EXTENDS and IMPLEMENTS,
+function calls, enum type prefixes, and configuration program type bindings.
+ASTs retain the namespace, imports, simple declaration name and original spans;
+the declaration name itself is qualified. Method names remain simple.
+
+NAMESPACE, END_NAMESPACE and USING join `newlyReservedWords`: the existing
+legacy-name import path opens old 0.6.0 files as editable drafts for renaming.
+The configuration parser rejects namespace wrappers and USING.

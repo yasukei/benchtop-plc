@@ -1,3 +1,4 @@
+import { sameNamespace } from "./namespaces.js";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceNode } from "@benchtop-plc/core";
 import type { Access, Program } from "./ast.js";
 import type { CheckedProgram } from "./checked.js";
@@ -13,7 +14,8 @@ export function accessible(
   declaring: Program,
   from?: Program,
 ): boolean {
-  if (access === "PUBLIC" || access === "INTERNAL") return true;
+  if (access === "PUBLIC") return true;
+  if (access === "INTERNAL") return sameNamespace(declaring, from);
   return access === "PRIVATE" ? from === declaring : derivesFrom(from, declaring);
 }
 

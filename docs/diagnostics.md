@@ -528,3 +528,17 @@ rejects equality between unrelated reference targets. Access checks reuse
 `pou.recursion` includes every possible derived method/body call. Dereferencing
 NULL for a method, body, member or interface binding faults with
 `runtime.null-reference`. A failed assignment attempt instead yields NULL.
+
+## Namespaces
+
+| Code                        | Arguments | Meaning                                                        |
+| --------------------------- | --------- | -------------------------------------------------------------- |
+| `namespace.unknown`         | `name`    | Unknown imported namespace or absolute qualified name.         |
+| `namespace.ambiguous`       | `name`    | Multiple declarations match the import/global lookup stage.    |
+| `namespace.internal`        | `name`    | An INTERNAL declaration is used outside its namespace subtree. |
+| `namespace.internal-global` | `name`    | Declaration INTERNAL requires a namespace.                     |
+
+Namespace root, namespace/declaration and standard simple-name collisions use
+`decl.name-collision` with kind `type`. Existing access diagnostics cover INTERNAL
+members and methods. Names of declarations and their types are qualified in
+diagnostic POU context and name arguments.

@@ -49,6 +49,7 @@ const isFunction = (name: string): boolean =>
 
 export class Parser {
   private cursor = 0;
+  diagnosticName?: string;
   get position(): number {
     return this.cursor;
   }
@@ -138,6 +139,47 @@ export class Parser {
     });
   }
 
+  private namespace?: Identifier;
+
+  private qualifiedName(allowType = true): Identifier {
+    const first = this.identifier(allowType);
+    while (this.accept(".")) {
+      const next = this.identifier(allowType);
+      first.name += `.${next.name}`;
+      first.key += `.${next.key}`;
+      first.span = joinedSpan(first.span, next.span);
+    }
+    return first;
+  }
+
+  source(dataType: true): DataTypeDeclaration;
+  source(dataType: false, pou?: boolean): Program;
+  source(dataType: boolean, pou = true): Program | DataTypeDeclaration {
+    if (this.accept("NAMESPACE")) this.namespace = this.qualifiedName(false);
+    const using: Identifier[] = [];
+    while (this.accept("USING")) {
+      do {
+        using.push(this.qualifiedName(false));
+      } while (this.accept(","));
+      this.expect(";");
+    }
+    const ast = dataType ? this.dataType() : this.run(pou);
+    if (this.namespace) {
+      this.expect("END_NAMESPACE");
+      this.accept(";");
+      ast.namespace = this.namespace;
+      ast.simpleName = ast.name;
+      ast.name = {
+        ...ast.name,
+        name: `${this.namespace.name}.${ast.name.name}`,
+        key: `${this.namespace.key}.${ast.name.key}`,
+      };
+    }
+    if (using.length) ast.using = using;
+    if (this.current.kind !== "eof") this.expected("eof");
+    return ast;
+  }
+
   private assignmentOperator(): void {
     if (this.at("=")) {
       this.fail({
@@ -178,6 +220,7 @@ export class Parser {
     const start = header.span;
     // Type names are accepted here so namespace clashes receive semantic diagnostics.
     const access = method && !prototype ? this.access() : undefined;
+    const internal = !method && this.accept("INTERNAL");
     const modifiers: Pick<Program, "abstract" | "final" | "override"> = {};
     if ((method && !prototype) || ["CLASS", "FUNCTION_BLOCK"].includes(header.key)) {
       if (this.accept("ABSTRACT")) modifiers.abstract = true;
@@ -192,19 +235,21 @@ export class Parser {
       if (method && this.accept("OVERRIDE")) modifiers.override = true;
     }
     const name = this.identifier(pou);
+    if (!method)
+      this.diagnosticName = this.namespace ? `${this.namespace.name}.${name.name}` : name.name;
     const base =
       !method && ["CLASS", "FUNCTION_BLOCK"].includes(header.key) && this.accept("EXTENDS")
-        ? this.identifier(true)
+        ? this.qualifiedName()
         : undefined;
     const extended: Identifier[] = [];
     if (header.key === "INTERFACE" && this.accept("EXTENDS"))
       do {
-        extended.push(this.identifier(true));
+        extended.push(this.qualifiedName());
       } while (this.accept(","));
     const implemented: Identifier[] = [];
     if (!method && ["CLASS", "FUNCTION_BLOCK"].includes(header.key) && this.accept("IMPLEMENTS"))
       do {
-        implemented.push(this.identifier(true));
+        implemented.push(this.qualifiedName());
       } while (this.accept(","));
     const hasResult = (method || header.key === "FUNCTION") && this.accept(":");
     const resultReference = hasResult && this.accept("REF_TO") ? this.typeSyntax() : undefined;
@@ -215,7 +260,7 @@ export class Parser {
       : resultArray
         ? { name: "ARRAY", key: "ARRAY", span: resultArray.span }
         : hasResult
-          ? this.identifier(true)
+          ? this.qualifiedName()
           : undefined;
     const resultStringLength = resultType && this.at("[") ? this.stringLength() : undefined;
     const resultSubrange = resultType && this.at("(") ? this.subrange() : undefined;
@@ -298,9 +343,10 @@ export class Parser {
     const span = this.spanFrom(start);
     this.accept(";");
     if (method) Object.assign(span, this.spanFrom(start));
-    if (!method && this.current.kind !== "eof") this.expected("eof");
+    if (!method && !this.namespace && this.current.kind !== "eof") this.expected("eof");
     return {
       ...modifiers,
+      ...(internal ? { internal: true as const } : {}),
       ...(extended.length ? { extends: extended } : {}),
       ...(implemented.length ? { implements: implemented } : {}),
       ...(prototype ? { access: "PUBLIC" as const } : {}),
@@ -343,7 +389,7 @@ export class Parser {
     const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
     const typeName = array
       ? { name: "ARRAY", key: "ARRAY", span: array.span }
-      : this.identifier(true);
+      : this.qualifiedName();
     const stringLength = this.at("[") ? this.stringLength() : undefined;
     const subrange = this.at("(") ? this.subrange() : undefined;
     return {
@@ -374,7 +420,9 @@ export class Parser {
 
   dataType(): DataTypeDeclaration {
     const start = this.expect("TYPE").span;
+    const internal = this.accept("INTERNAL");
     const name = this.identifier(true);
+    this.diagnosticName = this.namespace ? `${this.namespace.name}.${name.name}` : name.name;
     this.expect(":");
     const reference = this.accept("REF_TO") ? this.typeSyntax() : undefined;
     const array = !reference && this.at("ARRAY") ? this.arrayDeclaration() : undefined;
@@ -390,7 +438,7 @@ export class Parser {
         ? undefined
         : this.at("(")
           ? undefined
-          : this.identifier(true);
+          : this.qualifiedName();
     const stringLength = this.at("[") ? this.stringLength() : undefined;
     let subrange: Subrange | undefined;
     let values: DataTypeDeclaration["values"];
@@ -415,8 +463,9 @@ export class Parser {
     this.expect("END_TYPE");
     const span = this.spanFrom(start);
     this.accept(";");
-    if (this.current.kind !== "eof") this.expected("eof");
+    if (!this.namespace && this.current.kind !== "eof") this.expected("eof");
     return {
+      ...(internal ? { internal: true as const } : {}),
       name,
       span,
       ...(members ? { members } : {}),
@@ -852,6 +901,18 @@ export class Parser {
       : keywordCall
         ? (this.take(), { name: token.text, key: token.key, span: token.span })
         : this.identifier();
+    if (this.at(".")) {
+      let end = this.cursor;
+      while (this.tokens[end]?.key === "." && this.tokens[end + 1]?.kind === "identifier") end += 2;
+      if (this.tokens[end]?.key === "#") {
+        while (this.accept(".")) {
+          const segment = this.identifier();
+          name.name += `.${segment.name}`;
+          name.key += `.${segment.key}`;
+          name.span = joinedSpan(name.span, segment.span);
+        }
+      }
+    }
     if (this.accept("#")) {
       const member = this.identifier();
       return {
@@ -935,8 +996,9 @@ export function parsePou(source: string, legacyNames = false): ParseResult {
 function parseSource(source: string, pou: boolean, legacyNames = false): ParseResult {
   const result = lex(source, legacyNames);
   if (result.tokens === null) return { ast: null, diagnostics: result.diagnostics };
+  const parser = new Parser(result.tokens);
   try {
-    return { ast: new Parser(result.tokens).run(pou), diagnostics: [] };
+    return { ast: parser.source(false, pou), diagnostics: [] };
   } catch (error) {
     if (error instanceof FrontendError) {
       const name = result.tokens[1];
@@ -947,6 +1009,7 @@ function parseSource(source: string, pou: boolean, legacyNames = false): ParseRe
         ) && name?.kind === "identifier"
           ? { pou: name.text }
           : {}),
+        ...(parser.diagnosticName ? { pou: parser.diagnosticName } : {}),
       };
       return { ast: null, diagnostics: [diagnostic] };
     }
@@ -964,14 +1027,24 @@ export function parseDataType(
 } {
   const result = lex(source, legacyNames);
   if (!result.tokens) return { ast: null, diagnostics: result.diagnostics };
+  const parser = new Parser(result.tokens);
   try {
-    return { ast: new Parser(result.tokens).dataType(), diagnostics: [] };
+    return { ast: parser.source(true), diagnostics: [] };
   } catch (error) {
     if (!(error instanceof FrontendError)) throw error;
     const name = result.tokens[1];
     return {
       ast: null,
-      diagnostics: [{ ...error.diagnostic, ...(name ? { pou: name.text } : {}) }],
+      diagnostics: [
+        {
+          ...error.diagnostic,
+          ...(parser.diagnosticName
+            ? { pou: parser.diagnosticName }
+            : name
+              ? { pou: name.text }
+              : {}),
+        },
+      ],
     };
   }
 }

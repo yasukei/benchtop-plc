@@ -11,7 +11,15 @@ export type Address = SourceNode & import("@benchtop-plc/core").DirectAddress & 
 
 export type Access = "PUBLIC" | "PROTECTED" | "PRIVATE" | "INTERNAL";
 
-export interface Program extends SourceNode {
+export interface SourceScope {
+  namespace?: Identifier;
+  using?: Identifier[];
+  internal?: true;
+  /** Original declaration name, before qualification. */
+  simpleName?: Identifier;
+}
+
+export interface Program extends SourceNode, SourceScope {
   extends?: Identifier[];
   implements?: Identifier[];
   implemented?: string[];
@@ -167,7 +175,7 @@ export interface Subrange extends SourceNode {
   lower: Expression;
   upper: Expression;
 }
-export interface DataTypeDeclaration extends SourceNode {
+export interface DataTypeDeclaration extends SourceNode, SourceScope {
   reference?: TypeSyntax;
   members?: Declaration[];
   array?: ArrayDeclaration;

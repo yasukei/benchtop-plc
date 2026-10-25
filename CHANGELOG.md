@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Namespaces for data types, POUs, classes and interfaces, qualified names and
+  USING imports with ordered lexical lookup and ambiguity diagnostics. INTERNAL
+  declarations, members and methods respect namespace boundaries. Project files
+  preserve exact namespace sources and exchange qualified names; source lists and
+  monitor types display qualified names.
+
 - References to user function block and class instances (`REF_TO Motor`, `REF(inst)`
   and `REF(THIS)`). Dereferences support member access, dynamic method calls and
   function block body calls. Derived references assign to base references; `?=`

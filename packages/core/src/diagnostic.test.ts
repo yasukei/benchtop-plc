@@ -2,6 +2,10 @@ import { expect, expectTypeOf, it } from "vitest";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceSpan } from "./index.js";
 
 const examples = {
+  "namespace.unknown": { name: "A.Motor" },
+  "namespace.ambiguous": { name: "A.Motor" },
+  "namespace.internal": { name: "A.Motor" },
+  "namespace.internal-global": { name: "A.Motor" },
   "interface.unknown": { name: "I" },
   "interface.cycle": { name: "I" },
   "interface.signature": { name: "Run" },

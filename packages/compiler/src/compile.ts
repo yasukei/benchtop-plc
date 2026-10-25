@@ -1,3 +1,4 @@
+import { resolveNamespaces } from "./namespaces.js";
 import { resolveInterfaces, checkInterfaces } from "./interfaces.js";
 import { resolveInheritance, checkOverrides, derivesFrom } from "./inheritance.js";
 import { outputOverlapWarnings } from "./direct-addresses.js";
@@ -101,6 +102,22 @@ export function compileProject(
   }
   // A damaged header cannot reliably participate in project-wide name/count checks.
   if (asts.length !== sources.length) return { diagnostics };
+  const namespaceDiagnostics = resolveNamespaces(
+    [...asts, ...dataTypes],
+    parsedConfig?.ast ?? undefined,
+  );
+  diagnostics.push(
+    ...namespaceDiagnostics.map((d) => {
+      if (parsedConfig?.ast?.name.name === d.pou) return configDiagnostic(d);
+      const ast = asts.find((ast) => ast.name.name === d.pou);
+      return {
+        ...d,
+        sourceIndex: ast ? sourceIndexes.get(ast) : typeIndexes.get(d.pou!.toUpperCase()),
+        ...(!ast ? { sourceKind: "dataType" as const } : {}),
+      };
+    }),
+  );
+  if (namespaceDiagnostics.length) return { diagnostics };
   const pous = new Map<string, Program>();
   for (const ast of asts) {
     const name = ast.name;
