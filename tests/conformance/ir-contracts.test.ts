@@ -101,6 +101,7 @@ it("represents every milestone IR variant as transportable data", () => {
       span,
     },
     assignment: { kind: "assignment", target: variable, value: expressions.functionCall, span },
+    superCall: { kind: "superCall", block: 0, span },
     userFbCall: { kind: "userFbCall", variable: 0, inputs: [], span },
     fbCall: {
       kind: "fbCall",

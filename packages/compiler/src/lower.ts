@@ -77,6 +77,7 @@ class Lowerer {
         ? {
             method: {
               block: call.method.block,
+              ...(call.method.static ? { static: true as const } : {}),
               ...(call.method.receiver
                 ? { receiver: this.reference(call.method.receiver) as IR.StorageReference }
                 : {}),
@@ -565,6 +566,8 @@ class Lowerer {
           value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
       case "call": {
+        const block = this.checked.superCalls.get(node.call);
+        if (block !== undefined) return { span: span(node), kind: "superCall", block };
         if (this.checked.blockInOuts.has(node.call))
           return { ...this.blockCall(node.call), span: span(node) };
         const user = this.checked.userCalls.get(node.call);
@@ -575,6 +578,8 @@ class Lowerer {
         return { ...base, kind: "call", call };
       }
       case "fbCall": {
+        const block = this.checked.superCalls.get(node);
+        if (block !== undefined) return { span: span(node), kind: "superCall", block };
         const user = this.checked.userCalls.get(node);
         if (user) return { ...base, kind: "call", call: this.userCall(node, user) };
         return this.blockCall(node);

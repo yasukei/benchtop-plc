@@ -656,3 +656,29 @@ Instance declarations are limited to persistent VAR and globals, including inlin
 arrays. Existing instance placement, initializer, constant and structure-member
 diagnostics apply to classes too. The shared containment/call graph rejects
 self-containment through classes or function blocks and recursion through methods.
+
+## Inherited members and dynamic recursion
+
+Inheritance is single and same-kind, with unknown bases, cycles and extension of
+FINAL types rejected. Derived declarations cannot reuse inherited names, including
+private names, except for a method marked OVERRIDE. An override must preserve the
+base method's access and resolved signature; PRIVATE and FINAL methods cannot be
+overridden. PROTECTED access extends to descendants; PRIVATE access remains in the
+declaring type, including inherited initializers and inherited method bodies.
+
+ABSTRACT methods have no statements, belong to abstract types and cannot be PRIVATE.
+A concrete derived type must implement all abstract methods. Abstract function
+blocks have no body statements. ABSTRACT types cannot be instantiated and ABSTRACT
+cannot be combined with FINAL. SUPER requires a base; its method must exist and be
+concrete and accessible. A no-argument SUPER body call is allowed only in the body
+of a derived function block.
+
+Recursion checking adds edges from a THIS call to its declared implementation and
+every descendant override, even when no instance currently uses that type. SUPER
+adds an edge only to the selected base implementation or effective base body. Thus
+`Motor.Start -> THIS.Check -> Servo.Check -> SUPER.Start` is rejected, including
+when the call to Check is implicit.
+
+Declaration and section errors inherited from a base are reported only on the
+source that declares them. A derived type with invalid inherited declarations
+still fails checking; suppressing duplicate diagnostics does not make it executable.

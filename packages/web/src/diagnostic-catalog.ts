@@ -33,6 +33,33 @@ const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "inheritance.unknown-base": ({ name }) => `Base type ${name} is unknown.`,
+  "inheritance.base-kind": ({ name }) =>
+    `Base ${name} must have the same kind as the derived type.`,
+  "inheritance.cycle": ({ name }) => `Inheritance through ${name} forms a cycle.`,
+  "inheritance.final-base": ({ name }) => `FINAL type ${name} cannot be extended.`,
+  "inheritance.member-collision": ({ name }) => `Member ${name} redeclares an inherited member.`,
+  "inheritance.override-required": ({ name }) => `Inherited method ${name} requires OVERRIDE.`,
+  "inheritance.override-missing": ({ name }) => `OVERRIDE method ${name} has no base method.`,
+  "inheritance.override-private": ({ name }) => `PRIVATE method ${name} cannot be overridden.`,
+  "inheritance.override-final": ({ name }) => `FINAL method ${name} cannot be overridden.`,
+  "inheritance.override-access": ({ name }) =>
+    `Override ${name} must keep the base access specifier.`,
+  "inheritance.override-signature": ({ name }) =>
+    `Override ${name} must keep the base parameters and result type.`,
+  "inheritance.abstract-instance": ({ name }) => `ABSTRACT type ${name} cannot be instantiated.`,
+  "inheritance.abstract-method": ({ name }) =>
+    `Abstract method ${name} requires an abstract type and an empty body.`,
+  "inheritance.abstract-private": ({ name }) => `Abstract method ${name} cannot be PRIVATE.`,
+  "inheritance.abstract-unimplemented": ({ name }) =>
+    `Non-abstract type must implement abstract method ${name}.`,
+  "inheritance.abstract-body": () => "An abstract function block must have no body statements.",
+  "inheritance.modifier-conflict": () => "ABSTRACT and FINAL cannot be combined or repeated.",
+  "inheritance.super-context": () => "SUPER requires a derived type context.",
+  "inheritance.super-method": ({ name }) =>
+    `SUPER method ${name} must exist and be concrete and accessible.`,
+  "inheritance.super-body": () =>
+    "SUPER() takes no arguments and is allowed only in a derived function block body.",
   "class.body": () => "A class has no body; put statements inside methods.",
   "class.not-callable": ({ name }) =>
     `Class instance ${name} cannot be called; call a method instead.`,
@@ -252,6 +279,37 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "inheritance.unknown-base": ({ name }) => `基底型${name}が見つかりません。`,
+  "inheritance.base-kind": ({ name }) => `基底型${name}は派生型と同じ種類である必要があります。`,
+  "inheritance.cycle": ({ name }) => `${name}を介した継承が循環しています。`,
+  "inheritance.final-base": ({ name }) => `FINAL型${name}は継承できません。`,
+  "inheritance.member-collision": ({ name }) =>
+    `メンバー${name}は継承されたメンバーと重複しています。`,
+  "inheritance.override-required": ({ name }) =>
+    `継承されたメソッド${name}にはOVERRIDEが必要です。`,
+  "inheritance.override-missing": ({ name }) =>
+    `OVERRIDEメソッド${name}に対応する基底メソッドがありません。`,
+  "inheritance.override-private": ({ name }) =>
+    `PRIVATEメソッド${name}はオーバーライドできません。`,
+  "inheritance.override-final": ({ name }) => `FINALメソッド${name}はオーバーライドできません。`,
+  "inheritance.override-access": ({ name }) =>
+    `オーバーライド${name}のアクセス指定子は基底メソッドと一致する必要があります。`,
+  "inheritance.override-signature": ({ name }) =>
+    `オーバーライド${name}の引数と戻り値の型は基底メソッドと一致する必要があります。`,
+  "inheritance.abstract-instance": ({ name }) =>
+    `ABSTRACT型${name}のインスタンスは宣言できません。`,
+  "inheritance.abstract-method": ({ name }) =>
+    `抽象メソッド${name}には抽象型と空の本体が必要です。`,
+  "inheritance.abstract-private": ({ name }) => `抽象メソッド${name}はPRIVATEにできません。`,
+  "inheritance.abstract-unimplemented": ({ name }) =>
+    `具象型は抽象メソッド${name}を実装する必要があります。`,
+  "inheritance.abstract-body": () => "抽象ファンクションブロックの本体に文は記述できません。",
+  "inheritance.modifier-conflict": () => "ABSTRACTとFINALは併用または重複できません。",
+  "inheritance.super-context": () => "SUPERには派生型のコンテキストが必要です。",
+  "inheritance.super-method": ({ name }) =>
+    `SUPERのメソッド${name}は存在し、具象かつアクセス可能である必要があります。`,
+  "inheritance.super-body": () =>
+    "SUPER()は引数を取らず、派生ファンクションブロックの本体内でのみ使用できます。",
   "class.body": () => "クラスには本体を記述できません。文はメソッド内に記述してください。",
   "class.not-callable": ({ name }) =>
     `クラスのインスタンス ${name} は呼び出せません。メソッドを呼び出してください。`,

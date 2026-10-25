@@ -1,3 +1,4 @@
+import { resolveInheritance, checkOverrides, derivesFrom } from "./inheritance.js";
 import { outputOverlapWarnings } from "./direct-addresses.js";
 import { checkTasks } from "./tasks.js";
 import { checkProgramConnections } from "./program-connections.js";
@@ -149,6 +150,14 @@ export function compileProject(
     return { diagnostics };
   const blocks = asts.filter((ast) => ast.kind === "functionBlock" || ast.kind === "class");
   const blockIds = new Map(blocks.map((ast, index) => [ast.name.key, index]));
+  const inheritanceDiagnostics = resolveInheritance(blocks, pous);
+  diagnostics.push(
+    ...inheritanceDiagnostics.map((diagnostic) => ({
+      ...diagnostic,
+      sourceIndex: sourceIndexes.get(pous.get(diagnostic.pou!.toUpperCase())!),
+    })),
+  );
+  if (inheritanceDiagnostics.length) return { diagnostics };
   const resolved = resolveDataTypes(dataTypes, blockIds);
   diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({
@@ -198,19 +207,20 @@ export function compileProject(
           memberBindings: new Map(),
         }
       : undefined;
-  const methods = blocks.flatMap((owner) =>
-    (owner.methods ?? []).map((method) => {
-      method.owner = owner;
-      sourceIndexes.set(method, sourceIndexes.get(owner)!);
-      return method;
-    }),
-  );
+  const methods = [...new Set(blocks.flatMap((owner) => owner.methods ?? []))];
+  for (const method of methods) sourceIndexes.set(method, sourceIndexes.get(method.owner!)!);
   const allBodies = [...asts, ...methods];
   const interfaces = new Map<Program, CheckedProgram>();
   for (const ast of allBodies) {
     const result = checkDeclarations(ast, resolved.types, pous, blockIds, scope);
     if (result.checked) interfaces.set(ast, result.checked);
   }
+  diagnostics.push(
+    ...checkOverrides(blocks, interfaces).map((diagnostic) => ({
+      ...diagnostic,
+      sourceIndex: sourceIndexes.get(pous.get(diagnostic.pou!.toUpperCase())!),
+    })),
+  );
   // Discover overload bindings before selecting shared global and instance FB variants.
   if (scope)
     for (const ast of allBodies)
@@ -238,12 +248,22 @@ export function compileProject(
     if (visited.has(ast)) return;
     visiting.add(ast);
     const edges = [
-      ...[...checked.get(ast)!.userCalls].map(([node, call]) => ({
+      ...[...checked.get(ast)!.userCalls].flatMap(([node, call]) => {
+        if (!call.method) return [{ node, callee: functions[call.function]! }];
+        const target = blocks[call.method.block]!;
+        const targets =
+          !call.method.receiver && !call.method.static
+            ? blocks.filter((block) => derivesFrom(block, target))
+            : [target];
+        return [...new Set(targets.map((block) => block.methods![call.function]!))].map(
+          (callee) => ({ node, callee }),
+        );
+      }),
+      ...[...checked.get(ast)!.superCalls].map(([node, block]) => ({
         node,
-        callee: call.method
-          ? blocks[call.method.block]!.methods![call.function]!
-          : functions[call.function]!,
+        callee: blocks[block]!,
       })),
+      ...(ast.bodyOwner ? [{ node: ast, callee: ast.bodyOwner }] : []),
       ...[...checked.get(ast)!.blockCalls].map(([node, block]) => ({
         node,
         callee: blocks[block]!,
@@ -365,11 +385,18 @@ export function compileProject(
         },
     blocks.map((ast) => ({
       ...lowerFunctionBlock(checked.get(ast)!),
+      ...(ast.baseType ? { base: blockIds.get(ast.baseType.name.key)! } : {}),
+      ...(ast.bodyOwner ? { bodyOwner: blockIds.get(ast.bodyOwner.name.key)! } : {}),
+      ...(ast.abstract ? { abstract: true as const } : {}),
+      ...(ast.final ? { final: true as const } : {}),
       ...(ast.methods?.length
         ? {
             methods: ast.methods.map((method) => ({
               ...lowerFunction(checked.get(method)!),
               memberCount: checked.get(method)!.memberCount!,
+              declaringType: blockIds.get(method.owner!.name.key)!,
+              ...(method.abstract ? { abstract: true as const } : {}),
+              ...(method.final ? { final: true as const } : {}),
             })),
             methodTable: Object.fromEntries(ast.methods.map((m, i) => [m.name.key, i])),
           }
@@ -378,6 +405,8 @@ export function compileProject(
     globals,
     connections?.connections,
   );
+  for (const block of ir.functionBlocks ?? [])
+    if (block.bodyOwner !== undefined) block.body = ir.functionBlocks![block.bodyOwner]!.body;
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));
   diagnostics.push(
     ...outputOverlapWarnings(ir).map((diagnostic) =>

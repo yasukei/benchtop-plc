@@ -63,9 +63,9 @@ it("traces an enumerated state machine over scans with one integer cell per vari
 it("runs same-type enum selection, equality and constants", () => {
   const { runtime, value } = setup([
     `PROGRAM Main
-    VAR CONSTANT Final : State := Done; END_VAR
+    VAR CONSTANT Completed : State := Done; END_VAR
     VAR a, b, c : State; equal : BOOL; END_VAR
-    a := SEL(TRUE, Idle, Running); b := MUX(1, Idle, Final); c := MOVE(a);
+    a := SEL(TRUE, Idle, Running); b := MUX(1, Idle, Completed); c := MOVE(a);
     equal := (a = c) AND (b <> c); END_PROGRAM`,
   ]);
   const snapshot = runtime.step();

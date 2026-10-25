@@ -213,3 +213,14 @@ is checked semantically, including empty forbidden sections. VAR access specifie
 use the method/block grammar and precede CONSTANT, RETAIN or NON_RETAIN.
 CLASS and END_CLASS are reserved; both also join `newlyReservedWords`, so the
 legacy project-opening parser can recover older identifier uses as drafts.
+
+## Inheritance headers and SUPER
+
+Headers use `CLASS [ABSTRACT | FINAL] Name [EXTENDS Base]` or
+`FUNCTION_BLOCK [ABSTRACT | FINAL] Name [EXTENDS Base]`. Methods use
+`METHOD [access] [ABSTRACT | FINAL] [OVERRIDE] Name [: type]` in that order.
+Conflicting or repeated abstract/final modifiers are rejected; semantic checking
+validates bases, abstract bodies and override compatibility. `EXTENDS`, `OVERRIDE`,
+`SUPER`, `ABSTRACT` and `FINAL` are reserved, with the existing legacy-name import
+path for 0.6.0 files. `SUPER.M(...)` parses as a method receiver and `SUPER();` as a
+body call; the checker restricts their contexts and targets.

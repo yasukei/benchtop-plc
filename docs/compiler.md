@@ -285,3 +285,18 @@ a variable with a class name reports `decl.name-collision` with kind `"type"`.
 `v()` reports `class.not-callable`; call `v.Open()` instead. Definitions and methods
 are shared in the IR, while each instance has independent storage.
 Inheritance, interfaces, instance references and namespaces remain unsupported.
+
+## Inheritance (ADR 0017)
+
+`compileProject` resolves the acyclic, same-kind `EXTENDS` graph before checking
+members. It flattens inherited variable sections base first and builds effective
+method slots, preserving each declaration's lexical owner. Overrides keep access,
+parameter names, sections, types and order, and the result type. Abstract types
+cannot be instantiated; concrete types must implement inherited abstract methods.
+
+An empty derived function block body inherits the base's effective body; comments
+are empty, whereas `RETURN;` replaces the body. A body containing statements
+replaces it and can call `SUPER();`. Method calls through implicit or explicit
+`THIS` dispatch using the instance's actual type; `SUPER.M()` selects the base
+implementation. The recursion graph includes every possible descendant override
+for a THIS call, and only the selected implementation for a SUPER call.

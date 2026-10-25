@@ -466,3 +466,32 @@ members reuse `fb.invalid-instance-section`, `pou.function-block-in-function`,
 Hidden data members reuse `fb.unknown-member`, and hidden methods use
 `access.hidden`. Containment and call cycles use `pou.recursion`. A variable named
 like a class uses `decl.name-collision` with kind `"type"`.
+
+## Inheritance (ADR 0017)
+
+| Code                                 | Arguments | Meaning                                                           |
+| ------------------------------------ | --------- | ----------------------------------------------------------------- |
+| `inheritance.unknown-base`           | `name`    | Base type is unknown                                              |
+| `inheritance.base-kind`              | `name`    | Base and derived kinds differ                                     |
+| `inheritance.cycle`                  | `name`    | Base graph contains a cycle                                       |
+| `inheritance.final-base`             | `name`    | Extending a FINAL type                                            |
+| `inheritance.member-collision`       | `name`    | Redeclaring an inherited variable or a variable/method collision  |
+| `inheritance.override-required`      | `name`    | Inherited method redeclared without OVERRIDE                      |
+| `inheritance.override-missing`       | `name`    | OVERRIDE has no inherited method                                  |
+| `inheritance.override-private`       | `name`    | Overriding a PRIVATE method                                       |
+| `inheritance.override-final`         | `name`    | Overriding a FINAL method                                         |
+| `inheritance.override-access`        | `name`    | Override changes access                                           |
+| `inheritance.override-signature`     | `name`    | Override changes parameters or result                             |
+| `inheritance.abstract-instance`      | `name`    | Instantiating an ABSTRACT type                                    |
+| `inheritance.abstract-method`        | `name`    | Abstract method has statements or belongs to a concrete type      |
+| `inheritance.abstract-private`       | `name`    | Abstract method is PRIVATE                                        |
+| `inheritance.abstract-unimplemented` | `name`    | Concrete type leaves an abstract method unimplemented             |
+| `inheritance.abstract-body`          | None      | Abstract function block has body statements                       |
+| `inheritance.modifier-conflict`      | None      | Conflicting/repeated ABSTRACT or FINAL                            |
+| `inheritance.super-context`          | None      | SUPER requires a derived type context                             |
+| `inheritance.super-method`           | `name`    | Base method is missing, abstract or PRIVATE                       |
+| `inheritance.super-body`             | None      | SUPER() has arguments or is outside a derived function block body |
+
+Inherited access violations use `access.hidden` (or `fb.unknown-member` for external
+member access). Dynamic cycles use `pou.recursion`, including cycles created by an
+override calling SUPER into a base method that calls THIS back into the override.

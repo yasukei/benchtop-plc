@@ -581,6 +581,9 @@ export class Interpreter {
         ]);
         break;
       }
+      case "superCall":
+        this.superCall(statement.block);
+        break;
       case "fbCall":
       case "userFbCall":
         this.blockCall(statement);
@@ -771,7 +774,10 @@ export class Interpreter {
     const callerReceiver = this.receiver;
     this.receiver = instance;
     this.memory = instance.frame;
-    this.pou = definition.name;
+    this.pou =
+      definition.bodyOwner === undefined
+        ? definition.name
+        : this.programMemory.ir.functionBlocks![definition.bodyOwner]!.name;
     this.instancePath = instance.path;
     this.callDepth++;
     try {
@@ -800,6 +806,22 @@ export class Interpreter {
     );
   }
 
+  private superCall(block: number): void {
+    const definition = this.programMemory.ir.functionBlocks![block]!;
+    const callerPou = this.pou;
+    this.pou =
+      definition.bodyOwner === undefined
+        ? definition.name
+        : this.programMemory.ir.functionBlocks![definition.bodyOwner]!.name;
+    this.callDepth++;
+    try {
+      this.execute(definition.body);
+    } finally {
+      this.callDepth--;
+      this.pou = callerPou;
+    }
+  }
+
   private userCall(call: UserFunctionCall): StoredValue {
     // Resolve the receiver before any arguments, including indexed instance calls.
     const location = call.method?.receiver ? this.location(call.method.receiver) : undefined;
@@ -808,10 +830,23 @@ export class Interpreter {
         ? location.frame.userBlock(location.variable)
         : this.receiver
       : undefined;
+    const staticMethod = call.method
+      ? this.programMemory.ir.functionBlocks![call.method.block]!.methods![call.function]
+      : undefined;
     const definition = call.method
-      ? this.programMemory.ir.functionBlocks![receiver!.block]!.methods![call.function]
+      ? call.method.static
+        ? staticMethod
+        : this.programMemory.ir.functionBlocks![receiver!.block]!.methods![call.function]
       : this.functions[call.function];
     if (!definition) throw new Error("Missing function body");
+    // Signature order is stable across overrides; locals and receiver sizes are not.
+    const parameterSlot = (slot: number, section: "inputs" | "outputs" | "inOuts"): number => {
+      if (!staticMethod) return slot;
+      const index = staticMethod[section]?.indexOf(slot) ?? -1;
+      const target = definition[section]?.[index];
+      if (target === undefined) throw new Error("Missing method parameter");
+      return target;
+    };
     const args = this.arguments(call.inputs, call.inOuts ?? []);
     const caller = this.memory,
       callerPou = this.pou,
@@ -820,13 +855,15 @@ export class Interpreter {
     const locals = call.method
       ? receiver!.frame.methodFrame(definition as import("@benchtop-plc/core").UserMethodIR)
       : this.programMemory.functionFrame(call.function);
-    for (const [slot, value] of args.values) this.store(locals, slot, value);
-    for (const [slot, actual] of args.aliases) locals.bind(slot, actual.frame, actual.variable);
+    for (const [slot, value] of args.values)
+      this.store(locals, parameterSlot(slot, "inputs"), value);
+    for (const [slot, actual] of args.aliases)
+      locals.bind(parameterSlot(slot, "inOuts"), actual.frame, actual.variable);
     let result: StoredValue;
     this.memory = locals;
     this.receiver = receiver;
     this.pou = receiver
-      ? `${this.programMemory.ir.functionBlocks![receiver.block]!.name}.${definition.name}`
+      ? `${this.programMemory.ir.functionBlocks![(definition as import("@benchtop-plc/core").UserMethodIR).declaringType ?? receiver.block]!.name}.${definition.name}`
       : definition.name;
     this.instancePath = receiver?.path;
     this.callDepth++;
@@ -848,7 +885,8 @@ export class Interpreter {
       this.instancePath = callerPath;
     }
     for (const output of call.outputs) {
-      this.copyOutput(output.target, locals, output.variable, locals.descriptor(output.variable));
+      const slot = parameterSlot(output.variable, "outputs");
+      this.copyOutput(output.target, locals, slot, locals.descriptor(slot));
     }
     return result;
   }

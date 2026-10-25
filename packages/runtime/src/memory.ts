@@ -173,7 +173,10 @@ export class MemoryFrame implements ScanMemory {
   /** Share persistent receiver cells and append freshly initialized method locals. */
   methodFrame(definition: import("@benchtop-plc/core").UserMethodIR): MemoryFrame {
     return new MemoryFrame(
-      [...this.cells, ...definition.variables.map((v) => initialCell(v, this.types))],
+      [
+        ...this.cells.slice(0, definition.memberCount),
+        ...definition.variables.map((v) => initialCell(v, this.types)),
+      ],
       this.types,
     );
   }
