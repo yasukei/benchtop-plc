@@ -1,5 +1,7 @@
 import {
   readDirectValue,
+  resolveType,
+  type RetentiveRecord,
   writeDirectValue,
   directBits,
   type DirectAddress,
@@ -406,6 +408,113 @@ export class MemoryFrame implements ScanMemory {
 }
 
 export class Memory extends MemoryFrame {
+  private retainedType(type: TypeDescriptor): string {
+    const resolved = resolveType(type, this.types);
+    const base = scalarBase(type, this.types);
+    return JSON.stringify({
+      name: typeof type === "object" && type.kind === "named" ? type.name.toUpperCase() : undefined,
+      type: isCharacterType(base) ? base : resolved,
+    }).toUpperCase();
+  }
+
+  retentiveRecords(): RetentiveRecord[] {
+    return this.ir.variables.flatMap((variable, id): RetentiveRecord[] => {
+      if (
+        !variable.retain ||
+        variable.kind === "reference" ||
+        (variable.kind === "scalar" && variable.address)
+      )
+        return [];
+      if (variable.kind === "scalar")
+        return [
+          {
+            kind: "leaf",
+            path: variable.name,
+            dataType: this.retainedType(variable.dataType),
+            value: typed(scalarBase(variable.dataType, this.types), this.read(id)),
+          },
+        ];
+      if (/^(TON|TOF|TP)(_|$)/.test(variable.fbType)) return [];
+      const block = this.block(id);
+      if (!block.retentiveState) return [];
+      return [
+        {
+          kind: "block",
+          path: variable.name,
+          blockType: variable.fbType,
+          inputs: block.inputs.map((v) => ({ ...v })),
+          outputs: block.outputs.map((v) => ({ ...v })),
+          state: { ...block.retentiveState() },
+        },
+      ];
+    });
+  }
+
+  /** Restore matching records atomically per leaf/block; report missing and obsolete paths once. */
+  restoreRetentive(records: readonly RetentiveRecord[]): string[] {
+    const expected = this.retentiveRecords();
+    const ids = new Map(this.ir.variables.map((variable, id) => [variable.name.toUpperCase(), id]));
+    const remaining = new Map(expected.map((record) => [record.path.toUpperCase(), record]));
+    const skipped = new Map<string, string>();
+    const seen = new Set<string>();
+    for (const record of records) {
+      if (!record || typeof record.path !== "string") {
+        skipped.set("?", "?");
+        continue;
+      }
+      const key = record.path.toUpperCase();
+      const target = remaining.get(key);
+      if (!target || seen.has(key)) {
+        skipped.set(key, record.path);
+        continue;
+      }
+      seen.add(key);
+      try {
+        if (record.kind !== target.kind) throw new RangeError("Changed record kind");
+        const id = ids.get(key)!;
+        const variable = this.ir.variables[id]!;
+        if (record.kind === "leaf" && target.kind === "leaf" && variable.kind === "scalar") {
+          if (
+            record.dataType !== target.dataType ||
+            record.value.dataType !== target.value.dataType
+          )
+            throw new RangeError("Changed leaf type");
+          const value = isCharacterType(record.value.dataType)
+            ? truncateString(variable.dataType, record.value.value, this.types)
+            : record.value.value;
+          if (typeof value === "bigint") throw new RangeError("Non-JSON retained value");
+          validateScalar(variable.dataType, value, this.types);
+          this.write(id, value);
+        } else if (
+          record.kind === "block" &&
+          target.kind === "block" &&
+          variable.kind === "functionBlock"
+        ) {
+          if (record.blockType !== target.blockType) throw new RangeError("Changed block type");
+          for (const port of ["inputs", "outputs"] as const) {
+            if (record[port].length !== target[port].length) throw new RangeError("Changed ports");
+            record[port].forEach((value, index) => {
+              if (value.dataType !== target[port][index]!.dataType)
+                throw new RangeError("Changed port type");
+              validateValue(value.dataType, value.value);
+            });
+          }
+          const block = this.block(id);
+          if (!block.restoreRetentiveState) throw new RangeError("Block cannot restore");
+          block.restoreRetentiveState(record.state);
+          block.inputs.splice(0, block.inputs.length, ...record.inputs.map((v) => ({ ...v })));
+          block.outputs.splice(0, block.outputs.length, ...record.outputs.map((v) => ({ ...v })));
+        } else throw new RangeError("Changed storage kind");
+        remaining.delete(key);
+      } catch (error) {
+        if (!(error instanceof RangeError || error instanceof TypeError)) throw error;
+        skipped.set(key, record.path);
+      }
+    }
+    for (const [key, record] of remaining) skipped.set(key, record.path);
+    return [...skipped.values()];
+  }
+
   private readonly functionInitialCells: readonly ValueCell[][];
   private readonly instanceCells = new Map<number, UserBlockCell>();
   private readonly aggregateCells = new Map<string, AggregateCell & { path?: string }>();

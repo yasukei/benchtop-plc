@@ -2,6 +2,12 @@ import { expect, expectTypeOf, it } from "vitest";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceSpan } from "./index.js";
 
 const examples = {
+  "decl.retention-conflict": {},
+  "decl.retention-section": {},
+  "decl.retention-function": {},
+  "decl.retention-constant": {},
+  "decl.retention-address": {},
+
   "global.not-found": { name: "g" },
   "global.type-mismatch": { name: "g" },
   "global.constant-mismatch": { name: "g" },

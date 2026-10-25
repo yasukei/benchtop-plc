@@ -415,3 +415,20 @@ overlap is permitted without a warning. `decl.address-out-of-range` covers the
 64-byte I/Q and 1,024-byte M boundaries, and bit indices outside 0–7.
 `runtime.invalid-value` also covers reads of non-finite REAL/LREAL views; snapshots
 use `invalidReal` and do not emit this diagnostic by themselves.
+
+## Retention qualifier errors
+
+All five codes have no arguments and severity error:
+
+| Code                      | Condition                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `decl.retention-conflict` | RETAIN and NON_RETAIN on one section                                               |
+| `decl.retention-section`  | Either qualifier on VAR_TEMP, VAR_IN_OUT or VAR_EXTERNAL                           |
+| `decl.retention-function` | Either qualifier in a FUNCTION                                                     |
+| `decl.retention-constant` | Either qualifier combined with CONSTANT                                            |
+| `decl.retention-address`  | Either qualifier combined with AT or a direct-address PROGRAM parameter connection |
+
+Section errors point to the section; address errors point to the address.
+Configuration errors retain configuration source identity. Restore mismatches and
+storage failures are UI warnings rather than PLC faults; skipped paths arrive in
+the retentiveRestored event.

@@ -31,6 +31,11 @@ export interface DiagnosticArgs {
   "syntax.unexpected-eof": NoArguments;
   "syntax.missing-end": { expected: `END_${string}` };
 
+  "decl.retention-conflict": NoArguments;
+  "decl.retention-section": NoArguments;
+  "decl.retention-function": NoArguments;
+  "decl.retention-constant": NoArguments;
+  "decl.retention-address": NoArguments;
   "decl.unknown-type": { name: string };
   "decl.type-cycle": { name: string };
   "decl.structure-member-type": { name: string };

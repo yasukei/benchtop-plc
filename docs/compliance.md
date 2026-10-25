@@ -70,9 +70,9 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `VAR_INPUT`, `VAR_OUTPUT`                       | Partial | Scalar/array/structure function parameters, FB ports and PROGRAM parameters; per-instance configuration connections; PROGRAM VAR_IN_OUT rejected (ADR 0016)                                                                                                                                                                                       |
 | `VAR_TEMP`                                      | Partial | PROGRAM: fresh each scan; FUNCTION_BLOCK: fresh each call; forbidden in functions; FB instances forbidden in VAR_TEMP (restrictions)                                                                                                                                                                                                              |
 | `VAR_IN_OUT`                                    | Partial | Scalar/array/structure FUNCTION/FUNCTION_BLOCK aliases; exact-type variable/element/member/dereference required every call; formal only, no initializers or instance/bit actuals (restrictions)                                                                                                                                                   |
-| `VAR_GLOBAL`, `VAR_EXTERNAL`                    | Partial | Configuration/resource globals; PROGRAM/FB externals with exact types and CONSTANT matching. Shared storage, derived types, references, FBs and bit addresses; FUNCTION externals rejected; RETAIN deferred (ADR 0016)                                                                                                                            |
+| `VAR_GLOBAL`, `VAR_EXTERNAL`                    | Partial | Configuration/resource globals; PROGRAM/FB externals with exact types and CONSTANT matching. Shared storage, derived types, references, FBs and bit addresses; FUNCTION externals rejected; global RETAIN/NON_RETAIN supported (ADR 0016)                                                                                                         |
 | `CONSTANT`                                      | Partial | Elementary, string, character, alias, enum and subrange typed constants, on `VAR`, configuration/resource `VAR_GLOBAL`, and matching `VAR_EXTERNAL`; no `AT` or FB instances. Earlier constants only; folded without runtime storage (ADR 0014, ADR 0016)                                                                                         |
-| `RETAIN`, `NON_RETAIN`                          | No      |                                                                                                                                                                                                                                                                                                                                                   |
+| `RETAIN`, `NON_RETAIN`                          | Partial | PROGRAM/FB VAR, VAR_INPUT, VAR_OUTPUT and VAR_GLOBAL; inheritance with member overrides. Timers and references never retained; no FUNCTION, TEMP, IN_OUT, EXTERNAL, CONSTANT or AT combinations (ADR 0016; 3rd edition basis)                                                                                                                     |
 | `TYPE` declarations                             | Partial | One type per separate compiler source, ordered before POUs; case-insensitive shared namespace; elementary aliases and defaults (ADR 0015). PLCopen XML exchanges these sources; the web app lists and edits them before the POUs.                                                                                                                 |
 | Enumerations                                    | Partial | Implicit/explicit integer values, qualified/contextual literals, assignment, equality, CASE, MOVE/SEL/MUX, scalar POU parameters/results and CONSTANT; no ordering, conversion or enum ranges (restrictions; 3rd edition basis).                                                                                                                  |
 | Subranges                                       | Partial | Named/inline integer limits, lower-bound defaults, constant checks and runtime store faults; exact in-outs compare base and limits; forbidden as FOR controls (restriction; 3rd edition basis).                                                                                                                                                   |
@@ -319,3 +319,21 @@ comparisons, OVERLAP and relative addresses remain unsupported. Copied
 input/output parameters, in-out aliases and whole function results are supported. Scalar members support monitor writes/forces; PLCopen XML preserves
 nested declarations and initial values. These decisions follow ADR 0015's
 3rd-edition-based rules, pending 4th edition verification.
+
+## Restart semantics
+
+| Operation                        | Unqualified / NON_RETAIN | RETAIN                | State afterward |
+| -------------------------------- | ------------------------ | --------------------- | --------------- |
+| STOP → RUN (resume)              | Kept                     | Kept                  | RUN             |
+| Warm restart / acknowledge fault | Initialized              | Kept                  | STOP            |
+| Page reload                      | Initialized              | Restored from browser | STOP            |
+| Cold reset / program load        | Initialized              | Initialized           | STOP            |
+
+Warm restart is allowed in every state; emergency stop remains an overlay until
+released. FAULT has no direct transition to RUN. Retained counters, edge detectors
+and bistables keep ports and private edge state; timers reset and references become
+NULL. Browser persistence uses complete records matched by path, scalar type and
+exact block variant; missing/mismatched paths produce warnings and initial values.
+The last second of changes can be lost on reload. These are ADR 0016 restrictions
+and implementation choices based on the 3rd edition; 4th edition verification is
+still pending. PERSISTENT and retained timers remain unsupported.

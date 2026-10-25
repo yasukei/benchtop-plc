@@ -188,6 +188,14 @@ class Checker {
 
   run(ast: AST.Program, declarationsOnly = false): CheckResult {
     for (const section of ast.sections ?? []) {
+      if (section.retain || section.nonRetain) {
+        if (section.retain && section.nonRetain)
+          this.report("decl.retention-conflict", {}, section.span);
+        if (["VAR_TEMP", "VAR_IN_OUT", "VAR_EXTERNAL"].includes(section.name))
+          this.report("decl.retention-section", {}, section.span);
+        if (ast.kind === "function") this.report("decl.retention-function", {}, section.span);
+        if (section.constant) this.report("decl.retention-constant", {}, section.span);
+      }
       if (section.constant && section.name !== "VAR" && section.name !== "VAR_EXTERNAL")
         this.report("decl.constant-section", { section: section.name }, section.span);
       if (
@@ -730,6 +738,8 @@ class Checker {
           (isAggregateType(descriptor, this.types) || referenceType(descriptor, this.types))))
     )
       this.report("decl.constant-type", {}, declaration.typeName.span);
+    if ((declaration.retain || declaration.nonRetain) && declaration.address)
+      this.report("decl.retention-address", {}, declaration.address.span);
     if (declaration.constant && declaration.address)
       this.report("decl.constant-address", {}, declaration.address.span);
     if (declaration.section === "VAR_IN_OUT" && declaration.initializer)

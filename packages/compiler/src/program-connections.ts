@@ -69,6 +69,16 @@ export function checkProgramConnections(
       const symbol = definition.symbols.find((s) => s.name.key === name.key)!;
       const type = symbol.descriptor!;
       if ("area" in value) {
+        if (declaration.retain || declaration.nonRetain) {
+          diagnostics.push({
+            code: "decl.retention-address",
+            severity: "error",
+            args: {},
+            span: value.span,
+            pou: config.name.name,
+          });
+          continue;
+        }
         if (output && value.area === "I") {
           report("config.connection-target");
           continue;

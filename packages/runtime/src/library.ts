@@ -11,6 +11,8 @@ export interface FunctionBlockInstance {
   inputs: TypedValue[];
   outputs: TypedValue[];
   execute(scanStartMs: number): void;
+  retentiveState?(): Record<string, boolean | null>;
+  restoreRetentiveState?(state: Record<string, boolean | null>): void;
 }
 
 /** Call-site types preserve independent factors; outputs are buffered by the interpreter. */

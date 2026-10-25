@@ -1,4 +1,5 @@
 import type {
+  RetentiveRecord,
   CommandRejectionCode,
   Diagnostic,
   IoImage,
@@ -49,6 +50,9 @@ export interface Runtime {
   stop(): void;
   setEmergencyStop(active: boolean): void;
   coldReset(): void;
+  warmRestart(): void;
+  retentiveRecords(): RetentiveRecord[];
+  restoreRetentive(records: readonly RetentiveRecord[]): string[];
   watch(variables: readonly VariableId[]): void;
   force(variable: VariableId, value: TypedValue | null): void;
   write(variable: VariableId, value: TypedValue): void;
@@ -220,6 +224,21 @@ class PlcRuntime implements Runtime {
     this.halt("STOP");
     if (this.memory) this.memory = new Memory(this.memory.ir, this.library);
     this.initialize();
+  }
+
+  warmRestart(): void {
+    const records = this.retentiveRecords();
+    this.coldReset();
+    this.memory?.restoreRetentive(records);
+  }
+
+  retentiveRecords(): RetentiveRecord[] {
+    return this.memory?.retentiveRecords() ?? [];
+  }
+
+  restoreRetentive(records: readonly RetentiveRecord[]): string[] {
+    this.coldReset();
+    return this.memory?.restoreRetentive(records) ?? records.map((record) => record.path);
   }
 
   private debugVariable(variable: VariableId) {

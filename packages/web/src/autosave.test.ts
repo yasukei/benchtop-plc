@@ -490,3 +490,49 @@ it.each([
   };
   expect(readAutosave({ getItem: () => JSON.stringify(work), setItem: vi.fn() })).toBeNull();
 });
+
+it("saves complete retained sets immediately, restores only on the first load, and warns if storage fails", () => {
+  const { store, worker, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  const records = [
+    {
+      kind: "leaf" as const,
+      path: "mainInstance.COUNT",
+      dataType: '"DINT"',
+      value: { dataType: "DINT" as const, value: 42 },
+    },
+  ];
+  worker.receive({ type: "retentive", records });
+  expect(readAutosave(storage)?.retentive).toEqual(records);
+  const freshWorker = new FakeWorker();
+  const fresh = createAppStore(new RuntimeClient(freshWorker), readAutosave(storage)!);
+  fresh.loadEditor();
+  expect(freshWorker.sent.at(-1)).toMatchObject({ type: "load", retentive: records });
+  fresh.loadEditor();
+  expect(freshWorker.sent.at(-1)).not.toHaveProperty("retentive");
+  worker.receive({ type: "retentiveRestored", skipped: ["mainInstance.old"] });
+  expect(store.getSnapshot().retentiveSkipped).toEqual(["mainInstance.old"]);
+  storage.setItem.mockImplementation(() => {
+    throw new Error("Full");
+  });
+  worker.receive({ type: "retentive", records: [] });
+  expect(store.getSnapshot().storageWarning).toBe(true);
+  expect(store.getSnapshot().connection).toBe("connected");
+  autosave.dispose();
+});
+
+it("keeps retained records while autosaved source fails compilation and restores when a program can load", () => {
+  const { store, worker, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  store.setSource("PROGRAM unfinished");
+  worker.receive({ type: "retentive", records: [] });
+  const saved = readAutosave(storage)!;
+  const freshWorker = new FakeWorker();
+  const fresh = createAppStore(new RuntimeClient(freshWorker), saved);
+  expect(fresh.loadEditor()).toBe(false);
+  expect(freshWorker.sent).toEqual([]);
+  fresh.setSource("PROGRAM P END_PROGRAM");
+  expect(fresh.loadEditor()).toBe(true);
+  expect(freshWorker.sent.at(-1)).toMatchObject({ type: "load", retentive: [] });
+  autosave.dispose();
+});

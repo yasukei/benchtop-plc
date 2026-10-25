@@ -388,3 +388,23 @@ as `{ kind: "invalidReal", bits: "16#7FC00000" }` (8 or 16 hex digits).
 This plain-data variant keeps snapshots safe; a program read faults separately.
 Core address helpers parse and format addresses, check bounds/type bindings, and
 encode/decode little-endian bytes for every supported size.
+
+## Retention contracts
+
+Variable declarations carry optional `retain?: boolean`: true means RETAIN,
+false means explicit NON_RETAIN, and omission permits inheritance while lowering.
+The compiler expands inherited qualifiers onto flat leaves and standard blocks;
+reference and timer exclusions are enforced by the runtime.
+
+`warmRestart` is one command for both warm restart and fault acknowledgement.
+`restoreRetentive` carries a complete `records` array and performs initialization
+and restoration into STOP. `load.retentive?` performs that restoration atomically
+after loading autosaved sources; ordinary loads initialize retained values.
+
+`RetentiveRecord` is either a `leaf` (path, dataType identity, typed value) or a
+`block` (path, exact blockType, typed inputs and outputs, boolean/null private
+state). Leaf identity includes named type identity and resolved scalar definition,
+but excludes string capacity so strings can truncate. `retentive` events carry
+complete sets, never deltas. `retentiveRestored.skipped` carries distinct missing,
+obsolete or mismatched paths for the UI to report. Retention records are independent
+of monitor watches, snapshot compaction, forces and VariableId allocation.
