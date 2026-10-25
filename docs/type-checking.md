@@ -646,7 +646,8 @@ and local block instances, as functions do.
 
 Methods and block `VAR` sections default to `PROTECTED`. `PRIVATE` and `PROTECTED`
 allow access from the declaring type, including another instance of that type.
-`PUBLIC` and `INTERNAL` allow access throughout the current global namespace.
+`PUBLIC` allows access everywhere. `INTERNAL` limits access to the declaring
+type's namespace and descendants, or the whole project for a global type.
 Block inputs and outputs keep their existing public access and output write rules.
 `THIS` requires an instance context; `THIS(...)` cannot call a block body. A void
 method in an expression reports `call.no-result`; result assignment uses ordinary
@@ -711,3 +712,23 @@ interface and faults if r is NULL. Assignment attempts accept interface variable
 and references to user block/class instances, with NULL also allowed as source.
 The target binds if the actual type implements its interface or is its reference
 target type or a descendant; otherwise it becomes NULL without a fault.
+
+## Namespace resolution
+
+`resolveNamespaces` runs on lexical sources before inheritance flattening, so an
+inherited member's type and method body keep their declaring source's imports.
+Simple names search the own namespace and each enclosing namespace in order,
+then search imports and globals as one stage. Repeated imports of the same
+namespace do not create ambiguity. Qualified names are absolute. An unknown
+qualified name or import reports `namespace.unknown`; multiple matches report
+`namespace.ambiguous`. Internal declarations stay in the ordered lookup, but
+access from outside their namespace subtree reports `namespace.internal`.
+
+Declaration INTERNAL without a namespace reports `namespace.internal-global`.
+INTERNAL member access uses the declaring type's namespace subtree, including
+inherited declarations; global types remain project-wide. Namespace roots join
+the shared name space with `decl.name-collision` kind `type`. Declarations cannot
+equal namespaces or use standard simple names. A variable collides with a
+namespaced declaration only where its simple name is visible. Structure fields
+keep a separate member namespace and may reuse visible type names; namespace
+roots remain reserved for them.

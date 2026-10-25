@@ -92,7 +92,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Classes                    | Partial | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; single inheritance, ABSTRACT and FINAL; IMPLEMENTS; see class restrictions                                              |
 | Inheritance                | Yes     | ADR 0017: same-kind EXTENDS, dynamic OVERRIDE, SUPER methods/bodies, ABSTRACT and FINAL; conservative recursion checks                                                                                |
 | Interfaces                 | Partial | ADR 0017: prototypes, multiple interface inheritance, IMPLEMENTS, NULL/identity, dynamic calls, persistent instance targets; see interface restrictions.                                              |
-| Namespaces                 | No      |                                                                                                                                                                                                       |
+| Namespaces                 | Partial | Dotted source wrappers, absolute qualified names, USING and namespace-scoped INTERNAL (ADR 0017).                                                                                                     |
 
 ## Operators and statements (ST)
 
@@ -346,8 +346,8 @@ still pending. PERSISTENT and retained timers remain unsupported.
 
 ## Method restrictions (ADR 0017)
 
-Methods precede a function block's body; access defaults to PROTECTED and INTERNAL
-currently covers the global project namespace. Methods have function-style local
+Methods precede a function block's body; access defaults to PROTECTED. INTERNAL
+covers the declaring namespace and descendants, or the project for global types. Methods have function-style local
 storage and cannot declare instances, VAR_EXTERNAL or retention. VAR_TEMP is
 limited to interface variables. They
 cannot use the instance's VAR_IN_OUT or call its body through THIS. Member instances
@@ -364,8 +364,7 @@ inline arrays; they cannot be called, initialized, CONSTANT, parameters, structu
 members or function/method locals. Containment cycles are rejected. Access defaults
 to PROTECTED and is checked by type; monitoring ignores it. RETAIN/NON_RETAIN work
 for class instances and members. TC6 carries classes as empty function blocks with
-exact text in the source extension. References to instances and namespaces remain
-unsupported. These are 3rd-edition-based semantics and project
+exact text in the source extension. Instance references and namespaces are supported. These are 3rd-edition-based semantics and project
 restrictions; 4th-edition verification remains pending.
 
 ## Inheritance restrictions (ADR 0017)
@@ -400,7 +399,22 @@ to user block/class instances, with NULL also allowed as source. It binds when t
 actual type implements the target interface or derives from the reference target,
 and otherwise clears the target without a fault. `a := r^` binds an implementing
 instance and faults on NULL. Namespace access and INTERNAL interface headers
-(#180) remain unsupported. Dynamic
+are supported. Dynamic
 recursion edges include every implementing method, rejecting composite forwarding
 cycles conservatively. These follow the 3rd edition and project restrictions;
 4th-edition verification remains pending.
+
+## Namespace restrictions (ADR 0017)
+
+One declaration per source may be wrapped in a dotted NAMESPACE; nested blocks
+and namespaced configurations are rejected. USING imports direct declarations
+of named namespaces. Simple names search own/enclosing namespaces nearest first,
+then imports plus globals with ambiguity detection; qualified names are absolute.
+INTERNAL declarations require a namespace and are accessible only in it and its
+descendants. INTERNAL members of global types remain project-wide. Namespace
+roots reserve project names, declaration names cannot equal namespaces, and
+standard simple names stay reserved. Structure fields may reuse visible type
+names while still reserving namespace roots. TC6 names/references are qualified and exact
+source text survives exchange. Library project management is outside this scope.
+These follow the 3rd edition and project restrictions; 4th-edition verification
+remains pending.

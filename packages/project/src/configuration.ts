@@ -113,7 +113,11 @@ export function splitConfiguration(
         task = identifier();
       }
       expect(":");
-      const typeName = identifier(true);
+      let typeName = identifier(true);
+      while (current().key === ".") {
+        take();
+        typeName += `.${identifier(true)}`;
+      }
       if (current().key === "(") {
         const connectionTokens: Token[] = [];
         let depth = 0;

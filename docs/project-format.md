@@ -445,3 +445,17 @@ User block/class reference targets use the existing TC6 pointer mapping:
 parameters/results, aliases, array elements and structure members. Source
 extensions preserve exact spelling and text on save/reopen, alongside the target
 type's class/method extension. Reference values and live bindings are not saved.
+
+## Namespace exchange
+
+Namespaced data types and POUs use qualified TC6 `name` attributes. Derived type
+references and configuration instance `typeName` attributes also carry qualified
+names. Classes retain their existing function-block representation and interfaces
+retain their source extension. The exact source extension preserves namespace
+wrappers, USING imports, INTERNAL qualifiers, comments and whitespace.
+
+Stale-source comparison resolves type references in the source's namespace and
+imports; the wrapper and imports themselves add no TC6 interface/body fields.
+Without a source extension, a qualified POU or data type name generates a simple
+declaration inside `NAMESPACE ... END_NAMESPACE`. The legacy identifier opening
+path also covers NAMESPACE, END_NAMESPACE and USING in 0.6.0 files.

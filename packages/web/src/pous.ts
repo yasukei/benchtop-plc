@@ -33,14 +33,26 @@ function headerTokens(source: string) {
   const tokens =
     scanned.tokens ??
     lex(source.slice(0, spanRange(source, scanned.diagnostics[0]!.span!).from)).tokens;
-  return tokens;
+  const current = () => tokens?.[0];
+  let namespace = "";
+  if (current()?.key === "NAMESPACE" && tokens) {
+    tokens.shift();
+    while (current()?.kind === "identifier" || current()?.key === ".")
+      namespace += tokens.shift()!.text;
+  }
+  while (current()?.key === "USING" && tokens) {
+    while (tokens.length && current()?.key !== ";" && current()?.kind !== "eof") tokens.shift();
+    if (current()?.key === ";") tokens.shift();
+    else break;
+  }
+  return { tokens, namespace };
 }
 
 export function deriveConfiguration(
   source: string,
   previous?: EditorConfiguration,
 ): EditorConfiguration {
-  const tokens = headerTokens(source);
+  const { tokens } = headerTokens(source);
   const name =
     tokens?.[0]?.key === "CONFIGURATION" && tokens[1]?.kind === "identifier"
       ? tokens[1].text
@@ -70,7 +82,9 @@ export function configurationTemplate(
     .filter((pou) => pou.kind === "PROGRAM")
     .map((pou, index) => {
       const preferred =
-        index === 0 ? (project?.instance?.name ?? "mainInstance") : `${pou.name}Instance`;
+        index === 0
+          ? (project?.instance?.name ?? "mainInstance")
+          : `${pou.name.replaceAll(".", "_")}Instance`;
       return `    PROGRAM ${claim(preferred)} WITH ${task} : ${pou.name};`;
     });
   return deriveConfiguration(`CONFIGURATION ${configuration}
@@ -83,10 +97,11 @@ END_CONFIGURATION
 }
 
 export function deriveDataType(source: string, previous?: EditorDataType): EditorDataType {
-  const tokens = headerTokens(source);
+  const { tokens, namespace } = headerTokens(source);
   const name =
-    tokens?.[0]?.key === "TYPE" && tokens[1]?.kind === "identifier"
-      ? tokens[1].text
+    tokens?.[0]?.key === "TYPE" &&
+    tokens.find((t, i) => i > 0 && t.key !== "INTERNAL")?.kind === "identifier"
+      ? `${namespace ? `${namespace}.` : ""}${tokens.find((t, i) => i > 0 && t.key !== "INTERNAL")!.text}`
       : (previous?.name ?? "Type1");
   return { source, name, kind: "TYPE" };
 }
@@ -114,9 +129,11 @@ export function diagnosticSourceMatches(
 }
 
 export function derivePou(source: string, previous?: EditorPou): EditorPou {
-  const tokens = headerTokens(source);
+  const { tokens, namespace } = headerTokens(source);
   const kind = tokens?.[0]?.key;
-  const name = tokens?.slice(1).find((token) => !["ABSTRACT", "FINAL"].includes(token.key));
+  const name = tokens
+    ?.slice(1)
+    .find((token) => !["INTERNAL", "ABSTRACT", "FINAL"].includes(token.key));
   if (
     (kind === "PROGRAM" ||
       kind === "FUNCTION" ||
@@ -125,7 +142,7 @@ export function derivePou(source: string, previous?: EditorPou): EditorPou {
       kind === "INTERFACE") &&
     name?.kind === "identifier"
   )
-    return { source, name: name.text, kind };
+    return { source, name: `${namespace ? `${namespace}.` : ""}${name.text}`, kind };
   return { source, name: previous?.name ?? "Main", kind: previous?.kind ?? "PROGRAM" };
 }
 
@@ -231,7 +248,9 @@ export function diagnosticPouIndex(
 ): number | undefined {
   const index = diagnostic.pou
     ? pous.findIndex(
-        (pou) => pou.name.toUpperCase() === diagnostic.pou!.split(".")[0]!.toUpperCase(),
+        (pou) =>
+          diagnostic.pou!.toUpperCase() === pou.name.toUpperCase() ||
+          diagnostic.pou!.toUpperCase().startsWith(`${pou.name.toUpperCase()}.`),
       )
     : pous.findIndex((pou) => pou.kind === "PROGRAM");
   return index < 0 ? undefined : index;

@@ -2,6 +2,8 @@ import {
   check,
   lex,
   parsePou,
+  parseDataType,
+  resolveNamespaces,
   type Declaration,
   type Expression,
   type GlobalScope,
@@ -29,12 +31,17 @@ function offset(source: string, span: SourceSpan, end = false): number {
 /** Collect lexical constants without adding inherited variables to standard TC6 elements. */
 function inheritedConstants(source: string, sources: readonly string[]): Declaration[] {
   const ast = parsePou(source).ast;
+  const context = sources.flatMap((text) => {
+    const other = parsePou(text).ast ?? parseDataType(text).ast;
+    return other && other.name.key !== ast?.name.key ? [other] : [];
+  });
+  if (ast) resolveNamespaces([ast, ...context]);
   const seen = new Set(ast ? [ast.name.key] : []);
   const ancestors = (base: string | undefined): Declaration[] => {
     if (!base || seen.has(base)) return [];
     seen.add(base);
-    const parent = sources.map((text) => parsePou(text).ast).find((pou) => pou?.name.key === base);
-    return parent
+    const parent = context.find((pou) => pou.name.key === base);
+    return parent && "body" in parent
       ? [...ancestors(parent.base?.key), ...parent.declarations.filter((d) => d.constant)]
       : [];
   };
@@ -58,6 +65,12 @@ export function splitProgram(
   const result = parsePou(source, legacyNames);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
+  const context = sources.flatMap((text) => {
+    const parsed = parsePou(text).ast ?? parseDataType(text).ast;
+    return parsed && parsed.name.key !== ast.name.key ? [parsed] : [];
+  });
+  // Semantic errors remain exchangeable; only successful lookups change type references.
+  resolveNamespaces([ast, ...context]);
   if (ast.kind === "interface")
     return {
       value: null,
@@ -431,7 +444,18 @@ export function joinProgram(program: SplitProgram): string {
   const keyword = { program: "PROGRAM", function: "FUNCTION", functionBlock: "FUNCTION_BLOCK" }[
     program.kind
   ];
-  return `${keyword} ${program.name}${program.returnType === undefined ? "" : ` : ${program.returnType}`}${declarations ? `\n${declarations}` : ""}${canonicalBody(program.body)}END_${keyword}\n`;
+  return wrapSource(
+    program.name,
+    `${keyword} ${program.name.split(".").at(-1)!}${program.returnType === undefined ? "" : ` : ${program.returnType}`}${declarations ? `\n${declarations}` : ""}${canonicalBody(program.body)}END_${keyword}\n`,
+  );
+}
+
+/** Standard TC6 qualified names become one declaration in a namespace wrapper. */
+export function wrapSource(name: string, declaration: string): string {
+  const segments = name.split(".");
+  return segments.length === 1
+    ? declaration
+    : `NAMESPACE ${segments.slice(0, -1).join(".")}\n${declaration}END_NAMESPACE\n`;
 }
 
 export function normalizeType(type: string): string {
@@ -450,6 +474,30 @@ export function normalizeType(type: string): string {
 export function expressionText(source: string, span: SourceSpan): string {
   return source.slice(offset(source, span), offset(source, span, true));
 }
+/** Replace resolved named type sites while leaving bounds and initializer spelling intact. */
+export function qualifiedTypeText(
+  source: string,
+  syntax: import("@benchtop-plc/compiler").TypeSyntax | Declaration,
+): string {
+  const edits: { from: number; to: number; name: string }[] = [];
+  const visit = (type: import("@benchtop-plc/compiler").TypeSyntax): void => {
+    if (type.typeName.key.includes("."))
+      edits.push({
+        from: offset(source, type.typeName.span),
+        to: offset(source, type.typeName.span, true),
+        name: type.typeName.name,
+      });
+    if (type.array) visit(type.array);
+    if (type.reference) visit(type.reference);
+  };
+  visit(syntax);
+  const start = offset(source, syntax.span);
+  let text = expressionText(source, syntax.span);
+  for (const edit of edits.sort((a, b) => b.from - a.from))
+    text = text.slice(0, edit.from - start) + edit.name + text.slice(edit.to - start);
+  return text;
+}
+
 export function containsSpan(outer: SourceSpan, inner: SourceSpan): boolean {
   return (
     (inner.line > outer.line || (inner.line === outer.line && inner.column >= outer.column)) &&

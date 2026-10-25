@@ -393,3 +393,14 @@ remain at their own monitor paths; calls and writes through references update
 those values. Save/reopen preserves reference declarations and method/body call
 text, and loading the project resets reference bindings to NULL. Invalid casts,
 access and lifetime errors and NULL faults use the English/Japanese catalog.
+
+## Namespaced sources
+
+POU and data type lists derive qualified names from namespace wrappers, including
+while editing a source that has body errors. USING before a declaration and
+INTERNAL declaration qualifiers are recognized in source headers. For example,
+`NAMESPACE Conveyor.Devices` with `CLASS INTERNAL Motor` is listed as
+`Conveyor.Devices.Motor`. Runtime diagnostics select the matching qualified POU
+or declaring method source. Monitor types display qualified names; variable paths
+continue to use instance and member names. Namespace text survives autosave and
+project save/reopen unchanged.

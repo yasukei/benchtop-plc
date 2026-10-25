@@ -275,6 +275,13 @@ class ConfigurationParser {
         });
       this.expect(":");
       const type = this.identifier(true);
+      while (this.at(".")) {
+        this.take();
+        const segment = this.identifier(true);
+        type.name += `.${segment.name}`;
+        type.key += `.${segment.key}`;
+        type.span = joinedSpan(type.span, segment.span);
+      }
       const connections: ProgramConnection[] = [];
       if (this.at("(")) {
         this.take();

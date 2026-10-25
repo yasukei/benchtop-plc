@@ -311,13 +311,13 @@ class Checker {
       } else {
         this.result = {
           id: this.symbols.length,
-          name: ast.name,
+          name: ast.simpleName ?? ast.name,
           type,
           descriptor,
           initialValue: this.defaultValue(descriptor!),
         };
         this.symbols.push(this.result);
-        this.names.set(ast.name.key, this.result);
+        this.names.set((ast.simpleName ?? ast.name).key, this.result);
       }
     }
     this.collectingDeclarations = false;
@@ -2416,7 +2416,7 @@ class Checker {
       this.report("method.unknown", { name: node.name.name }, node.name.span);
       return null;
     }
-    if (!accessible(method.access, method.owner ?? target, owner)) {
+    if (!accessible(method.access, method.owner ?? target, owner ?? this.ast)) {
       this.report("access.hidden", { name: node.name.name }, node.name.span);
       return null;
     }

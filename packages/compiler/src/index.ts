@@ -24,3 +24,5 @@ export { resolveDataTypes } from "./data-types.js";
 
 export { parseConfiguration } from "./configuration.js";
 export type { Configuration, ImplicitConfiguration } from "./configuration.js";
+
+export { resolveNamespaces } from "./namespaces.js";
