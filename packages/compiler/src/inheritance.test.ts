@@ -279,3 +279,37 @@ it.each(["bits.bitNo := TRUE;", "THIS.bits.bitNo := TRUE;"])(
     expect(result.diagnostics.map((d) => d.code)).toContain("access.hidden");
   },
 );
+
+it.each([
+  ["VAR x: Missing; END_VAR", "decl.unknown-type"],
+  ["VAR x: INT := 40000; END_VAR", "type.invalid-constant"],
+  ["VAR_INPUT END_VAR", "pou.invalid-section"],
+  ["VAR RETAIN NON_RETAIN END_VAR", "decl.retention-conflict"],
+])("reports invalid base declarations only in their declaring source: %s", (members, code) => {
+  const result = compileProject([
+    main("", ""),
+    derived(),
+    base(members),
+    "CLASS Leaf EXTENDS Derived END_CLASS",
+  ]);
+  expect(result.ir).toBeUndefined();
+  const errors = result.diagnostics.filter((d) => d.code === code);
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toMatchObject({ pou: "Base", sourceIndex: 2 });
+  expect(result.diagnostics.every((d) => d.sourceIndex === 2)).toBe(true);
+});
+
+it("keeps a derived declaration's own diagnostics when its base is invalid", () => {
+  const result = compileProject([
+    main("", ""),
+    derived("VAR y: AlsoMissing; END_VAR"),
+    base("VAR x: Missing; END_VAR"),
+  ]);
+  expect(result.ir).toBeUndefined();
+  expect(
+    result.diagnostics.map(({ code, pou, sourceIndex }) => ({ code, pou, sourceIndex })),
+  ).toEqual([
+    { code: "decl.unknown-type", pou: "Derived", sourceIndex: 1 },
+    { code: "decl.unknown-type", pou: "Base", sourceIndex: 2 },
+  ]);
+});

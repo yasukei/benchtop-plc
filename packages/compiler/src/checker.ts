@@ -112,6 +112,8 @@ function hasOpenDimensions(node?: AST.ArrayDeclaration): boolean {
 
 class Checker {
   private initializerOwner?: AST.Program;
+  private declarationOwner?: AST.Program;
+  private inheritedDeclarationError = false;
   private readonly superCalls = new Map<AST.FunctionCall | AST.FunctionBlockCall, number>();
   private readonly diagnostics: Diagnostic[] = [];
   private readonly symbols: VariableSymbol[] = [];
@@ -179,6 +181,11 @@ class Checker {
     args: DiagnosticArgs[C],
     span: SourceSpan,
   ): void {
+    if (this.declarationOwner && this.declarationOwner !== this.ast) {
+      // The declaring type reports this error at its own source position.
+      this.inheritedDeclarationError = true;
+      return;
+    }
     // Generic indexed arguments retain correlation at callers; TS cannot distribute C here.
     this.diagnostics.push({
       code,
@@ -224,12 +231,14 @@ class Checker {
     if (ast.methods) {
       const names = new Set(ast.declarations.flatMap((d) => d.names.map((n) => n.key)));
       for (const method of ast.methods) {
+        if (method.owner && method.owner !== ast) continue;
         if (names.has(method.name.key))
           this.report("method.name-collision", { name: method.name.name }, method.name.span);
         names.add(method.name.key);
       }
     }
     for (const section of ast.sections ?? []) {
+      this.declarationOwner = section.declaringType;
       if (section.retain || section.nonRetain) {
         if (section.retain && section.nonRetain)
           this.report("decl.retention-conflict", {}, section.span);
@@ -251,9 +260,14 @@ class Checker {
         (ast.kind === "class" && !["VAR", "VAR_EXTERNAL"].includes(section.name))
       )
         this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
+      this.declarationOwner = undefined;
     }
     // Collect all declarations first so forward references receive ordinary type diagnostics.
-    for (const declaration of ast.declarations) this.declare(declaration);
+    for (const declaration of ast.declarations) {
+      this.declarationOwner = declaration.declaringType;
+      this.declare(declaration);
+      this.declarationOwner = undefined;
+    }
     if (hasOpenDimensions(ast.resultArray))
       this.report("decl.open-array-section", {}, ast.resultArray!.span);
     if (ast.resultType) {
@@ -285,8 +299,10 @@ class Checker {
     this.collectingDeclarations = false;
     for (const declaration of ast.declarations) {
       this.initializerOwner = declaration.declaringType;
+      this.declarationOwner = declaration.declaringType;
       this.initializer(declaration);
       this.initializerOwner = undefined;
+      this.declarationOwner = undefined;
       for (const name of declaration.names) {
         const constant = this.constants.get(name.key);
         if (constant?.name === name) constant.initializerProcessed = true;
@@ -311,7 +327,10 @@ class Checker {
       this.selectBlockVariants();
       this.statements(ast.body, 0);
     }
-    if (this.diagnostics.some((item) => item.severity === "error"))
+    if (
+      this.inheritedDeclarationError ||
+      this.diagnostics.some((item) => item.severity === "error")
+    )
       return { checked: null, diagnostics: this.diagnostics };
     return {
       checked: {

@@ -31,6 +31,7 @@ export interface Program extends SourceNode {
   resultSubrange?: Subrange;
   resultStringLength?: number;
   sections?: {
+    declaringType?: Program;
     name: string;
     access?: Access;
     constant?: boolean;

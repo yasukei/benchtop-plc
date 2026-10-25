@@ -79,6 +79,7 @@ export function resolveInheritance(
         )
           report(diagnostics, type, name, "inheritance.member-collision", { name: name.name });
     }
+    for (const section of type.sections ?? []) section.declaringType = type;
     const methods = [...(base?.methods ?? [])];
     const ownNames = new Set<string>();
     for (const method of type.methods ?? []) {

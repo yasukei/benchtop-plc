@@ -10,12 +10,15 @@ test("runs inheritance, monitors base-first private members and preserves save/r
   const base = `CLASS ABSTRACT Base
 VAR PRIVATE hidden: INT := 7; END_VAR
 VAR PUBLIC Speed: INT := 2; END_VAR
-METHOD PUBLIC Start: INT Start := THIS.Check(); END_METHOD
-METHOD PROTECTED ABSTRACT Check: INT END_METHOD
+METHOD PUBLIC Start: INT Start := THIS.Check(Step := Speed); END_METHOD
+METHOD PROTECTED ABSTRACT Check: INT VAR_INPUT Step: INT; END_VAR END_METHOD
 END_CLASS`;
   const derived = `CLASS FINAL Derived EXTENDS Base
 VAR own: INT := 3; END_VAR
-METHOD PROTECTED FINAL OVERRIDE Check: INT Check := Speed + own; END_METHOD
+METHOD PROTECTED FINAL OVERRIDE Check: INT
+VAR scratch: INT := 20; END_VAR
+VAR_INPUT Step: INT; END_VAR
+Check := Step + own + scratch - 20; END_METHOD
 END_CLASS`;
   const project = {
     fileHeader: {
@@ -83,4 +86,27 @@ END_CLASS`;
   await expect(editor.locator(".cm-line")).toHaveText(derived.split("\n"));
   await page.getByRole("button", { name: "RUN", exact: true }).click();
   await expect(row("seen").locator("td").nth(2)).toHaveText("5");
+});
+
+test("reports a base declaration error once and selects its declaring source", async ({ page }) => {
+  const base = "CLASS Base\nVAR\nx: Missing; END_VAR\nEND_CLASS";
+  const derived = "CLASS Derived EXTENDS Base END_CLASS";
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  await list.getByRole("button", { name: "Add class", exact: true }).click();
+  await editor.fill(base);
+  await list.getByRole("button", { name: "Add class", exact: true }).click();
+  await editor.fill(derived);
+  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+  await expect(diagnostics.getByRole("button")).toHaveCount(1);
+  await expect(diagnostics.getByRole("button")).toContainText("Base:");
+  await expect(list.getByRole("button", { name: /^Derived CLASS/ })).toContainText(
+    "Diagnostics: 0",
+  );
+  await expect(page.locator(".cm-lintRange-error")).toHaveCount(0);
+  await diagnostics.getByRole("button").click();
+  await expect(editor.locator(".cm-line")).toHaveText(base.split("\n"));
+  await expect(page.locator(".cm-lintRange-error")).toHaveText("Missing");
 });

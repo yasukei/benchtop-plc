@@ -678,3 +678,7 @@ every descendant override, even when no instance currently uses that type. SUPER
 adds an edge only to the selected base implementation or effective base body. Thus
 `Motor.Start -> THIS.Check -> Servo.Check -> SUPER.Start` is rejected, including
 when the call to Check is implicit.
+
+Declaration and section errors inherited from a base are reported only on the
+source that declares them. A derived type with invalid inherited declarations
+still fails checking; suppressing duplicate diagnostics does not make it executable.
