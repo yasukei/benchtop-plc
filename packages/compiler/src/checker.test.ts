@@ -76,7 +76,7 @@ describe("declarations and symbols", () => {
     ["x AT «%IX0.0» : INT;", "decl.direct-address-type"],
     ["x AT «%QX0.0» : TON;", "decl.direct-address-type"],
     ["x,y AT «%IX0.0» : BOOL;", "decl.at-multiple-names"],
-    ["x AT «%IX1.0» : BOOL;", "decl.address-out-of-range"],
+    ["x AT «%IX64.0» : BOOL;", "decl.address-out-of-range"],
     ["x AT «%QX0.8» : BOOL;", "decl.address-out-of-range"],
     ["x : INT; y : INT := «x»;", "decl.nonconstant-initializer"],
     ["x : DINT := «ABS(1)»;", "decl.nonconstant-initializer"],

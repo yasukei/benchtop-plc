@@ -159,7 +159,7 @@ describe("PLCopen XML", () => {
       "project.unsupported",
     ],
     [
-      (text: string) => text.replace('<panel:panel version="1">', '<panel:panel version="2">'),
+      (text: string) => text.replace('<panel:panel version="1">', '<panel:panel version="3">'),
       "project.unsupported",
     ],
     [

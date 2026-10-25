@@ -62,7 +62,7 @@ elements; see [project-format.md](project-format.md#data-type-mapping).
 The IR follows [core-contracts.md](core-contracts.md). Declarations stay in source
 order; names in a grouped declaration become separate variables with the same
 declaration span. Scalar initializers/defaults come from the checker's coerced
-values. BOOL addresses are copied only when present. FB initial values are null.
+values. Direct addresses and explicit located-initializer markers are copied when present. FB initial values are null.
 Variable references, FB members, named FB inputs and function calls use their
 resolved IDs, port indices and canonical opcodes, with explicit expression types.
 
@@ -212,9 +212,8 @@ Connection lists must contain at least one connection and cannot end with a comm
 Omit the parentheses when every parameter is unconnected.
 
 Input sources are constants (including constant expressions and enumeration values),
-globals, or direct addresses. Output destinations are mutable globals or output
-addresses. Only existing `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7` BOOL addresses are
-implemented; numeric and `%M` connections follow in #155. Globals use ordinary
+globals, or direct addresses. Output destinations are mutable globals or output/memory
+addresses, with every size/type binding below. Globals use ordinary
 input/assignment conversions; addresses bind the parameter type as an `AT` would.
 
 `resource.programs[i].inputs` and `.outputs` describe transfers between the
@@ -232,3 +231,24 @@ copied. All parameters are unconnected in an implicit configuration. Parameters
 appear in snapshots and accept forces; connected inputs reject monitor writes with
 `runtime.write-connected-input`, while unconnected parameters and connected outputs
 accept writes.
+
+## Located variables and direct connections
+
+ADR 0016 defines I/Q areas of 64 bytes and M of 1,024 bytes. `X` binds BOOL;
+`B` binds BYTE/SINT/USINT; `W` binds WORD/INT/UINT; `D` binds
+DWORD/DINT/UDINT/REAL; `L` binds LWORD/LINT/ULINT/LREAL. Aliases of those types are
+allowed; subranges, enumerations, aggregates, time/date, characters and strings
+are rejected. Numeric indices count units: `%IW1` starts at byte 2, `%ID1` at
+byte 4, `%IL1` at byte 8. `%IX3.5` selects bit 5 of byte 3.
+
+`AT` is allowed on PROGRAM VAR and configuration/resource globals. It is rejected
+in functions/FBs, on temporaries, externals, parameters and constants. Retention
+qualifiers and partly specified addresses remain unsupported. Malformed or
+hierarchical addresses produce `lex.malformed-direct-address`; invalid bounds
+produce `decl.address-out-of-range`, and incompatible types produce
+`decl.direct-address-type`. Connections use the same checks; outputs cannot
+connect to I.
+
+Overlapping Q writers (located declarations and direct output connections) emit
+`decl.output-overlap` warnings, including separate instances. Independent bits in
+the same byte do not overlap. I and M aliases produce no overlap warnings.

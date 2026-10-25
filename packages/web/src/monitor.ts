@@ -1,3 +1,4 @@
+import { en } from "./catalog.js";
 import { compile, lex } from "@benchtop-plc/compiler";
 import {
   coerceValue,
@@ -156,8 +157,10 @@ export function variableValue(
   variable: Variable,
   value: VariableSnapshot | undefined,
   types: TypeTable = [],
+  invalidReal: string = en.invalidReal,
 ): string {
   if (!value) return "—";
+  if (value.kind === "invalidReal") return `${invalidReal} (${value.bits})`;
   if (value.kind === "reference") return value.target ?? "NULL";
   if (value.kind === "scalar")
     return variable.kind === "scalar"

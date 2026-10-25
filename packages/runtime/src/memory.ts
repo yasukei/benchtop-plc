@@ -1,4 +1,9 @@
 import {
+  readDirectValue,
+  writeDirectValue,
+  directBits,
+  type DirectAddress,
+  type DataType,
   coerceValue,
   standardFunctionBlocks,
   type FunctionBlockType,
@@ -49,7 +54,7 @@ export function typed(dataType: TypedValue["dataType"], value: ScalarValue): Typ
 }
 
 export function emptyImage(): IoImage {
-  return [false, false, false, false, false, false, false, false];
+  return Array<number>(64).fill(0);
 }
 
 /** Scan-stage extension point for host integrations. */
@@ -60,7 +65,10 @@ export interface ScanMemory {
 
 type ScalarCell = (
   { kind: "scalar"; value: TypedValue } | { kind: "long"; dataType: LongType; value: bigint }
-) & { descriptor: TypeDescriptor };
+) & {
+  descriptor: TypeDescriptor;
+  location?: { bytes: number[]; address: DirectAddress; dataType: DataType };
+};
 interface UserBlockCell {
   kind: "userFunctionBlock";
   frame: MemoryFrame;
@@ -290,6 +298,12 @@ export class MemoryFrame implements ScanMemory {
     const cell = this.cells[variable];
     if (cell?.kind === "port")
       return (cell.port === "input" ? cell.instance.inputs : cell.instance.outputs)[cell.member]!;
+    if ((cell?.kind === "long" || cell?.kind === "scalar") && cell.location) {
+      const { bytes, address, dataType } = cell.location;
+      const value = readDirectValue(bytes, address, dataType);
+      validateValue(dataType, value);
+      return typed(dataType, value);
+    }
     if (cell?.kind === "long") return typed(cell.dataType, cell.value);
     if (!cell || cell.kind !== "scalar") throw new Error("Expected scalar variable");
     return cell.value;
@@ -315,7 +329,11 @@ export class MemoryFrame implements ScanMemory {
 
   read(variable: number): ScalarValue {
     const cell = this.cells[variable];
-    return cell?.kind === "long" ? cell.value : this.scalar(variable).value;
+    return cell?.kind === "long"
+      ? cell.location
+        ? BigInt(this.scalar(variable).value)
+        : cell.value
+      : this.scalar(variable).value;
   }
 
   write(variable: number, value: ScalarValue): void {
@@ -323,6 +341,11 @@ export class MemoryFrame implements ScanMemory {
     if (cell?.kind === "long" || cell?.kind === "scalar") {
       value = truncateString(cell.descriptor, value, this.types);
       validateDeclaredValue(cell.descriptor, value, this.types);
+    }
+    if ((cell?.kind === "long" || cell?.kind === "scalar") && cell.location) {
+      const { bytes, address, dataType } = cell.location;
+      writeDirectValue(bytes, address, typed(dataType, value));
+      return;
     }
     if (cell?.kind === "long") {
       cell.value = BigInt(coerceValue(cell.dataType, value));
@@ -456,6 +479,18 @@ export class Memory extends MemoryFrame {
     );
     for (const block of ir.functionBlocks ?? []) validateLiterals(block.body);
     this.functionInitialCells = functionInitialCells;
+    ir.variables.forEach((variable, id) => {
+      if (variable.kind !== "scalar" || !variable.address) return;
+      const cell = this.cells[id]!;
+      if (cell.kind !== "scalar" && cell.kind !== "long") throw new Error("Expected scalar view");
+      cell.location = {
+        bytes: this.areas[variable.address.area],
+        address: variable.address,
+        dataType: scalarBase(variable.dataType, this.types),
+      };
+      if (variable.address.area === "M" && variable.addressInitializer)
+        this.write(id, variable.initialValue);
+    });
   }
 
   private storagePath(slot: InstanceStorage): string | undefined {
@@ -543,57 +578,43 @@ export class Memory extends MemoryFrame {
     );
   }
 
-  private inputArea = emptyImage();
-  private outputArea = emptyImage();
+  private readonly areas = { I: emptyImage(), Q: emptyImage(), M: Array<number>(1024).fill(0) };
 
-  readAddress(address: import("@benchtop-plc/core").DirectAddress): boolean {
-    const id = this.ir.variables.findIndex(
-      (v) =>
-        v.kind === "scalar" && v.address?.area === address.area && v.address.bit === address.bit,
-    );
-    return id >= 0
-      ? Boolean(this.read(id))
-      : (address.area === "I" ? this.inputArea : this.outputArea)[address.bit];
+  readAddress(address: DirectAddress, dataType: DataType): ScalarValue {
+    const value = readDirectValue(this.areas[address.area], address, dataType);
+    validateValue(dataType, value);
+    return value;
   }
 
-  writeAddress(address: import("@benchtop-plc/core").DirectAddress, value: boolean): void {
-    (address.area === "I" ? this.inputArea : this.outputArea)[address.bit] = value;
-    this.ir.variables.forEach((v, id) => {
-      if (v.kind === "scalar" && v.address?.area === address.area && v.address.bit === address.bit)
-        this.write(id, value);
-    });
+  writeAddress(address: DirectAddress, value: TypedValue): void {
+    writeDirectValue(this.areas[address.area], address, value);
   }
 
   readInputs(image: IoImage): void {
-    this.inputArea = [...image];
-    this.ir.variables.forEach((variable, index) => {
-      if (variable.kind === "scalar" && variable.address?.area === "I") {
-        this.write(index, image[variable.address.bit]);
-      }
-    });
+    if (image.length !== 64 || image.some((v) => !Number.isInteger(v) || v < 0 || v > 255))
+      throw new RangeError("Invalid input image");
+    this.areas.I.splice(0, 64, ...image);
   }
 
   outputImage(): IoImage {
-    const image: IoImage = [...this.outputArea];
-    this.ir.variables.forEach((variable, index) => {
-      if (variable.kind === "scalar" && variable.address?.area === "Q") {
-        image[variable.address.bit] = Boolean(this.read(index));
-      }
-    });
-    return image;
+    return [...this.areas.Q];
   }
 
   clearOutputs(): void {
-    this.outputArea = emptyImage();
-    this.ir.variables.forEach((variable, index) => {
-      if (variable.kind === "scalar" && variable.address?.area === "Q") this.write(index, false);
-    });
+    this.areas.Q.fill(0);
   }
 
   snapshot(ids = this.cells.map((_, i) => i)): VariableSnapshot[] {
     return ids.map((id): VariableSnapshot => {
       const cell = this.cells[id]!;
       if (cell.kind === "reference") return this.referenceValue(cell.target);
+      if ((cell.kind === "scalar" || cell.kind === "long") && cell.location) {
+        const { bytes, address, dataType } = cell.location;
+        const value = readDirectValue(bytes, address, dataType);
+        if (typeof value === "number" && !Number.isFinite(value))
+          return { kind: "invalidReal", bits: directBits(bytes, address) };
+        return { kind: "scalar", ...typed(dataType, value) };
+      }
       if (cell.kind === "long") return { kind: "scalar", ...typed(cell.dataType, cell.value) };
       if (cell.kind === "scalar") return { kind: "scalar", ...cell.value };
       if (cell.kind !== "functionBlock") throw new Error("User instance in monitored storage");

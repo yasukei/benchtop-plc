@@ -1,5 +1,8 @@
 import { isReservedStandardName } from "./reserved-names.js";
 import {
+  addressBinds,
+  validDirectAddress,
+  resolveType,
   coerceValue,
   cloneInitialValue,
   arrayType,
@@ -759,9 +762,13 @@ class Checker {
         this.report("decl.parameter-address", {}, address.span);
       if (this.ast.kind !== "program") this.report("pou.direct-address", {}, address.span);
       if (declaration.names.length > 1) this.report("decl.at-multiple-names", {}, address.span);
-      if (address.byte !== 0 || address.bit < 0 || address.bit > 7)
+      if (!validDirectAddress(address))
         this.report("decl.address-out-of-range", { address: address.text }, address.span);
-      if (known && (type !== "BOOL" || (descriptor && isAggregateType(descriptor, this.types))))
+      if (
+        known &&
+        (declaration.subrange ||
+          !addressBinds(address, descriptor ? resolveType(descriptor, this.types) : type))
+      )
         this.report(
           "decl.direct-address-type",
           { name: declaration.names[0].name, type },

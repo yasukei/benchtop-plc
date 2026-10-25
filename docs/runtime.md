@@ -33,7 +33,7 @@ belong to the Worker host (#12).
 
 A resource has 1–16 cyclic or event tasks. Cyclic tasks use a TIME/LTIME literal
 from 10 ms to 1 h in whole 10 ms steps. Event tasks use `SINGLE := globalBool`
-(a non-constant BOOL global, including a BOOL alias) or a supported `%IX0.0`–`%IX0.7`
+(a non-constant BOOL global, including a BOOL alias) or a supported `%IX0.0`–`%IX63.7`
 address. Each task requires a literal priority from 0 to 65535; 0 is highest.
 Exactly one of INTERVAL and SINGLE is required. Every PROGRAM instance uses WITH
 to bind to one task; instances within that task run in resource declaration order.
@@ -621,3 +621,28 @@ Programs within a task execute in resource declaration order, so later programs
 see earlier writes in the same task run. Forces are restored around each program instance, including
 before a later instance reads a forced global. Located globals use the same input
 refresh, output publication and STOP safety rules as located PROGRAM variables.
+
+## Byte-backed direct areas
+
+Located variables are live views of shared I/Q/M bytes, including accesses through
+references, external bindings and VAR_IN_OUT parameters. I/Q have 64 bytes each;
+M has 1,024. Numbering counts units, and all multi-byte values use little-endian
+order. Thus writing `%MW0 := 16#0102` makes `%MB0` equal 2 and `%MB1` equal 1;
+`%MX1.0` reads bit 8 of the same word. REAL/LREAL use IEEE binary32/binary64.
+
+Each task refreshes all I bytes from the host image and publishes all Q bytes.
+Located I variables reject one-shot monitor writes and accept forces. Typed
+connections decode using the parameter's type. Outputs are zero throughout the
+whole Q area outside RUN and during emergency stop, including connections without
+a located declaration. A STOP single scan also finishes with zero outputs.
+
+Load and cold reset zero M and apply explicit located initializers in order:
+configuration globals, resource globals, then each program instance in declaration
+order. An uninitialized overlapping view does not erase an earlier initializer.
+Warm restart is deferred to #157.
+
+Writing an overlapping integer view can store any IEEE bit pattern without a
+fault. A program read of a REAL/LREAL NaN or infinity, including an input connection
+copy, faults with `runtime.invalid-value` at the read expression or configuration
+connection. Snapshots report `invalidReal` with the raw bits and never decode it
+into a non-finite number. A finite write or an applied force replaces those bytes.

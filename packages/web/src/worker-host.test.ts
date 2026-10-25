@@ -57,11 +57,11 @@ describe("Worker host", () => {
       key: "INPUT",
       dataType: "BOOL",
       initialValue: false,
-      address: { area: "I", byte: 0, bit: 0 },
+      address: { area: "I", size: "X", byte: 0, bit: 0 },
       span: ir.span,
     });
     host.handle({ type: "load", ir });
-    host.handle({ type: "setInput", bit: 0, value: true });
+    host.handle({ type: "setInput", address: "%IX0.0", value: { dataType: "BOOL", value: true } });
     host.handle({ type: "force", variable: 0, value: { dataType: "DINT", value: 50 } });
     host.handle({ type: "run" });
     clock.advance(10);
@@ -188,12 +188,12 @@ it("publishes panel inputs immediately while STOP or ESTOP prevents scan samplin
   const { host, snapshot, state } = setup();
   for (const emergency of [false, true]) {
     host.handle({ type: "estop", active: emergency });
-    host.handle({ type: "setInput", bit: 0, value: true });
-    expect(snapshot()?.inputs[0]).toBe(true);
+    host.handle({ type: "setInput", address: "%IX0.0", value: { dataType: "BOOL", value: true } });
+    expect(snapshot()?.inputs[0]).toBe(1);
     expect(snapshot()?.scanCount).toBe(0);
     expect(state()).toBe(emergency ? "ESTOP" : "STOP");
-    host.handle({ type: "setInput", bit: 0, value: false });
-    expect(snapshot()?.inputs[0]).toBe(false);
+    host.handle({ type: "setInput", address: "%IX0.0", value: { dataType: "BOOL", value: false } });
+    expect(snapshot()?.inputs[0]).toBe(0);
   }
 });
 
@@ -246,4 +246,30 @@ PROGRAM A WITH Fast : P; PROGRAM B WITH Slow : P; END_RESOURCE END_CONFIGURATION
     { name: "Slow", runCount: 3, lastExecutionTimeMs: 0, maxExecutionTimeMs: 0, overruns: 0 },
   ]);
   expect(snapshot()?.scanCount).toBe(9);
+});
+
+it("stores typed input values at any input address without decoding invalid real bits", () => {
+  const clock = new VirtualClock();
+  const messages: RuntimeToUiMessage[] = [];
+  const host = createWorkerHost(clock, new VirtualTicker(clock), (m) => messages.push(m));
+  host.handle({ type: "setInput", address: "%IW31", value: { dataType: "INT", value: -5 } });
+  host.handle({ type: "setInput", address: "%IX63.0", value: { dataType: "BOOL", value: false } });
+  host.handle({
+    type: "setInput",
+    address: "%ID0",
+    value: { dataType: "DWORD", value: 0x7fc00000 },
+  });
+  const last = messages.at(-1)!;
+  expect(last.type).toBe("snapshot");
+  if (last.type !== "snapshot") throw new Error("Expected snapshot");
+  expect(last.snapshot.inputs).toHaveLength(64);
+  expect(last.snapshot.inputs.slice(62)).toEqual([251, 254]);
+  expect(last.snapshot.inputs.slice(0, 4)).toEqual([0, 0, 192, 127]);
+  for (const address of ["%MW0", "%QX0.0", "%IW32", "%I*"])
+    expect(() =>
+      host.handle({ type: "setInput", address, value: { dataType: "INT", value: 1 } }),
+    ).toThrow(RangeError);
+  expect(() =>
+    host.handle({ type: "setInput", address: "%IW0", value: { dataType: "INT", value: 99999 } }),
+  ).toThrow(RangeError);
 });

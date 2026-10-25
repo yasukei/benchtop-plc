@@ -72,7 +72,7 @@ export const referenceIR: ProgramIR = {
       key: "STARTPB",
       dataType: "BOOL",
       initialValue: false,
-      address: { area: "I", byte: 0, bit: 0 },
+      address: { area: "I", size: "X", byte: 0, bit: 0 },
       span: span(3, 5, 32),
     },
     {
@@ -81,7 +81,7 @@ export const referenceIR: ProgramIR = {
       key: "STOPPB",
       dataType: "BOOL",
       initialValue: false,
-      address: { area: "I", byte: 0, bit: 1 },
+      address: { area: "I", size: "X", byte: 0, bit: 1 },
       span: span(4, 5, 32),
     },
     {
@@ -90,7 +90,7 @@ export const referenceIR: ProgramIR = {
       key: "RESETPB",
       dataType: "BOOL",
       initialValue: false,
-      address: { area: "I", byte: 0, bit: 2 },
+      address: { area: "I", size: "X", byte: 0, bit: 2 },
       span: span(5, 5, 32),
     },
     {
@@ -99,7 +99,7 @@ export const referenceIR: ProgramIR = {
       key: "RUNNING",
       dataType: "BOOL",
       initialValue: false,
-      address: { area: "Q", byte: 0, bit: 0 },
+      address: { area: "Q", size: "X", byte: 0, bit: 0 },
       span: span(6, 5, 32),
     },
     {
@@ -108,7 +108,7 @@ export const referenceIR: ProgramIR = {
       key: "LAMP",
       dataType: "BOOL",
       initialValue: false,
-      address: { area: "Q", byte: 0, bit: 1 },
+      address: { area: "Q", size: "X", byte: 0, bit: 1 },
       span: span(7, 5, 32),
     },
     {
@@ -117,7 +117,7 @@ export const referenceIR: ProgramIR = {
       key: "ALARM",
       dataType: "BOOL",
       initialValue: false,
-      address: { area: "Q", byte: 0, bit: 2 },
+      address: { area: "Q", size: "X", byte: 0, bit: 2 },
       span: span(8, 5, 32),
     },
     {

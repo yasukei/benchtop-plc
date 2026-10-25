@@ -138,8 +138,11 @@ monitored variable table and a statement tree. Persistent declarations expand in
 its source spelling and upper-case key. Scalar declarations contain their coerced
 `initialValue`, including defaults. FB declarations use `initialValue: null` to
 request the standard FB's initial state; user initializers on FBs are unsupported.
-Only BOOL declarations may have a direct bit address; milestone 1 uses byte 0,
-bits 0–7 in areas I and Q.
+Located scalars carry a `DirectAddress`: `{ area, size: "X", byte, bit }` for bits,
+or `{ area, size: "B" | "W" | "D" | "L", index }` for unit-numbered values.
+Areas I/Q have 64 bytes each and M has 1,024. The compiler checks size/type bindings
+and bounds; aliases of the bound elementary types are allowed. `addressInitializer`
+marks an explicit initializer to apply after zeroing M, in declaration order.
 
 Bit references (`kind: "bit"`) contain a scalar variable index, a checked bit index
 and `dataType: "BOOL"`. Reads test that bit; writes preserve all other bits, including
@@ -228,12 +231,15 @@ ID always refers to the currently loaded program. `force` takes a typed value or
 null to clear the force; `write` takes a typed value. Hosts validate that the
 value matches the loaded declaration. `setCycle.ms` is a positive finite interval, rejected with
 `runtime.configured-cycle` when the loaded configuration is explicit.
-`setInput.bit` indexes the eight-bit input image. `step` requests one complete scan.
+`setInput` carries an input address string and a `TypedValue`, for example
+`{ type: "setInput", address: "%IW0", value: { dataType: "INT", value: -5 } }`.
+The host validates the address, binding and value before storing its bit pattern.
+`step` requests one complete scheduler pass.
 Emergency-stop state and single-scan behavior are implemented in the runtime
 issues, not in the transport types.
 
-Snapshots contain scan count, last execution time in milliseconds, eight-bit input
-and output tuples, values aligned with the variable table (including FB input and
+Snapshots contain scan count, last execution time in milliseconds, 64-byte input
+and output arrays (values 0–255), values aligned with the variable table (including FB input and
 output arrays in descriptor order), forced variable IDs, and annotations keyed by
 POU name and then one-based source line. Each annotation contains the full `span` of its assignment,
 function statement or FB call, so consumers identify statements by source location
@@ -376,3 +382,9 @@ Load/cold reset clear the values; STOP/RUN preserve them. `scanCount` counts pas
 with at least one attempted task run, including a faulting run. The Worker host
 forwards these fields in ordinary snapshot messages. Runtime faults name the task
 that failed and prevent every later task in that pass from running.
+
+A located REAL/LREAL whose bytes encode NaN or infinity is represented in snapshots
+as `{ kind: "invalidReal", bits: "16#7FC00000" }` (8 or 16 hex digits).
+This plain-data variant keeps snapshots safe; a program read faults separately.
+Core address helpers parse and format addresses, check bounds/type bindings, and
+encode/decode little-endian bytes for every supported size.

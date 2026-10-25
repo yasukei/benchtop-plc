@@ -41,13 +41,13 @@ it("exports typed contracts through the package entry point", () => {
     dataType: "BOOL",
     span,
   };
-  // @ts-expect-error Milestone 1 only supports byte zero.
+  // @ts-expect-error Bit addresses require a size discriminator.
   const invalidAddress: DirectAddress = { area: "I", byte: 1, bit: 0 };
-  // @ts-expect-error The input image contains exactly eight bits.
+  // @ts-expect-error Input commands require an address and a typed value.
   const invalidInput: UiToRuntimeMessage = { type: "setInput", bit: 8, value: true };
   // @ts-expect-error A write requires a typed value.
   const invalidWrite: UiToRuntimeMessage = { type: "write", variable: 0, value: 1 };
-  const address: DirectAddress = { area: "I", byte: 0, bit: 0 };
+  const address: DirectAddress = { area: "I", size: "X", byte: 0, bit: 0 };
   // @ts-expect-error Numeric variables cannot have a bit address.
   const invalidMapped: ScalarVariable = {
     kind: "scalar",
@@ -84,7 +84,7 @@ it("describes every protocol command and event as plain data", () => {
     { type: "step" },
     { type: "coldReset" },
     { type: "setCycle", ms: 10 },
-    { type: "setInput", bit: 7, value: true },
+    { type: "setInput", address: "%IX0.7", value: { dataType: "BOOL", value: true } },
     { type: "force", variable: 0, value: { dataType: "BOOL", value: false } },
     { type: "force", variable: 0, value: null },
     { type: "write", variable: 1, value: { dataType: "TIME", value: 500 } },
@@ -116,8 +116,8 @@ it("describes every protocol command and event as plain data", () => {
         scanCount: 1,
         tasks: [],
         lastExecutionTimeMs: 0.2,
-        inputs: [true, false, false, false, false, false, false, false],
-        outputs: [false, false, false, false, false, false, false, false],
+        inputs: [1, ...Array<number>(63).fill(0)],
+        outputs: [0, ...Array<number>(63).fill(0)],
         variables: [
           { kind: "scalar", dataType: "BOOL", value: true },
           {

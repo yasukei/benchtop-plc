@@ -7,12 +7,7 @@ export interface Identifier extends SourceNode {
 }
 
 /** Syntactically valid addresses may exceed the runtime's supported I/O range. */
-export interface Address extends SourceNode {
-  text: string;
-  area: "I" | "Q";
-  byte: number;
-  bit: number;
-}
+export type Address = SourceNode & import("@benchtop-plc/core").DirectAddress & { text: string };
 
 export interface Program extends SourceNode {
   kind: "program" | "function" | "functionBlock";

@@ -1,5 +1,8 @@
 import {
+  parseDirectAddress,
   resolveType,
+  validDirectAddress,
+  addressBinds,
   type Diagnostic,
   type SourceNode,
   type ScalarValue,
@@ -70,7 +73,7 @@ export function checkProgramConnections(
           report("config.connection-target");
           continue;
         }
-        if (value.byte !== 0 || value.bit > 7) {
+        if (!validDirectAddress(value)) {
           diagnostics.push({
             code: "decl.address-out-of-range",
             severity: "error",
@@ -80,7 +83,7 @@ export function checkProgramConnections(
           });
           continue;
         }
-        if (resolveType(type, definition.types) !== "BOOL") {
+        if (!addressBinds(value, resolveType(type, definition.types))) {
           diagnostics.push({
             code: "decl.direct-address-type",
             severity: "error",
@@ -96,7 +99,7 @@ export function checkProgramConnections(
           output,
           endpoint: {
             kind: "address",
-            address: { area: value.area, byte: 0, bit: value.bit as DirectAddress["bit"] },
+            address: parseDirectAddress(value.text)!,
           },
         });
         continue;

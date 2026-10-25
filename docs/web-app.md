@@ -271,3 +271,18 @@ controls; global arrays and structures use the existing expansion/watch behavior
 A forced leaf stays visible when its group is collapsed. Global constants have no
 monitor rows. Configuration source editing, autosave and project save/open retain
 global and external declarations and CONSTANT attributes.
+
+## Direct address images and panel bindings
+
+The I/O image lists only addresses used by loaded program declarations, parameter
+connections, direct event-task inputs or the panel. It decodes each declaration/connection in its bound
+type, so an INT input at `%IW0` displays a signed number. Several types may view
+the same bytes. Memory variables appear in the variable monitor. Invalid
+REAL/LREAL patterns display a localized invalid label and raw hex bits without
+throwing or faulting the host.
+
+Buttons/selectors can bind any `%IX0.0`–`%IX63.7` bit; lamps can bind any
+`%QX0.0`–`%QX63.7` bit. The panel editor lists those addresses. Worker input
+commands carry address strings and typed values, preserving neighboring bits.
+Emergency stop masks every output immediately. Panel files read legacy bit
+bindings and save version 1 when possible, otherwise address-based version 2.

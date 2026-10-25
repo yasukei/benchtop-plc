@@ -71,6 +71,7 @@ const examples = {
   "decl.temp-address": {},
   "decl.parameter-address": {},
   "decl.at-multiple-names": {},
+  "decl.output-overlap": { address: "%QW0", other: "%QB0" },
   "decl.address-out-of-range": { address: "%IX1.0" },
   "decl.nonconstant-initializer": { name: "Counter" },
   "decl.fb-initializer": { name: "Timer" },

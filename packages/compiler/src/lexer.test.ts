@@ -163,7 +163,7 @@ describe("ST lexer", () => {
   it.each([
     "%IX0",
     "%Q0.1",
-    "%MX0.0",
+    "%ZX0.0",
     "%IXa.0",
     "%IX0.0foo",
     "%IX0.0.1",

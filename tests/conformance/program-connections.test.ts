@@ -9,25 +9,18 @@ import {
 } from "@benchtop-plc/runtime";
 
 const main = `PROGRAM Main VAR_INPUT In : BOOL; END_VAR VAR_OUTPUT Out : BOOL; END_VAR Out := In; END_PROGRAM`;
-function setup(instances: string, globals = "", program = main) {
+function setup(instances: string, globals = "", program = main, overlaps = 0) {
   const result = compileProject(
     [program],
     [],
     `CONFIGURATION Plant ${globals} RESOURCE Station ON Cpu TASK T (INTERVAL := T#10ms, PRIORITY := 1); ${instances} END_RESOURCE END_CONFIGURATION`,
   );
-  expect(result.diagnostics).toEqual([]);
+  expect(result.diagnostics.map((d) => d.code)).toEqual(
+    Array(overlaps).fill("decl.output-overlap"),
+  );
   const ir = structuredClone(result.ir!);
   const clock = new VirtualClock();
-  const inputs: import("@benchtop-plc/core").IoImage = [
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-  ];
+  const inputs: import("@benchtop-plc/core").IoImage = [0, ...Array<number>(63).fill(0)];
   const runtime = createRuntime({
     clock,
     ticker: new VirtualTicker(clock),
@@ -50,12 +43,11 @@ it("traces independent input/output connections on two instances", () => {
     [true, true],
     [false, false],
   ] as const) {
-    inputs[0] = a;
-    inputs[1] = b;
+    inputs[0] = Number(a) | (Number(b) << 1);
     clock.advance(10);
     expect(value("A.In")).toMatchObject({ value: a });
     expect(value("B.Out")).toMatchObject({ value: b });
-    expect(runtime.snapshot().outputs.slice(0, 2)).toEqual([a, b]);
+    expect(runtime.snapshot().outputs[0]).toBe(Number(a) | (Number(b) << 1));
   }
 });
 
@@ -113,6 +105,8 @@ it("restores a forced located source before input copies and a forced destinatio
   const { runtime, clock, id, value } = setup(
     "PROGRAM A WITH T : Main (In := %IX0.0, Out => %QX0.0);",
     "VAR_GLOBAL input AT %IX0.0 : BOOL; lamp AT %QX0.0 : BOOL; END_VAR",
+    main,
+    1,
   );
   runtime.force(id("input"), { dataType: "BOOL", value: true });
   runtime.force(id("lamp"), { dataType: "BOOL", value: false });
@@ -120,7 +114,7 @@ it("restores a forced located source before input copies and a forced destinatio
   clock.advance(10);
   expect(value("A.In")).toMatchObject({ value: true });
   expect(value("A.Out")).toMatchObject({ value: true });
-  expect(runtime.snapshot().outputs[0]).toBe(false);
+  expect(runtime.snapshot().outputs[0]).toBe(0);
 });
 
 it("faults on an out-of-range input copy before executing its instance", () => {

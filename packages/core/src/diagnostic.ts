@@ -41,6 +41,7 @@ export interface DiagnosticArgs {
   "decl.temp-address": NoArguments;
   "decl.parameter-address": NoArguments;
   "decl.at-multiple-names": NoArguments;
+  "decl.output-overlap": { address: string; other: string };
   "decl.address-out-of-range": { address: string };
   "decl.nonconstant-initializer": { name: string };
   "decl.fb-initializer": { name: string };

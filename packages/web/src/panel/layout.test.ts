@@ -25,10 +25,27 @@ describe("panel layout", () => {
     expect(new Set(layout.map((p) => p.id)).size).toBe(5);
     expect(addPart(layout, "estop", "Duplicate")).toBe(layout);
     expect(addressFor(assignAddress(layout[0]!, "%QX0.7"))).toBe("%QX0.7");
-    for (const address of ["%IX0.0", "%QX0.8", "%QX1.0", "bad"])
+    for (const address of ["%IX0.0", "%QX0.8", "%QX64.0", "bad"])
       expect(() => assignAddress(layout[0]!, address)).toThrow();
-    expect(assignAddress(layout[4]!, "%IX0.0").bit).toBeNull();
+    expect(assignAddress(layout[4]!, "%IX0.0").address).toBeNull();
   });
+  it.each([
+    ["pushbutton", "%ix0.00", "%IX0.0", "%IX0.1"],
+    ["selector", "%Ix03.05", "%IX3.5", "%IX0.0"],
+    ["led", "%qx00.00", "%QX0.0", "%QX0.1"],
+    ["led", "%Qx01.00", "%QX1.0", "%QX0.0"],
+  ] as const)(
+    "normalizes %s binding %s for address selection and allocation",
+    (kind, address, canonical, next) => {
+      const part = addPart([], kind, "Existing")[0]!;
+      const imported = readLayout([{ ...part, address }])!;
+      expect(imported[0]?.address).toBe(canonical);
+      expect(addPart(imported, kind, "New").at(-1)?.address).toBe(next);
+      const assigned = assignAddress(part, address);
+      expect(assigned.address).toBe(canonical);
+      expect(addPart([assigned], kind, "New").at(-1)?.address).toBe(next);
+    },
+  );
   it("moves with clamping, deletes only the target, and leaves prior layouts immutable", () => {
     const layout = addPart(addPart([], "led", "A"), "pushbutton", "B");
     const moved = movePart(layout, "1", -0.3, 2);
@@ -46,7 +63,7 @@ describe("panel layout", () => {
       {},
       [null],
       [{ ...layout[0], x: 2 }],
-      [{ ...layout[0], bit: null }],
+      [{ ...layout[0], address: null }],
       [{ ...layout[0], color: "purple" }],
       [layout[0], layout[0]],
       [{ ...layout[0], x: NaN }],

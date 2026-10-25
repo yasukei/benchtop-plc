@@ -1,4 +1,9 @@
-import { readStringLiteral, StringLiteralError, isCharacterType } from "@benchtop-plc/core";
+import {
+  parseDirectAddress,
+  readStringLiteral,
+  StringLiteralError,
+  isCharacterType,
+} from "@benchtop-plc/core";
 import type { DataType, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import { FrontendError } from "./diagnostic.js";
 
@@ -348,14 +353,9 @@ class Lexer {
     if (/[0-9]/.test(this.char)) return this.number(start, span, false);
     if (this.char === "%") {
       this.advance();
-      while (/[A-Za-z0-9_.%]/.test(this.char) && this.char) this.advance();
+      while (/[A-Za-z0-9_.%*]/.test(this.char) && this.char) this.advance();
       const address = this.source.slice(start, this.offset);
-      const parts = /^%[IQ]X([0-9]+)\.([0-9]+)$/i.exec(address);
-      if (
-        !parts ||
-        !Number.isSafeInteger(Number(parts[1])) ||
-        !Number.isSafeInteger(Number(parts[2]))
-      ) {
+      if (!parseDirectAddress(address)) {
         this.fail({
           code: "lex.malformed-direct-address",
           severity: "error",

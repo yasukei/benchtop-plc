@@ -63,8 +63,8 @@ unsupported; configuration sources can exchange several tasks.
 Our `addData/data` records use `handleUnknown="discard"`:
 
 - At the project root, `https://github.com/yasukei/benchtop-plc/ns/panel/1` contains
-  a `panel` element in that namespace with `version="1"`; its text is the JSON
-  layout. Missing panel data imports as `null`.
+  a `panel` element in that namespace with `version="1"` or `version="2"`; its text is
+  the JSON layout. Missing panel data imports as `null`.
 - Inside each `<pou>`, `<dataType>` and `<configuration>`, `https://github.com/yasukei/benchtop-plc/ns/source/1`
   contains a `source` element in that namespace with `version="1"`; its text
   preserves that source's exact spelling, comments, grouping, whitespace and line
@@ -313,3 +313,17 @@ reader rebuilds configuration text whenever globals exist, even for one task and
 one program. Standard XML remains authoritative when an initial value, type or
 constant attribute differs from the extension. Unsupported retention attributes
 remain errors. Existing files without globals open unchanged.
+
+## Direct addresses and panel extension version 2
+
+TC6 variable `address` attributes preserve I/Q/M addresses with X/B/W/D/L sizes,
+on PROGRAM locals and globals. Exact source text and generated declarations
+round trip these forms; size/type and area validity are compiler checks.
+
+Panel version 1 uses `bit: n` for byte-zero controls. The web reader maps it to
+`%IX0.n` for inputs and `%QX0.n` for lamps. Version 2 uses `address` strings on
+every part, for example `"address": "%QX1.0"`; emergency stop uses `null`.
+The writer emits version 1 with the original bit bindings whenever every part is
+representable in byte zero, and version 2 otherwise. A 0.5.0 layout therefore saves
+back as version 1. Older apps reject version 2 as `project.unsupported`.
+Numeric panel parts are deferred to #156.

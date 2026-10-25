@@ -59,7 +59,7 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
     key: "INPUT",
     dataType: "BOOL",
     initialValue: false,
-    address: { area: "I", byte: 0, bit: 0 },
+    address: { area: "I", size: "X", byte: 0, bit: 0 },
     span: ir.span,
   });
   await page.evaluate((encodedIr) => {

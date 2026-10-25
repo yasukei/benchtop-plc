@@ -1,5 +1,5 @@
 import type { CommandRejectionCode, Diagnostic } from "./diagnostic.js";
-import type { ConfigurationIR, IoBit, ProgramIR, VariableId } from "./ir.js";
+import type { ConfigurationIR, ProgramIR, VariableId } from "./ir.js";
 import type { SourceSpan } from "./source.js";
 import type { TypedValue } from "./values.js";
 
@@ -13,13 +13,13 @@ export type UiToRuntimeMessage =
   | { type: "step" }
   | { type: "coldReset" }
   | { type: "setCycle"; ms: number }
-  | { type: "setInput"; bit: IoBit; value: boolean }
+  | { type: "setInput"; address: string; value: TypedValue }
   | { type: "force"; variable: VariableId; value: TypedValue | null }
   | { type: "write"; variable: VariableId; value: TypedValue }
   | { type: "estop"; active: boolean };
 
-/** Bit n corresponds to %IX0.n or %QX0.n. */
-export type IoImage = [boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean];
+/** Exactly 64 bytes (0–255), in ascending byte order. */
+export type IoImage = number[];
 
 export interface ReferenceValue {
   kind: "reference";
@@ -28,6 +28,7 @@ export interface ReferenceValue {
 export type InlineValue = TypedValue | ReferenceValue;
 export type VariableSnapshot =
   | ReferenceValue
+  | { kind: "invalidReal"; bits: string }
   | (TypedValue & { kind: "scalar" })
   | { kind: "functionBlock"; inputs: TypedValue[]; outputs: TypedValue[] };
 
