@@ -89,7 +89,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `FUNCTION`                 | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
 | `FUNCTION_BLOCK`           | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
 | Methods on function blocks | Yes     | ADR 0017: access by type, fresh locals, formal/positional calls; no instance VAR_IN_OUT in methods                                                                         |
-| Classes                    | Yes     | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; see class restrictions                                                                       |
+| Classes                    | Partial | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; no EXTENDS/ABSTRACT/FINAL/IMPLEMENTS yet (#177, #178); see class restrictions                |
 | Interfaces                 | No      |                                                                                                                                                                            |
 | Namespaces                 | No      |                                                                                                                                                                            |
 
