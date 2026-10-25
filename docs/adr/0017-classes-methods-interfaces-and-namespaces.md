@@ -354,15 +354,20 @@ about 4th edition clauses. The checks and project restrictions below are tracked
   after `EXTENDS` and `IMPLEMENTS`. An unknown namespace is a compile error.
 - Resolution of a simple name used as a type, POU, class or interface, after local
   variables:
-  1. the source's own namespace, then each enclosing namespace outward;
+  1. the source's own namespace, then each enclosing namespace outward, stopping before
+     the global namespace. A source without a namespace skips this stage.
   2. then the names imported by `USING` together with the global namespace (including
      standard names). A name found in more than one of these is ambiguous, a compile
      error where it is used; it can still be written qualified.
 
-  A qualified name (`Conveyor.Devices.Motor`) is always resolved from the global
-  namespace. Example: with `Conveyor.Motor` and `Lift.Motor`, a source with
-  `USING Conveyor, Lift;` that writes `m : Motor;` is a compile error, and
-  `m : Lift.Motor;` is accepted.
+  The first stage that finds the name wins. A qualified name (`Conveyor.Devices.Motor`)
+  is always resolved from the global namespace. Examples:
+  - With `Conveyor.Motor` and `Lift.Motor`, a source with `USING Conveyor, Lift;` that
+    writes `m : Motor;` is a compile error, and `m : Lift.Motor;` is accepted.
+  - With a global `Motor` and `Lift.Motor`, a source without a namespace that has
+    `USING Lift;` and writes `m : Motor;` is a compile error, since stage 2 finds both.
+  - With a global `Motor` and `Conveyor.Motor`, `m : Motor;` in a source in
+    `Conveyor.Devices` selects `Conveyor.Motor` in stage 1, whatever its `USING`.
 
 - `INTERNAL` follows the declaration keyword inside a namespace
   (`CLASS INTERNAL Helper`, `FUNCTION INTERNAL Scale : REAL`, `TYPE INTERNAL Mode : ...`)
@@ -466,10 +471,19 @@ This ADR adds no diagnostic code. Rows added to the run-time error table of ADR 
 - Access specifiers, `ABSTRACT`, `FINAL`, `EXTENDS`, `IMPLEMENTS` and `USING` exist
   only in the source text (restriction).
 - A 0.6.0 file opens unchanged unless one of its texts uses a new reserved word as a
-  name. Such a text no longer parses, and the file is rejected with `project.invalid`,
-  as any unparsable text is today; the user renames the name in 0.6.0 first. The
-  changelog says so. A project that uses none of the new features saves as 0.6.0
-  wrote it.
+  name; the user then renames it in 0.6.0 first, and the changelog says so. A project
+  that uses none of the new features saves as 0.6.0 wrote it. Such a file is rejected
+  with `project.invalid` in both places a name can appear:
+  - Text generated from the standard elements (a variable or POU named `Class`) no
+    longer parses, which already rejects the file today.
+  - A preserved source extension text that does not parse would today fall back to the
+    standard elements with `project.stale-source`. This changes: when the text fails to
+    parse because a new reserved word stands where a name is expected, the file is
+    rejected with `project.invalid` instead. This covers names that exist only in the
+    source text, such as the resource type in `RESOURCE R ON Class` (TC6 does not store
+    it), and keeps the file from silently losing what only the source text holds, such
+    as program parameter connections (ADR 0016). Other unparsable preserved texts keep
+    the `project.stale-source` fallback.
 
 ### Web app
 
@@ -544,7 +558,8 @@ forbids other behavior:
   only in the source text of the project file; derived function blocks write only
   their own variables; interfaces live in a project-root `addData` record and are
   listed after data types; qualified names are written in TC6 `name` attributes.
-- A 0.6.0 file that uses a new reserved word as a name is rejected on open.
+- A 0.6.0 file that uses a new reserved word as a name is rejected on open, including
+  when the name appears only in a preserved source text.
 
 Issue #92 records each item. If a decision changes, the corresponding item there must
 change with it. This ADR does not update `docs/compliance.md`: each implementing
