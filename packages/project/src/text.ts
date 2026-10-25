@@ -85,9 +85,12 @@ export function splitProgram(
   const end = tokens!.find(
     (token) =>
       token.key ===
-      { program: "END_PROGRAM", function: "END_FUNCTION", functionBlock: "END_FUNCTION_BLOCK" }[
-        ast.kind
-      ],
+      {
+        program: "END_PROGRAM",
+        function: "END_FUNCTION",
+        functionBlock: "END_FUNCTION_BLOCK",
+        class: "END_CLASS",
+      }[ast.kind],
   )!.span;
   const variables: VariableDeclaration[] = [];
   for (const declaration of ast.declarations) {
@@ -352,11 +355,12 @@ export function splitProgram(
     };
   return {
     value: {
-      kind: ast.kind,
+      kind: ast.kind === "class" ? "functionBlock" : ast.kind,
       name: ast.name.name,
       ...(returnType ? { returnType } : {}),
       variables,
-      body: source.slice(offset(source, start, true), offset(source, end)),
+      body:
+        ast.kind === "class" ? "" : source.slice(offset(source, start, true), offset(source, end)),
     },
     diagnostics: [],
   };

@@ -140,6 +140,14 @@ export function PouList({
       >
         {text.addFunctionBlock}
       </button>
+      <button
+        onClick={() => {
+          setDeleting(null);
+          store.addClass();
+        }}
+      >
+        {text.addClass}
+      </button>
       <ul>
         {state.pous.map((pou, index) => (
           <li key={index}>

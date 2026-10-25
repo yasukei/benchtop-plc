@@ -244,7 +244,8 @@ class Checker {
           section.name !== "VAR_EXTERNAL" &&
           section.name !== "VAR_INPUT" &&
           section.name !== "VAR_OUTPUT") ||
-        (ast.kind === "function" && ["VAR_TEMP", "VAR_EXTERNAL"].includes(section.name))
+        (ast.kind === "function" && ["VAR_TEMP", "VAR_EXTERNAL"].includes(section.name)) ||
+        (ast.kind === "class" && !["VAR", "VAR_EXTERNAL"].includes(section.name))
       )
         this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
     }
@@ -366,7 +367,9 @@ class Checker {
         types = [...new Set([...shared, ...types])];
         this.globals.bindings.set(symbol.external, types);
       }
-      const owner = this.ast.owner ?? (this.ast.kind === "functionBlock" ? this.ast : undefined);
+      const owner =
+        this.ast.owner ??
+        (["functionBlock", "class"].includes(this.ast.kind) ? this.ast : undefined);
       if (owner && !symbol.external && this.globals?.memberBindings) {
         const key = `${owner.name.key}.${symbol.name.key}`;
         types = [...new Set([...(this.globals.memberBindings.get(key) ?? []), ...types])];
@@ -1048,7 +1051,16 @@ class Checker {
   ): TypeDescriptor | undefined {
     const checked = this.interfaces.get(pou);
     const reference = checked?.references.get(declaration.names[0]);
-    if (reference) return checked!.symbols[reference.variable]?.descriptor;
+    if (reference) {
+      const symbol = checked!.symbols[reference.variable];
+      if (symbol?.descriptor) return symbol.descriptor;
+      if (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
+        return {
+          kind: "functionBlock",
+          name: symbol.type,
+          ...(symbol.userBlock !== undefined ? { block: symbol.userBlock } : {}),
+        };
+    }
     return this.descriptor(
       declaration.typeName,
       declaration.subrange,
@@ -1082,7 +1094,10 @@ class Checker {
     instance = false,
   ): ExpressionInfo | null {
     if (node.kind === "member" && node.instance.key === "THIS") {
-      if (!(this.ast.owner ?? (this.ast.kind === "functionBlock" ? this.ast : undefined))) {
+      if (!(
+        this.ast.owner ??
+        (["functionBlock", "class"].includes(this.ast.kind) ? this.ast : undefined)
+      )) {
         this.report("method.this-outside", {}, node.instance.span);
         return null;
       }
@@ -1118,7 +1133,8 @@ class Checker {
       if (
         (node.object.kind === "member" || node.object.kind === "field") &&
         this.references.get(node.object.member)?.port &&
-        !this.aggregate(object)
+        !this.aggregate(object) &&
+        !(typeof object.descriptor === "object" && object.descriptor.kind === "functionBlock")
       ) {
         this.report(
           "fb.unknown-member",
@@ -1764,7 +1780,8 @@ class Checker {
       this.report("method.this-call", {}, node.span);
       return null;
     }
-    const owner = this.ast.owner ?? (this.ast.kind === "functionBlock" ? this.ast : undefined);
+    const owner =
+      this.ast.owner ?? (["functionBlock", "class"].includes(this.ast.kind) ? this.ast : undefined);
     if (node.receiver || owner?.methods?.some((m) => m.name.key === node.name.key))
       return this.methodCall(node, statement, owner);
     if (node.name.key === "REF") {
@@ -2378,7 +2395,7 @@ class Checker {
   }
 
   private blockCall(node: AST.FunctionCall): void {
-    const symbol = this.resolve(node.name);
+    let symbol = this.resolve(node.name);
     if (!symbol) return;
     if (isScalar(symbol.type)) {
       this.report("fb.not-function-block", { name: node.name.name }, node.name.span);
@@ -2392,8 +2409,18 @@ class Checker {
         this.report("fb.not-function-block", { name: node.name.name }, node.span);
         return;
       }
+      symbol = {
+        ...symbol,
+        type: info.descriptor.name,
+        descriptor: undefined,
+        userBlock: info.descriptor.block,
+      };
     } else if (symbol.descriptor && arrayType(symbol.descriptor, this.types)) {
       this.report("fb.not-function-block", { name: node.name.name }, node.span);
+      return;
+    }
+    if (this.pous.get(symbol.type)?.kind === "class") {
+      this.report("class.not-callable", { name: node.name.name }, node.span);
       return;
     }
     if (this.ast.kind === "function" && !this.ast.owner)
@@ -2548,7 +2575,8 @@ class Checker {
             (!node.call.receiver ||
               (node.call.receiver.kind === "name" &&
                 node.call.receiver.name.key === "THIS" &&
-                (this.ast.owner !== undefined || this.ast.kind === "functionBlock"))) &&
+                (this.ast.owner !== undefined ||
+                  ["functionBlock", "class"].includes(this.ast.kind)))) &&
             (node.call.instance ||
               (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined)))
           )

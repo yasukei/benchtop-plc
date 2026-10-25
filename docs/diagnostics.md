@@ -451,3 +451,18 @@ Inaccessible data members retain `fb.unknown-member`. Method parameters, section
 restrictions, missing results, assignment types and recursion reuse function/POU
 codes. Runtime faults use `Type.Method` in `pou`, retain a span in the owning block
 text and include `instance` when the receiver path is known.
+
+## Class diagnostics
+
+| Code                 | Arguments | Meaning                                                   |
+| -------------------- | --------- | --------------------------------------------------------- |
+| `class.body`         | None      | Statements outside a class method                         |
+| `class.not-callable` | `name`    | Calling a class instance body, including an array element |
+
+Class sections reuse `pou.invalid-section` with kind `"class"`; AT reuses
+`pou.direct-address`. Instance placement, constants, initializers and structure
+members reuse `fb.invalid-instance-section`, `pou.function-block-in-function`,
+`decl.constant-type`, `decl.fb-initializer` and `decl.structure-member-type`.
+Hidden data members reuse `fb.unknown-member`, and hidden methods use
+`access.hidden`. Containment and call cycles use `pou.recursion`. A variable named
+like a class uses `decl.name-collision` with kind `"type"`.

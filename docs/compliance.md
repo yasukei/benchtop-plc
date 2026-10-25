@@ -89,7 +89,8 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `FUNCTION`                 | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
 | `FUNCTION_BLOCK`           | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
 | Methods on function blocks | Yes     | ADR 0017: access by type, fresh locals, formal/positional calls; no instance VAR_IN_OUT in methods                                                                         |
-| Classes, interfaces        | No      |                                                                                                                                                                            |
+| Classes                    | Yes     | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; see class restrictions                                                                       |
+| Interfaces                 | No      |                                                                                                                                                                            |
 | Namespaces                 | No      |                                                                                                                                                                            |
 
 ## Operators and statements (ST)
@@ -349,3 +350,15 @@ and their indexed elements can be called through THIS; bounds faults identify th
 member array in the instance path. Recursion is
 rejected conservatively across methods, functions and block bodies. These rules
 follow the 3rd edition and project restrictions, pending 4th edition verification.
+
+## Class restrictions (ADR 0017)
+
+CLASS has VAR/VAR_EXTERNAL and methods, with no body, parameter sections, VAR_TEMP
+or AT. Instances follow the function block placement rules, including globals and
+inline arrays; they cannot be called, initialized, CONSTANT, parameters, structure
+members or function/method locals. Containment cycles are rejected. Access defaults
+to PROTECTED and is checked by type; monitoring ignores it. RETAIN/NON_RETAIN work
+for class instances and members. TC6 carries classes as empty function blocks with
+exact text in the source extension. Inheritance, interfaces, references to instances
+and namespaces remain unsupported. These are 3rd-edition-based semantics and project
+restrictions; 4th-edition verification remains pending.

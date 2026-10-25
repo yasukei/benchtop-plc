@@ -86,6 +86,8 @@ const examples = {
   "access.duplicate": {},
   "access.invalid-section": {},
   "access.hidden": { name: "M" },
+  "class.body": {},
+  "class.not-callable": { name: "valve" },
   "method.invalid-owner": {},
   "method.name-collision": { name: "M" },
   "method.unknown": { name: "M" },

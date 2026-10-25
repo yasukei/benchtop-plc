@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Classes with persistent members, methods and THIS, instance arrays and globals,
+  access checks and RETAIN/NON_RETAIN restart behavior. Add a class from the source
+  list and monitor, write or force its members regardless of access. Project files
+  keep exact class sources; other TC6 tools see empty function blocks.
+
 - ADR 0017 documents the accepted design for methods, classes, inheritance,
   interfaces, references to instances and namespaces for Milestone 7.
 - Function block methods with instance storage, fresh call-local variables,
@@ -20,6 +25,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   their bounds faults identify the member array in the instance path.
 
 ### Changed
+
+- CLASS and END_CLASS are now reserved. Affected 0.6.0 project texts open as
+  editable drafts, keeping preserved source or generating it from standard XML.
+  Autosave keeps drafts; rename the identifiers before running or exporting.
 
 - METHOD, END_METHOD, THIS, PUBLIC, PROTECTED, PRIVATE and INTERNAL are now reserved.
   Affected 0.6.0 project texts open as editable drafts, preserving source extensions

@@ -354,3 +354,14 @@ Older project texts using a newly reserved method keyword as an identifier open
 in the editor with parse diagnostics. RUN and file export remain blocked until the
 text parses; autosave preserves the draft across reloads. Rename the identifier to
 resume running and saving the project.
+
+## Classes
+
+**Add class** appends a uniquely named CLASS template with one empty PUBLIC Run
+method and selects it. The source list labels it CLASS; editing, deletion and
+autosave work as for function blocks, including incomplete class drafts.
+A PROGRAM can declare an instance and call its methods. The monitor shows dotted
+class members with the same value, write and force controls as block members,
+regardless of access. Constants and method locals are absent. Class method results
+in PROGRAM bodies have inline values; class method bodies do not. Save and reopen
+preserve exact class text through the project source extension.

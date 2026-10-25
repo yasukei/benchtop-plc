@@ -420,3 +420,18 @@ method definitions. A `userFunctionCall` with `method` indexes that block's meth
 with `function`; `method.receiver` selects explicit instance storage, including
 indexed or nested instances. Its absence means the current instance (`THIS`).
 The checked compiler AST's owner links never cross the IR boundary.
+
+## Class definitions and storage
+
+Classes share `UserFunctionBlockIR`, the `functionBlocks` definition table and
+`UserFunctionBlockStorage` with user blocks. `kind: "class"` identifies a class;
+`kind` absent (or `"functionBlock"`) identifies a block for compatibility with
+existing IR producers. A class has an empty body, input/output lists and temporary
+list. Its methods use the same `UserMethodIR`, method table and receiver slots.
+The instance's `block` index identifies its actual type, including for arrays and
+nested instances. The compiler rejects class body calls before lowering.
+
+Class scalar non-CONSTANT members expand into the same flat monitored variable
+table, independent of access. Existing runtime, snapshot, write/force, retention,
+web monitor and conformance consumers use that shared layout; no new wire message
+or snapshot variant is required.

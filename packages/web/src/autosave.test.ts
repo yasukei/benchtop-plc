@@ -536,3 +536,18 @@ it("keeps retained records while autosaved source fails compilation and restores
   expect(freshWorker.sent.at(-1)).toMatchObject({ type: "load", retentive: [] });
   autosave.dispose();
 });
+
+it("autosaves class drafts and restores their source kind", () => {
+  vi.useFakeTimers();
+  const { store, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  store.addClass();
+  store.setSource("CLASS Class1\nMETHOD PUBLIC Run\n");
+  vi.advanceTimersByTime(500);
+  expect(readAutosave(storage)?.pous.at(-1)).toMatchObject({
+    kind: "CLASS",
+    name: "Class1",
+    source: "CLASS Class1\nMETHOD PUBLIC Run\n",
+  });
+  autosave.dispose();
+});

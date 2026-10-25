@@ -267,3 +267,21 @@ user functions do, and can appear as statements or, with a result type, expressi
 The recursion graph includes methods as distinct nodes, including unreachable
 methods and cycles through functions or block bodies. Member and method access is
 checked by declaring type; all types currently share the global namespace.
+
+## Classes
+
+`CLASS Name ... END_CLASS` groups persistent data and methods without a body.
+It accepts `VAR` (access before CONSTANT/RETAIN/NON_RETAIN) and `VAR_EXTERNAL`.
+Access defaults to PROTECTED; method scope, THIS, parameters, result types and
+access checks are the same as for function blocks. Class statements must be in
+methods. VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR_TEMP and AT in a class are errors.
+
+Instances are allowed in PROGRAM, function block and class VAR sections, globals,
+and inline instance arrays. Parameters, structure members, temporaries, FUNCTION
+and method locals, CONSTANT instances and instance initializers are rejected as
+for function blocks. A class can contain block or class instances, but no direct
+or indirect containment cycle is allowed. Class names join the shared namespace;
+a variable with a class name reports `decl.name-collision` with kind `"type"`.
+`v()` reports `class.not-callable`; call `v.Open()` instead. Definitions and methods
+are shared in the IR, while each instance has independent storage.
+Inheritance, interfaces, instance references and namespaces remain unsupported.

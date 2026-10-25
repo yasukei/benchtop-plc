@@ -344,7 +344,10 @@ export interface UserFunctionBlockStorage {
   path: string;
   storage: InstanceStorage[];
 }
+/** Shared instance definitions. The legacy table name includes classes, whose body is empty. */
 export interface UserFunctionBlockIR extends SourceNode {
+  /** Absent denotes a function block, preserving existing IR producers. */
+  kind?: "functionBlock" | "class";
   methods?: UserMethodIR[];
   /** Case-insensitive method name to implementation index. */
   methodTable?: Record<string, number>;

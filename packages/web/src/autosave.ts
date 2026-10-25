@@ -112,7 +112,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
             record(pou) &&
             typeof pou.source === "string" &&
             typeof pou.name === "string" &&
-            ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(pou.kind as string),
+            ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS"].includes(pou.kind as string),
         )
       )
         return null;

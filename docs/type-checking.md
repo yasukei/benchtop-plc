@@ -642,3 +642,17 @@ Block inputs and outputs keep their existing public access and output write rule
 method in an expression reports `call.no-result`; result assignment uses ordinary
 type rules. Recursion through any combination of methods, functions and bodies is
 rejected with `pou.recursion`.
+
+## Class instance rules
+
+Classes use the same block-identity and instance-array checks as user function
+blocks. Their VAR members and methods default to PROTECTED and access is checked
+by declaring type, including across different instances. Hidden variables report
+`fb.unknown-member`; hidden methods report `access.hidden`. THIS resolves the
+current class's members and methods. A class permits only VAR and VAR_EXTERNAL;
+AT reports `pou.direct-address`. Class instance calls report `class.not-callable`.
+
+Instance declarations are limited to persistent VAR and globals, including inline
+arrays. Existing instance placement, initializer, constant and structure-member
+diagnostics apply to classes too. The shared containment/call graph rejects
+self-containment through classes or function blocks and recursion through methods.

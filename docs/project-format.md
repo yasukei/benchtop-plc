@@ -388,3 +388,17 @@ Draft data types remain unknown while reading other texts, which keep their exac
 source. Other damaged preserved text still falls back with `project.stale-source`;
 invalid XML, unsupported elements and invalid initializers still reject the file.
 Drafts cannot be exported until their reserved names are renamed.
+
+## Classes
+
+A CLASS source writes its own variable sections as a standard TC6
+`pouType="functionBlock"` POU with an empty ST body. Its source extension keeps the
+exact class text, including methods, access and formatting. For stale-source
+comparison, CLASS matches functionBlock only when the standard body is empty
+(whitespace is allowed), with matching name and declarations. A changed standard
+body or declaration falls back with `project.stale-source`. Removing the source
+extension imports an ordinary empty function block, losing class/method semantics.
+
+CLASS and END_CLASS join the reserved-identifier draft opening path for 0.6.0 files,
+with or without source extensions. Drafts remain editable and autosaved, but cannot
+run or be saved to a file until the identifiers are renamed.
