@@ -161,3 +161,19 @@ it("saves a lamp beyond byte zero as version 2 and opens it with its address", (
   expect(xml).not.toContain("&quot;bit&quot;");
   expect(openPanelProject(xml)?.layout).toEqual(layout);
 });
+
+it("round trips numeric parts as version 2 and returns to version 1 when removed", () => {
+  const input = { ...addPart([], "numericInput", "Setpoint")[0]!, min: -10, max: 100 };
+  const display = {
+    ...addPart([input], "numericDisplay", "")[1]!,
+    address: "%QD1",
+    dataType: "REAL" as const,
+  };
+  const layout = [input, display];
+  const xml = savePanelProject([demoSource], layout, 10, null, [])!;
+  expect(xml).toContain('<panel:panel version="2">');
+  expect(openPanelProject(xml)?.layout).toEqual(layout);
+  expect(savePanelProject([demoSource], addPart([], "led", "Lamp"), 10, null, [])).toContain(
+    '<panel:panel version="1">',
+  );
+});

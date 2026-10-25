@@ -1,6 +1,24 @@
-import { formatDirectAddress, parseDirectAddress, validDirectAddress } from "@benchtop-plc/core";
+import { validNumericBounds } from "./numeric.js";
+import {
+  addressBinds,
+  addressBytes,
+  addressOffset,
+  addressTypes,
+  formatDirectAddress,
+  parseDirectAddress,
+  validDirectAddress,
+  type DataType,
+  type DirectAddress,
+} from "@benchtop-plc/core";
 
-export const partKinds = ["led", "pushbutton", "selector", "estop"] as const;
+export const partKinds = [
+  "led",
+  "pushbutton",
+  "selector",
+  "estop",
+  "numericInput",
+  "numericDisplay",
+] as const;
 export const ledColors = ["green", "amber", "red", "blue", "white"] as const;
 export const buttonColors = ["green", "red", "yellow", "blue", "black", "white"] as const;
 export type PartKind = (typeof partKinds)[number];
@@ -24,6 +42,26 @@ export interface PanelPart {
   y: number;
   address: string | null;
   color: PartColor;
+  dataType?: DataType;
+  min?: number;
+  max?: number;
+}
+export function isNumericPart(part: Pick<PanelPart, "kind">): boolean {
+  return part.kind === "numericInput" || part.kind === "numericDisplay";
+}
+export function partSize(part: Pick<PanelPart, "kind">): PanelSize {
+  return isNumericPart(part) ? { width: 144, height: 84 } : partFootprint;
+}
+export function panelAddresses(part: Pick<PanelPart, "kind" | "dataType">): string[] {
+  const area = part.kind === "led" || part.kind === "numericDisplay" ? "Q" : "I";
+  if (!isNumericPart(part))
+    return Array.from({ length: 512 }, (_, n) => `%${area}X${Math.floor(n / 8)}.${n % 8}`);
+  const size = (["B", "W", "D", "L"] as const).find((size) =>
+    addressTypes[size].includes(part.dataType!),
+  );
+  return size
+    ? Array.from({ length: 64 / addressBytes[size] }, (_, n) => `%${area}${size}${n}`)
+    : [];
 }
 export type PanelLayout = PanelPart[];
 const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
@@ -35,21 +73,28 @@ export function assignAddress(part: PanelPart, address: string): PanelPart {
   const parsed = parseDirectAddress(address);
   if (
     !parsed ||
-    parsed.size !== "X" ||
+    (isNumericPart(part)
+      ? parsed.size === "X" || !addressBinds(parsed, part.dataType)
+      : parsed.size !== "X") ||
     !validDirectAddress(parsed) ||
-    parsed.area !== (part.kind === "led" ? "Q" : "I")
+    parsed.area !== (part.kind === "led" || part.kind === "numericDisplay" ? "Q" : "I")
   )
     throw new RangeError("Invalid panel address");
   return { ...part, address: formatDirectAddress(parsed) };
 }
-/** Search row by row using the same fixed footprint in edit and operate modes. */
-export function findPartPosition(layout: PanelLayout, size: PanelSize): { x: number; y: number } {
+/** Search row by row using each part's footprint in edit and operate modes. */
+export function findPartPosition(
+  layout: PanelLayout,
+  size: PanelSize,
+  kind: PartKind = "led",
+): { x: number; y: number } {
   if (
     Number.isFinite(size.width) &&
     Number.isFinite(size.height) &&
     size.width > 0 &&
     size.height > 0
   ) {
+    const footprint = partSize({ kind });
     const spacingX = partFootprint.width + 8;
     const spacingY = partFootprint.height + 8;
     for (let top = 0; top <= size.height; top += spacingY) {
@@ -57,7 +102,8 @@ export function findPartPosition(layout: PanelLayout, size: PanelSize): { x: num
         if (
           layout.every(
             (part) =>
-              Math.abs(part.x * size.width - left) >= spacingX ||
+              Math.abs(part.x * size.width - left) >=
+                (partSize(part).width + footprint.width) / 2 + 8 ||
               Math.abs(part.y * size.height - top) >= spacingY,
           )
         )
@@ -66,6 +112,34 @@ export function findPartPosition(layout: PanelLayout, size: PanelSize): { x: num
     }
   }
   return { x: 0.5, y: 0.5 };
+}
+/** Compare bit ranges so separate bit controls can still share a byte. */
+function addressRange(address: DirectAddress) {
+  const start = addressOffset(address) * 8 + (address.size === "X" ? address.bit : 0);
+  return {
+    area: address.area,
+    start,
+    end: start + (address.size === "X" ? 1 : addressBytes[address.size] * 8),
+  };
+}
+function defaultAddress(layout: PanelLayout, kind: PartKind): string | null {
+  if (kind === "estop") return null;
+  const occupied = layout.flatMap((part) => {
+    const address = part.address && parseDirectAddress(part.address);
+    return address ? [addressRange(address)] : [];
+  });
+  const addresses = panelAddresses({ kind, dataType: "INT" });
+  return (
+    addresses.find((text) => {
+      const candidate = addressRange(parseDirectAddress(text)!);
+      return occupied.every(
+        (existing) =>
+          candidate.area !== existing.area ||
+          candidate.end <= existing.start ||
+          existing.end <= candidate.start,
+      );
+    }) ?? addresses[0]!
+  );
 }
 export function addPart(
   layout: PanelLayout,
@@ -76,20 +150,15 @@ export function addPart(
   if (kind === "estop" && layout.some((part) => part.kind === "estop")) return layout;
   let id = 1;
   while (layout.some((part) => part.id === String(id))) id++;
-  const area = kind === "led" ? "Q" : "I";
-  const used = layout.filter((part) => addressFor(part).startsWith(`%${area}`));
-  const bit =
-    Array.from({ length: 512 }, (_, bit) => bit).find(
-      (bit) => !used.some((part) => part.address === `%${area}X${Math.floor(bit / 8)}.${bit % 8}`),
-    ) ?? 0;
   return [
     ...layout,
     {
       id: String(id),
       kind,
       label,
-      ...findPartPosition(layout, size),
-      address: kind === "estop" ? null : `%${area}X${Math.floor(bit / 8)}.${bit % 8}`,
+      ...findPartPosition(layout, size, kind),
+      address: defaultAddress(layout, kind),
+      ...(isNumericPart({ kind }) ? { dataType: "INT" as const } : {}),
       color: "green",
     },
   ];
@@ -120,9 +189,10 @@ export function readLayout(value: unknown): PanelLayout | null {
     if (
       typeof p.id !== "string" ||
       ids.has(p.id) ||
-      typeof p.label !== "string" ||
+      (typeof p.label !== "string" && !(isNumericPart(p as PanelPart) && p.label === undefined)) ||
       !partKinds.includes(p.kind!) ||
       !(
+        (isNumericPart(p as PanelPart) && p.color === undefined) ||
         colorsFor(p.kind!).includes(p.color!) ||
         ((p.kind === "pushbutton" || p.kind === "selector") && p.color === "amber")
       ) ||
@@ -137,23 +207,33 @@ export function readLayout(value: unknown): PanelLayout | null {
       (p.kind === "estop"
         ? address !== null
         : !parsed ||
-          parsed.size !== "X" ||
+          (isNumericPart(p as PanelPart)
+            ? parsed.size === "X" || !addressBinds(parsed, p.dataType)
+            : parsed.size !== "X") ||
           !validDirectAddress(parsed) ||
-          parsed.area !== (p.kind === "led" ? "Q" : "I"))
+          parsed.area !== (p.kind === "led" || p.kind === "numericDisplay" ? "Q" : "I")) ||
+      (isNumericPart(p as PanelPart) && !validNumericBounds(p as PanelPart))
     )
       return null;
     ids.add(p.id);
     parts.push({
       id: p.id,
-      label: p.label,
+      label: p.label ?? "",
       kind: p.kind!,
       color:
         (p.kind === "pushbutton" || p.kind === "selector") && p.color === "amber"
           ? "yellow"
-          : p.color!,
+          : (p.color ?? "green"),
       x: p.x,
       y: p.y,
       address: address === null ? null : formatDirectAddress(parsed!),
+      ...(isNumericPart(p as PanelPart)
+        ? {
+            dataType: p.dataType!,
+            ...(p.min === undefined ? {} : { min: p.min }),
+            ...(p.max === undefined ? {} : { max: p.max }),
+          }
+        : {}),
     });
   }
   return parts.filter((p) => p.kind === "estop").length > 1 ? null : parts;

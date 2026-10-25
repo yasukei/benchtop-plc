@@ -1,6 +1,6 @@
 import { readProject, splitProgram, writeProject, type Project } from "@benchtop-plc/project";
 import packageJson from "../../package.json" with { type: "json" };
-import { readLayout, type PanelLayout } from "./layout.js";
+import { isNumericPart, readLayout, type PanelLayout } from "./layout.js";
 
 export function serializePanelProject(
   sources: string[],
@@ -34,7 +34,20 @@ export function serializePanelProject(
       ...(project?.task ?? { name: "Cyclic", priority: 1 }),
       interval: `PT${cycleMs / 1000}S`,
     },
-    panel: layout.map((part) => ({ ...part })),
+    panel: layout.map((part) => {
+      if (!isNumericPart(part)) return { ...part };
+      return {
+        id: part.id,
+        kind: part.kind,
+        label: part.label,
+        x: part.x,
+        y: part.y,
+        address: part.address,
+        dataType: part.dataType!,
+        ...(part.min === undefined ? {} : { min: part.min }),
+        ...(part.max === undefined ? {} : { max: part.max }),
+      };
+    }),
   });
   return result;
 }

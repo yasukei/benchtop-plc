@@ -47,7 +47,7 @@ export function imageViews(state: ImageState): ImageView[] {
     if ("single" in task && task.single.kind === "address") add(task.single.address, "BOOL");
   for (const part of state.layout) {
     const address = part.address && parseDirectAddress(part.address);
-    if (address) add(address, "BOOL");
+    if (address) add(address, part.dataType ?? "BOOL");
   }
   return [...views.values()];
 }
