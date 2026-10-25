@@ -384,3 +384,12 @@ use the same editor and diagnostic navigation, and survive save/open and autosav
 Labels and interface diagnostics are available in English and Japanese. Interface
 variables display their target instance path or NULL in the monitor and inline
 values; reference rows offer no write or force controls.
+
+## Monitoring instance references
+
+`REF_TO Motor` and class reference rows show the target instance's path, including
+array indices, or NULL. They have no write/force controls. The target's members
+remain at their own monitor paths; calls and writes through references update
+those values. Save/reopen preserves reference declarations and method/body call
+text, and loading the project resets reference bindings to NULL. Invalid casts,
+access and lifetime errors and NULL faults use the English/Japanese catalog.

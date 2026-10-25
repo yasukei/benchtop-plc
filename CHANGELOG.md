@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- References to user function block and class instances (`REF_TO Motor`, `REF(inst)`
+  and `REF(THIS)`). Dereferences support member access, dynamic method calls and
+  function block body calls. Derived references assign to base references; `?=`
+  casts between instance references and interfaces, clearing mismatches to NULL.
+  Instance targets appear as monitor paths and survive project save/reopen.
+
 - Interfaces with method prototypes, multiple interface inheritance and IMPLEMENTS
   for classes and function blocks. Interface variables bind persistent instances,
   dispatch methods dynamically, compare identities and support assignment attempt

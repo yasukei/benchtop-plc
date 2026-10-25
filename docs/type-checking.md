@@ -561,10 +561,11 @@ actual storage. Indexing an open array uses those same bounds at run time.
 
 ## References
 
-References follow ADR 0015. `REF_TO T` matches another reference only when its
-target type matches exactly, including subrange base and limits; aliases preserve
-the target identity. `NULL` can be assigned to any reference. Only `=` and `<>`
-compare references of the same type or a reference with `NULL`. Dereference
+References follow ADR 0015, extended by ADR 0017 for user instances. Data targets
+match exactly, including subrange base and limits; aliases preserve target identity.
+For user block/class targets, assignment accepts the same type or a derived type;
+a downcast requires `?=`. `NULL` can be assigned to any reference. Only `=` and `<>`
+compare references of the same or inheritance-related types, or with `NULL`. Dereference
 expressions have the target type and can be assignment targets. Reference
 initializers, including aggregate leaves, must be `NULL`; omission defaults to
 `NULL`. Structures may contain references back to themselves.
@@ -573,8 +574,10 @@ initializers, including aggregate leaves, must be `NULL`; omission defaults to
 `VAR`; a block's own `VAR_INPUT`, `VAR_OUTPUT` or `VAR`; or externally accessible
 block inputs/outputs and their elements/members. Temporaries, function variables
 and parameters, in-out parameters, constants, bit selectors and expressions are
-rejected with `type.invalid-reference-target`. Function block instances and open
-arrays cannot be reference target types. `type.reference-initializer` rejects
+rejected with `type.invalid-reference-target`. User block/class VAR instances,
+globals, their array elements, and THIS are persistent targets. A method may take
+references to instance members but never its locals. Standard function blocks,
+interfaces and open arrays cannot be reference target types. `type.reference-initializer` rejects
 non-NULL reference initializers. Reference inputs/outputs are copied as references,
 in-outs alias the reference cell, and functions can return references. `MOVE`,
 `SEL` and `MUX` copy/select reference identities with exact matching target types;
@@ -703,5 +706,8 @@ of an implementing type, and implementing instances with ADR 0015 lifetime.
 Function/method locals and in-out aliases cannot introduce shorter-lived instance
 targets. Interface equality compares identities, including NULL; member access,
 dereferencing and calls to an instance body are rejected. Calls expose only the
-interface's declared methods. Assignment attempts require interface operands (or
-NULL as source); REF_TO forms remain outside this feature.
+interface's declared methods. `a := r^` binds an implementing instance to an
+interface and faults if r is NULL. Assignment attempts accept interface variables
+and references to user block/class instances, with NULL also allowed as source.
+The target binds if the actual type implements its interface or is its reference
+target type or a descendant; otherwise it becomes NULL without a fault.

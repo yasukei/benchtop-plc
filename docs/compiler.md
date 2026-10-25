@@ -288,7 +288,7 @@ or indirect containment cycle is allowed. Class names join the shared namespace;
 a variable with a class name reports `decl.name-collision` with kind `"type"`.
 `v()` reports `class.not-callable`; call `v.Open()` instead. Definitions and methods
 are shared in the IR, while each instance has independent storage.
-Instance references and namespaces remain unsupported.
+Namespaces remain unsupported.
 
 ## Inheritance (ADR 0017)
 
@@ -320,3 +320,16 @@ and persistent implementing instances. Instance conversion preserves identity.
 `target ?= source;` accepts interface variables and a NULL source and is never an
 expression. Interface calls add recursion edges to every implementing method in
 the project, conservatively rejecting composite forwarding cycles.
+
+## References to instances (ADR 0017)
+
+`REF_TO` accepts user function block and class types, including abstract base types.
+Standard function blocks and interfaces remain invalid targets. `REF(inst)` and
+`REF(THIS)` require persistent storage. Dereferences select members and methods;
+`r^(...)` calls a function block body using its actual type. Classes remain
+non-callable. Member and method access checks use the reference's declared type.
+
+Derived references convert upward on assignment and parameter passing; downcasts
+require `?=`. Assignment attempts accept interface variables, instance references
+and NULL sources. Recursion edges include every possible derived method or body,
+including inherited implementations, so unreachable dynamic cycles are rejected.

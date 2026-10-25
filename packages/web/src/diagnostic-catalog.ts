@@ -40,7 +40,7 @@ export const diagnosticEn = {
     `A public implementation with the signature of ${name} is required.`,
   "interface.lifetime": () => "The interface target must have persistent instance storage.",
   "interface.assignment-attempt": () =>
-    "Assignment attempt requires interface variables and an interface variable or NULL source.",
+    "Assignment attempt requires interface variables or references to user instances; the source may also be NULL.",
 
   "inheritance.unknown-base": ({ name }) => `Base type ${name} is unknown.`,
   "inheritance.base-kind": ({ name }) =>
@@ -294,7 +294,7 @@ export const diagnosticJa = {
   "interface.unimplemented": ({ name }) => `${name}と同じシグネチャのPUBLICメソッドが必要です。`,
   "interface.lifetime": () => "インターフェースの参照先には永続的なインスタンス領域が必要です。",
   "interface.assignment-attempt": () =>
-    "代入試行の代入先はインターフェース変数、代入元はインターフェース変数またはNULLにしてください。",
+    "代入試行にはインターフェース変数またはユーザーインスタンスへの参照が必要です。代入元にはNULLも指定できます。",
 
   "inheritance.unknown-base": ({ name }) => `基底型${name}が見つかりません。`,
   "inheritance.base-kind": ({ name }) => `基底型${name}は派生型と同じ種類である必要があります。`,

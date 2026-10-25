@@ -502,17 +502,29 @@ override calling SUPER into a base method that calls THIS back into the override
 
 ## Interface diagnostics
 
-| Code                           | Arguments | Meaning                                                                    |
-| ------------------------------ | --------- | -------------------------------------------------------------------------- |
-| `interface.unknown`            | `name`    | EXTENDS or IMPLEMENTS does not name an interface.                          |
-| `interface.cycle`              | `name`    | Interface EXTENDS forms a cycle.                                           |
-| `interface.signature`          | `name`    | Inherited prototypes of the same name disagree.                            |
-| `interface.unimplemented`      | `name`    | A concrete type lacks a PUBLIC concrete method of the required signature.  |
-| `interface.lifetime`           | none      | An instance assignment cannot guarantee persistent storage.                |
-| `interface.assignment-attempt` | none      | Assignment attempt operands are outside the interface-variable/NULL forms. |
+| Code                           | Arguments | Meaning                                                                                                  |
+| ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------- |
+| `interface.unknown`            | `name`    | EXTENDS or IMPLEMENTS does not name an interface.                                                        |
+| `interface.cycle`              | `name`    | Interface EXTENDS forms a cycle.                                                                         |
+| `interface.signature`          | `name`    | Inherited prototypes of the same name disagree.                                                          |
+| `interface.unimplemented`      | `name`    | A concrete type lacks a PUBLIC concrete method of the required signature.                                |
+| `interface.lifetime`           | none      | An instance assignment cannot guarantee persistent storage.                                              |
+| `interface.assignment-attempt` | none      | Assignment attempt requires interface or user-instance reference operands (NULL is also a valid source). |
 
 Interface variable use also reuses decl.unknown-type, decl.name-collision (kind
 "type"), type.assign-mismatch, type.reference-initializer,
 type.invalid-reference-target, method.unknown and pou.recursion. Invalid syntax,
 including an assignment attempt inside an expression, uses syntax diagnostics. A
 call through NULL reports runtime.null-reference.
+
+## Instance reference diagnostics (ADR 0017)
+
+`type.invalid-reference-target` rejects REF_TO a standard function block or an
+interface and REF of storage without persistent lifetime. `type.assign-mismatch`
+rejects an implicit base-to-derived reference assignment; `type.operand-mismatch`
+rejects equality between unrelated reference targets. Access checks reuse
+`access.hidden`, `fb.unknown-member` and `fb.output-not-writable`.
+`interface.assignment-attempt` also covers invalid instance reference casts;
+`pou.recursion` includes every possible derived method/body call. Dereferencing
+NULL for a method, body, member or interface binding faults with
+`runtime.null-reference`. A failed assignment attempt instead yields NULL.

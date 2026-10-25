@@ -300,7 +300,8 @@ export function compileProject(
         }
         const target = blocks[call.method.block]!;
         const targets =
-          !call.method.receiver && !call.method.static
+          (!call.method.receiver || call.method.receiver.kind === "dereference") &&
+          !call.method.static
             ? blocks.filter((block) => derivesFrom(block, target))
             : [target];
         return [...new Set(targets.map((block) => block.methods![call.function]!))].map(
@@ -312,10 +313,12 @@ export function compileProject(
         callee: blocks[block]!,
       })),
       ...(ast.bodyOwner ? [{ node: ast, callee: ast.bodyOwner }] : []),
-      ...[...checked.get(ast)!.blockCalls].map(([node, block]) => ({
-        node,
-        callee: blocks[block]!,
-      })),
+      ...[...checked.get(ast)!.blockCalls].flatMap(([node, block]) =>
+        (node.instance?.kind === "dereference"
+          ? blocks.filter((candidate) => derivesFrom(candidate, blocks[block]!))
+          : [blocks[block]!]
+        ).map((callee) => ({ node, callee })),
+      ),
       ...ast.declarations
         .filter((node) => node.section !== "VAR_EXTERNAL")
         .flatMap((node) => {

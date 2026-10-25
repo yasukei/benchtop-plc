@@ -239,7 +239,8 @@ it.each([
   ]);
 });
 
-it.each(["TON", "Block"])("reports a known block reference target as unsupported: %s", (target) => {
+it("reports a standard block reference target as unsupported", () => {
+  const target = "TON";
   const result = compileProject(
     [program(""), "FUNCTION_BLOCK Block END_FUNCTION_BLOCK"],
     [`TYPE BadR : REF_TO ${target}; END_TYPE`],
