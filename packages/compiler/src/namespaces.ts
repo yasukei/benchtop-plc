@@ -125,11 +125,9 @@ export function resolveNamespaces(
           return undefined;
         };
         const prefix = call.receiver && path(call.receiver);
-        if (
-          prefix &&
-          !locals.has(prefix.split(".")[0]!.toUpperCase()) &&
-          !["THIS", "SUPER"].includes(prefix.toUpperCase())
-        ) {
+        // Namespace roots are reserved against variables, so only those paths
+        // can be absolute POU names. Keep instance receivers for the checker.
+        if (prefix && roots.has(prefix.split(".")[0]!.toUpperCase())) {
           call.name = {
             ...call.name,
             name: `${prefix}.${call.name.name}`,

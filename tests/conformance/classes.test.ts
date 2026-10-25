@@ -146,3 +146,30 @@ it("traces public nested scalar members and calls block arrays through a class",
   expect(value("mainInstance.h.blocks[1].n")).toMatchObject({ value: 4 });
   expect(value("mainInstance.ready")).toMatchObject({ value: true });
 });
+
+it.each([false, true])(
+  "executes nested THIS method receivers in block bodies and class methods (namespace: %s)",
+  (namespaced) => {
+    const scope = (source: string) =>
+      namespaced ? `NAMESPACE Lib\n${source}\nEND_NAMESPACE` : source;
+    const type = (name: string) => (namespaced ? `Lib.${name}` : name);
+    const { runtime, value } = setup([
+      `PROGRAM Main VAR blockValue: ${type("OuterBlock")}; classValue: ${type("OuterClass")}; result: INT; END_VAR blockValue(); classValue.Run(); result := classValue.Value(); END_PROGRAM`,
+      scope(
+        "FUNCTION_BLOCK Inner VAR n: INT; END_VAR METHOD PUBLIC Run n := n + 1; END_METHOD METHOD PUBLIC Value : INT Value := n; END_METHOD END_FUNCTION_BLOCK",
+      ),
+      scope(
+        "FUNCTION_BLOCK OuterBlock VAR part: Inner; END_VAR THIS.part.Run(); END_FUNCTION_BLOCK",
+      ),
+      scope(
+        "CLASS OuterClass VAR part: Inner; END_VAR METHOD PUBLIC Run THIS.part.Run(); END_METHOD METHOD PUBLIC Value : INT Value := THIS.part.Value(); END_METHOD END_CLASS",
+      ),
+    ]);
+    runtime.step();
+    runtime.step();
+    expect(runtime.diagnostic).toBeNull();
+    expect(value("mainInstance.blockValue.part.n")).toMatchObject({ value: 2 });
+    expect(value("mainInstance.classValue.part.n")).toMatchObject({ value: 2 });
+    expect(value("mainInstance.result")).toMatchObject({ value: 2 });
+  },
+);

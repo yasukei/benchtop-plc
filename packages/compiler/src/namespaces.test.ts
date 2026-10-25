@@ -219,3 +219,35 @@ it("keeps syntax diagnostic source names qualified", () => {
       .diagnostics[0],
   ).toMatchObject({ pou: "Lib.Count", sourceKind: "dataType", sourceIndex: 0 });
 });
+
+it.each([false, true])(
+  "preserves nested THIS receivers in block bodies and class methods (namespace: %s)",
+  (namespaced) => {
+    const scope = (source: string) => (namespaced ? wrap("Lib", source) : source);
+    expect(
+      codes([
+        main(namespaced ? "Lib.OuterBlock" : "OuterBlock"),
+        scope(
+          "FUNCTION_BLOCK Inner METHOD PUBLIC Run END_METHOD METHOD PUBLIC Value : INT Value := 7; END_METHOD END_FUNCTION_BLOCK",
+        ),
+        scope(
+          "FUNCTION_BLOCK OuterBlock VAR part: Inner; result: INT; END_VAR THIS.part.Run(); result := THIS.part.Value(); END_FUNCTION_BLOCK",
+        ),
+        scope(
+          "CLASS OuterClass VAR part: Inner; END_VAR METHOD PUBLIC Run THIS.part.Run(); END_METHOD METHOD PUBLIC Value : INT Value := THIS.part.Value(); END_METHOD END_CLASS",
+        ),
+      ]),
+    ).toEqual([]);
+  },
+);
+
+it("keeps missing instance diagnostics separate from known namespace lookups", () => {
+  const missing = compileProject(["PROGRAM Main motr.Run(); END_PROGRAM"]);
+  expect(missing.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "name.undeclared", args: { name: "motr" } }),
+  );
+  expect(missing.diagnostics.map((d) => d.code)).not.toContain("namespace.unknown");
+  expect(codes(["PROGRAM Main Lib.Missing(); END_PROGRAM", motor("Lib")])).toContain(
+    "namespace.unknown",
+  );
+});
