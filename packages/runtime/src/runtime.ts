@@ -331,7 +331,6 @@ class PlcRuntime implements Runtime {
           ? eventImage[declaration.address.bit]!
           : Boolean(memory.read(input.variable));
       });
-      if (ready.length) this.annotations = {};
       const ir = memory.ir;
       const instances =
         ir.kind === "configuration" ? ir.resource.programs : [{ program: 0, task: 0 }];
@@ -359,6 +358,13 @@ class PlcRuntime implements Runtime {
             if (instance.task !== taskIndex) continue;
             executingInstance =
               ir.kind === "configuration" ? ir.resource.programs[index]!.name : undefined;
+            // Refresh only this POU's annotating instance; other tasks keep their latest values.
+            const annotates =
+              instances.findIndex((other) => other.program === instance.program) === index;
+            const name =
+              ir.kind === "configuration" ? ir.programs[instance.program]!.name : ir.name;
+            if (annotates) delete this.annotations[name];
+            let executed = false;
             interpreter.transfer(index, false);
             if (active()) this.applyForces(memory);
             if (
@@ -368,12 +374,13 @@ class PlcRuntime implements Runtime {
             )
               this.options.stages?.applyForces?.(memory);
             try {
-              if (active()) interpreter.executeProgram(index);
+              if (active()) {
+                executed = true;
+                interpreter.executeProgram(index);
+              }
             } finally {
               // Only the first instance in resource declaration order supplies editor annotations.
-              if (instances.findIndex((other) => other.program === instance.program) === index) {
-                const name =
-                  ir.kind === "configuration" ? ir.programs[instance.program]!.name : ir.name;
+              if (annotates && executed) {
                 const lines = interpreter.annotationSnapshot();
                 if (Object.keys(lines).length)
                   Object.defineProperty(this.annotations, name, {

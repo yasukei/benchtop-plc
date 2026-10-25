@@ -15,6 +15,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   I/O boundaries. Single scans cover every cyclic task and rising event input;
   faults stop the whole resource and identify the task. The status area displays
   per-task run counts, last/maximum execution times and overruns in English/Japanese.
+  Inline values stay visible between runs of slower and event tasks and refresh
+  when their program's first instance runs again.
 
 - PROGRAM inputs and outputs with per-instance configuration connections to
   constants, globals and existing BOOL I/O addresses. Values copy around each

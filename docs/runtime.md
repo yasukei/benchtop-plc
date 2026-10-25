@@ -416,9 +416,11 @@ column. Only the first instance of each PROGRAM supplies annotations; an
 uninstantiated PROGRAM supplies none. Only
 PROGRAM statements have annotations. A function statement shows its result;
 a function without a result shows nothing. Values
-reflect that statement's execution, before any later assignment or force. Each
-scan starts with empty annotations; partially executed scans retain only completed
-statements. `snapshot()` does not execute the program.
+reflect that statement's execution, before any later assignment or force. Each POU
+keeps its latest annotations between runs of its first instance, including passes
+where only other tasks run. Starting that instance clears only its POU's old entries;
+a run with no annotated statements removes them, and a faulting run retains only
+completed statements. Load and cold reset clear every POU's annotations. `snapshot()` does not execute the program.
 
 ## In-out aliases
 

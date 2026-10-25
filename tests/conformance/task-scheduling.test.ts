@@ -354,3 +354,96 @@ it("gives each task its own loop budget and faults all tasks with the offending 
   faulty.clock.advance(100);
   expect(faulty.runtime.snapshot().tasks.map((task) => task.runCount)).toEqual([0, 1]);
 });
+
+it("retains slow and event PROGRAM annotations between runs of their first instances", () => {
+  const inputs: IoImage = [false, false, false, false, false, false, false, false];
+  const { runtime, clock, ir } = setup(
+    config(
+      cyclic("Fast", 10) + cyclic("Slow", 30) + "TASK Edge (SINGLE := %IX0.0, PRIORITY := 0);",
+      instance("First", "Slow") +
+        instance("Later", "Fast") +
+        instance("OnEdge", "Edge", "EventProgram"),
+    ),
+    [counter, "PROGRAM EventProgram VAR n : DINT; END_VAR n := n + 1; END_PROGRAM"],
+    { stages: { readInputs: () => inputs } },
+  );
+  runtime.run();
+  clock.advance(10);
+  expect(runtime.snapshot().annotations).toEqual({});
+  clock.advance(20);
+  const slow = runtime.snapshot().annotations.Counter;
+  expect(Object.values(slow!).flat()[0]!.values).toEqual([{ dataType: "DINT", value: 1 }]);
+  inputs[0] = true;
+  clock.advance(10);
+  const edge = runtime.snapshot().annotations.EventProgram;
+  expect(Object.values(edge!).flat()[0]!.values).toEqual([{ dataType: "DINT", value: 1 }]);
+  expect(runtime.snapshot().annotations.Counter).toEqual(slow);
+  clock.advance(10);
+  expect(runtime.snapshot().annotations).toEqual({ Counter: slow, EventProgram: edge });
+  clock.advance(10);
+  expect(Object.values(runtime.snapshot().annotations.Counter!).flat()[0]!.values).toEqual([
+    { dataType: "DINT", value: 2 },
+  ]);
+  expect(runtime.snapshot().annotations.EventProgram).toEqual(edge);
+  runtime.coldReset();
+  expect(runtime.snapshot().annotations).toEqual({});
+  runtime.step();
+  expect(Object.keys(runtime.snapshot().annotations)).toEqual(["EventProgram", "Counter"]);
+  runtime.load(ir);
+  expect(runtime.snapshot().annotations).toEqual({});
+});
+
+it("removes a POU's old annotations when its annotating instance runs no statements", () => {
+  const { runtime, clock } = setup(
+    config(
+      cyclic("Fast", 10) + cyclic("Slow", 30),
+      instance("A", "Fast") + instance("B", "Slow", "Conditional"),
+    ),
+    [
+      counter,
+      "PROGRAM Conditional VAR n : DINT; END_VAR IF n = 0 THEN n := 1; END_IF; END_PROGRAM",
+    ],
+  );
+  runtime.run();
+  clock.advance(30);
+  expect(runtime.snapshot().annotations.Conditional).toBeDefined();
+  clock.advance(20);
+  expect(runtime.snapshot().annotations.Conditional).toBeDefined();
+  clock.advance(10);
+  expect(runtime.snapshot().annotations.Conditional).toBeUndefined();
+  expect(Object.values(runtime.snapshot().annotations.Counter!).flat()[0]!.values).toEqual([
+    { dataType: "DINT", value: 6 },
+  ]);
+});
+
+it("replaces a faulting POU's prior annotations with only its completed statements", () => {
+  const { runtime, clock, id } = setup(
+    config(
+      cyclic("Fast", 10) + cyclic("Slow", 30),
+      instance("A", "Fast") + instance("B", "Slow", "FaultProgram"),
+      "VAR_GLOBAL crash : BOOL; END_VAR",
+    ),
+    [
+      counter,
+      `PROGRAM FaultProgram VAR_EXTERNAL crash : BOOL; END_VAR
+VAR completed, oldValue, result, zero : DINT; END_VAR
+completed := completed + 1;
+IF crash THEN result := 1 / zero; ELSE oldValue := oldValue + 1; END_IF;
+END_PROGRAM`,
+    ],
+  );
+  runtime.run();
+  clock.advance(30);
+  expect(Object.values(runtime.snapshot().annotations.FaultProgram!).flat()).toHaveLength(2);
+  runtime.write(id("crash"), { dataType: "BOOL", value: true });
+  clock.advance(30);
+  expect(runtime.state).toBe("FAULT");
+  expect(
+    Object.values(runtime.snapshot().annotations.FaultProgram!)
+      .flat()
+      .map((entry) => entry.values),
+  ).toEqual([[{ dataType: "DINT", value: 2 }]]);
+  expect(Object.values(runtime.snapshot().annotations.Counter!).flat()[0]!.values).toEqual([
+    { dataType: "DINT", value: 6 },
+  ]);
+});

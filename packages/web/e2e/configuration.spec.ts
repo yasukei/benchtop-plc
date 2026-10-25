@@ -255,3 +255,56 @@ END_RESOURCE END_CONFIGURATION`;
     "PROGRAM A WITH T : Main (requested := g)",
   );
 });
+
+test("keeps event program inline values visible while cyclic snapshots continue", async ({
+  page,
+}) => {
+  const { readFileSync } = await import("node:fs");
+  const { readProject, writeProject } = await import("@benchtop-plc/project");
+  const project = readProject(
+    readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url), "utf8"),
+  ).value!;
+  project.pous = [
+    "PROGRAM Main\nVAR count : DINT; END_VAR\ncount := count + 1;\nEND_PROGRAM",
+    "PROGRAM FastProgram VAR count : DINT; END_VAR count := count + 1; END_PROGRAM",
+  ];
+  project.configurationSource = `CONFIGURATION Plant
+VAR_GLOBAL trigger : BOOL := TRUE; END_VAR
+RESOURCE Station ON Cpu
+TASK Fast (INTERVAL := T#10ms, PRIORITY := 1);
+TASK Edge (SINGLE := trigger, PRIORITY := 0);
+PROGRAM OnEdge WITH Edge : Main;
+PROGRAM CyclicInstance WITH Fast : FastProgram;
+END_RESOURCE END_CONFIGURATION`;
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "event-annotations.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(writeProject(project).value!),
+  });
+  await page
+    .getByRole("region", { name: "POUs", exact: true })
+    .getByRole("button", { name: /^Main PROGRAM/ })
+    .click();
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  const tasks = page.getByRole("table", { name: "Task telemetry", exact: true });
+  const fastRuns = tasks
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: "Fast", exact: true }) })
+    .getByLabel("Runs", { exact: true });
+  await expect.poll(async () => Number(await fastRuns.textContent())).toBeGreaterThanOrEqual(3);
+  await page
+    .getByRole("region", { name: "Runtime controls", exact: true })
+    .getByRole("button", { name: "STOP", exact: true })
+    .click();
+  await expect(
+    tasks
+      .getByRole("row")
+      .filter({ has: page.getByRole("rowheader", { name: "Edge", exact: true }) })
+      .getByLabel("Runs", { exact: true }),
+  ).toHaveText("1");
+  await expect(page.locator(".inline-values")).toHaveText("1");
+  await page.getByRole("button", { name: "Cold reset", exact: true }).click();
+  await expect(page.locator(".inline-values")).toHaveCount(0);
+});
