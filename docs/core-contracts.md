@@ -448,8 +448,10 @@ record declaration modifiers on types and methods.
 A method's `declaringType` identifies its source definition. `memberCount` is the
 receiver prefix used by that implementation; its locals start immediately after
 that prefix, even on an instance with additional derived members. Call parameter
-slots use the statically selected implementation's prefix and are adjusted when
-virtual dispatch chooses an override. `method.static` selects the base table for
+slots address the statically selected implementation. Virtual dispatch maps each
+slot by its ordinal in the input, output or in-out signature to the selected
+implementation's corresponding slot; local declarations may differ in number and
+position. `method.static` selects the base table for
 `SUPER.M()`; other method calls use the receiver's actual table. `superCall.block`
 runs that base definition's effective body on the current receiver. `bodyOwner`
 identifies the declaration supplying an inherited body and its fault location.

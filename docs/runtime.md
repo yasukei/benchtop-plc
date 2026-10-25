@@ -711,7 +711,8 @@ while preserving that actual receiver for subsequent virtual calls.
 
 Inherited members occupy a base-first prefix of instance storage. An inherited
 method shares only its declaring receiver prefix before appending fresh locals;
-dispatched parameter slots are translated to the chosen implementation's prefix.
+dispatched parameter slots map by signature order within each parameter section
+to the chosen implementation. Locals may appear before or between parameters.
 This prevents method locals from overwriting additional derived members. Inputs,
 outputs, in-out aliases and results retain the usual method semantics.
 

@@ -222,3 +222,58 @@ it("implements inherited abstract methods without instantiating the abstract def
   expect(runtime.diagnostic).toBeNull();
   expect(value("mainInstance.seen")).toMatchObject({ value: 8 });
 });
+
+it.each(["CLASS", "FUNCTION_BLOCK"])(
+  "dispatches %s inputs when an override declares locals before its parameters",
+  (kind) => {
+    const { runtime, value } = setup([
+      "PROGRAM Main VAR b: Base; d: Derived; rb,rd: INT; END_VAR rb := b.Run(); rd := d.Run(); END_PROGRAM",
+      `${kind} Base
+      METHOD PUBLIC Run : INT Run := THIS.Twice(A := 5); END_METHOD
+      METHOD PUBLIC Twice : INT VAR_INPUT A: INT; END_VAR Twice := A * 2; END_METHOD
+      END_${kind}`,
+      `${kind} Derived EXTENDS Base
+      METHOD PUBLIC OVERRIDE Twice : INT
+        VAR tmp: INT := 100; END_VAR
+        VAR_INPUT A: INT; END_VAR
+        Twice := A * 3;
+      END_METHOD END_${kind}`,
+    ]);
+    runtime.step();
+    expect(runtime.diagnostic).toBeNull();
+    expect(value("mainInstance.rb")).toMatchObject({ value: 10 });
+    expect(value("mainInstance.rd")).toMatchObject({ value: 15 });
+  },
+);
+
+it("maps every parameter section through overrides with different locals and receiver prefixes", () => {
+  const { runtime, value } = setup([
+    "PROGRAM Main VAR b: Base; d: Derived; rb,rd: INT; END_VAR rb := b.Run(); rd := d.Run(); END_PROGRAM",
+    `CLASS Base
+    METHOD PUBLIC Run : INT
+      VAR local: INT := 3; outValue: INT; END_VAR
+      THIS.Change(A := 5, V := local, Q => outValue); Run := local + outValue;
+    END_METHOD
+    METHOD Change
+      VAR_INPUT A: INT; END_VAR
+      VAR baseScratch: INT := 100; END_VAR
+      VAR_OUTPUT Q: INT; END_VAR
+      VAR_IN_OUT V: INT; END_VAR
+      Q := A * 2; V := V + 1;
+    END_METHOD END_CLASS`,
+    `CLASS Derived EXTENDS Base VAR extra: INT := 4; END_VAR
+    METHOD OVERRIDE Change
+      VAR tmp: INT := 40; END_VAR
+      VAR_INPUT A: INT; END_VAR
+      VAR_OUTPUT Q: INT; END_VAR
+      VAR tmp2: INT := 10; END_VAR
+      VAR_IN_OUT V: INT; END_VAR
+      SUPER.Change(A := A, V := V, Q => Q); Q := Q + tmp + tmp2; V := V + extra;
+    END_METHOD END_CLASS`,
+  ]);
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  expect(value("mainInstance.rb")).toMatchObject({ value: 14 });
+  expect(value("mainInstance.rd")).toMatchObject({ value: 68 });
+  expect(value("mainInstance.d.extra")).toMatchObject({ value: 4 });
+});

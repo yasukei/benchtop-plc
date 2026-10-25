@@ -838,12 +838,15 @@ export class Interpreter {
         ? staticMethod
         : this.programMemory.ir.functionBlocks![receiver!.block]!.methods![call.function]
       : this.functions[call.function];
-    // Call-site slots use the statically resolved implementation's receiver prefix.
-    const offset = staticMethod
-      ? (definition as import("@benchtop-plc/core").UserMethodIR).memberCount -
-        staticMethod.memberCount
-      : 0;
     if (!definition) throw new Error("Missing function body");
+    // Signature order is stable across overrides; locals and receiver sizes are not.
+    const parameterSlot = (slot: number, section: "inputs" | "outputs" | "inOuts"): number => {
+      if (!staticMethod) return slot;
+      const index = staticMethod[section]?.indexOf(slot) ?? -1;
+      const target = definition[section]?.[index];
+      if (target === undefined) throw new Error("Missing method parameter");
+      return target;
+    };
     const args = this.arguments(call.inputs, call.inOuts ?? []);
     const caller = this.memory,
       callerPou = this.pou,
@@ -852,9 +855,10 @@ export class Interpreter {
     const locals = call.method
       ? receiver!.frame.methodFrame(definition as import("@benchtop-plc/core").UserMethodIR)
       : this.programMemory.functionFrame(call.function);
-    for (const [slot, value] of args.values) this.store(locals, slot + offset, value);
+    for (const [slot, value] of args.values)
+      this.store(locals, parameterSlot(slot, "inputs"), value);
     for (const [slot, actual] of args.aliases)
-      locals.bind(slot + offset, actual.frame, actual.variable);
+      locals.bind(parameterSlot(slot, "inOuts"), actual.frame, actual.variable);
     let result: StoredValue;
     this.memory = locals;
     this.receiver = receiver;
@@ -881,12 +885,8 @@ export class Interpreter {
       this.instancePath = callerPath;
     }
     for (const output of call.outputs) {
-      this.copyOutput(
-        output.target,
-        locals,
-        output.variable + offset,
-        locals.descriptor(output.variable + offset),
-      );
+      const slot = parameterSlot(output.variable, "outputs");
+      this.copyOutput(output.target, locals, slot, locals.descriptor(slot));
     }
     return result;
   }
