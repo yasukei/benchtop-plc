@@ -144,6 +144,30 @@ class Checker {
     private readonly globals?: GlobalScope,
   ) {}
 
+  connection(
+    scope: CheckedProgram,
+    type: TypeDescriptor,
+    value: AST.Expression,
+    output: boolean,
+  ): { info?: ExpressionInfo; diagnostics: Diagnostic[] } {
+    for (const symbol of scope.symbols) this.names.set(symbol.name.key, symbol);
+    for (const [key, constant] of scope.constants) this.constants.set(key, constant);
+    let info: ExpressionInfo | null;
+    if (output) {
+      info = this.reference(value as AST.AssignmentTarget, true);
+      if (info)
+        this.assignment(
+          info.descriptor ?? info.dataType,
+          { dataType: this.base(type, this.types), descriptor: type },
+          value.span,
+        );
+    } else {
+      info = this.expression(value, type);
+      if (info) this.assignment(type, info, value.span);
+    }
+    return { ...(info ? { info } : {}), diagnostics: this.diagnostics };
+  }
+
   private report<C extends DiagnosticCode>(
     code: C,
     args: DiagnosticArgs[C],
@@ -167,7 +191,9 @@ class Checker {
         (ast.kind === "program" &&
           section.name !== "VAR" &&
           section.name !== "VAR_TEMP" &&
-          section.name !== "VAR_EXTERNAL") ||
+          section.name !== "VAR_EXTERNAL" &&
+          section.name !== "VAR_INPUT" &&
+          section.name !== "VAR_OUTPUT") ||
         (ast.kind === "function" && ["VAR_TEMP", "VAR_EXTERNAL"].includes(section.name))
       )
         this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
@@ -2509,4 +2535,19 @@ export function checkDeclarations(
   globals?: GlobalScope,
 ): CheckResult {
   return new Checker(ast, pous, new Map(), blockIds, types, new Map(), globals).run(ast, true);
+}
+
+/** Use the ordinary assignment rules in the configuration's global/constant scope. */
+export function checkConnection(
+  globals: CheckedProgram,
+  type: TypeDescriptor,
+  value: AST.Expression,
+  output: boolean,
+) {
+  return new Checker(globals.ast, new Map(), new Map(), new Map(), globals.types).connection(
+    globals,
+    type,
+    value,
+    output,
+  );
 }

@@ -1,3 +1,4 @@
+import { checkProgramConnections } from "./program-connections.js";
 import {
   parseConfiguration,
   checkConfiguration,
@@ -311,6 +312,16 @@ export function compileProject(
           symbol.descriptor = { ...array, element: { kind: "functionBlock", name: variant } };
       }
     }
+  const connections =
+    config && globals
+      ? checkProgramConnections(
+          config,
+          new Map(programs.map((ast) => [ast.name.key, checked.get(ast)!])),
+          globals,
+        )
+      : undefined;
+  diagnostics.push(...(connections?.diagnostics.map(configDiagnostic) ?? []));
+  if (diagnostics.some((d) => d.severity === "error")) return { diagnostics };
   const ir = lower(
     programs.map((ast) => checked.get(ast)!),
     config
@@ -335,6 +346,7 @@ export function compileProject(
         },
     blocks.map((ast) => lowerFunctionBlock(checked.get(ast)!)),
     globals,
+    connections?.connections,
   );
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));
   return { ir, diagnostics };

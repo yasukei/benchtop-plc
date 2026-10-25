@@ -93,12 +93,9 @@ describe("project-wide POU compilation", () => {
     ).toMatchObject({ kind: "type" });
   });
 
-  it.each(["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT"])(
-    "rejects %s in the PROGRAM, including an empty section",
-    (section) => {
-      rejects([`PROGRAM Main ${section} END_VAR END_PROGRAM`], "pou.invalid-section", "Main");
-    },
-  );
+  it.each(["VAR_IN_OUT"])("rejects %s in the PROGRAM, including an empty section", (section) => {
+    rejects([`PROGRAM Main ${section} END_VAR END_PROGRAM`], "pou.invalid-section", "Main");
+  });
   it.each(["VAR_TEMP"])("rejects %s in functions", (section) => {
     rejects([main(), fn("", `${section} END_VAR`, "")], "pou.invalid-section", "F");
   });

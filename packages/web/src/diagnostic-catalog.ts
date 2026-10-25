@@ -52,6 +52,12 @@ export const diagnosticEn = {
   "config.interval": () =>
     `INTERVAL requires a TIME or LTIME literal from 10 ms to 1 h in whole multiples of 10 ms.`,
   "config.priority": () => `PRIORITY requires an integer literal from 0 to 65535.`,
+  "config.connection-parameter": ({ name }) => `Unknown program parameter: ${name}.`,
+  "config.connection-direction": ({ name }) =>
+    `Incorrect connection direction for program parameter ${name}.`,
+  "config.connection-duplicate": ({ name }) => `Program parameter ${name} is connected twice.`,
+  "config.connection-target": ({ name }) =>
+    `Invalid connection target for program parameter ${name}.`,
   "config.task-parameter": ({ name }) => `Unsupported or duplicate task parameter: ${name}.`,
   "runtime.configured-cycle": () =>
     `Command rejected: edit the configuration source to change the task interval.`,
@@ -210,6 +216,8 @@ export const diagnosticEn = {
   "runtime.debug-value": () => "Command rejected: the value is invalid or out of range.",
   "runtime.write-input-mapped": ({ name }) =>
     `Command rejected: cannot write input-mapped variable ${name}. Use force instead.`,
+  "runtime.write-connected-input": ({ name }) =>
+    `Command rejected: cannot write connected input ${name}. Use force instead.`,
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
@@ -234,6 +242,12 @@ export const diagnosticJa = {
   "config.interval": () =>
     `INTERVALには10msから1時間までの10ms単位のTIMEまたはLTIMEリテラルが必要です。`,
   "config.priority": () => `PRIORITYには0から65535までの整数リテラルが必要です。`,
+  "config.connection-parameter": ({ name }) => `不明なプログラムパラメーターです: ${name}。`,
+  "config.connection-direction": ({ name }) =>
+    `プログラムパラメーター ${name} の接続方向が正しくありません。`,
+  "config.connection-duplicate": ({ name }) =>
+    `プログラムパラメーター ${name} が重複して接続されています。`,
+  "config.connection-target": ({ name }) => `プログラムパラメーター ${name} の接続先が無効です。`,
   "config.task-parameter": ({ name }) => `未対応または重複したタスクパラメーターです: ${name}。`,
   "runtime.configured-cycle": () =>
     `操作を拒否しました。タスク周期を変更するには構成ソースを編集してください。`,
@@ -392,6 +406,8 @@ export const diagnosticJa = {
   "runtime.debug-value": () => "操作を拒否しました。値が無効か範囲外です。",
   "runtime.write-input-mapped": ({ name }) =>
     `操作を拒否しました。入力変数${name}には書き込めません。強制設定を使用してください。`,
+  "runtime.write-connected-input": ({ name }) =>
+    `操作を拒否しました。接続された入力 ${name} には書き込めません。強制設定を使用してください。`,
 } satisfies DiagnosticCatalog;
 
 export const diagnosticCatalogs: Record<Language, DiagnosticCatalog> = {

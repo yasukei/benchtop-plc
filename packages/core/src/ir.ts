@@ -186,6 +186,8 @@ interface VariableBase extends SourceNode {
   path?: string[];
   /** Only leaves beneath an array require watching; instance qualification does not. */
   watched?: boolean;
+  /** Connected inputs accept forces but reject one-shot monitor writes. */
+  connectedInput?: boolean;
   /** Owning program instance, absent for globals. */
   instance?: string;
   /** Upper-case ST identifier, for compilation and display lookup only. */
@@ -246,7 +248,17 @@ export interface ProgramBodyIR extends SourceNode {
   name: string;
   body: Statement[];
 }
+export type ProgramConnectionEndpoint =
+  | { kind: "storage"; storage: InstanceStorage }
+  | { kind: "constant"; value: import("./values.js").ScalarValue | null }
+  | { kind: "address"; address: DirectAddress };
+export interface ProgramConnectionIR extends SourceNode {
+  parameter: InstanceStorage;
+  endpoint: ProgramConnectionEndpoint;
+}
 export interface ProgramInstanceIR {
+  inputs?: ProgramConnectionIR[];
+  outputs?: ProgramConnectionIR[];
   name: string;
   program: number;
   task: number;

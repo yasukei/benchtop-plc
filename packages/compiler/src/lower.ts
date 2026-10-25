@@ -686,6 +686,7 @@ export function lower(
   },
   blocks: IR.UserFunctionBlockIR[] = [],
   globals?: CheckedProgram,
+  connections?: import("./program-connections.js").CheckedConnection[][],
 ): IR.ConfigurationIR {
   const checked = programs[0]!;
   const layouts = programs.map((program) => new Lowerer(program).run());
@@ -820,7 +821,7 @@ export function lower(
     layout.variables.forEach((variable, index) => globalStorage.set(variable.key, storage[index]!));
     for (const variable of variables) variable.global = true;
   }
-  const programInstances = configuration.programs.map((instance): IR.ProgramInstanceIR => {
+  const programInstances = configuration.programs.map((instance, index): IR.ProgramInstanceIR => {
     const definition = programs[instance.program]!;
     const temporarySlots = sections(definition).flatMap((section, index) =>
       section === "VAR_TEMP" ? [index] : [],
@@ -834,7 +835,28 @@ export function lower(
       true,
     );
     for (let id = first; id < variables.length; id++) variables[id]!.instance = instance.name;
-    return { ...instance, task: 0, storage };
+    const inputs: IR.ProgramConnectionIR[] = [],
+      outputs: IR.ProgramConnectionIR[] = [];
+    for (const connection of connections?.[index] ?? []) {
+      const parameter = storage[connection.parameter]!;
+      const endpoint: IR.ProgramConnectionEndpoint =
+        connection.endpoint.kind === "global"
+          ? { kind: "storage", storage: required(globalStorage.get(connection.endpoint.key)) }
+          : connection.endpoint;
+      (connection.output ? outputs : inputs).push({ parameter, endpoint, span: span(connection) });
+      const mark = (slot: IR.InstanceStorage): void => {
+        if (slot.kind === "variable") variables[slot.variable]!.connectedInput = true;
+        else if (slot.kind === "array" || slot.kind === "structure") slot.elements.forEach(mark);
+      };
+      if (!connection.output) mark(parameter);
+    }
+    return {
+      ...instance,
+      task: 0,
+      storage,
+      ...(inputs.length ? { inputs } : {}),
+      ...(outputs.length ? { outputs } : {}),
+    };
   });
   // Resolve after every allocation so an FB global may refer to a later global.
   for (const alias of aliases) Object.assign(alias.slot, required(globalStorage.get(alias.key)));

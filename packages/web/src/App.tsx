@@ -43,7 +43,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
       loadedIr.programs[instance.program]!.name.toUpperCase() === selected?.name.toUpperCase(),
   );
   const faultIndex = state.diagnostic
-    ? diagnosticPouIndex(state.pous, state.diagnostic)
+    ? (state.diagnostic.sourceIndex ?? diagnosticPouIndex(state.pous, state.diagnostic))
     : undefined;
   const diagnostics: EditorDiagnostic[] =
     online && state.diagnostic
@@ -202,9 +202,13 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 online={online}
                 pou={selected?.name}
                 fault={
-                  !state.selectedConfiguration &&
-                  state.selectedDataType === null &&
-                  faultIndex === state.selectedPou
+                  state.diagnostic &&
+                  diagnosticSourceMatches(
+                    { ...state.diagnostic, sourceIndex: faultIndex },
+                    state.selectedPou,
+                    state.selectedDataType,
+                    state.selectedConfiguration,
+                  )
                     ? state.diagnostic
                     : null
                 }

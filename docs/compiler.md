@@ -168,8 +168,7 @@ not execute.
 TIME/LTIME literal from 10 ms to 1 h in whole multiples of 10 ms; exact literal
 arithmetic prevents rounding fractional values into range. Priority is an integer
 literal from 0 to 65535. `INTERVAL`, `SINGLE` and `PRIORITY` remain ordinary
-identifiers outside task parameter positions. Event tasks, multiple tasks, globals
-and program connections remain deferred.
+identifiers outside task parameter positions. Event tasks and multiple tasks remain deferred.
 
 Configuration diagnostics carry `sourceKind: "configuration"`, `sourceIndex: 0`,
 and the configuration name in `pou` when its header is known. The source index is
@@ -197,3 +196,34 @@ bindings across every POU, including bodies without a configured instance. Globa
 constants are folded and omitted from storage, and imported constants can supply
 array bounds and CASE labels. `lower` accepts an optional checked globals argument
 following the block definitions.
+
+## PROGRAM parameters and connections
+
+PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`; `VAR_IN_OUT` remains rejected.
+An instance can connect named parameters, for example:
+
+```iecst
+PROGRAM A WITH T : Main (Start := %IX0.0, Lamp => %QX0.0, Threshold := gThreshold);
+```
+
+Input sources are constants (including constant expressions and enumeration values),
+globals, or direct addresses. Output destinations are mutable globals or output
+addresses. Only existing `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7` BOOL addresses are
+implemented; numeric and `%M` connections follow in #155. Globals use ordinary
+input/assignment conversions; addresses bind the parameter type as an `AT` would.
+
+`resource.programs[i].inputs` and `.outputs` describe transfers between the
+parameter storage and a global storage slot, constant, or address. Connected input
+leaves carry `connectedInput: true`. PROGRAM bodies and storage remain independent
+of the connection lists, so every instance can connect to different sources.
+
+At task start the runtime reads inputs, consumes pending writes, and restores forces.
+For each instance in declaration order it copies connected inputs, restores forces,
+executes the body, restores forces, copies connected outputs, and restores forces
+again. It publishes the output image after the last instance. A later instance can
+therefore read an earlier instance's output through a global in the same run.
+Unconnected inputs keep their values between runs and unconnected outputs are not
+copied. All parameters are unconnected in an implicit configuration. Parameters
+appear in snapshots and accept forces; connected inputs reject monitor writes with
+`runtime.write-connected-input`, while unconnected parameters and connected outputs
+accept writes.

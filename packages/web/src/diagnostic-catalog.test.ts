@@ -31,6 +31,10 @@ const examples = {
   "config.program-type": { name: "Counter" },
   "config.interval": {},
   "config.priority": {},
+  "config.connection-parameter": { name: "Start" },
+  "config.connection-direction": { name: "Start" },
+  "config.connection-duplicate": { name: "Start" },
+  "config.connection-target": { name: "Start" },
   "config.task-parameter": { name: "SINGLE" },
   "runtime.configured-cycle": {},
   "project.invalid-xml": {},
@@ -133,6 +137,7 @@ const examples = {
   "runtime.debug-type-mismatch": { from: "BOOL", to: "INT" },
   "runtime.debug-value": {},
   "runtime.write-input-mapped": { name: "input" },
+  "runtime.write-connected-input": { name: "A.Start" },
 } satisfies DiagnosticArgs;
 
 describe("translation catalogs", () => {

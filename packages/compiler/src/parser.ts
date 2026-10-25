@@ -48,6 +48,9 @@ const isFunction = (name: string): boolean =>
 
 export class Parser {
   private cursor = 0;
+  get position(): number {
+    return this.cursor;
+  }
 
   constructor(private readonly tokens: Token[]) {}
 
@@ -646,7 +649,7 @@ export class Parser {
     return result;
   }
 
-  private expression(minimum = 1): Expression {
+  expression(minimum = 1): Expression {
     let left = this.primary();
     while (true) {
       const level = precedence[this.current.key];

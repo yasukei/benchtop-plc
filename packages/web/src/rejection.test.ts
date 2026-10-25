@@ -24,6 +24,11 @@ describe("command rejection messages", () => {
       "Command rejected: cannot write input-mapped variable input. Use force instead.",
       "操作を拒否しました。入力変数inputには書き込めません。強制設定を使用してください。",
     ],
+    [
+      { code: "runtime.write-connected-input", severity: "error", args: { name: "A.Start" } },
+      "Command rejected: cannot write connected input A.Start. Use force instead.",
+      "操作を拒否しました。接続された入力 A.Start には書き込めません。強制設定を使用してください。",
+    ],
   ];
   it.each(cases)("localizes $code with diagnostic arguments", (diagnostic, english, japanese) => {
     const rejection: CommandRejectionMessage = { type: "rejected", command: "write", diagnostic };

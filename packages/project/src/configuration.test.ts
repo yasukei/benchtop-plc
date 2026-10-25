@@ -316,3 +316,33 @@ PROGRAM A WITH T : Main; END_RESOURCE END_CONFIGURATION`;
     );
   }
 });
+
+it("round trips PROGRAM interfaces and exact configuration connections", () => {
+  const project = sampleProject();
+  project.pous = [
+    `PROGRAM Main
+VAR_INPUT Start : BOOL := TRUE; END_VAR
+VAR_OUTPUT Lamp : BOOL; END_VAR
+Lamp := Start;
+END_PROGRAM\n`,
+  ];
+  project.configurationSource = `// connections have no TC6 counterpart\r
+CONFIGURATION Plant RESOURCE Station ON Cpu\r
+TASK T (INTERVAL := T#10ms, PRIORITY := 0);\r
+PROGRAM A WITH T : Main (Start := %IX0.0, Lamp => %QX0.0);\r
+PROGRAM B WITH T : Main (Start := TRUE, Lamp => %QX0.1);\r
+END_RESOURCE END_CONFIGURATION\r
+`;
+  const saved = writeProject(project);
+  expect(saved.diagnostics).toEqual([]);
+  expect(saved.value).toContain("<inputVars>");
+  expect(saved.value).toContain("<outputVars>");
+  const reopened = readProject(saved.value!);
+  expect(reopened.diagnostics).toEqual([]);
+  expect(reopened.value!.pous).toEqual(project.pous);
+  expect(reopened.value!.configurationSource).toBe(project.configurationSource);
+  expect(
+    compileProject(reopened.value!.pous, [], reopened.value!.configurationSource).diagnostics,
+  ).toEqual([]);
+  expect(readProject(writeProject(reopened.value!).value!)).toEqual(reopened);
+});

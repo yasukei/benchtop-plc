@@ -37,9 +37,10 @@ program initializes it. Outputs remain subject to the state rules below.
 
 `ScanStages` supplies the input/output image boundary and extension points for
 pending writes and forces. The sequence is read inputs, copy mapped inputs into
-memory, apply pending writes, apply forces, execute each program instance in resource
-declaration order with forces applied before and after each instance, then publish
-mapped outputs. Each instance aliases its own persistent storage onto a shared
+memory, apply pending writes, apply forces, then execute each program instance in
+resource declaration order. For each instance: copy connected inputs, apply forces,
+execute, apply forces, copy connected outputs, apply forces. Publish mapped outputs
+only after the last instance. Each instance aliases its own persistent storage onto a shared
 PROGRAM body, refreshing only that instance's temporaries. A single task budget
 counts loop iterations across all its instances. A fault stops later instances
 and faults the whole resource, naming its task, POU and qualified instance path. `ScanMemory.write` uses the declaration's core
@@ -91,13 +92,16 @@ when output declarations have TRUE initial values.
 `force(variableId, typedValue)` sets or replaces a scalar force, including mapped
 inputs and outputs. `force(variableId, null)` clears it; clearing an unforced
 scalar is a no-op. Changes take effect on the next scan, with forces applied after
-reading inputs/pending writes and again after executing the program. Clearing a
+reading inputs/pending writes and after each parameter copy and instance execution. Clearing a
 force returns control to the input image or program on subsequent scans; it does
 not restore an old value. The snapshot's `forced` array contains the active IDs
 in ascending order, even while stopped or emergency-stopped.
 
-`write(variableId, typedValue)` writes once at the start of the next scan while
-RUN, or immediately while stopped. Multiple pending writes to a variable use the
+`write(variableId, typedValue)` rejects connected PROGRAM inputs with
+`runtime.write-connected-input` and input-mapped variables with
+`runtime.write-input-mapped`; forces remain allowed. Unconnected
+parameters and connected outputs accept writes. A write runs once at the start of
+the next scan while RUN, or immediately while stopped. Multiple pending writes to a variable use the
 last value. Pending writes survive STOP until a later scan; an immediate write
 to the same variable replaces its pending write. Writes issued after the scan's
 pending-write stage are queued for the following scan. A force takes priority over a write,

@@ -386,3 +386,22 @@ PROGRAMs. `setCycle` joins `force` and `write` in rejection messages' `command` 
 FUNCTION externals, and `decl.constant-not-writable` rejects stores to imported
 constants. Global declaration errors identify the configuration source; binding
 errors identify the importing POU and its source span.
+
+### PROGRAM connection diagnostics
+
+All of these carry the configuration name in `pou`, `sourceKind: "configuration"`,
+`sourceIndex: 0`, and the offending parameter's span.
+
+| Code                          | Arguments      | Meaning                                                                                                       |
+| ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `config.connection-parameter` | `name: string` | Unknown parameter or a declaration that is not an input/output.                                               |
+| `config.connection-direction` | `name: string` | Input uses `=>` or output uses `:=`.                                                                          |
+| `config.connection-duplicate` | `name: string` | A parameter is connected more than once (case-insensitive).                                                   |
+| `config.connection-target`    | `name: string` | Source is not a constant/global/address, or output targets a constant, input-mapped global, or input address. |
+
+Connection type mismatches reuse `type.assign-mismatch` and constant diagnostics;
+address errors reuse `decl.direct-address-type` and `decl.address-out-of-range`.
+These also identify the configuration source and the connection value's span.
+
+`runtime.write-connected-input` (`{ name: string }`) rejects one-shot monitor writes
+to a connected PROGRAM input. It is a command rejection; forces remain allowed.

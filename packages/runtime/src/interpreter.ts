@@ -75,6 +75,54 @@ export class Interpreter {
     this.pou = programMemory.ir.name;
   }
 
+  transfer(index: number, output: boolean): void {
+    const ir = this.programMemory.ir;
+    if (ir.kind !== "configuration") return;
+    const instance = ir.resource.programs[index]!;
+    this.pou = ir.programs[instance.program]!.name;
+    this.instancePath = instance.name;
+    for (const connection of (output ? instance.outputs : instance.inputs) ?? []) {
+      try {
+        const parameter = this.programMemory.frame([connection.parameter]);
+        const endpoint = connection.endpoint;
+        const read = (frame: MemoryFrame): StoredValue => {
+          const type = frame.descriptor(0);
+          return referenceType(type, ir.types)
+            ? frame.readReference(0)
+            : isAggregateType(type, ir.types)
+              ? frame.aggregateValue(0)
+              : frame.read(0);
+        };
+        if (output) {
+          const value = read(parameter);
+          if (endpoint.kind === "storage")
+            this.store(this.programMemory.frame([endpoint.storage]), 0, value);
+          else if (endpoint.kind === "address")
+            this.programMemory.writeAddress(endpoint.address, Boolean(value));
+        } else {
+          const value =
+            endpoint.kind === "storage"
+              ? read(this.programMemory.frame([endpoint.storage]))
+              : endpoint.kind === "address"
+                ? this.programMemory.readAddress(endpoint.address)
+                : endpoint.value;
+          this.store(parameter, 0, value);
+        }
+      } catch (error) {
+        if (error instanceof RangeError) {
+          const fault = this.invalidValue(error, connection.span);
+          throw new RuntimeFault({
+            ...fault.diagnostic,
+            pou: ir.name,
+            sourceKind: "configuration",
+            sourceIndex: 0,
+          });
+        }
+        throw error;
+      }
+    }
+  }
+
   /** Reuse the task budget while switching to an instance's persistent storage. */
   executeProgram(index = 0): void {
     const ir = this.programMemory.ir;
