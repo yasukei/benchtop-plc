@@ -116,7 +116,7 @@ export function diagnosticSourceMatches(
 export function derivePou(source: string, previous?: EditorPou): EditorPou {
   const tokens = headerTokens(source);
   const kind = tokens?.[0]?.key;
-  const name = tokens?.[1];
+  const name = tokens?.slice(1).find((token) => !["ABSTRACT", "FINAL"].includes(token.key));
   if (
     (kind === "PROGRAM" || kind === "FUNCTION" || kind === "FUNCTION_BLOCK" || kind === "CLASS") &&
     name?.kind === "identifier"

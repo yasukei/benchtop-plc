@@ -435,3 +435,22 @@ Class scalar non-CONSTANT members expand into the same flat monitored variable
 table, independent of access. Existing runtime, snapshot, write/force, retention,
 web monitor and conformance consumers use that shared layout; no new wire message
 or snapshot variant is required.
+
+## Inheritance layout (ADR 0017)
+
+A `UserFunctionBlockIR.base` indexes the same `functionBlocks` table. Its variables
+are flattened base first, preserving declaration order and initializers, including
+private members and every variable section. Each instance storage record's `block`
+is its actual type. Effective `methods` and `methodTable` retain inherited method
+slots; an override replaces its slot and new methods append. `abstract` and `final`
+record declaration modifiers on types and methods.
+
+A method's `declaringType` identifies its source definition. `memberCount` is the
+receiver prefix used by that implementation; its locals start immediately after
+that prefix, even on an instance with additional derived members. Call parameter
+slots use the statically selected implementation's prefix and are adjusted when
+virtual dispatch chooses an override. `method.static` selects the base table for
+`SUPER.M()`; other method calls use the receiver's actual table. `superCall.block`
+runs that base definition's effective body on the current receiver. `bodyOwner`
+identifies the declaration supplying an inherited body and its fault location.
+All these fields are plain structured-cloneable data.

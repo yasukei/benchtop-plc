@@ -54,6 +54,7 @@ import type {
   StandardFunction,
 } from "@benchtop-plc/core";
 import type * as AST from "./ast.js";
+import { accessible } from "./inheritance.js";
 import { rootName } from "./ast.js";
 import type {
   CheckedProgram,
@@ -110,6 +111,8 @@ function hasOpenDimensions(node?: AST.ArrayDeclaration): boolean {
 }
 
 class Checker {
+  private initializerOwner?: AST.Program;
+  private readonly superCalls = new Map<AST.FunctionCall | AST.FunctionBlockCall, number>();
   private readonly diagnostics: Diagnostic[] = [];
   private readonly symbols: VariableSymbol[] = [];
   private readonly names = new Map<string, VariableSymbol>();
@@ -281,7 +284,9 @@ class Checker {
     }
     this.collectingDeclarations = false;
     for (const declaration of ast.declarations) {
+      this.initializerOwner = declaration.declaringType;
       this.initializer(declaration);
+      this.initializerOwner = undefined;
       for (const name of declaration.names) {
         const constant = this.constants.get(name.key);
         if (constant?.name === name) constant.initializerProcessed = true;
@@ -311,6 +316,7 @@ class Checker {
     return {
       checked: {
         ast,
+        superCalls: this.superCalls,
         ...(owner ? { memberCount } : {}),
         types: this.types,
         symbols: this.symbols,
@@ -772,6 +778,16 @@ class Checker {
           : declarationType(declaration.typeName.key);
     const userBlock = this.blockIds.get(type);
     const block = isBlock(type) || userBlock !== undefined;
+    if (
+      userBlock !== undefined &&
+      this.pous.get(type)?.abstract &&
+      declaration.section !== "VAR_EXTERNAL"
+    )
+      this.report(
+        "inheritance.abstract-instance",
+        { name: declaration.typeName.name },
+        declaration.typeName.span,
+      );
     const known = isScalar(type) || block;
     if (
       hasOpenDimensions(declaration.array) &&
@@ -1008,7 +1024,22 @@ class Checker {
     }
   }
 
+  private memberAccessible(name: AST.Identifier): boolean {
+    const owner = this.ast.owner ?? this.ast;
+    const declaration = owner.declarations.find((d) => d.names.some((n) => n.key === name.key));
+    if (
+      declaration?.declaringType &&
+      !declaration.section &&
+      !accessible(declaration.access, declaration.declaringType, this.initializerOwner ?? owner)
+    ) {
+      this.report("access.hidden", { name: name.name }, name.span);
+      return false;
+    }
+    return true;
+  }
+
   private resolve(name: AST.Identifier): VariableSymbol | null {
+    if (!this.memberAccessible(name)) return null;
     const symbol = this.names.get(name.key);
     if (!symbol) {
       this.report("name.undeclared", { name: name.name }, name.span);
@@ -1020,6 +1051,7 @@ class Checker {
 
   private bitIndex(type: TypeDescriptor, member: AST.Identifier): number | null {
     const index = this.constants.get(member.key);
+    if (index && !this.memberAccessible(member)) return null;
     if (index && index.value === undefined) {
       if (!index.initializerProcessed)
         this.report("decl.constant-order", { name: member.name }, member.span);
@@ -1093,6 +1125,13 @@ class Checker {
     write = false,
     instance = false,
   ): ExpressionInfo | null {
+    if (
+      (node.kind === "name" && node.name.key === "SUPER") ||
+      (node.kind === "member" && node.instance.key === "SUPER")
+    ) {
+      this.report("inheritance.super-context", {}, node.span);
+      return null;
+    }
     if (node.kind === "member" && node.instance.key === "THIS") {
       if (!(
         this.ast.owner ??
@@ -1225,6 +1264,7 @@ class Checker {
     const name = node.kind === "name" ? node.name : node.instance;
     const constant = this.constants.get(name.key);
     if (constant) {
+      if (!this.memberAccessible(name)) return null;
       if (write) {
         this.report("decl.constant-not-writable", { name: name.name }, name.span);
         return null;
@@ -1310,6 +1350,7 @@ class Checker {
             type: this.parameterType(pou, declaration),
             section: declaration.section,
             access: declaration.access ?? "PROTECTED",
+            declaringType: declaration.declaringType ?? pou,
           })),
         );
       const index = parameters.findIndex(
@@ -1322,8 +1363,10 @@ class Checker {
         this.report("fb.unknown-member", { name: name.name, member: member.name }, member.span);
         return null;
       }
-      const sameType = (this.ast.owner ?? this.ast).name.key === pou.name.key;
-      if (!parameter.section && !["PUBLIC", "INTERNAL"].includes(parameter.access) && !sameType) {
+      if (
+        !parameter.section &&
+        !accessible(parameter.access, parameter.declaringType, this.ast.owner ?? this.ast)
+      ) {
         this.report("fb.unknown-member", { name: name.name, member: member.name }, member.span);
         return null;
       }
@@ -1776,6 +1819,10 @@ class Checker {
     statement = false,
     expectedType?: TypeDescriptor,
   ): ExpressionInfo | null {
+    if (node.name.key === "SUPER") {
+      this.report("inheritance.super-body", {}, node.span);
+      return null;
+    }
     if (node.name.key === "THIS") {
       this.report("method.this-call", {}, node.span);
       return null;
@@ -2194,7 +2241,15 @@ class Checker {
   ): ExpressionInfo | null {
     let target = owner;
     let receiver = node.receiver;
-    if (receiver?.kind === "name" && receiver.name.key === "THIS") {
+    const superCall = receiver?.kind === "name" && receiver.name.key === "SUPER";
+    if (superCall) {
+      receiver = undefined;
+      target = owner?.baseType;
+      if (!target) {
+        this.report("inheritance.super-context", {}, node.span);
+        return null;
+      }
+    } else if (receiver?.kind === "name" && receiver.name.key === "THIS") {
       receiver = undefined;
       if (!owner) {
         this.report("method.this-outside", {}, node.span);
@@ -2216,19 +2271,27 @@ class Checker {
     }
     const index = target?.methods?.findIndex((m) => m.name.key === node.name.key) ?? -1;
     const method = index < 0 ? undefined : target?.methods?.[index];
+    if (superCall && (!method || method.abstract || method.access === "PRIVATE")) {
+      this.report("inheritance.super-method", { name: node.name.name }, node.name.span);
+      return null;
+    }
     if (!target || !method) {
       this.report("method.unknown", { name: node.name.name }, node.name.span);
       return null;
     }
-    if (!["PUBLIC", "INTERNAL"].includes(method.access ?? "PROTECTED") && owner !== target) {
+    if (!accessible(method.access, method.owner ?? target, owner)) {
       this.report("access.hidden", { name: node.name.name }, node.name.span);
       return null;
     }
     const info = this.userFunctionCall(node, method, statement);
     const call = this.userCalls.get(node)!;
     call.function = index;
-    call.method = { block: this.blockIds.get(target.name.key)!, ...(receiver ? { receiver } : {}) };
-    const offset = this.interfaces.get(target)?.symbols.length ?? 0;
+    call.method = {
+      block: this.blockIds.get(target.name.key)!,
+      ...(receiver ? { receiver } : {}),
+      ...(superCall ? { static: true } : {}),
+    };
+    const offset = this.interfaces.get(method.owner ?? target)?.symbols.length ?? 0;
     for (const parameter of [...call.inputs, ...call.outputs, ...call.inOuts])
       parameter.variable += offset;
     return info;
@@ -2392,6 +2455,19 @@ class Checker {
           { name: node.name.name, parameter: parameter.name.name },
           node.span,
         );
+  }
+
+  private superBodyCall(node: AST.FunctionCall | AST.FunctionBlockCall): void {
+    if (
+      this.ast.kind !== "functionBlock" ||
+      this.ast.owner ||
+      !this.ast.baseType ||
+      (node.kind === "fbCall" ? node.inputs.length : node.args.length || node.outputs?.length)
+    ) {
+      this.report("inheritance.super-body", {}, node.span);
+      return;
+    }
+    this.superCalls.set(node, this.blockIds.get(this.ast.baseType.name.key)!);
   }
 
   private blockCall(node: AST.FunctionCall): void {
@@ -2570,6 +2646,10 @@ class Checker {
           break;
         }
         case "call": {
+          if (node.call.name.key === "SUPER") {
+            this.superBodyCall(node.call);
+            break;
+          }
           const symbol = this.names.get(node.call.name.key);
           if (
             (!node.call.receiver ||
@@ -2588,6 +2668,10 @@ class Checker {
           break;
         }
         case "fbCall": {
+          if (node.instance.key === "SUPER") {
+            this.superBodyCall(node);
+            break;
+          }
           const call: AST.FunctionCall = {
             kind: "functionCall",
             name: node.instance,

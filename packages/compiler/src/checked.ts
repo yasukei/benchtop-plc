@@ -15,7 +15,7 @@ import type {
 } from "./ast.js";
 
 export interface UserCallInfo {
-  method?: { block: number; receiver?: AssignmentTarget };
+  method?: { block: number; receiver?: AssignmentTarget; static?: true };
   function: number;
   inputs: { variable: number; value: Expression; dataType: DataType }[];
   outputs: { variable: number; target: AssignmentTarget }[];
@@ -73,6 +73,7 @@ export interface ResolvedReference {
 export interface CheckedProgram {
   ast: Program;
   memberCount?: number;
+  superCalls: ReadonlyMap<FunctionCall | FunctionBlockCall, number>;
   types: TypeTable;
   symbols: readonly VariableSymbol[];
   constants: ReadonlyMap<string, ConstantSymbol>;

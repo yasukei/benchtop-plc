@@ -402,3 +402,20 @@ extension imports an ordinary empty function block, losing class/method semantic
 CLASS and END_CLASS join the reserved-identifier draft opening path for 0.6.0 files,
 with or without source extensions. Drafts remain editable and autosaved, but cannot
 run or be saved to a file until the identifiers are renamed.
+
+## Inheritance source extensions
+
+A derived function block writes only its own variable declarations and its own body
+to standard TC6 elements; inherited variables are not duplicated there. Its exact
+source extension preserves EXTENDS, methods, overrides and type/method modifiers.
+An empty inherited body stays empty in standard elements, and EXTENDS is never part
+of the extracted body. Inherited constants remain in scope while folding bounds
+and array repetition counts. On reopen, base source comparison precedes derived
+comparison, even when sources are ordered derived first. Classes continue to map
+to empty function blocks.
+
+ABSTRACT, FINAL, EXTENDS and OVERRIDE take no part in stale-source comparison.
+These semantics survive only through preserved sources; tools ignoring extensions
+see the declared TC6 variables and bodies without inheritance. A 0.6.0 text using
+one of the newly reserved words as an identifier opens as an editable draft through
+the existing legacy-name path, preserving source extensions first.

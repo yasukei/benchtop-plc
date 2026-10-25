@@ -175,7 +175,24 @@ export class Parser {
     const start = header.span;
     // Type names are accepted here so namespace clashes receive semantic diagnostics.
     const access = method ? this.access() : undefined;
+    const modifiers: Pick<Program, "abstract" | "final" | "override"> = {};
+    if (method || ["CLASS", "FUNCTION_BLOCK"].includes(header.key)) {
+      if (this.accept("ABSTRACT")) modifiers.abstract = true;
+      else if (this.accept("FINAL")) modifiers.final = true;
+      if (["ABSTRACT", "FINAL"].includes(this.current.key))
+        this.fail({
+          code: "inheritance.modifier-conflict",
+          severity: "error",
+          span: this.current.span,
+          args: {},
+        });
+      if (method && this.accept("OVERRIDE")) modifiers.override = true;
+    }
     const name = this.identifier(pou);
+    const base =
+      !method && ["CLASS", "FUNCTION_BLOCK"].includes(header.key) && this.accept("EXTENDS")
+        ? this.identifier(true)
+        : undefined;
     const hasResult = (method || header.key === "FUNCTION") && this.accept(":");
     const resultReference = hasResult && this.accept("REF_TO") ? this.typeSyntax() : undefined;
     const resultArray =
@@ -265,6 +282,8 @@ export class Parser {
     if (method) Object.assign(span, this.spanFrom(start));
     if (!method && this.current.kind !== "eof") this.expected("eof");
     return {
+      ...modifiers,
+      ...(base ? { base } : {}),
       ...(methods.length ? { methods } : {}),
       ...(access ? { access } : {}),
       kind:
@@ -609,12 +628,11 @@ export class Parser {
     const keywordCall =
       ["AND", "OR", "XOR", "MOD", "NOT"].includes(token.key) &&
       this.tokens[this.cursor + 1]?.key === "(";
-    const name =
-      token.key === "THIS"
+    const name = ["THIS", "SUPER"].includes(token.key)
+      ? (this.take(), { name: token.text, key: token.key, span: token.span })
+      : keywordCall
         ? (this.take(), { name: token.text, key: token.key, span: token.span })
-        : keywordCall
-          ? (this.take(), { name: token.text, key: token.key, span: token.span })
-          : this.identifier();
+        : this.identifier();
     if (this.accept("(")) {
       const call = this.functionArguments(name, !isFunction(name.key));
       this.expect(";");
@@ -797,14 +815,13 @@ export class Parser {
     const keywordCall =
       ["AND", "OR", "XOR", "MOD", "REF"].includes(token.key) &&
       this.tokens[this.cursor + 1]?.key === "(";
-    if (token.kind !== "identifier" && token.key !== "THIS" && !keywordCall)
+    if (token.kind !== "identifier" && !["THIS", "SUPER"].includes(token.key) && !keywordCall)
       this.expected("expression");
-    const name =
-      token.key === "THIS"
+    const name = ["THIS", "SUPER"].includes(token.key)
+      ? (this.take(), { name: token.text, key: token.key, span: token.span })
+      : keywordCall
         ? (this.take(), { name: token.text, key: token.key, span: token.span })
-        : keywordCall
-          ? (this.take(), { name: token.text, key: token.key, span: token.span })
-          : this.identifier();
+        : this.identifier();
     if (this.accept("#")) {
       const member = this.identifier();
       return {
@@ -850,10 +867,9 @@ export class Parser {
           const port = this.identifier();
           if (this.accept("=>")) {
             const token = this.current;
-            const name =
-              token.key === "THIS"
-                ? (this.take(), { name: token.text, key: token.key, span: token.span })
-                : this.identifier();
+            const name = ["THIS", "SUPER"].includes(token.key)
+              ? (this.take(), { name: token.text, key: token.key, span: token.span })
+              : this.identifier();
             const target = this.reference(name);
             outputs.push({ name: port, target, span: joinedSpan(port.span, target.span) });
           } else {

@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Single inheritance for function blocks and classes with EXTENDS, dynamic method
+  overrides, SUPER method/body calls, ABSTRACT and FINAL. Inherited members retain
+  their initializers and retention qualifiers and appear base first in the monitor.
+  Project files preserve exact inheritance sources; TC6 elements contain only each
+  type's own variables. Faults identify the source declaring the inherited code.
+
 - Classes with persistent members, methods and THIS, instance arrays and globals,
   access checks and RETAIN/NON_RETAIN restart behavior. Add a class from the source
   list and monitor, write or force its members regardless of access. Project files
@@ -25,6 +31,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   their bounds faults identify the member array in the instance path.
 
 ### Changed
+
+- EXTENDS, OVERRIDE, SUPER, ABSTRACT and FINAL are now reserved. Affected 0.6.0
+  project texts open as editable drafts, preserving source extensions or generated
+  standard XML text. Rename the identifiers before running or exporting; autosave
+  keeps drafts.
 
 - CLASS and END_CLASS are now reserved. Affected 0.6.0 project texts open as
   editable drafts, keeping preserved source or generating it from standard XML.

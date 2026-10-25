@@ -10,6 +10,26 @@ export type AssignmentHint = "explicit-conversion";
 
 /** Stable code-to-argument contract. See docs/diagnostics.md for field semantics. */
 export interface DiagnosticArgs {
+  "inheritance.unknown-base": { name: string };
+  "inheritance.base-kind": { name: string };
+  "inheritance.cycle": { name: string };
+  "inheritance.final-base": { name: string };
+  "inheritance.member-collision": { name: string };
+  "inheritance.override-required": { name: string };
+  "inheritance.override-missing": { name: string };
+  "inheritance.override-private": { name: string };
+  "inheritance.override-final": { name: string };
+  "inheritance.override-access": { name: string };
+  "inheritance.override-signature": { name: string };
+  "inheritance.abstract-instance": { name: string };
+  "inheritance.abstract-method": { name: string };
+  "inheritance.abstract-private": { name: string };
+  "inheritance.abstract-unimplemented": { name: string };
+  "inheritance.abstract-body": NoArguments;
+  "inheritance.modifier-conflict": NoArguments;
+  "inheritance.super-context": NoArguments;
+  "inheritance.super-method": { name: string };
+  "inheritance.super-body": NoArguments;
   "class.body": NoArguments;
   "class.not-callable": { name: string };
   "access.duplicate": NoArguments;

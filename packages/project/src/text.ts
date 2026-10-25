@@ -26,15 +26,39 @@ function offset(source: string, span: SourceSpan, end = false): number {
   return lines.slice(0, line - 1).reduce((sum, text) => sum + text.length, 0) + column - 1;
 }
 
+/** Collect lexical constants without adding inherited variables to standard TC6 elements. */
+function inheritedConstants(source: string, sources: readonly string[]): Declaration[] {
+  const ast = parsePou(source).ast;
+  const seen = new Set(ast ? [ast.name.key] : []);
+  const ancestors = (base: string | undefined): Declaration[] => {
+    if (!base || seen.has(base)) return [];
+    seen.add(base);
+    const parent = sources.map((text) => parsePou(text).ast).find((pou) => pou?.name.key === base);
+    return parent
+      ? [...ancestors(parent.base?.key), ...parent.declarations.filter((d) => d.constant)]
+      : [];
+  };
+  return ancestors(ast?.base?.key);
+}
+
+/** AST dependencies also work for declarations originating in another source text. */
+function identifiers(node: unknown, needed: Set<string>): void {
+  if (!node || typeof node !== "object") return;
+  if ("key" in node && typeof node.key === "string") needed.add(node.key);
+  for (const value of Object.values(node)) identifiers(value, needed);
+}
+
 export function splitProgram(
   source: string,
   types: TypeTable = [],
   globals?: GlobalScope,
   legacyNames = false,
+  sources: readonly string[] = [],
 ): ProjectResult<SplitProgram> {
   const result = parsePou(source, legacyNames);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
+  const inherited = inheritedConstants(source, sources);
   const invalidCapacity = (name: string, length: number | undefined): boolean =>
     length !== undefined &&
     (!["STRING", "WSTRING"].includes(name) ||
@@ -81,6 +105,7 @@ export function splitProgram(
       ? tokens!.find((token) => token.key === "]")?.span
       : undefined) ??
     ast.resultType?.span ??
+    ast.base?.span ??
     ast.name.span;
   const end = tokens!.find(
     (token) =>
@@ -109,7 +134,7 @@ export function splitProgram(
         ? canonicalInitializer(
             source,
             declaration.initializer,
-            ast.declarations.slice(0, ast.declarations.indexOf(declaration)),
+            [...inherited, ...ast.declarations.slice(0, ast.declarations.indexOf(declaration))],
             types,
             globals,
           )
@@ -164,28 +189,26 @@ export function splitProgram(
   ): string | undefined => {
     const names = new Set([
       ast.name.key,
-      ...ast.declarations.flatMap((declaration) => declaration.names.map((item) => item.key)),
+      ...[...inherited, ...ast.declarations].flatMap((declaration) =>
+        declaration.names.map((item) => item.key),
+      ),
       ...types.map((type) => type.name.toUpperCase()),
     ]);
     let key = "__RANGE";
     while (names.has(key)) key += "_";
     const needed = new Set<string>();
-    const dependencies = (span: SourceSpan): void => {
-      for (const token of lex(expressionText(source, span)).tokens ?? [])
-        if (token.kind === "identifier") needed.add(token.key);
-    };
-    dependencies(range.span);
+    identifiers(range, needed);
     // Walk backwards to include transitive dependencies in their original order.
     // Unrelated unresolved constants remain exchangeable semantic errors.
-    const constants = ast.declarations
-      .slice(0, before)
-      .filter((declaration) => declaration.constant);
+    const constants = [...inherited, ...ast.declarations.slice(0, before)].filter(
+      (declaration) => declaration.constant,
+    );
     const included: typeof constants = [];
     for (const declaration of constants.toReversed()) {
       if (!declaration.names.some((item) => needed.has(item.key))) continue;
       included.unshift(declaration);
-      if (declaration.initializer) dependencies(declaration.initializer.span);
-      if (declaration.subrange) dependencies(declaration.subrange.span);
+      if (declaration.initializer) identifiers(declaration.initializer, needed);
+      if (declaration.subrange) identifiers(declaration.subrange, needed);
     }
     const result = check(
       {
@@ -461,9 +484,7 @@ export function canonicalInitializer(
     for (const declaration of declarations.toReversed()) {
       if (!declaration.constant || !declaration.names.some((n) => needed.has(n.key))) continue;
       constants.unshift(declaration);
-      if (declaration.initializer)
-        for (const token of lex(expressionText(source, declaration.initializer.span)).tokens ?? [])
-          needed.add(token.key);
+      if (declaration.initializer) identifiers(declaration.initializer, needed);
     }
     const checked = check(
       { ...countAst, declarations: constants },

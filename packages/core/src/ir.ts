@@ -346,6 +346,12 @@ export interface UserFunctionBlockStorage {
 }
 /** Shared instance definitions. The legacy table name includes classes, whose body is empty. */
 export interface UserFunctionBlockIR extends SourceNode {
+  /** Base definition index; variables and method slots are flattened base first. */
+  base?: number;
+  /** Definition declaring the effective body; absent means this definition. */
+  bodyOwner?: number;
+  abstract?: true;
+  final?: true;
   /** Absent denotes a function block, preserving existing IR producers. */
   kind?: "functionBlock" | "class";
   methods?: UserMethodIR[];
@@ -363,6 +369,10 @@ export interface UserFunctionBlockIR extends SourceNode {
 
 /** Slots below memberCount address the receiver; other slots address fresh locals. */
 export interface UserMethodIR extends UserFunctionIR {
+  /** Definition declaring this implementation, including inherited methods. */
+  declaringType?: number;
+  abstract?: true;
+  final?: true;
   memberCount: number;
 }
 
@@ -386,7 +396,7 @@ export interface InOutBinding {
 export interface UserFunctionCall extends SourceNode {
   kind: "userFunctionCall";
   /** For a method, function indexes the owning block's methods instead. */
-  method?: { block: number; receiver?: StorageReference };
+  method?: { block: number; receiver?: StorageReference; static?: true };
   function: number;
   /** In source order, including for formal calls. Omitted inputs keep their initial values. */
   inputs: { variable: FrameSlot; value: Expression }[];
@@ -654,7 +664,14 @@ export interface ReturnStatement extends SourceNode {
   kind: "return";
 }
 
+/** Run the statically selected base body on the current receiver. */
+export interface SuperCallStatement extends SourceNode {
+  kind: "superCall";
+  block: number;
+}
+
 export type Statement =
+  | SuperCallStatement
   | AssignmentStatement
   | FunctionCallStatement
   | FunctionBlockCallStatement

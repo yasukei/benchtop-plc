@@ -365,3 +365,13 @@ class members with the same value, write and force controls as block members,
 regardless of access. Constants and method locals are absent. Class method results
 in PROGRAM bodies have inline values; class method bodies do not. Save and reopen
 preserve exact class text through the project source extension.
+
+## Inherited instances
+
+The source list recognizes ABSTRACT/FINAL class and function block headers and
+shows the declared type name. Inherited scalar members appear under their instance
+with their own dotted paths, base first and then each type's declaration order.
+The monitor permits writes and forces regardless of member access, including
+inherited PRIVATE members. Runtime errors inside inherited implementations select
+the declaring type's source. Saving and reopening preserves exact inheritance
+sources; editing is through the Structured Text editor.

@@ -89,7 +89,8 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `FUNCTION`                 | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
 | `FUNCTION_BLOCK`           | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
 | Methods on function blocks | Yes     | ADR 0017: access by type, fresh locals, formal/positional calls; no instance VAR_IN_OUT in methods                                                                         |
-| Classes                    | Partial | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; no EXTENDS/ABSTRACT/FINAL/IMPLEMENTS yet (#177, #178); see class restrictions                |
+| Classes                    | Partial | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; single inheritance, ABSTRACT and FINAL; no IMPLEMENTS yet (#178); see class restrictions     |
+| Inheritance                | Yes     | ADR 0017: same-kind EXTENDS, dynamic OVERRIDE, SUPER methods/bodies, ABSTRACT and FINAL; conservative recursion checks                                                     |
 | Interfaces                 | No      |                                                                                                                                                                            |
 | Namespaces                 | No      |                                                                                                                                                                            |
 
@@ -359,6 +360,24 @@ inline arrays; they cannot be called, initialized, CONSTANT, parameters, structu
 members or function/method locals. Containment cycles are rejected. Access defaults
 to PROTECTED and is checked by type; monitoring ignores it. RETAIN/NON_RETAIN work
 for class instances and members. TC6 carries classes as empty function blocks with
-exact text in the source extension. Inheritance, interfaces, references to instances
-and namespaces remain unsupported. These are 3rd-edition-based semantics and project
+exact text in the source extension. Interfaces, references to instances and
+namespaces remain unsupported. These are 3rd-edition-based semantics and project
 restrictions; 4th-edition verification remains pending.
+
+## Inheritance restrictions (ADR 0017)
+
+FUNCTION_BLOCK and CLASS extend only their own kind, with single inheritance and
+no cyclic or FINAL base. All sections and methods are inherited, including private
+storage. PRIVATE members are accessible only in the declaring type; PROTECTED
+members also in descendants. Overrides require OVERRIDE and identical access,
+parameter names/sections/types/order and result type; PRIVATE/FINAL methods cannot
+be overridden. Dynamic binding includes implicit and explicit THIS calls, and the
+recursion graph conservatively includes all descendant overrides.
+
+SUPER.M() selects a concrete, accessible base method. SUPER() takes no arguments
+and is confined to a derived block's body. Empty/comments-only derived bodies
+inherit; statements replace the base body, including a lone RETURN. Abstract
+methods have no statements and require an abstract type and non-private access.
+Concrete types implement all abstract methods; abstract types cannot be instantiated.
+ABSTRACT with FINAL and abstract function blocks with body statements are rejected.
+These follow the 3rd edition and project restrictions, pending 4th edition checks.

@@ -12,6 +12,13 @@ export type Address = SourceNode & import("@benchtop-plc/core").DirectAddress & 
 export type Access = "PUBLIC" | "PROTECTED" | "PRIVATE" | "INTERNAL";
 
 export interface Program extends SourceNode {
+  abstract?: true;
+  final?: true;
+  override?: true;
+  base?: Identifier;
+  /** Resolved inheritance links exist only during project compilation. */
+  baseType?: Program;
+  bodyOwner?: Program;
   methods?: Program[];
   access?: Access;
   /** Compiler-local owner for a method checked as a function with instance storage. */
@@ -43,6 +50,8 @@ export interface TypeSyntax extends SourceNode {
   reference?: TypeSyntax;
 }
 export interface Declaration extends SourceNode {
+  /** Lexical owner of a flattened inherited declaration. */
+  declaringType?: Program;
   reference?: TypeSyntax;
   access?: Access;
   kind: "declaration";

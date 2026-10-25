@@ -701,3 +701,22 @@ Every scalar non-CONSTANT member appears in snapshots and supports writes and
 forces, including PRIVATE and PROTECTED members. Constants and method locals have
 no monitored IDs. Faults inside class methods carry `Type.Method`, the class source
 span and the receiver path, with the caller's shared watchdog budget.
+
+## Inherited execution
+
+Instances retain their actual definition index. Methods use its effective method
+table for dynamic binding, including calls made by a base method through THIS or an
+unqualified method name. SUPER calls select the base implementation statically
+while preserving that actual receiver for subsequent virtual calls.
+
+Inherited members occupy a base-first prefix of instance storage. An inherited
+method shares only its declaring receiver prefix before appending fresh locals;
+dispatched parameter slots are translated to the chosen implementation's prefix.
+This prevents method locals from overwriting additional derived members. Inputs,
+outputs, in-out aliases and results retain the usual method semantics.
+
+Empty derived block bodies run the effective base body. SUPER() runs that same body
+on current instance storage and inputs; RETURN leaves only that invocation. Faults
+in inherited methods and bodies name the declaring type's text and the actual
+instance path. Inherited members initialize on load/cold reset and follow ADR 0016
+qualifier inheritance during warm restart and retained reload.

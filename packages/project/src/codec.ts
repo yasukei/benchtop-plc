@@ -803,7 +803,7 @@ export function readProject(xml: string): ProjectResult<Project> {
         body: text.text,
       };
       validateInitializers(split, resolved.types, globals);
-      let program = joinProgram(split);
+      const program = joinProgram(split);
       const parsed = splitProgram(program, resolved.types, globals, true);
       if (!parsed.value) fail("project.invalid", "pou/interface");
       if (
@@ -813,11 +813,33 @@ export function readProject(xml: string): ProjectResult<Project> {
         // Re-parsing must not allow XML attributes or initializer text to inject declarations.
         fail("project.invalid", "pou/interface");
       }
-      const source =
-        extensions.sources.get(pou) ??
-        (pouNodes.length === 1 ? extensions.sources.get(root) : undefined);
+      return {
+        split,
+        source: program,
+        preserved:
+          extensions.sources.get(pou) ??
+          (pouNodes.length === 1 ? extensions.sources.get(root) : undefined),
+      };
+    });
+    // Accept base sources first, so derived constants use validated preserved text
+    // (or the standard fallback), independent of source order.
+    const accepted = new Set<(typeof programs)[number]>();
+    const accepting = new Set<(typeof programs)[number]>();
+    const acceptSource = (record: (typeof programs)[number]): void => {
+      if (accepted.has(record) || accepting.has(record)) return;
+      accepting.add(record);
+      const { split, preserved: source } = record;
       if (source !== undefined) {
-        const preserved = splitProgram(source, resolved.types, globals);
+        const base = parsePou(source).ast?.base?.key;
+        const parent = programs.find((p) => p.split.name.toUpperCase() === base);
+        if (parent) acceptSource(parent);
+        const preserved = splitProgram(
+          source,
+          resolved.types,
+          globals,
+          false,
+          programs.map((p) => p.source),
+        );
         const comparable =
           parsePou(source).ast?.kind === "class" && !split.body.trim()
             ? { ...split, body: "" }
@@ -826,11 +848,13 @@ export function readProject(xml: string): ProjectResult<Project> {
           legacyDraft(source, "pou") ||
           (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(comparable))
         )
-          program = source;
+          record.source = source;
         else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
       }
-      return { split, source: program };
-    });
+      accepting.delete(record);
+      accepted.add(record);
+    };
+    programs.forEach(acceptSource);
     const structure: ConfigurationStructure = {
       globals: configuration.children
         .filter((n) => n.name === "globalVars")
@@ -1127,7 +1151,7 @@ export function writeProject(project: Project): ProjectResult<string> {
   );
   const programs: SplitProgram[] = [];
   for (const source of project.pous) {
-    const parsed = splitProgram(source, resolved.types, globals);
+    const parsed = splitProgram(source, resolved.types, globals, false, project.pous);
     if (!parsed.value) return { value: null, diagnostics: parsed.diagnostics };
     programs.push(parsed.value);
   }
