@@ -879,7 +879,7 @@ export function lower(
     const storage = allocate(
       layouts[instance.program]!.variables,
       temporarySlots,
-      [],
+      sections(definition).flatMap((section, slot) => (section === "VAR_IN_OUT" ? [slot] : [])),
       `${instance.name}.`,
       true,
     );
@@ -887,6 +887,12 @@ export function lower(
     const inputs: IR.ProgramConnectionIR[] = [],
       outputs: IR.ProgramConnectionIR[] = [];
     for (const connection of connections?.[index] ?? []) {
+      if (connection.inOut) {
+        if (connection.endpoint.kind !== "global")
+          throw new Error("Checked PROGRAM in-out is not global storage");
+        storage[connection.parameter] = required(globalStorage.get(connection.endpoint.key));
+        continue;
+      }
       const parameter = storage[connection.parameter]!;
       const endpoint: IR.ProgramConnectionEndpoint =
         connection.endpoint.kind === "global"

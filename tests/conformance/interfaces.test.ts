@@ -235,3 +235,43 @@ it("passes interface values through function block input, output, in-out and tem
   expect(runtime.diagnostic).toBeNull();
   expect(value("first")).toMatchObject({ value: 3 });
 });
+
+it("aliases configured PROGRAM interface in-outs so retargeting is immediately shared", () => {
+  const compiled = compileProject(
+    [
+      `PROGRAM Main VAR_IN_OUT a: IActuator; second: IActuator; END_VAR
+    VAR_EXTERNAL shared: IActuator; globalValve: Valve; END_VAR
+    VAR_OUTPUT observed: INT; identical: BOOL; END_VAR
+    a := globalValve; shared.Start(step := 3); observed := a.Value(); identical := a = second;
+    END_PROGRAM`,
+      actuator,
+      valve,
+    ],
+    [],
+    `CONFIGURATION Config VAR_GLOBAL RETAIN shared: IActuator; globalValve: Valve; END_VAR
+    RESOURCE Res ON BENCHTOP TASK Cycle(INTERVAL := T#10ms, PRIORITY := 1);
+    PROGRAM mainInstance WITH Cycle: Main(a := shared, second := shared); END_RESOURCE END_CONFIGURATION`,
+  );
+  expect(compiled.diagnostics).toEqual([]);
+  const ir = structuredClone(compiled.ir!);
+  const clock = new VirtualClock();
+  const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
+  runtime.load(ir);
+  const value = (name: string) =>
+    snapshotVariable(
+      runtime.snapshot(),
+      ir.variables.findIndex((v) => v.key === name),
+    );
+  expect(value("SHARED")).toEqual({ kind: "reference", target: null });
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  expect(value("SHARED")).toEqual({ kind: "reference", target: "GLOBALVALVE" });
+  expect(value("MAININSTANCE.OBSERVED")).toMatchObject({ value: 3 });
+  expect(value("MAININSTANCE.IDENTICAL")).toMatchObject({ value: true });
+  runtime.warmRestart();
+  expect(value("SHARED")).toEqual({ kind: "reference", target: null });
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  expect(value("MAININSTANCE.OBSERVED")).toMatchObject({ value: 6 });
+  expect(value("MAININSTANCE.IDENTICAL")).toMatchObject({ value: true });
+});

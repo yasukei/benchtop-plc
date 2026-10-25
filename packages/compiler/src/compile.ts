@@ -407,6 +407,18 @@ export function compileProject(
         )
       : undefined;
   diagnostics.push(...(connections?.diagnostics.map(configDiagnostic) ?? []));
+  if (!config)
+    for (const program of programs)
+      for (const declaration of program.declarations.filter((d) => d.section === "VAR_IN_OUT"))
+        for (const name of declaration.names)
+          diagnostics.push({
+            code: "call.missing-in-out",
+            severity: "error",
+            pou: program.name.name,
+            sourceIndex: sourceIndexes.get(program),
+            span: name.span,
+            args: { name: program.name.name, parameter: name.name },
+          });
   if (diagnostics.some((d) => d.severity === "error")) return { diagnostics };
   const ir = lower(
     programs.map((ast) => checked.get(ast)!),

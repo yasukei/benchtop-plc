@@ -317,9 +317,9 @@ inside its body the function name can be assigned and read.
 A FUNCTION supports scalar `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` declarations.
 Initializers are optional except on `VAR_IN_OUT`, where they are forbidden. `FUNCTION F : REAL` returns its result variable;
 `FUNCTION F` has no result and is callable only as a statement. Functions cannot
-declare `VAR_TEMP`, FB instances, or direct addresses.
+declare FB instances or direct addresses; `VAR_TEMP` is limited to interface variables.
 A PROGRAM cannot be called. It accepts `VAR_INPUT` and `VAR_OUTPUT`, while
-`VAR_IN_OUT` remains rejected. Direct addresses are allowed on PROGRAM variables and configuration/resource globals.
+`VAR_IN_OUT` is limited to interface variables and arrays of interfaces. Each configured instance must bind every in-out to an exact-type mutable global using `:=`; the implicit configuration cannot bind in-outs. Direct addresses are allowed on PROGRAM variables and configuration/resource globals.
 
 Formal calls use `:=` inputs and `=>` outputs without mixing positional arguments.
 Omitted inputs start from their declared initial values; an empty `F()` uses these
@@ -623,7 +623,14 @@ report `config.connection-parameter`, `config.connection-direction`,
 `config.connection-duplicate`, and `config.connection-target`. Type and address
 errors reuse ordinary assignment, constant, and declaration diagnostics. Every
 connection error names the configuration source, including its source index and
-span. Unconnected parameters are valid under explicit and implicit configurations.
+span. Unconnected inputs and outputs are valid under explicit and implicit configurations.
+
+PROGRAM interface in-outs use `:=` to alias a mutable global interface cell (or
+exact-type array of interface cells). They do not copy values at task boundaries:
+retargeting through either name is immediately visible through the other. Constants,
+NULL, concrete instances, addresses and extending-interface types cannot supply
+an in-out alias. A missing binding reports `call.missing-in-out`, including under
+the implicit configuration; differing types report `call.in-out-type`.
 
 ## Method scope and access
 

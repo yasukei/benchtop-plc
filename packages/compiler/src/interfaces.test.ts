@@ -239,3 +239,64 @@ it.each([
     }
   },
 );
+
+const inOutProgram = "PROGRAM Main VAR_IN_OUT a: IActuator; END_VAR a.Start(); END_PROGRAM";
+const inOutConfiguration = (connection = "") => `CONFIGURATION Config
+VAR_GLOBAL shared: IActuator; extending: IExtended; device: Valve; number: INT; links: ARRAY[1..2] OF IActuator; END_VAR
+RESOURCE Res ON BENCHTOP TASK Cycle(INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM mainInstance WITH Cycle: Main ${connection}; END_RESOURCE END_CONFIGURATION`;
+const inOutSources = [
+  inOutProgram,
+  actuator,
+  valve,
+  "INTERFACE IExtended EXTENDS IActuator END_INTERFACE",
+];
+
+it("binds a PROGRAM interface in-out to an exact-type global interface cell", () => {
+  const result = compileProject(inOutSources, [], inOutConfiguration("(a := shared)"));
+  expect(result.diagnostics).toEqual([]);
+  const shared = result.ir!.variables.findIndex((v) => v.key === "SHARED");
+  expect(result.ir!.resource.programs[0]!.storage[0]).toEqual({
+    kind: "variable",
+    variable: shared,
+  });
+  expect(result.ir!.resource.programs[0]!.inputs).toBeUndefined();
+});
+
+it.each([
+  ["", "call.missing-in-out"],
+  ["(a := NULL)", "config.connection-target"],
+  ["(a := device)", "config.connection-target"],
+  ["(a := extending)", "call.in-out-type"],
+  ["(a := number)", "call.in-out-type"],
+  ["(a := %MW0)", "config.connection-target"],
+  ["(a => shared)", "config.connection-direction"],
+  ["(a := shared, a := shared)", "config.connection-duplicate"],
+])("rejects invalid PROGRAM interface in-out bindings: %s", (connection, code) => {
+  const result = compileProject(inOutSources, [], inOutConfiguration(connection));
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({ code, sourceKind: "configuration", sourceIndex: 0 }),
+  );
+});
+
+it("requires an explicit configuration to bind PROGRAM interface in-outs", () => {
+  expect(codes(inOutSources)).toContain("call.missing-in-out");
+});
+
+it("binds PROGRAM arrays of interfaces with exact array types", () => {
+  const result = compileProject(
+    [
+      inOutProgram
+        .replace("a: IActuator", "a: ARRAY[1..2] OF IActuator")
+        .replace("a.Start()", "a[1].Start()"),
+      actuator,
+    ],
+    [],
+    inOutConfiguration("(a := links)")
+      .replace("device: Valve;", "")
+      .replace("extending: IExtended;", ""),
+  );
+  expect(result.diagnostics).toEqual([]);
+  expect(result.ir!.resource.programs[0]!.storage[0]!.kind).toBe("array");
+});

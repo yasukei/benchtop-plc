@@ -85,7 +85,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 | Feature                    | Status  | Notes                                                                                                                                                                                                 |
 | -------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROGRAM`                  | Partial | One implicit PROGRAM or 1–64 configured instances; VAR_INPUT/VAR_OUTPUT connections; VAR_IN_OUT only for interface variables; no AT on parameters (restrictions)                                      |
+| `PROGRAM`                  | Partial | One implicit PROGRAM or 1–64 configured instances; VAR_INPUT/VAR_OUTPUT connections; VAR_IN_OUT only for interface variables bound to exact-type globals; no AT on parameters (restrictions)          |
 | `FUNCTION`                 | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances; VAR_TEMP only for interface variables |
 | `FUNCTION_BLOCK`           | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                                                         |
 | Methods on function blocks | Yes     | ADR 0017: access by type, fresh locals, formal/positional calls; no instance VAR_IN_OUT in methods                                                                                                    |
@@ -256,7 +256,8 @@ Partial support of the standard's non-formal parameter list.
 
 Project restrictions: functions cannot declare FB instances, and VAR_TEMP in
 functions is limited to interface variables. PROGRAM allows VAR_INPUT/VAR_OUTPUT;
-VAR_IN_OUT is limited to interface variables. Direct addresses are allowed
+VAR_IN_OUT is limited to interface variables, with required configuration bindings
+to mutable globals of exactly the same type. Direct addresses are allowed
 in PROGRAM VAR and configuration/resource globals, and are forbidden in both
 functions and function blocks.
 EN/ENO remains deferred. CONSTANT is supported on VAR, VAR_GLOBAL and matching VAR_EXTERNAL, with elementary, string, character, alias, enum and subrange types and no AT. VAR_IN_OUT supports exact-type scalar/array/structure/reference caller variables, elements, members and dereferenced storage in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).

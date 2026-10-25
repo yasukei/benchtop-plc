@@ -85,3 +85,21 @@ it("does not accept an interface source extension in place of a standard POU", (
   expect(opened.diagnostics.map((d) => d.code)).toContain("project.stale-source");
   expect(opened.value?.pous[1]).toContain("FUNCTION_BLOCK Device");
 });
+
+it("preserves configured PROGRAM interface in-out bindings on save and reopen", () => {
+  const project = sampleProject("PROGRAM Main VAR_IN_OUT a: IActuator; END_VAR END_PROGRAM");
+  delete project.instance;
+  project.pous.unshift(face);
+  project.configurationSource = `CONFIGURATION Config VAR_GLOBAL shared: IActuator; END_VAR
+  RESOURCE Res ON BENCHTOP TASK Cyclic(INTERVAL := T#10ms, PRIORITY := 0);
+  PROGRAM mainInstance WITH Cyclic: Main(a := shared); END_RESOURCE END_CONFIGURATION`;
+  const saved = writeProject(project);
+  expect(saved.diagnostics).toEqual([]);
+  const opened = readProject(saved.value!);
+  expect(opened.diagnostics).toEqual([]);
+  expect(opened.value).toEqual(project);
+  expect(
+    compileProject(opened.value!.pous, opened.value!.dataTypes, opened.value!.configurationSource)
+      .diagnostics,
+  ).toEqual([]);
+});

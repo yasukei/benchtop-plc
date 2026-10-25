@@ -201,7 +201,9 @@ normal `pnpm test` and CI). No network access is used by the project package.
 Function and function block `VAR_IN_OUT` sections map to `interface/inOutVars`,
 preserving declaration order and exact source text. Canonical imports without
 source extensions reconstruct `VAR_IN_OUT` sections. As with other representable
-sections, an in-out section on a PROGRAM can be exchanged but compilation reports
+sections, an in-out section on a PROGRAM can be exchanged. Compilation allows
+interface variables and arrays of interfaces there, requiring exact-type global
+bindings in the preserved configuration source; other types report
 `pou.invalid-section`. In-out declaration initializers are also exchangeable
 semantic errors (`decl.in-out-initializer`); their usual type and range checks
 still apply on save and import.

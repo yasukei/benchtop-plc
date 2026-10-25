@@ -202,7 +202,9 @@ following the block definitions.
 
 ## PROGRAM parameters and connections
 
-PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`; `VAR_IN_OUT` remains rejected.
+PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`, plus `VAR_IN_OUT` for interface
+variables and arrays of interfaces. Every in-out requires an explicit configuration
+connection (`:=`) to a mutable global of exactly the same type.
 `AT` on a PROGRAM parameter declaration is rejected (`decl.parameter-address`);
 connect direct addresses in the configuration instead.
 An instance can connect named parameters, for example:
@@ -212,7 +214,7 @@ PROGRAM A WITH T : Main (Start := %IX0.0, Lamp => %QX0.0, Threshold := gThreshol
 ```
 
 Connection lists must contain at least one connection and cannot end with a comma.
-Omit the parentheses when every parameter is unconnected.
+Omit the parentheses when every input/output is unconnected and there are no in-outs.
 
 Input sources are constants (including constant expressions and enumeration values),
 globals, or direct addresses. Output destinations are mutable globals or output/memory
@@ -223,6 +225,8 @@ input/assignment conversions; addresses bind the parameter type as an `AT` would
 parameter storage and a global storage slot, constant, or address. Connected input
 leaves carry `connectedInput: true`. PROGRAM bodies and storage remain independent
 of the connection lists, so every instance can connect to different sources.
+Interface in-outs instead share the connected global storage directly, with no
+input/output transfers; assignments through either name are immediately visible.
 
 At task start the runtime reads inputs, consumes pending writes, and restores forces.
 For each instance in declaration order it copies connected inputs, restores forces,

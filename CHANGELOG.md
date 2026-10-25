@@ -15,6 +15,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   dispatch methods dynamically, compare identities and support assignment attempt
   (`?=`), which clears the target on mismatch. Monitor targets as paths or NULL;
   add interface sources from a template and preserve them in project files.
+  PROGRAM interface in-outs bind exact-type mutable globals through configuration
+  connections and share their storage immediately; unbound in-outs are rejected.
 
 - Single inheritance for function blocks and classes with EXTENDS, dynamic method
   overrides, SUPER method/body calls, ABSTRACT and FINAL. Inherited members retain

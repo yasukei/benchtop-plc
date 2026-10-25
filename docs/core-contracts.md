@@ -473,3 +473,7 @@ interface name and prototype index; runtime maps that prototype's name and
 parameter positions to the actual implementation. `instanceReference` binds a
 persistent instance storage location, or THIS when its target is absent. An
 assignment with `attempt: true` tests the actual type and stores NULL on mismatch.
+
+PROGRAM interface in-outs share the configured global's InstanceStorage directly.
+They allocate no separate monitored leaf and appear in neither input nor output
+transfer lists, preserving in-out alias semantics across program instances.

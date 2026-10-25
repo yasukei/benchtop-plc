@@ -397,14 +397,18 @@ All of these carry the configuration name in `pou`, `sourceKind: "configuration"
 
 | Code                          | Arguments      | Meaning                                                                                                       |
 | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
-| `config.connection-parameter` | `name: string` | Unknown parameter or a declaration that is not an input/output.                                               |
-| `config.connection-direction` | `name: string` | Input uses `=>` or output uses `:=`.                                                                          |
+| `config.connection-parameter` | `name: string` | Unknown parameter or a declaration that is not an input/output/interface in-out.                              |
+| `config.connection-direction` | `name: string` | Input or in-out uses `=>`, or output uses `:=`.                                                               |
 | `config.connection-duplicate` | `name: string` | A parameter is connected more than once (case-insensitive).                                                   |
 | `config.connection-target`    | `name: string` | Source is not a constant/global/address, or output targets a constant, input-mapped global, or input address. |
 
 Connection type mismatches reuse `type.assign-mismatch` and constant diagnostics;
 address errors reuse `decl.direct-address-type` and `decl.address-out-of-range`.
 These also identify the configuration source and the connection value's span.
+PROGRAM interface in-outs require mutable global storage (`config.connection-target`)
+and an exact type (`call.in-out-type`). Missing bindings report
+`call.missing-in-out` at the configured instance, or at the parameter declaration
+under the implicit configuration.
 
 `runtime.write-connected-input` (`{ name: string }`) rejects one-shot monitor writes
 to a connected PROGRAM input. It is a command rejection; forces remain allowed.
