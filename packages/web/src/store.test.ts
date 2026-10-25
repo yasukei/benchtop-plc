@@ -9,6 +9,7 @@ import { createAppStore } from "./store.js";
 
 const snapshot: RuntimeSnapshot = {
   scanCount: 1,
+  tasks: [],
   lastExecutionTimeMs: 0.25,
   inputs: [false, false, false, false, false, false, false, false],
   outputs: [false, false, false, false, false, false, false, false],
@@ -548,24 +549,21 @@ END_RESOURCE END_CONFIGURATION`;
     project.configurationSource = configurationSource;
     expect(store.openProject(writeProject(project).value!)).toBe(true);
     expect(store.getSnapshot().project?.configurationSource).toBe(configurationSource);
-    if (multiple) {
-      expect(store.getSnapshot().diagnostics).toContainEqual(
-        expect.objectContaining({ code: "config.task-count", sourceKind: "configuration" }),
-      );
-      expect(worker.sent.some((message) => message.type === "load")).toBe(false);
-    } else {
-      const load = worker.sent.find((message) => message.type === "load");
-      expect(load).toMatchObject({
-        type: "load",
-        ir: {
-          explicit: true,
-          resource: { tasks: [{ intervalMs: 200 }], programs: [{ name: "A" }, { name: "B" }] },
+    expect(store.getSnapshot().diagnostics).toEqual([]);
+    const load = worker.sent.find((message) => message.type === "load");
+    expect(load).toMatchObject({
+      type: "load",
+      ir: {
+        explicit: true,
+        resource: {
+          tasks: multiple ? [{ intervalMs: 200 }, { intervalMs: 100 }] : [{ intervalMs: 200 }],
+          programs: [{ name: "A" }, { name: "B" }],
         },
-      });
-      const sent = worker.sent.length;
-      store.send({ type: "setCycle", ms: 50 });
-      expect(worker.sent).toHaveLength(sent);
-    }
+      },
+    });
+    const sent = worker.sent.length;
+    store.send({ type: "setCycle", ms: 50 });
+    expect(worker.sent).toHaveLength(sent);
     expect(readProject(store.saveProject()!).value?.configurationSource).toBe(configurationSource);
     store.dispose();
   },

@@ -238,15 +238,17 @@ output arrays in descriptor order), forced variable IDs, and annotations keyed b
 POU name and then one-based source line. Each annotation contains the full `span` of its assignment,
 function statement or FB call, so consumers identify statements by source location
 rather than array position. Entries are grouped by `span.line` and sorted by `span.column` on each
-line. Only statements executed in the current scan are included; unexecuted
-statements have no placeholder, empty lines are omitted, and prior-scan values
-are not retained.
+line. Each POU retains the annotations from its first instance's latest run across
+passes where that instance does not run. Starting that instance clears its POU's
+previous entries, so skipped statements do not retain old values and a faulting run
+contains only completed statements. Empty POUs/lines are omitted. Load and cold
+reset clear all entries.
 
 Only PROGRAM statements are annotated. A function without a result has no
 annotation, and function outputs are not included. A snapshot is delivered after
 the scan, with one annotation per executed
 assignment, function statement or FB call. Its `values` are captured at that
-statement's last execution in the scan: a single assignment or function-statement
+statement's last execution in that instance run: a single assignment or function-statement
 result, or the FB's outputs in descriptor order (for TON, `[Q, ET]`). Repeated
 execution in a loop replaces that statement's
 previous values; it does not append executions or flatten FB output arrays.
@@ -338,7 +340,7 @@ cannot be written or forced; dereferenced values retain their target's identity.
 `name`, source `span`, and `explicit`). It contains:
 
 - `programs`: shared PROGRAM names, spans and statement bodies, once per POU;
-- `resource`: its name, cyclic `tasks` (`name`, `intervalMs`, `priority`) and
+- `resource`: its name, `tasks` in declaration order and
   `programs` in declaration order (`name`, zero-based `program` and `task` indexes,
   and per-instance `storage`);
 - `variables`: one flat monitored table across every program instance;
@@ -356,3 +358,21 @@ Each PROGRAM uses its first instance in resource declaration order. Uninstantiat
 PROGRAMs have no entries; an earlier instance's values cannot be overwritten by
 another instance of the same body. Runtime faults carry `task` and a qualified
 `instance` path as well as the executing `pou`.
+
+## Task IR and telemetry
+
+`TaskIR` is a cyclic task (`name`, `intervalMs`, `priority`) or event task
+(`name`, `priority`, `single`). `single` is JSON data: either
+`{ kind: "variable", variable: VariableId }` bound to a non-constant BOOL global,
+or `{ kind: "address", address: DirectAddress }` for a supported input bit.
+An instance's zero-based `task` index selects its task independently of its
+resource declaration position. The implicit configuration remains one cyclic task.
+
+Every `RuntimeSnapshot` includes `tasks: TaskTelemetry[]` in declaration order,
+empty before load. Each entry contains `name`, `runCount`, `lastExecutionTimeMs`,
+`maxExecutionTimeMs` and `overruns`. All numbers are JSON-safe; timing uses the
+injected Clock. Snapshots copy entries so clients cannot mutate scheduler state.
+Load/cold reset clear the values; STOP/RUN preserve them. `scanCount` counts passes
+with at least one attempted task run, including a faulting run. The Worker host
+forwards these fields in ordinary snapshot messages. Runtime faults name the task
+that failed and prevent every later task in that pass from running.

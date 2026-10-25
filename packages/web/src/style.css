@@ -565,3 +565,20 @@ tr[data-forced="true"] {
     border-bottom: 1px solid var(--border);
   }
 }
+
+.task-status-scroll {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.task-status {
+  width: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-status th,
+.task-status td {
+  padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+}

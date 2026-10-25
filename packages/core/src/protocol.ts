@@ -34,11 +34,21 @@ export type VariableSnapshot =
 export interface StatementAnnotation {
   /** Full span of the assignment or FB call, independent of its position in the line's array. */
   span: SourceSpan;
-  /** Last execution in this scan: one assignment result, or FB outputs in descriptor order. */
+  /** Last execution in the instance run: one assignment result, or FB outputs in descriptor order. */
   values: InlineValue[];
 }
 
+export interface TaskTelemetry {
+  name: string;
+  runCount: number;
+  lastExecutionTimeMs: number;
+  maxExecutionTimeMs: number;
+  overruns: number;
+}
+
 export interface RuntimeSnapshot {
+  /** In task declaration order; empty before load. */
+  tasks: TaskTelemetry[];
   scanCount: number;
   lastExecutionTimeMs: number;
   inputs: IoImage;
@@ -51,8 +61,8 @@ export interface RuntimeSnapshot {
   forced: VariableId[];
   /**
    * Keyed by POU name, then span.line, sorted by span.column within each line. One entry per executed
-   * assignment/FB call, retaining only its last execution's values in this scan.
-   * The first instance of each PROGRAM supplies values. Empty POUs/lines are omitted.
+   * assignment/FB call from the first instance of each PROGRAM's latest run.
+   * Entries persist until that instance runs again; empty POUs/lines are omitted.
    */
   annotations: Record<string, Record<number, StatementAnnotation[]>>;
 }

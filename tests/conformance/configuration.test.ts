@@ -159,6 +159,12 @@ it("preserves outputs while changing an implicit configuration's cycle", () => {
   expect(runtime.snapshot().scanCount).toBe(1);
   clock.advance(1);
   expect(runtime.snapshot().scanCount).toBe(2);
+  runtime.coldReset();
+  runtime.run();
+  clock.advance(19);
+  expect(runtime.snapshot().scanCount).toBe(0);
+  clock.advance(1);
+  expect(runtime.snapshot().scanCount).toBe(1);
 });
 
 it("transports annotations for a POU whose name is also an Object prototype property", () => {

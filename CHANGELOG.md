@@ -10,6 +10,14 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Up to 16 cyclic and rising-edge event tasks with non-preemptive priority
+  scheduling, independent intervals, missed-activation overrun counts and task-level
+  I/O boundaries. Single scans cover every cyclic task and rising event input;
+  faults stop the whole resource and identify the task. The status area displays
+  per-task run counts, last/maximum execution times and overruns in English/Japanese.
+  Inline values stay visible between runs of slower and event tasks and refresh
+  when their program's first instance runs again.
+
 - PROGRAM inputs and outputs with per-instance configuration connections to
   constants, globals and existing BOOL I/O addresses. Values copy around each
   instance with forces restored at every boundary. Connected inputs reject monitor

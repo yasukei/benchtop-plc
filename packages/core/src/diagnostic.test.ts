@@ -18,6 +18,8 @@ const examples = {
   "config.program-type": { name: "Counter" },
   "config.interval": {},
   "config.priority": {},
+  "config.task-trigger": {},
+  "config.single": {},
   "config.connection-parameter": { name: "Start" },
   "config.connection-direction": { name: "Start" },
   "config.connection-duplicate": { name: "Start" },

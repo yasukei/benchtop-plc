@@ -8,6 +8,7 @@ const entry = (line: number, column: number, value: number): StatementAnnotation
 });
 const snapshot: RuntimeSnapshot = {
   scanCount: 1,
+  tasks: [],
   lastExecutionTimeMs: 0,
   inputs: [false, false, false, false, false, false, false, false],
   outputs: [false, false, false, false, false, false, false, false],

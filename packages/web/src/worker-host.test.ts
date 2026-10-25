@@ -226,3 +226,24 @@ it("uses a configured interval and reports setCycle rejection without stopping e
   clock.advance(1);
   expect(snapshot()?.scanCount).toBe(2);
 });
+
+it("forwards per-task telemetry in declaration order on every Worker snapshot", async () => {
+  const { compileProject } = await import("@benchtop-plc/compiler");
+  const { host, clock, snapshot } = setup();
+  const ir = compileProject(
+    ["PROGRAM P END_PROGRAM"],
+    [],
+    `CONFIGURATION Plant RESOURCE Station ON Cpu
+TASK Fast (INTERVAL := T#10ms, PRIORITY := 0); TASK Slow (INTERVAL := T#30ms, PRIORITY := 1);
+PROGRAM A WITH Fast : P; PROGRAM B WITH Slow : P; END_RESOURCE END_CONFIGURATION`,
+  ).ir!;
+  host.handle({ type: "load", ir });
+  expect(snapshot()?.tasks.map((task) => task.runCount)).toEqual([0, 0]);
+  host.handle({ type: "run" });
+  clock.advance(90);
+  expect(snapshot()?.tasks).toEqual([
+    { name: "Fast", runCount: 9, lastExecutionTimeMs: 0, maxExecutionTimeMs: 0, overruns: 0 },
+    { name: "Slow", runCount: 3, lastExecutionTimeMs: 0, maxExecutionTimeMs: 0, overruns: 0 },
+  ]);
+  expect(snapshot()?.scanCount).toBe(9);
+});

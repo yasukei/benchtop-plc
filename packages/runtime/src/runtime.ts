@@ -17,6 +17,7 @@ import type { RuntimeLibrary } from "./library.js";
 import { emptyImage, Memory, typed } from "./memory.js";
 import type { ScanMemory } from "./memory.js";
 import { standardLibrary } from "./standard-library.js";
+import { TaskScheduler } from "./task-scheduler.js";
 
 export interface ScanStages {
   readInputs?(): IoImage;
@@ -81,6 +82,7 @@ class PlcRuntime implements Runtime {
   private watched = new Set<VariableId>();
   private pendingWrites = new Map<VariableId, TypedValue>();
   private interval: number;
+  private scheduler?: TaskScheduler;
   private readonly library: RuntimeLibrary;
 
   constructor(private readonly options: RuntimeOptions) {
@@ -118,15 +120,30 @@ class PlcRuntime implements Runtime {
     const memory = new Memory(ir, this.library);
     this.halt("STOP");
     this.memory = memory;
+    const implicitTask =
+      ir.kind === "configuration" && !ir.explicit ? ir.resource.tasks[0] : undefined;
     this.interval =
-      ir.kind === "configuration"
-        ? ir.resource.tasks[0]!.intervalMs
+      implicitTask && "intervalMs" in implicitTask
+        ? implicitTask.intervalMs
         : (this.options.intervalMs ?? 10);
     this.watched.clear();
     this.initialize();
   }
 
   private initialize(): void {
+    const ir = this.memory?.ir;
+    this.scheduler = ir
+      ? new TaskScheduler(
+          ir.kind === "configuration"
+            ? ir.resource.tasks.map((task) =>
+                !ir.explicit && "intervalMs" in task
+                  ? { ...task, intervalMs: this.interval }
+                  : { ...task },
+              )
+            : [{ name: "Cyclic", intervalMs: this.interval, priority: 1 }],
+        )
+      : undefined;
+    this.interval = this.scheduler?.intervalMs ?? this.options.intervalMs ?? 10;
     this.forces.clear();
     this.pendingWrites.clear();
     this.count = 0;
@@ -152,6 +169,8 @@ class PlcRuntime implements Runtime {
       this.cancel = undefined;
     }
     this.interval = ms;
+    const task = this.scheduler?.tasks[0];
+    if (task && "intervalMs" in task) task.intervalMs = ms;
     if (running) this.startTicker();
   }
 
@@ -163,9 +182,10 @@ class PlcRuntime implements Runtime {
 
   private startTicker(): void {
     const generation = ++this.generation;
+    this.scheduler?.resume(this.options.clock.now());
     try {
       const cancel = this.options.ticker.start(this.interval, () => {
-        if (this.state === "RUN" && generation === this.generation) this.scanOnce();
+        if (this.state === "RUN" && generation === this.generation) this.scanPass(false);
       });
       if (this.isRunning() && generation === this.generation) this.cancel = cancel;
       else cancel();
@@ -282,70 +302,114 @@ class PlcRuntime implements Runtime {
   }
 
   scanOnce(): RuntimeSnapshot {
+    return this.scanPass(true);
+  }
+
+  private scanPass(singleScan: boolean): RuntimeSnapshot {
     const memory = this.memory;
-    if (!memory || this.scanning || this.state === "FAULT" || this.state === "ESTOP")
+    const scheduler = this.scheduler;
+    if (!memory || !scheduler || this.scanning || this.state === "FAULT" || this.state === "ESTOP")
       return this.snapshot();
     const start = this.options.clock.now();
     const generation = this.generation;
     const active = () => generation === this.generation;
-    const interpreter = new Interpreter(memory, start, active, this.library);
     this.scanning = true;
-    this.annotations = {};
+    let ran = false;
     let executingInstance: string | undefined;
+    let executingTask: string | undefined;
     try {
-      this.inputs = [...(this.options.stages?.readInputs?.() ?? this.inputs)];
-      if (active()) memory.readInputs(this.inputs);
-      if (active()) {
-        const writes = this.pendingWrites;
-        this.pendingWrites = new Map();
-        for (const [variable, value] of writes) memory.write(variable, value.value);
-      }
-      if (active()) this.options.stages?.applyPendingWrites?.(memory);
-      if (active()) this.applyForces(memory);
-      if (active()) this.options.stages?.applyForces?.(memory);
+      // Event inputs use the live image without moving the task's image/write/force boundary.
+      const eventImage = scheduler.tasks.some((task) => "single" in task)
+        ? [...(this.options.stages?.readInputs?.() ?? this.inputs)]
+        : this.inputs;
+      const ready = scheduler.ready(start, singleScan, (input) => {
+        if (input.kind === "address") return eventImage[input.address.bit]!;
+        const force = this.forces.get(input.variable);
+        if (force) return Boolean(force.value);
+        const declaration = memory.ir.variables[input.variable];
+        return declaration?.kind === "scalar" && declaration.address?.area === "I"
+          ? eventImage[declaration.address.bit]!
+          : Boolean(memory.read(input.variable));
+      });
       const ir = memory.ir;
-      const instances = ir.kind === "configuration" ? ir.resource.programs : [{ program: 0 }];
-      const annotated = new Set<number>();
-      for (const [index, instance] of instances.entries()) {
+      const instances =
+        ir.kind === "configuration" ? ir.resource.programs : [{ program: 0, task: 0 }];
+      for (const taskIndex of ready) {
         if (!active()) break;
-        interpreter.transfer(index, false);
-        if (active()) this.applyForces(memory);
-        if (
-          active() &&
-          (index > 0 ||
-            (ir.kind === "configuration" && ir.resource.programs[index]!.inputs?.length))
-        )
-          this.options.stages?.applyForces?.(memory);
-        executingInstance =
-          ir.kind === "configuration" ? ir.resource.programs[index]!.name : undefined;
+        ran = true;
+        executingTask = scheduler.tasks[taskIndex]!.name;
+        executingInstance = undefined;
+        const taskStart = this.options.clock.now();
+        const interpreter = new Interpreter(memory, taskStart, active, this.library);
         try {
-          interpreter.executeProgram(index);
-        } finally {
-          // The editor displays the first instance in resource declaration order.
-          if (!annotated.has(instance.program)) {
+          this.inputs = [...(this.options.stages?.readInputs?.() ?? this.inputs)];
+          if (active()) memory.readInputs(this.inputs);
+          if (active()) {
+            const writes = this.pendingWrites;
+            this.pendingWrites = new Map();
+            for (const [variable, value] of writes) memory.write(variable, value.value);
+          }
+          if (active()) this.options.stages?.applyPendingWrites?.(memory);
+          if (active()) this.applyForces(memory);
+          if (active()) this.options.stages?.applyForces?.(memory);
+          let instanceCount = 0;
+          for (const [index, instance] of instances.entries()) {
+            if (!active()) break;
+            if (instance.task !== taskIndex) continue;
+            executingInstance =
+              ir.kind === "configuration" ? ir.resource.programs[index]!.name : undefined;
+            // Refresh only this POU's annotating instance; other tasks keep their latest values.
+            const annotates =
+              instances.findIndex((other) => other.program === instance.program) === index;
             const name =
               ir.kind === "configuration" ? ir.programs[instance.program]!.name : ir.name;
-            const lines = interpreter.annotationSnapshot();
-            if (Object.keys(lines).length)
-              Object.defineProperty(this.annotations, name, {
-                value: lines,
-                enumerable: true,
-                configurable: true,
-                writable: true,
-              });
-            annotated.add(instance.program);
+            if (annotates) delete this.annotations[name];
+            let executed = false;
+            interpreter.transfer(index, false);
+            if (active()) this.applyForces(memory);
+            if (
+              active() &&
+              (instanceCount > 0 ||
+                (ir.kind === "configuration" && ir.resource.programs[index]!.inputs?.length))
+            )
+              this.options.stages?.applyForces?.(memory);
+            try {
+              if (active()) {
+                executed = true;
+                interpreter.executeProgram(index);
+              }
+            } finally {
+              // Only the first instance in resource declaration order supplies editor annotations.
+              if (annotates && executed) {
+                const lines = interpreter.annotationSnapshot();
+                if (Object.keys(lines).length)
+                  Object.defineProperty(this.annotations, name, {
+                    value: lines,
+                    enumerable: true,
+                    configurable: true,
+                    writable: true,
+                  });
+              }
+            }
+            if (active()) this.options.stages?.applyForces?.(memory);
+            if (active()) this.applyForces(memory);
+            if (active()) interpreter.transfer(index, true);
+            if (active()) this.applyForces(memory);
+            if (
+              active() &&
+              ir.kind === "configuration" &&
+              ir.resource.programs[index]!.outputs?.length
+            )
+              this.options.stages?.applyForces?.(memory);
+            instanceCount++;
           }
+          if (active() && this.state === "RUN") {
+            this.outputs = memory.outputImage();
+            this.options.stages?.writeOutputs?.([...this.outputs]);
+          }
+        } finally {
+          scheduler.finish(taskIndex, taskStart, this.options.clock.now(), singleScan);
         }
-        if (active()) this.options.stages?.applyForces?.(memory);
-        if (active()) this.applyForces(memory);
-        if (active()) interpreter.transfer(index, true);
-        if (active()) this.applyForces(memory);
-        if (active() && ir.kind === "configuration" && ir.resource.programs[index]!.outputs?.length)
-          this.options.stages?.applyForces?.(memory);
-      }
-      if (active() && this.state === "RUN") {
-        this.outputs = memory.outputImage();
-        this.options.stages?.writeOutputs?.([...this.outputs]);
       }
     } catch (error) {
       if (error instanceof RuntimeFault) {
@@ -353,10 +417,7 @@ class PlcRuntime implements Runtime {
           this.fault = {
             ...error.diagnostic,
             ...(memory.ir.kind === "configuration"
-              ? {
-                  task: memory.ir.resource.tasks[0]!.name,
-                  instance: error.diagnostic.instance ?? executingInstance,
-                }
+              ? { task: executingTask, instance: error.diagnostic.instance ?? executingInstance }
               : {}),
           };
           this.halt("FAULT");
@@ -371,8 +432,10 @@ class PlcRuntime implements Runtime {
         memory.clearOutputs();
         this.outputs = emptyImage();
       }
-      this.count++;
-      this.duration = this.options.clock.now() - start;
+      if (ran) {
+        this.count++;
+        this.duration = this.options.clock.now() - start;
+      }
       this.scanning = false;
     }
     return this.snapshot();
@@ -401,6 +464,7 @@ class PlcRuntime implements Runtime {
       : undefined;
     return {
       ...(ids ? { variableIds: ids } : {}),
+      tasks: this.scheduler?.snapshot() ?? [],
       scanCount: this.count,
       lastExecutionTimeMs: this.duration,
       inputs: [...this.inputs],

@@ -83,8 +83,8 @@ describe("configuration diagnostics", () => {
     ],
     ["CONFIGURATION Plant END_CONFIGURATION", "config.resource-count"],
     [
-      config().replace("PROGRAM A", "TASK Extra (INTERVAL := T#10ms, PRIORITY := 0); PROGRAM A"),
-      "config.task-count",
+      config().replace("PROGRAM A", "TASK t (INTERVAL := T#10ms, PRIORITY := 0); PROGRAM A"),
+      "config.name-collision",
     ],
     [config().replace("TASK T (INTERVAL := T#20ms, PRIORITY := 1);", ""), "config.task-count"],
     [config(""), "config.no-instances"],
@@ -105,10 +105,7 @@ describe("configuration diagnostics", () => {
     [config().replace("CONFIGURATION Plant", "CONFIGURATION Counter"), "config.name-collision"],
     [config().replace("RESOURCE Station", "RESOURCE Counter"), "config.name-collision"],
     [config().replaceAll(" T ", " Counter "), "config.name-collision"],
-    [
-      config("PROGRAM A WITH T : Counter;", "SINGLE := trigger, PRIORITY := 1"),
-      "config.task-parameter",
-    ],
+    [config("PROGRAM A WITH T : Counter;", "SINGLE := trigger, PRIORITY := 1"), "config.single"],
     [
       config(
         "PROGRAM A WITH T : Counter;",
@@ -235,5 +232,108 @@ it("keeps task parameter names as ordinary identifiers and accepts arbitrary ON 
       "PROGRAM P VAR interval, single, priority : INT; END_VAR interval := single + priority; END_PROGRAM",
     ]).diagnostics,
   ).toEqual([]);
-  expect(parseConfiguration(config()).ast?.task.intervalMs).toBe(20);
+  expect(parseConfiguration(config()).ast?.tasks[0]?.intervalMs).toBe(20);
+});
+
+it("lowers multiple cyclic and event tasks with independent bindings", () => {
+  const source = `CONFIGURATION Plant
+VAR_GLOBAL enabled : BOOL; END_VAR
+RESOURCE Station ON Cpu VAR_GLOBAL ack : Flag; END_VAR
+TASK Fast (INTERVAL := T#10ms, PRIORITY := 65535);
+TASK Edge (PRIORITY := 0, SINGLE := aCk);
+TASK InputEdge (SINGLE := %IX0.7, PRIORITY := 1);
+PROGRAM A WITH eDgE : Counter;
+PROGRAM B WITH Fast : Counter;
+PROGRAM C WITH InputEdge : Counter;
+END_RESOURCE END_CONFIGURATION`;
+  const result = compile(source, [counter], ["TYPE Flag : BOOL; END_TYPE"]);
+  expect(result.diagnostics).toEqual([]);
+  expect(result.ir!.resource.tasks).toEqual([
+    { name: "Fast", intervalMs: 10, priority: 65535 },
+    { name: "Edge", priority: 0, single: { kind: "variable", variable: 1 } },
+    {
+      name: "InputEdge",
+      priority: 1,
+      single: { kind: "address", address: { area: "I", byte: 0, bit: 7 } },
+    },
+  ]);
+  expect(result.ir!.resource.programs.map((instance) => instance.task)).toEqual([1, 0, 2]);
+  expect(JSON.parse(JSON.stringify(result.ir))).toEqual(result.ir);
+});
+
+it.each(["PRIORITY := 0", "INTERVAL := T#10ms, SINGLE := %IX0.0, PRIORITY := 0"])(
+  "requires exactly one trigger: %s",
+  (parameters) => {
+    expect(compile(config(undefined, parameters)).diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "config.task-trigger",
+        sourceKind: "configuration",
+        pou: "Plant",
+      }),
+    );
+  },
+);
+
+it.each([
+  "missing",
+  "local",
+  "constantFlag",
+  "numberValue",
+  "arrayValue",
+  "recordValue",
+  "referenceValue",
+  "timerValue",
+  "arrayValue[1]",
+  "recordValue.flag",
+  "TRUE",
+  "flag AND TRUE",
+  "%QX0.0",
+  "%IX1.0",
+  "%IX0.8",
+  "",
+])("rejects SINGLE := %s with a configuration diagnostic", (input) => {
+  const source = `CONFIGURATION Plant
+VAR_GLOBAL CONSTANT constantFlag : BOOL := TRUE; END_VAR
+VAR_GLOBAL flag : BOOL; numberValue : INT; arrayValue : ARRAY[1..2] OF BOOL;
+recordValue : RecordType; referenceValue : REF_TO BOOL; timerValue : TON; END_VAR
+RESOURCE Station ON Cpu TASK T (SINGLE := ${input}, PRIORITY := 0);
+PROGRAM A WITH T : Counter; END_RESOURCE END_CONFIGURATION`;
+  const result = compile(
+    source,
+    [counter.replace("n : INT", "n : INT; local : BOOL")],
+    ["TYPE RecordType : STRUCT flag : BOOL; END_STRUCT; END_TYPE"],
+  );
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({
+      code: "config.single",
+      sourceKind: "configuration",
+      sourceIndex: 0,
+      pou: "Plant",
+      span: expect.any(Object),
+    }),
+  );
+});
+
+it("allows sixteen tasks and rejects seventeen in the configuration source", () => {
+  const source = (count: number) => `CONFIGURATION Plant RESOURCE Station ON Cpu
+${Array.from({ length: count }, (_, index) => `TASK Task${index} (INTERVAL := T#10ms, PRIORITY := ${index});`).join("\n")}
+PROGRAM A WITH Task0 : Counter; END_RESOURCE END_CONFIGURATION`;
+  expect(compile(source(16)).diagnostics).toEqual([]);
+  expect(compile(source(17)).diagnostics).toContainEqual(
+    expect.objectContaining({
+      code: "config.task-count",
+      sourceKind: "configuration",
+      sourceIndex: 0,
+      pou: "Plant",
+    }),
+  );
+});
+
+it("rejects duplicate SINGLE parameters", () => {
+  expect(
+    compile(config(undefined, "SINGLE := %IX0.0, SINGLE := %IX0.1, PRIORITY := 0")).diagnostics,
+  ).toContainEqual(
+    expect.objectContaining({ code: "config.task-parameter", args: { name: "SINGLE" } }),
+  );
 });

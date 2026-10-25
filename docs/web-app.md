@@ -71,8 +71,9 @@ header keeps the last readable name. Located configuration diagnostics open that
 source, and its squiggles stay out of POU and data type editors.
 
 Task intervals come from the configuration source while it exists, so the cycle
-selector is hidden. Execution currently supports one cyclic task; scheduling
-several tasks is a separate feature. Deleting the source requires confirmation and
+selector is replaced by a localized task table showing each loaded task's run
+count, last and maximum execution time (ms), and overrun count. Cyclic and event
+tasks share the resource-wide RUN, STOP, single scan, reset and emergency stop controls. Deleting the source requires confirmation and
 returns to the implicit configuration with the project names and cycle selector.
 Like other source edits, adding, editing or deleting a configuration takes effect
 when RUN applies the changes. Invalid changes leave the loaded PLC and monitor

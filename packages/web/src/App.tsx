@@ -9,6 +9,7 @@ import { PouList } from "./PouList.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
 import { IoImage } from "./IoImage.js";
+import { TaskStatus } from "./TaskStatus.js";
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { bannerFor } from "./banner.js";
 import { catalogs } from "./catalog.js";
@@ -135,6 +136,9 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
               </label>
             )}
           </div>
+          {state.configuration && loadedIr?.explicit && (
+            <TaskStatus tasks={state.snapshot?.tasks ?? []} text={text} />
+          )}
           <div className="telemetry">
             <output aria-label={text.state} className="state" data-state={state.runtimeState}>
               {state.runtimeState === "ESTOP" ? text.emergencyState : state.runtimeState}
