@@ -32,7 +32,7 @@ the alert until the next user command clears it. RUN, memory, forces and scan
 counts continue through rejected commands.
 
 The core protocol has no nullable fault message, so the store clears an old
-diagnostic when it receives the zero-scan snapshot from load or cold reset. It
+diagnostic when it receives the zero-scan snapshot from load, cold reset or warm restart. It
 retains a latched diagnostic through STOP requests and emergency-stop transitions.
 
 ## Browser autosave
@@ -42,7 +42,7 @@ the selected source, panel layout, cycle time and
 project metadata are saved to a versioned JSON record in `localStorage` 500 ms
 after the last change. Pending changes are also saved when the page is hidden or
 left. Reloading restores that work and loads compilable source into a fresh PLC
-in STOP, with initialized memory, no forces and no active emergency stop. Invalid
+in STOP, with retained values restored, other memory initialized, no forces and no active emergency stop. Invalid
 source stays in the editor with diagnostics until it is fixed and applied; it is
 never run automatically. Missing, invalid or unsupported records, or unavailable
 storage, fall back to the bundled example without blocking startup.
@@ -57,8 +57,8 @@ cannot be parsed. Imported types in older project metadata are retained.
 Autosave is a per-browser convenience. It is not shared between browsers or
 devices, and browser settings or storage limits may prevent persistence. Use
 **Save project** to keep or share a project. **Restore example** replaces the
-current work and is autosaved like other edits. Runtime state and `RETAIN` values
-are not saved.
+current work and is autosaved like other edits. Runtime state is not saved;
+retained values are saved as described below.
 
 ## Configuration source
 
@@ -304,3 +304,24 @@ Displays use monitor formatting (including hex bit strings and invalid REAL/LREA
 patterns) and show zero outside RUN or under emergency stop. Numeric parts always
 save in panel extension version 2; existing bit-only projects retain their previous
 version selection.
+
+## Retained values in the browser
+
+Warm restart sits next to Cold reset and becomes Acknowledge fault in FAULT. It
+always returns the operating state to STOP and preserves retained data. The
+English and Japanese catalogs supply these controls and all retention warnings.
+
+The Worker sends a complete retained set at most once per second as scan values
+change, and immediately after commands that change storage or operating state and scans
+that enter FAULT.
+The page replaces the optional `retentive` array in the version 4 autosave record
+immediately, preserving all editable sources alongside it. Reload can lose up to
+about one second of changes. It compiles autosaved sources, loads and restores
+values, and stays in STOP. A normal Apply, RUN with unapplied edits, Open project
+or Restore example initializes all values as a program load.
+
+When autosaved text does not compile, retained records remain in storage until
+the first successful load. Missing or mismatched records leave defaults; an alert
+lists the count and every affected path. Storage being unavailable or full raises
+a warning without stopping the PLC. Retained values are local browser state and
+are not embedded in project XML.

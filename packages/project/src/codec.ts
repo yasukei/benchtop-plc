@@ -553,7 +553,13 @@ function readVariables(pou: XmlNode): VariableDeclaration[] {
 
 function readVariableGroup(group: XmlNode): VariableDeclaration[] {
   const variables: VariableDeclaration[] = [];
-  shape(group, ["constant"], ["variable"]);
+  shape(group, ["constant", "retain", "nonretain"], ["variable"]);
+  for (const attr of ["retain", "nonretain"])
+    if (
+      group.attributes[attr] !== undefined &&
+      !["true", "false", "1", "0"].includes(group.attributes[attr]!)
+    )
+      fail("project.invalid", `${group.name}/@${attr}`);
   const constant = group.attributes.constant;
   if (constant !== undefined && !["true", "false", "1", "0"].includes(constant))
     fail("project.invalid", `${group.name}/@constant`);
@@ -564,6 +570,8 @@ function readVariableGroup(group: XmlNode): VariableDeclaration[] {
     variables.push({
       section: group.name as VariableDeclaration["section"],
       ...(["true", "1"].includes(constant ?? "") ? { constant: true } : {}),
+      ...(["true", "1"].includes(group.attributes.retain ?? "") ? { retain: true } : {}),
+      ...(["true", "1"].includes(group.attributes.nonretain ?? "") ? { nonRetain: true } : {}),
       name: attribute(variable, "name"),
       type: readType(type),
       ...(variable.attributes.address === undefined
@@ -988,20 +996,28 @@ function sourceXml(source: string): string {
   );
 }
 
+function groupAttributes(variable: VariableDeclaration): Record<string, string> {
+  return {
+    ...(variable.constant ? { constant: "true" } : {}),
+    ...(variable.retain ? { retain: "true" } : {}),
+    ...(variable.nonRetain ? { nonretain: "true" } : {}),
+  };
+}
+function sameGroupQualifiers(a: VariableDeclaration, b: VariableDeclaration): boolean {
+  return (
+    !!a.constant === !!b.constant && !!a.retain === !!b.retain && !!a.nonRetain === !!b.nonRetain
+  );
+}
 function globalGroupsXml(variables: VariableDeclaration[]): string {
   let result = "";
   let group: VariableDeclaration[] = [];
   const flush = () => {
     if (group.length)
-      result += element(
-        "globalVars",
-        group[0]!.constant ? { constant: "true" } : {},
-        group.map(variableXml).join(""),
-      );
+      result += element("globalVars", groupAttributes(group[0]!), group.map(variableXml).join(""));
     group = [];
   };
   for (const variable of variables) {
-    if (group.length && !!group[0]!.constant !== !!variable.constant) flush();
+    if (group.length && !sameGroupQualifiers(group[0]!, variable)) flush();
     group.push(variable);
   }
   flush();
@@ -1089,7 +1105,7 @@ export function writeProject(project: Project): ProjectResult<string> {
         if (current.length)
           groups += element(
             current[0]!.section,
-            current[0]!.constant ? { constant: "true" } : {},
+            groupAttributes(current[0]!),
             current.map(variableXml).join(""),
           );
         current = [];
@@ -1097,7 +1113,7 @@ export function writeProject(project: Project): ProjectResult<string> {
       for (const variable of program.variables) {
         if (
           current.length &&
-          (current[0]!.section !== variable.section || current[0]!.constant !== variable.constant)
+          (current[0]!.section !== variable.section || !sameGroupQualifiers(current[0]!, variable))
         )
           flush();
         current.push(variable);

@@ -195,8 +195,29 @@ class ConfigurationParser {
     const declarations: Declaration[] = [];
     while (this.at("VAR_GLOBAL")) {
       this.take();
-      const constant = this.at("CONSTANT");
-      if (constant) this.take();
+      let constant = false,
+        retain = false,
+        nonRetain = false;
+      while (["CONSTANT", "RETAIN", "NON_RETAIN"].includes(this.current.key)) {
+        const qualifier = this.take().key;
+        constant ||= qualifier === "CONSTANT";
+        retain ||= qualifier === "RETAIN";
+        nonRetain ||= qualifier === "NON_RETAIN";
+      }
+      if (retain && nonRetain)
+        this.report({
+          code: "decl.retention-conflict",
+          severity: "error",
+          args: {},
+          span: this.current.span,
+        });
+      if ((retain || nonRetain) && constant)
+        this.report({
+          code: "decl.retention-constant",
+          severity: "error",
+          args: {},
+          span: this.current.span,
+        });
       while (!this.at("END_VAR")) {
         const start = this.cursor;
         while (!this.at(";") && this.current.kind !== "eof" && !this.at("END_VAR")) this.take();
@@ -205,6 +226,8 @@ class ConfigurationParser {
         const parser = new Parser([...tokens, end, { ...end, kind: "eof", key: "", text: "" }]);
         const declaration = parser.declaration();
         if (constant) declaration.constant = true;
+        if (retain) declaration.retain = true;
+        if (nonRetain) declaration.nonRetain = true;
         declarations.push(declaration);
       }
       this.expect("END_VAR");

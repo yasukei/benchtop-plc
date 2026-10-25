@@ -114,6 +114,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             >
               {text.step}
             </button>
+            <button disabled={disconnected} onClick={() => store.send({ type: "warmRestart" })}>
+              {state.diagnostic || state.runtimeState === "FAULT"
+                ? text.acknowledgeFault
+                : text.warmRestart}
+            </button>
             <button disabled={disconnected} onClick={() => store.send({ type: "coldReset" })}>
               {text.reset}
             </button>
@@ -163,6 +168,18 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
           {text[banner.key]}
           {state.diagnostic && <p>{formatDiagnostic(language, state.diagnostic)}</p>}
         </div>
+        {state.storageWarning && (
+          <div className="banner" role="alert">
+            {text.retentionStorageWarning}
+          </div>
+        )}
+        {state.retentiveSkipped.length > 0 && (
+          <div className="banner" role="alert">
+            {text.retentionSkipped
+              .replace("{count}", String(state.retentiveSkipped.length))
+              .replace("{paths}", state.retentiveSkipped.join(", "))}
+          </div>
+        )}
         {state.rejection && (
           <div className="banner" role="alert" data-urgent="false">
             {formatDiagnostic(language, state.rejection.diagnostic)}

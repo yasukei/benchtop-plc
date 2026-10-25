@@ -34,6 +34,8 @@ export { cycleOptions } from "./autosave.js";
 export type { CycleMs } from "./autosave.js";
 
 export interface AppState extends SavedWork {
+  storageWarning: boolean;
+  retentiveSkipped: string[];
   source: string;
   editorSession: number;
   saveDiagnostics: Diagnostic[];
@@ -64,7 +66,11 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   const source = selectedConfiguration
     ? configuration!.source
     : ((selectedDataType === null ? pous[selectedPou] : dataTypes[selectedDataType])?.source ?? "");
+  let pendingRestore = typeof initial === "string" ? undefined : initial.retentive;
   let state: AppState = {
+    storageWarning: false,
+    retentiveSkipped: [],
+    ...(pendingRestore === undefined ? {} : { retentive: pendingRestore }),
     source,
     configuration,
     selectedConfiguration,
@@ -109,6 +115,12 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   };
   const unsubscribe = client.subscribe((event: ClientEvent) => {
     switch (event.type) {
+      case "retentive":
+        update({ retentive: event.records });
+        break;
+      case "retentiveRestored":
+        update({ retentiveSkipped: event.skipped });
+        break;
       case "state":
         update({ runtimeState: event.state });
         break;
@@ -159,7 +171,9 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       loadedIr: result.ir,
     });
     update({ snapshot: null, diagnostic: null, rejection: null });
-    client.send({ type: "load", ir: result.ir });
+    const retentive = pendingRestore;
+    pendingRestore = undefined;
+    client.send({ type: "load", ir: result.ir, ...(retentive === undefined ? {} : { retentive }) });
     return true;
   };
   const openProject = (xml: string) => {
@@ -208,12 +222,17 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       diagnostic: null,
       rejection: null,
     });
+    pendingRestore = undefined;
+    update({ retentiveSkipped: [] });
     // The loaded configuration IR supplies its cycle, including implicit projects.
     loadEditor();
     return true;
   };
   return {
     getSnapshot: () => state,
+    storageFailed() {
+      if (!state.storageWarning) update({ storageWarning: true });
+    },
     setLayout(layout: PanelLayout) {
       update({ layout });
     },

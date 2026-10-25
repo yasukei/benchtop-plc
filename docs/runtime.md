@@ -112,7 +112,7 @@ operating state. `setEmergencyStop(false)` releases the flag without restarting:
 | STOP                           | STOP          | None                    |
 | FAULT                          | FAULT         | Same pending diagnostic |
 
-Only cold reset or loading a program clears FAULT and its diagnostic. Both are
+Warm restart, cold reset or loading a program clears FAULT and its diagnostic. All are
 allowed while emergency stop is active: they reset the operating state to STOP
 and clear the fault, while the public state remains ESTOP until release. Release
 then reports STOP; a later RUN request is required to start execution.
@@ -192,7 +192,7 @@ Division by zero reports the expression span; zero FOR step reports the step
 expression span. Non-finite values and REAL overflow use `runtime.invalid-value`
 at the innermost expression or assignment/FB call that detected the invalid value.
 These faults cancel the ticker, clear outputs, latch FAULT and expose a copied
-`diagnostic`. Cold reset or loading a program clears FAULT.
+`diagnostic`. Warm restart, cold reset or loading a program clears FAULT.
 
 Unexpected host/library programming errors also clear outputs and latch FAULT,
 then propagate to the host; they are not PLC-language diagnostics.
@@ -646,3 +646,31 @@ fault. A program read of a REAL/LREAL NaN or infinity, including an input connec
 copy, faults with `runtime.invalid-value` at the read expression or configuration
 connection. Snapshots report `invalidReal` with the raw bits and never decode it
 into a non-finite number. A finite write or an applied force replaces those bytes.
+
+## Retentive storage and warm restart
+
+`warmRestart()` is accepted in every state. It stops execution, initializes all
+non-retained storage and the I/Q/M areas, clears faults, forces, pending writes,
+annotations, event samples and task telemetry, and sets the operating state to
+STOP. An active emergency-stop overlay remains active until released. In FAULT
+this is the acknowledge-fault command; RUN and single scan cannot leave FAULT.
+Load and cold reset initialize retained storage too.
+
+RETAIN and NON_RETAIN qualify PROGRAM/FUNCTION_BLOCK VAR, VAR_INPUT and VAR_OUTPUT,
+and configuration/resource VAR_GLOBAL. Unqualified declarations default to
+NON_RETAIN. A qualified composite or user block passes its qualifier to members
+without their own qualifier; explicit member qualifiers override inheritance.
+References always become NULL and timers always reinitialize, even under RETAIN.
+Retained counters, edge detectors and bistables preserve every port and private
+edge history, including an edge detector's first-call state.
+
+`retentiveRecords()` returns one complete detached JSON-safe set: scalar leaf
+records plus standard-block records containing ports and private state together.
+`restoreRetentive(records)` initializes storage, then matches case-insensitive
+paths and data types; standard blocks require their exact variant (CTU differs
+from CTD and CTU_DINT). String capacity may shrink and values truncate on store.
+Missing, obsolete, corrupt or mismatched records keep initial values and return
+their paths without faulting. A block is validated as a whole before its ports
+are restored; no CV or port can leak across a changed block type. Scalar members
+of retained user blocks have their own leaf records; standard-block ports never
+have separate leaf records.

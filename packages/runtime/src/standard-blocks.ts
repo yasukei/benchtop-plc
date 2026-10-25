@@ -31,6 +31,12 @@ abstract class Block implements FunctionBlockInstance {
     output.value = coerceValue(output.dataType, value);
   }
 
+  retentiveState(): Record<string, boolean | null> {
+    return {};
+  }
+  restoreRetentiveState(state: Record<string, boolean | null>): void {
+    if (Object.keys(state).length) throw new RangeError("Unexpected block state");
+  }
   abstract execute(scanStartMs: number): void;
 }
 
@@ -110,6 +116,17 @@ class Timer extends Block {
 }
 
 class Trigger extends Block {
+  override retentiveState() {
+    return { previous: this.previous ?? null };
+  }
+  override restoreRetentiveState(state: Record<string, boolean | null>): void {
+    if (
+      Object.keys(state).length !== 1 ||
+      !(state.previous === null || typeof state.previous === "boolean")
+    )
+      throw new RangeError("Invalid trigger state");
+    this.previous = state.previous ?? undefined;
+  }
   private previous: boolean | undefined;
 
   constructor(private readonly type: "R_TRIG" | "F_TRIG") {
@@ -144,6 +161,19 @@ class Bistable extends Block {
 }
 
 class Counter extends Block {
+  override retentiveState() {
+    return { previousUp: this.previousUp, previousDown: this.previousDown };
+  }
+  override restoreRetentiveState(state: Record<string, boolean | null>): void {
+    if (
+      Object.keys(state).length !== 2 ||
+      typeof state.previousUp !== "boolean" ||
+      typeof state.previousDown !== "boolean"
+    )
+      throw new RangeError("Invalid counter state");
+    this.previousUp = state.previousUp;
+    this.previousDown = state.previousDown;
+  }
   private previousUp = false;
   private previousDown = false;
   private readonly minimum: bigint;

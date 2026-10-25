@@ -183,10 +183,20 @@ export class Parser {
       ).includes(this.current.key)
     ) {
       const section = this.take();
-      const constant = this.accept("CONSTANT");
-      if (section.key !== "VAR" || constant)
+      let constant = false,
+        retain = false,
+        nonRetain = false;
+      while (["CONSTANT", "RETAIN", "NON_RETAIN"].includes(this.current.key)) {
+        const qualifier = this.take().key;
+        constant ||= qualifier === "CONSTANT";
+        retain ||= qualifier === "RETAIN";
+        nonRetain ||= qualifier === "NON_RETAIN";
+      }
+      if (section.key !== "VAR" || constant || retain || nonRetain)
         sections.push({
           name: section.key,
+          ...(retain ? { retain: true } : {}),
+          ...(nonRetain ? { nonRetain: true } : {}),
           span: section.span,
           ...(constant ? { constant: true } : {}),
         });
@@ -195,6 +205,8 @@ export class Parser {
           this.missingEnd("END_VAR");
         const declaration = this.declaration();
         if (constant) declaration.constant = true;
+        if (retain) declaration.retain = true;
+        if (nonRetain) declaration.nonRetain = true;
         if (section.key !== "VAR")
           declaration.section = section.key as NonNullable<Declaration["section"]>;
         declarations.push(declaration);

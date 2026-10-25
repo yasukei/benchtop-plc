@@ -137,6 +137,8 @@ export function splitProgram(
                     ? "tempVars"
                     : "localVars",
         ...(declaration.constant ? { constant: true } : {}),
+        ...(declaration.retain ? { retain: true } : {}),
+        ...(declaration.nonRetain ? { nonRetain: true } : {}),
         name: name.name,
         type: declaration.reference
           ? ""
@@ -369,12 +371,21 @@ export function joinProgram(program: SplitProgram): string {
   let declarations = "";
   let section: VariableDeclaration["section"] | undefined;
   let constant = false;
+  let retain = false,
+    nonRetain = false;
   for (const variable of program.variables) {
-    if (section !== variable.section || constant !== !!variable.constant) {
+    if (
+      section !== variable.section ||
+      constant !== !!variable.constant ||
+      retain !== !!variable.retain ||
+      nonRetain !== !!variable.nonRetain
+    ) {
       if (section) declarations += "END_VAR\n";
       section = variable.section;
       constant = !!variable.constant;
-      declarations += `${{ externalVars: "VAR_EXTERNAL", localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP", inOutVars: "VAR_IN_OUT" }[section]}${constant ? " CONSTANT" : ""}\n`;
+      retain = !!variable.retain;
+      nonRetain = !!variable.nonRetain;
+      declarations += `${{ externalVars: "VAR_EXTERNAL", localVars: "VAR", inputVars: "VAR_INPUT", outputVars: "VAR_OUTPUT", tempVars: "VAR_TEMP", inOutVars: "VAR_IN_OUT" }[section]}${constant ? " CONSTANT" : ""}${retain ? " RETAIN" : ""}${nonRetain ? " NON_RETAIN" : ""}\n`;
     }
     declarations += `    ${variable.name}${variable.address === undefined ? "" : ` AT ${variable.address}`} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};\n`;
   }

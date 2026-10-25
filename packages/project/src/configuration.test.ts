@@ -197,7 +197,7 @@ END_RESOURCE END_CONFIGURATION`;
     '<pouInstance name="Unscheduled" typeName="Main"/>',
     "<accessVars/>",
     "<configVars/>",
-    '<globalVars retain="true"/>',
+    '<globalVars persistent="true"/>',
   ])("rejects unsupported structure %s", (extra) => {
     const xml = save().replace(
       extra.startsWith("<resource") ? "</configuration>" : "</resource>",

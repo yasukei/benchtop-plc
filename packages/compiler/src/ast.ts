@@ -17,7 +17,13 @@ export interface Program extends SourceNode {
   resultArray?: ArrayDeclaration;
   resultSubrange?: Subrange;
   resultStringLength?: number;
-  sections?: { name: string; constant?: boolean; span: import("@benchtop-plc/core").SourceSpan }[];
+  sections?: {
+    name: string;
+    constant?: boolean;
+    retain?: boolean;
+    nonRetain?: boolean;
+    span: import("@benchtop-plc/core").SourceSpan;
+  }[];
   declarations: Declaration[];
   body: Statement[];
 }
@@ -39,6 +45,8 @@ export interface Declaration extends SourceNode {
   stringLength?: number;
   array?: ArrayDeclaration;
   initializer?: Expression;
+  retain?: boolean;
+  nonRetain?: boolean;
   constant?: boolean;
   /** Absent means VAR, preserving the original single-program AST. */
   section?: "VAR_INPUT" | "VAR_OUTPUT" | "VAR_IN_OUT" | "VAR_TEMP" | "VAR_EXTERNAL";

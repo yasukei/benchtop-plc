@@ -273,3 +273,89 @@ it("stores typed input values at any input address without decoding invalid real
     host.handle({ type: "setInput", address: "%IW0", value: { dataType: "INT", value: 99999 } }),
   ).toThrow(RangeError);
 });
+
+it("publishes complete retained sets at most once a second while running and immediately after commands", () => {
+  const { host, clock, messages } = setup();
+  const ir = structuredClone(demoProgram);
+  ir.variables[0]!.retain = true;
+  host.handle({ type: "load", ir });
+  const retained = () => messages.filter((m) => m.type === "retentive");
+  expect(retained().at(-1)).toMatchObject({ records: [{ kind: "leaf", value: { value: 0 } }] });
+  host.handle({ type: "run" });
+  const before = retained().length;
+  clock.advance(990);
+  expect(retained()).toHaveLength(before);
+  clock.advance(10);
+  expect(retained()).toHaveLength(before + 1);
+  expect(retained().at(-1)).toMatchObject({ records: [{ value: { value: 100 } }] });
+  clock.advance(990);
+  expect(retained()).toHaveLength(before + 1);
+  host.handle({ type: "stop" });
+  expect(retained().at(-1)).toMatchObject({ records: [{ value: { value: 199 } }] });
+  host.handle({ type: "warmRestart" });
+  expect(retained().at(-1)).toMatchObject({ records: [{ value: { value: 199 } }] });
+  host.handle({ type: "coldReset" });
+  expect(retained().at(-1)).toMatchObject({ records: [{ value: { value: 0 } }] });
+});
+
+it("restores retained values during load and reports mismatched paths in STOP", () => {
+  const { host, messages, snapshot, state } = setup();
+  const ir = structuredClone(demoProgram);
+  ir.variables[0]!.retain = true;
+  host.handle({ type: "load", ir });
+  const records = messages.filter((m) => m.type === "retentive").at(-1)!.records;
+  if (records[0]?.kind !== "leaf") throw new Error("Expected leaf");
+  records[0].value = { dataType: "DINT", value: 42 };
+  host.handle({ type: "load", ir, retentive: [...records, { ...records[0], path: "removed" }] });
+  expect(state()).toBe("STOP");
+  expect(snapshot()?.variables[0]).toMatchObject({ value: 42 });
+  expect(messages).toContainEqual({ type: "retentiveRestored", skipped: ["removed"] });
+});
+
+it("does not replace saved retained data with an empty set before a program loads", () => {
+  const clock = new VirtualClock();
+  const messages: RuntimeToUiMessage[] = [];
+  const host = createWorkerHost(clock, new VirtualTicker(clock), (message) =>
+    messages.push(message),
+  );
+  host.handle({ type: "setCycle", ms: 50 });
+  host.handle({ type: "warmRestart" });
+  host.handle({ type: "stop" });
+  expect(messages.filter((message) => message.type === "retentive")).toEqual([]);
+  host.handle({ type: "load", ir: demoProgram });
+  expect(messages.filter((message) => message.type === "retentive")).toEqual([
+    { type: "retentive", records: [] },
+  ]);
+});
+
+it("publishes final retained values immediately when a scheduled scan faults", () => {
+  const clock = new VirtualClock();
+  const messages: RuntimeToUiMessage[] = [];
+  const host = createWorkerHost(clock, new VirtualTicker(clock), (message) =>
+    messages.push(message),
+  );
+  const ir = structuredClone(demoProgram);
+  ir.variables[0]!.retain = true;
+  const assignment = ir.body[0]!;
+  if (assignment.kind !== "assignment") throw new Error("Expected demo assignment");
+  ir.body.push({
+    kind: "assignment",
+    span: ir.span,
+    target: assignment.target,
+    value: {
+      kind: "binary",
+      operator: "/",
+      dataType: "DINT",
+      span: ir.span,
+      left: { kind: "literal", dataType: "DINT", value: 10, span: ir.span },
+      right: { kind: "literal", dataType: "DINT", value: 0, span: ir.span },
+    },
+  });
+  host.handle({ type: "load", ir });
+  host.handle({ type: "run" });
+  clock.advance(10);
+  expect(messages.filter((m) => m.type === "retentive").at(-1)).toMatchObject({
+    records: [{ value: { value: 1 } }],
+  });
+  expect(messages.filter((m) => m.type === "state").at(-1)).toMatchObject({ state: "FAULT" });
+});

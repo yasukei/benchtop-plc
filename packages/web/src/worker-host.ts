@@ -17,8 +17,20 @@ export function createWorkerHost(
   post: (message: RuntimeToUiMessage) => void,
 ) {
   let configured = false;
+  let loaded = false;
   const inputs: IoImage = Array<number>(64).fill(0);
-  const publish = () => {
+  let lastRetentiveTime = -Infinity;
+  let lastRetentiveJson: string | undefined;
+  const publish = (immediate = false) => {
+    if (loaded && (immediate || clock.now() - lastRetentiveTime >= 1000)) {
+      const records = runtime.retentiveRecords();
+      const json = JSON.stringify(records);
+      if (json !== lastRetentiveJson || immediate) {
+        post({ type: "retentive", records });
+        lastRetentiveJson = json;
+        lastRetentiveTime = clock.now();
+      }
+    }
     post({ type: "state", state: runtime.state });
     // The panel input image is live even while STOP prevents scan sampling.
     post({ type: "snapshot", snapshot: { ...runtime.snapshot(), inputs: [...inputs] } });
@@ -29,8 +41,9 @@ export function createWorkerHost(
     ticker: {
       start(interval, onTick) {
         return scheduler.start(interval, () => {
+          const previousState = runtime.state;
           onTick();
-          publish();
+          publish(runtime.state !== previousState);
         });
       },
     },
@@ -38,9 +51,16 @@ export function createWorkerHost(
   });
   return {
     handle(message: UiToRuntimeMessage) {
+      let immediate = !["watch", "setInput", "setCycle"].includes(message.type);
       switch (message.type) {
         case "load":
           runtime.load(message.ir);
+          loaded = true;
+          if (message.retentive !== undefined)
+            post({
+              type: "retentiveRestored",
+              skipped: runtime.restoreRetentive(message.retentive),
+            });
           configured = message.ir.kind === "configuration" && message.ir.explicit;
           inputs.fill(0);
           break;
@@ -55,6 +75,14 @@ export function createWorkerHost(
           break;
         case "step":
           runtime.step();
+          break;
+        case "restoreRetentive":
+          post({ type: "retentiveRestored", skipped: runtime.restoreRetentive(message.records) });
+          inputs.fill(0);
+          break;
+        case "warmRestart":
+          runtime.warmRestart();
+          inputs.fill(0);
           break;
         case "coldReset":
           runtime.coldReset();
@@ -87,11 +115,12 @@ export function createWorkerHost(
             else runtime.write(message.variable, message.value);
           } catch (error) {
             if (!(error instanceof RuntimeCommandRejected)) throw error;
+            immediate = false;
             post({ type: "rejected", command: message.type, diagnostic: error.diagnostic });
           }
           break;
       }
-      publish();
+      publish(immediate);
     },
     dispose() {
       runtime.stop();

@@ -155,8 +155,8 @@ describe("PLCopen XML", () => {
       "project.unsupported",
     ],
     [
-      (text: string) => text.replace("<localVars>", '<localVars retain="true">'),
-      "project.unsupported",
+      (text: string) => text.replace("<localVars>", '<localVars retain="invalid">'),
+      "project.invalid",
     ],
     [
       (text: string) => text.replace('<panel:panel version="1">', '<panel:panel version="3">'),

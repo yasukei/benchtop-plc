@@ -17,6 +17,7 @@ export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
+  retentive?: import("@benchtop-plc/core").RetentiveRecord[];
   configuration: EditorConfiguration | null;
   selectedConfiguration: boolean;
   dataTypes: EditorDataType[];
@@ -182,6 +183,9 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
     const layout = readLayout(value.layout);
     if (!layout) return null;
     return {
+      ...(Array.isArray(value.retentive)
+        ? { retentive: value.retentive as import("@benchtop-plc/core").RetentiveRecord[] }
+        : {}),
       configuration,
       selectedConfiguration,
       pous,
@@ -201,6 +205,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
 interface WorkStore {
   getSnapshot(): SavedWork;
   subscribe(listener: () => void): () => void;
+  storageFailed?(): void;
 }
 
 /** Subscribe only to editable work; runtime snapshots must not postpone a save. */
@@ -212,15 +217,17 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
     clearTimeout(timer);
     if (!pending) return;
     try {
-      storage?.setItem(autosaveStorageKey, JSON.stringify({ version: 4, ...pending }));
+      if (!storage) throw new Error("Storage unavailable");
+      storage.setItem(autosaveStorageKey, JSON.stringify({ version: 4, ...pending }));
     } catch {
-      // Editing remains available when storage is blocked or full.
+      store.storageFailed?.();
     }
     pending = undefined;
   };
   const unsubscribe = store.subscribe(() => {
     const next = store.getSnapshot();
     if (
+      next.retentive === previous.retentive &&
       next.configuration === previous.configuration &&
       next.selectedConfiguration === previous.selectedConfiguration &&
       next.dataTypes === previous.dataTypes &&
@@ -232,8 +239,10 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
       next.project === previous.project
     )
       return;
+    const retainedChanged = next.retentive !== previous.retentive;
     previous = next;
     pending = {
+      ...(next.retentive === undefined ? {} : { retentive: next.retentive }),
       configuration: next.configuration,
       selectedConfiguration: next.selectedConfiguration,
       dataTypes: next.dataTypes,
@@ -245,7 +254,8 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
       project: next.project,
     };
     clearTimeout(timer);
-    timer = setTimeout(flush, 500);
+    if (retainedChanged) flush();
+    else timer = setTimeout(flush, 500);
   });
   return {
     flush,

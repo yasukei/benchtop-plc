@@ -311,8 +311,8 @@ external constants in scope.
 The configuration source extension preserves exact global text. Without it, the
 reader rebuilds configuration text whenever globals exist, even for one task and
 one program. Standard XML remains authoritative when an initial value, type or
-constant attribute differs from the extension. Unsupported retention attributes
-remain errors. Existing files without globals open unchanged.
+constant or retention attribute differs from the extension. Existing files
+without globals open unchanged.
 
 ## Direct addresses and panel extension version 2
 
@@ -362,3 +362,15 @@ are present; displays have no bounds. For example:
 
 Removing numeric parts restores version 1 output if the remaining layout is
 representable in it.
+
+## Retention qualifiers
+
+TC6 localVars, inputVars, outputVars and globalVars lists round trip RETAIN as
+`retain="true"` and NON_RETAIN as `nonretain="true"`. Boolean attributes accept
+true/false and 1/0; malformed values are project.invalid. Groups separate when
+qualifiers differ, preserving declaration order. The source extension preserves
+exact spelling; without it, generated ST includes the corresponding qualifiers.
+A disagreement between XML qualifiers and a source extension reports
+project.stale-source and uses the XML structure. Compilation separately rejects
+illegal qualifier combinations and sections. These attributes describe storage
+semantics; live retained values stay in browser autosave and are not project data.

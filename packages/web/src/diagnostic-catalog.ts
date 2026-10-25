@@ -32,6 +32,14 @@ const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "decl.retention-conflict": () => "RETAIN and NON_RETAIN cannot qualify the same section.",
+  "decl.retention-section": () =>
+    "Retention qualifiers are not allowed on VAR_TEMP, VAR_IN_OUT or VAR_EXTERNAL.",
+  "decl.retention-function": () => "Retention qualifiers are not allowed in a FUNCTION.",
+  "decl.retention-constant": () => "Retention qualifiers cannot be combined with CONSTANT.",
+  "decl.retention-address": () =>
+    "Retention qualifiers cannot be combined with a direct address or address connection.",
+
   "global.not-found": ({ name }) => `No global variable matches external ${name}.`,
   "global.type-mismatch": ({ name }) =>
     `External ${name} must have exactly the global variable's type.`,
@@ -227,6 +235,13 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "decl.retention-conflict": () => "同じセクションに RETAIN と NON_RETAIN は指定できません。",
+  "decl.retention-section": () =>
+    "VAR_TEMP、VAR_IN_OUT、VAR_EXTERNAL に保持修飾子は指定できません。",
+  "decl.retention-function": () => "FUNCTION に保持修飾子は指定できません。",
+  "decl.retention-constant": () => "保持修飾子と CONSTANT は併用できません。",
+  "decl.retention-address": () => "保持修飾子と直接アドレスまたはアドレス接続は併用できません。",
+
   "global.not-found": ({ name }) => `外部変数 ${name} に対応するグローバル変数がありません。`,
   "global.type-mismatch": ({ name }) =>
     `外部変数 ${name} の型はグローバル変数の型と一致する必要があります。`,

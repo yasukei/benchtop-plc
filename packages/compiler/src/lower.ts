@@ -105,7 +105,12 @@ class Lowerer {
   private variable(declaration: AST.Declaration, name: AST.Identifier): IR.LocalVariable {
     const id = required(this.checked.references.get(name)).variable;
     const symbol = required(this.checked.symbols[id]);
-    const base = { name: name.name, key: name.key, span: span(declaration) };
+    const base = {
+      name: name.name,
+      key: name.key,
+      span: span(declaration),
+      ...(declaration.retain || declaration.nonRetain ? { retain: !!declaration.retain } : {}),
+    };
     if (symbol.descriptor && isAggregateType(symbol.descriptor, this.checked.types))
       return {
         ...base,
@@ -693,8 +698,13 @@ export function lower(
     inOuts: readonly number[],
     prefix: string,
     programRoot = false,
+    inheritedRetain?: boolean,
   ): IR.InstanceStorage[] =>
-    locals.map((variable, slot) => {
+    locals.map((local, slot) => {
+      const variable =
+        local.retain === undefined && inheritedRetain !== undefined
+          ? { ...local, retain: inheritedRetain }
+          : local;
       if (variable.external) {
         const alias: IR.InstanceStorage = { kind: "inOut" };
         aliases.push({ slot: alias, key: variable.external });
@@ -729,6 +739,8 @@ export function lower(
           definition.temporaries,
           definition.inOuts ?? [],
           `${path}.`,
+          false,
+          variable.retain,
         );
         return { kind: "instance", instance };
       }
@@ -776,7 +788,20 @@ export function lower(
                     fbType: type.name as IR.FunctionBlockType,
                     initialValue: null,
                   };
-            return allocate([{ ...leaf, name, key: name, span: span(variable) }], [], [], "")[0]!;
+            return allocate(
+              [
+                {
+                  ...leaf,
+                  name,
+                  key: name,
+                  span: span(variable),
+                  ...(variable.retain === undefined ? {} : { retain: variable.retain }),
+                },
+              ],
+              [],
+              [],
+              "",
+            )[0]!;
           }
           variables.push({
             kind: referenceType(type, checked.types) ? "reference" : "scalar",
@@ -786,6 +811,7 @@ export function lower(
             watched: segments.some((segment) => segment.startsWith("[")),
             dataType: type,
             initialValue: initial,
+            ...(variable.retain === undefined ? {} : { retain: variable.retain }),
             span: span(variable),
           } as IR.ScalarVariable);
           return { kind: "variable", variable: id };

@@ -3,15 +3,29 @@ import type { ConfigurationIR, ProgramIR, VariableId } from "./ir.js";
 import type { SourceSpan } from "./source.js";
 import type { TypedValue } from "./values.js";
 
+/** Complete, JSON-safe retained storage; standard-block ports occur only in block records. */
+export type RetentiveRecord =
+  | { kind: "leaf"; path: string; dataType: string; value: TypedValue }
+  | {
+      kind: "block";
+      path: string;
+      blockType: import("./ir.js").FunctionBlockType;
+      inputs: TypedValue[];
+      outputs: TypedValue[];
+      state: Record<string, boolean | null>;
+    };
+
 export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT";
 
 export type UiToRuntimeMessage =
-  | { type: "load"; ir: ConfigurationIR | ProgramIR }
+  | { type: "load"; ir: ConfigurationIR | ProgramIR; retentive?: RetentiveRecord[] }
   | { type: "watch"; variables: VariableId[] }
   | { type: "run" }
   | { type: "stop" }
   | { type: "step" }
   | { type: "coldReset" }
+  | { type: "warmRestart" }
+  | { type: "restoreRetentive"; records: RetentiveRecord[] }
   | { type: "setCycle"; ms: number }
   | { type: "setInput"; address: string; value: TypedValue }
   | { type: "force"; variable: VariableId; value: TypedValue | null }
@@ -75,6 +89,8 @@ export interface CommandRejectionMessage {
 }
 
 export type RuntimeToUiMessage =
+  | { type: "retentive"; records: RetentiveRecord[] }
+  | { type: "retentiveRestored"; skipped: string[] }
   | { type: "state"; state: RuntimeState }
   | { type: "snapshot"; snapshot: RuntimeSnapshot }
   | { type: "fault"; diagnostic: Diagnostic }
