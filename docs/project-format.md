@@ -155,13 +155,10 @@ parameter connections live only in the configuration source extension, which
 preserves exact text through save/open. Other tools, or an import after removing
 that extension, see unconnected instances. Connection syntax is validated on save, including rejecting empty lists and trailing commas;
 representable semantic errors remain available for compiler diagnostics.
-Retain attributes, resource-level `pouInstance`, `accessVars` and `configVars` are unsupported here.
+Resource-level `pouInstance`, `accessVars` and `configVars` are unsupported here.
 
-The web app compiles imported configuration sources, preserves them through
+The web app edits, compiles and runs configuration sources, preserves them through
 save/open and browser autosave, and hides the implicit cycle control for them.
-Several tasks and event tasks can be exchanged before the compiler can execute
-them; compilation reports diagnostics and does not load invalid code. Configuration
-source editing is not yet available in the web app.
 
 ## Writer identity
 

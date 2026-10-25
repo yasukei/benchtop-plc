@@ -156,19 +156,22 @@ const result = compileProject(
 );
 ```
 
-One configuration, one resource, one cyclic task and 1–64 program instances are
-supported. `ON` accepts an arbitrary identifier and has no execution effect.
+One configuration, one resource, 1–16 cyclic or event tasks and 1–64 program
+instances are supported. `ON` accepts an arbitrary identifier and has no execution
+effect.
 Every instance requires `WITH` and a known task; its type must name a `PROGRAM`.
 The configuration, resource, task and instance names share a case-insensitive
 namespace excluding POU, data type and standard names. Every POU is checked, even
 when no instance references it; an uninstantiated PROGRAM has no storage and does
 not execute.
 
-`INTERVAL` and `PRIORITY` are both required, in either order. The interval is a
+Each task requires either `INTERVAL` (cyclic) or `SINGLE` (rising-edge event),
+together with `PRIORITY`, in either order. The interval is a
 TIME/LTIME literal from 10 ms to 1 h in whole multiples of 10 ms; exact literal
 arithmetic prevents rounding fractional values into range. Priority is an integer
 literal from 0 to 65535. `INTERVAL`, `SINGLE` and `PRIORITY` remain ordinary
-identifiers outside task parameter positions. Event tasks and multiple tasks remain deferred.
+identifiers outside task parameter positions. `SINGLE` accepts a BOOL input address
+or a BOOL configuration/resource global, including one located in the input area.
 
 Configuration diagnostics carry `sourceKind: "configuration"`, `sourceIndex: 0`,
 and the configuration name in `pou` when its header is known. The source index is
