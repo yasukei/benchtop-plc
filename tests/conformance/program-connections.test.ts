@@ -154,3 +154,23 @@ it.each(["VAR_INPUT", "VAR_OUTPUT"])(
     );
   },
 );
+
+it("requires a connection after each comma in a configuration program declaration", () => {
+  const result = compileProject(
+    [main],
+    [],
+    `CONFIGURATION Plant RESOURCE Station ON Cpu
+TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM A WITH T : Main (In := TRUE,);
+END_RESOURCE END_CONFIGURATION`,
+  );
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics).toEqual([
+    expect.objectContaining({
+      code: "syntax.expected-identifier",
+      sourceKind: "configuration",
+      pou: "Plant",
+      span: expect.objectContaining({ line: 3 }),
+    }),
+  ]);
+});

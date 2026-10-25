@@ -346,3 +346,21 @@ END_RESOURCE END_CONFIGURATION\r
   ).toEqual([]);
   expect(readProject(writeProject(reopened.value!).value!)).toEqual(reopened);
 });
+
+it.each(["", "Start := TRUE,", "Lamp => %QX0.0,"])(
+  "rejects saving an incomplete configuration connection list (%s)",
+  (connections) => {
+    const configurationSource = `CONFIGURATION Plant RESOURCE Station ON Cpu
+TASK T (INTERVAL := T#10ms, PRIORITY := 0);
+PROGRAM A WITH T : Main (${connections});
+END_RESOURCE END_CONFIGURATION`;
+    const saved = writeProject({ ...sampleProject(), configurationSource });
+    expect(saved.value).toBeNull();
+    expect(saved.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "project.invalid",
+        args: { path: "pouInstance/connections" },
+      }),
+    );
+  },
+);

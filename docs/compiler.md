@@ -208,6 +208,9 @@ An instance can connect named parameters, for example:
 PROGRAM A WITH T : Main (Start := %IX0.0, Lamp => %QX0.0, Threshold := gThreshold);
 ```
 
+Connection lists must contain at least one connection and cannot end with a comma.
+Omit the parentheses when every parameter is unconnected.
+
 Input sources are constants (including constant expressions and enumeration values),
 globals, or direct addresses. Output destinations are mutable globals or output
 addresses. Only existing `%IX0.0`–`%IX0.7` and `%QX0.0`–`%QX0.7` BOOL addresses are

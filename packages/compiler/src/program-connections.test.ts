@@ -91,3 +91,22 @@ it.each([
     );
   }
 });
+
+it.each(["", "Start := TRUE,", "Lamp => %QX0.0,"])(
+  "rejects an incomplete connection list (%s)",
+  (connections) => {
+    const source = configuration(connections);
+    const result = compileProject([program], [], source);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "syntax.expected-identifier",
+        pou: "Plant",
+        sourceKind: "configuration",
+        sourceIndex: 0,
+        args: { found: ")" },
+        span: expect.objectContaining({ line: 5, column: source.split("\n")[4]!.indexOf(")") + 1 }),
+      }),
+    ]);
+  },
+);

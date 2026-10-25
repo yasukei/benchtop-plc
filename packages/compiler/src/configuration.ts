@@ -235,7 +235,7 @@ class ConfigurationParser {
       const connections: ProgramConnection[] = [];
       if (this.at("(")) {
         this.take();
-        while (!this.at(")")) {
+        while (true) {
           const name = this.identifier();
           const output = this.at("=>");
           this.expect(output ? "=>" : ":=");

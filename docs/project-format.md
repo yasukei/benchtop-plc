@@ -153,7 +153,7 @@ values cannot be saved. PROGRAM `VAR_INPUT` and `VAR_OUTPUT` map to `inputVars`
 and `outputVars`, including initializers. TC6 v2.01 has no connection element:
 parameter connections live only in the configuration source extension, which
 preserves exact text through save/open. Other tools, or an import after removing
-that extension, see unconnected instances. Connection syntax is validated on save;
+that extension, see unconnected instances. Connection syntax is validated on save, including rejecting empty lists and trailing commas;
 representable semantic errors remain available for compiler diagnostics.
 Retain attributes, resource-level `pouInstance`, `accessVars` and `configVars` are unsupported here.
 

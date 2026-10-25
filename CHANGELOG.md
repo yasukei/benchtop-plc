@@ -16,6 +16,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   writes and accept forces; unconnected inputs keep their values. PLCopen XML
   preserves program interfaces and exact connection source text. Direct addresses
   connect in the configuration; `AT` on PROGRAM input/output declarations is rejected.
+  Connection lists reject empty parentheses and trailing commas.
 
 - Configuration and resource global variables and constants, imported by PROGRAMs
   and function blocks through VAR_EXTERNAL. Globals share storage across instances,
