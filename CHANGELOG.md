@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- ADR 0017 documents the accepted design for methods, classes, inheritance,
+  interfaces, references to instances and namespaces for Milestone 7.
+
 ## [0.6.0] - 2026-10-25
 
 Configurations, tasks and global variables: configuration sources with several program instances, cyclic and event tasks, global variables, PROGRAM parameters, byte, word and memory addresses, numeric panel parts, and retentive variables with warm restart. Contains a breaking change to monitor paths; see Changed.

@@ -26,3 +26,4 @@ An ADR records one design decision: its context, the decision, and its consequen
 - [0014. User-defined POUs, calls and instances](0014-user-defined-pous.md)
 - [0015. Derived data types, strings and references](0015-derived-types-strings-and-references.md)
 - [0016. Configurations, tasks, global variables and retentive variables](0016-configurations-tasks-and-global-variables.md)
+- [0017. Classes, methods, interfaces and namespaces](0017-classes-methods-interfaces-and-namespaces.md)
