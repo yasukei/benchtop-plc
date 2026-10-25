@@ -357,16 +357,18 @@ program and nested block storage.
 | ---------------------------- | -------------- | ----------------------------------------------------------------------------------------------------- |
 | `config.configuration-count` | `{}`           | More than one configuration source declaration.                                                       |
 | `config.resource-count`      | `{}`           | Exactly one resource is required.                                                                     |
-| `config.task-count`          | `{}`           | Exactly one cyclic task is currently supported.                                                       |
+| `config.task-count`          | `{}`           | A resource requires 1–16 tasks.                                                                       |
 | `config.no-instances`        | `{}`           | A resource needs at least one program instance.                                                       |
 | `config.instance-limit`      | `{}`           | More than 64 instances.                                                                               |
 | `config.name-collision`      | `name: string` | Duplicate configuration/resource/task/instance/global name or collision with POU/type/standard names. |
 | `config.unknown-task`        | `name: string` | Instance references an unknown task.                                                                  |
 | `config.missing-task`        | `name: string` | Instance omits `WITH` and a task.                                                                     |
 | `config.program-type`        | `name: string` | Instance type is unknown or is not a PROGRAM.                                                         |
-| `config.interval`            | `{}`           | Missing/nonliteral interval, outside 10 ms–1 h, or not a whole multiple of 10 ms.                     |
+| `config.interval`            | `{}`           | Nonliteral interval, outside 10 ms–1 h, or not a whole multiple of 10 ms.                             |
 | `config.priority`            | `{}`           | Missing/noninteger priority or outside 0–65535.                                                       |
 | `config.task-parameter`      | `name: string` | Duplicate or unsupported task parameter.                                                              |
+| `config.task-trigger`        | `{}`           | Both or neither of INTERVAL and SINGLE.                                                               |
+| `config.single`              | `{}`           | SINGLE is not a non-constant BOOL global or supported %IX input bit.                                  |
 | `runtime.configured-cycle`   | `{}`           | Nonfatal `setCycle` rejection while an explicit configuration is loaded.                              |
 
 `pou.program-count` still reports `found` when no configuration source is supplied.

@@ -41,7 +41,7 @@ export const diagnosticEn = {
     `External ${name} cannot have an initializer or a direct address.`,
   "config.configuration-count": () => `A project supports only one configuration.`,
   "config.resource-count": () => `A configuration requires exactly one resource.`,
-  "config.task-count": () => `A resource requires exactly one cyclic task.`,
+  "config.task-count": () => `A resource requires 1 to 16 tasks.`,
   "config.no-instances": () => `A resource requires at least one program instance.`,
   "config.instance-limit": () => `A resource supports at most 64 program instances.`,
   "config.name-collision": ({ name }) =>
@@ -51,6 +51,9 @@ export const diagnosticEn = {
   "config.program-type": ({ name }) => `${name} is not a known PROGRAM type.`,
   "config.interval": () =>
     `INTERVAL requires a TIME or LTIME literal from 10 ms to 1 h in whole multiples of 10 ms.`,
+  "config.task-trigger": () => `A task requires exactly one of INTERVAL and SINGLE.`,
+  "config.single": () =>
+    `SINGLE requires a non-constant BOOL global or a supported %IX input address.`,
   "config.priority": () => `PRIORITY requires an integer literal from 0 to 65535.`,
   "config.connection-parameter": ({ name }) => `Unknown program parameter: ${name}.`,
   "config.connection-direction": ({ name }) =>
@@ -232,7 +235,7 @@ export const diagnosticJa = {
     `外部変数 ${name} に初期値や直接アドレスは指定できません。`,
   "config.configuration-count": () => `プロジェクトで使用できる構成は1つです。`,
   "config.resource-count": () => `構成にはリソースが1つ必要です。`,
-  "config.task-count": () => `リソースには周期タスクが1つ必要です。`,
+  "config.task-count": () => `リソースには1個から16個のタスクが必要です。`,
   "config.no-instances": () => `リソースにはプログラムインスタンスが必要です。`,
   "config.instance-limit": () => `プログラムインスタンスは64個までです。`,
   "config.name-collision": ({ name }) =>
@@ -243,6 +246,9 @@ export const diagnosticJa = {
   "config.program-type": ({ name }) => `${name}は定義済みのPROGRAM型ではありません。`,
   "config.interval": () =>
     `INTERVALには10msから1時間までの10ms単位のTIMEまたはLTIMEリテラルが必要です。`,
+  "config.task-trigger": () => `タスクにはINTERVALかSINGLEのどちらか一方が必要です。`,
+  "config.single": () =>
+    `SINGLEには定数でないBOOLグローバル変数または対応する%IX入力アドレスが必要です。`,
   "config.priority": () => `PRIORITYには0から65535までの整数リテラルが必要です。`,
   "config.connection-parameter": ({ name }) => `不明なプログラムパラメーターです: ${name}。`,
   "config.connection-direction": ({ name }) =>

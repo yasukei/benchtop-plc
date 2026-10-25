@@ -220,6 +220,7 @@ it("builds nested array rows, watches expanded leaves, and retains collapsed for
 it("indexes dense and compact snapshots by variable ID and refreshes changed watches", () => {
   const snapshot: import("@benchtop-plc/core").RuntimeSnapshot = {
     scanCount: 1,
+    tasks: [],
     lastExecutionTimeMs: 0,
     inputs: [false, false, false, false, false, false, false, false],
     outputs: [false, false, false, false, false, false, false, false],

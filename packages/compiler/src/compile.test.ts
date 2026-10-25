@@ -50,8 +50,8 @@ describe("compile entry point", () => {
     const ir = lower([checked], {
       name: "Config",
       resource: "Res",
-      task: { name: "Cyclic", intervalMs: 10, priority: 1 },
-      programs: [{ name: "mainInstance", program: 0 }],
+      tasks: [{ name: "Cyclic", intervalMs: 10, priority: 1 }],
+      programs: [{ name: "mainInstance", program: 0, task: 0 }],
       explicit: false,
       span: ast.span,
     });
@@ -59,8 +59,8 @@ describe("compile entry point", () => {
     const again = lower([checked], {
       name: "Config",
       resource: "Res",
-      task: { name: "Cyclic", intervalMs: 10, priority: 1 },
-      programs: [{ name: "mainInstance", program: 0 }],
+      tasks: [{ name: "Cyclic", intervalMs: 10, priority: 1 }],
+      programs: [{ name: "mainInstance", program: 0, task: 0 }],
       explicit: false,
       span: ast.span,
     });
@@ -73,8 +73,8 @@ describe("compile entry point", () => {
       lower([checked], {
         name: "Config",
         resource: "Res",
-        task: { name: "Cyclic", intervalMs: 10, priority: 1 },
-        programs: [{ name: "mainInstance", program: 0 }],
+        tasks: [{ name: "Cyclic", intervalMs: 10, priority: 1 }],
+        programs: [{ name: "mainInstance", program: 0, task: 0 }],
         explicit: false,
         span: ast.span,
       }),

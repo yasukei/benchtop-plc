@@ -36,7 +36,7 @@ CONFIGURATION Plant RESOURCE Station ON Cpu\r
 TASK Fast (INTERVAL := T#200ms, PRIORITY := 0);\r
 ${multiple ? "TASK Slow (INTERVAL := T#100ms, PRIORITY := 1);" : ""}\r
 PROGRAM A WITH Fast : Main;\r
-PROGRAM B WITH Fast : Main;\r
+PROGRAM B WITH ${multiple ? "Slow" : "Fast"} : Main;\r
 END_RESOURCE END_CONFIGURATION\r
 `;
     project.configurationSource = configurationSource;
@@ -48,15 +48,48 @@ END_RESOURCE END_CONFIGURATION\r
       buffer: Buffer.from(writeProject(project).value!),
     });
     const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+    await expect(diagnostics).toContainText("No diagnostics");
+    await expect(page.getByText("Instance: A", { exact: true })).toBeVisible();
+    const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+    await expect(monitor.getByRole("button", { name: "A", exact: true })).toBeVisible();
+    await expect(monitor.getByRole("button", { name: "B", exact: true })).toBeVisible();
+    const tasks = page.getByRole("table", { name: "Task telemetry", exact: true });
+    await expect(tasks.getByRole("rowheader", { name: "Fast", exact: true })).toBeVisible();
     if (multiple) {
-      await expect(diagnostics).toContainText("A resource requires exactly one cyclic task.");
-      await expect(page.getByRole("button", { name: "Single scan", exact: true })).toBeDisabled();
-    } else {
-      await expect(diagnostics).toContainText("No diagnostics");
-      await expect(page.getByText("Instance: A", { exact: true })).toBeVisible();
-      const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
-      await expect(monitor.getByRole("button", { name: "A", exact: true })).toBeVisible();
-      await expect(monitor.getByRole("button", { name: "B", exact: true })).toBeVisible();
+      await expect(tasks.getByRole("rowheader", { name: "Slow", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "RUN", exact: true }).click();
+      for (const name of ["Fast", "Slow"]) {
+        const count = tasks
+          .getByRole("row")
+          .filter({ has: page.getByRole("rowheader", { name, exact: true }) })
+          .getByLabel("Runs", { exact: true });
+        await expect.poll(async () => Number(await count.textContent())).toBeGreaterThan(0);
+        const before = Number(await count.textContent());
+        await expect.poll(async () => Number(await count.textContent())).toBeGreaterThan(before);
+      }
+      await page
+        .getByRole("region", { name: "Runtime controls", exact: true })
+        .getByRole("button", { name: "STOP", exact: true })
+        .click();
+      await page.setViewportSize({ width: 400, height: 800 });
+      await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+      const localizedTasks = page.getByRole("table", { name: "タスクの実行状況", exact: true });
+      await expect(
+        localizedTasks.getByRole("columnheader", { name: "実行回数", exact: true }),
+      ).toBeVisible();
+      await expect(
+        localizedTasks.getByRole("columnheader", { name: "前回 (ms)", exact: true }),
+      ).toBeVisible();
+      await expect(
+        localizedTasks.getByRole("columnheader", { name: "最大 (ms)", exact: true }),
+      ).toBeAttached();
+      await expect(
+        localizedTasks.getByRole("columnheader", { name: "超過回数", exact: true }),
+      ).toBeAttached();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.getByRole("combobox", { name: "言語", exact: true }).selectOption("en");
     }
     await expect(page.getByLabel("Cycle (ms)")).toHaveCount(0);
     await expect
@@ -68,9 +101,7 @@ END_RESOURCE END_CONFIGURATION\r
       )
       .toBe(configurationSource);
     await page.reload();
-    await expect(diagnostics).toContainText(
-      multiple ? "A resource requires exactly one cyclic task." : "No diagnostics",
-    );
+    await expect(diagnostics).toContainText("No diagnostics");
     await expect(page.getByLabel("Cycle (ms)")).toHaveCount(0);
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Save project", exact: true }).click();

@@ -679,8 +679,8 @@ export function lower(
   configuration: {
     name: string;
     resource: string;
-    task: IR.CyclicTaskIR;
-    programs: { name: string; program: number }[];
+    tasks: import("./tasks.js").CheckedTask[];
+    programs: { name: string; program: number; task: number }[];
     explicit: boolean;
     span: IR.SourceSpan;
   },
@@ -852,7 +852,6 @@ export function lower(
     }
     return {
       ...instance,
-      task: 0,
       storage,
       ...(inputs.length ? { inputs } : {}),
       ...(outputs.length ? { outputs } : {}),
@@ -867,7 +866,14 @@ export function lower(
     explicit: configuration.explicit,
     resource: {
       name: configuration.resource,
-      tasks: [{ ...configuration.task }],
+      tasks: configuration.tasks.map((task): IR.TaskIR => {
+        if ("intervalMs" in task) return { ...task };
+        const single = task.single;
+        const input = single.kind === "global" ? required(globalStorage.get(single.key)) : single;
+        if (input.kind !== "variable" && input.kind !== "address")
+          throw new Error("Checked event input is not scalar storage");
+        return { name: task.name, priority: task.priority, single: { ...input } };
+      }),
       programs: programInstances,
     },
     programs: layouts.map((layout) => ({

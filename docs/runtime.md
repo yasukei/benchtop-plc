@@ -17,7 +17,8 @@ runtime.stop();
 
 The host injects a monotonic `Clock.now()` in milliseconds and a
 `Ticker.start(intervalMs, callback)` returning an idempotent cancellation function.
-Loading a configuration sets the cycle from its task's `intervalMs`. Standalone
+Loading a configuration sets the tick to the greatest common divisor of its cyclic
+intervals (10 ms for event-only configurations). Standalone
 legacy `ProgramIR` uses the positive finite `intervalMs` construction option.
 `setCycle(ms)` changes an implicit configuration's cycle, preserving memory and
 restarting the ticker when running. An explicit configuration rejects it with
@@ -28,6 +29,43 @@ registration order. Cancellation and registrations during callbacks take effect
 immediately. Nested `advance` calls are rejected. Production clock/ticker adapters
 belong to the Worker host (#12).
 
+## Task scheduling
+
+A resource has 1–16 cyclic or event tasks. Cyclic tasks use a TIME/LTIME literal
+from 10 ms to 1 h in whole 10 ms steps. Event tasks use `SINGLE := globalBool`
+(a non-constant BOOL global, including a BOOL alias) or a supported `%IX0.0`–`%IX0.7`
+address. Each task requires a literal priority from 0 to 65535; 0 is highest.
+Exactly one of INTERVAL and SINGLE is required. Every PROGRAM instance uses WITH
+to bind to one task; instances within that task run in resource declaration order.
+
+Each tick starts a non-preemptive pass. Readiness is fixed at pass start. Ready
+tasks run by priority, then earliest due time or sampled edge, then task declaration
+order. Cyclic tasks are first due one interval after RUN. STOP → RUN restarts those
+due times, preserving memory and event samples. A task becoming ready during a pass
+waits for the next pass.
+
+Every pass samples all event inputs, including single scans and passes without a
+ready cyclic task. A FALSE → TRUE transition runs the event task once. Nothing is
+sampled while stopped without a single scan, so an edge arriving during STOP is
+seen on the first subsequent pass. Load and cold reset clear samples to FALSE;
+STOP → RUN retains them. An event-only resource ticks every 10 ms. Global values
+are sampled before task writes; located input globals and direct inputs use the
+live host input image. Pending monitor writes are consumed at the next task run,
+so they affect a global event sample on a subsequent pass.
+
+After a cyclic run, the next due time advances from its prior due time by one
+interval. Activations at or before the finish time are skipped and counted as
+overruns, without a fault or catch-up execution. A 10 ms task due at 10 ms that
+finishes at 35 ms has two overruns and is next due at 40 ms.
+
+`snapshot.tasks` reports task name, run count, last and maximum execution time in
+milliseconds from the injected Clock, and overruns, in declaration order. Load and
+cold reset clear these statistics. The Worker publishes them with every snapshot.
+`scanCount` counts passes in which at least one task ran; idle event samples do not
+increase it. Single scans run every cyclic task once and only rising event tasks,
+without counting overruns. A fault, STOP or emergency stop halts the entire resource.
+The 200,000-iteration limit applies independently to each task run.
+
 ## Scan and state
 
 Operating-state transitions, restart semantics and run-time error reactions are
@@ -36,11 +74,11 @@ STOP → RUN resumes with existing variable and FB state; cold reset or loading 
 program initializes it. Outputs remain subject to the state rules below.
 
 `ScanStages` supplies the input/output image boundary and extension points for
-pending writes and forces. The sequence is read inputs, copy mapped inputs into
-memory, apply pending writes, apply forces, then execute each program instance in
-resource declaration order. For each instance: copy connected inputs, apply forces,
+pending writes and forces. For each ready task in scheduler order, read inputs,
+copy mapped inputs into memory, consume pending writes, apply forces, and then
+execute its program instances in resource declaration order. For each instance: copy connected inputs, apply forces,
 execute, apply forces, copy connected outputs, apply forces. Publish mapped outputs
-only after the last instance. Each instance aliases its own persistent storage onto a shared
+after the last instance of each task. Each instance aliases its own persistent storage onto a shared
 PROGRAM body, refreshing only that instance's temporaries. A single task budget
 counts loop iterations across all its instances. A fault stops later instances
 and faults the whole resource, naming its task, POU and qualified instance path. `ScanMemory.write` uses the declaration's core
@@ -49,10 +87,10 @@ built-in forces run before the pre-execution force extension and after the
 post-execution force extension, so the built-in force wins in the final image.
 Input/output callbacks receive copied images.
 
-`scanOnce()` executes a complete scan in STOP or RUN, unless already scanning.
+`scanOnce()` executes one single-scan pass in STOP or RUN, unless already scanning.
 ESTOP and FAULT ignore scans and RUN requests. STOP scans update internal state
 and annotations while keeping output-mapped variables and output images OFF.
-`step()` executes exactly one scan only in STOP and returns the current snapshot
+`step()` executes exactly one pass only in STOP and returns the current snapshot
 without execution in every other state. It uses the same injected clock as cyclic
 execution; it does not advance virtual time on the caller's behalf. The Worker
 routes the core protocol's `step` command to this method.
@@ -101,10 +139,10 @@ in ascending order, even while stopped or emergency-stopped.
 `runtime.write-connected-input` and input-mapped variables with
 `runtime.write-input-mapped`; forces remain allowed. Unconnected
 parameters and connected outputs accept writes. A write runs once at the start of
-the next scan while RUN, or immediately while stopped. Multiple pending writes to a variable use the
+the next task run while RUN, or immediately while stopped. Multiple pending writes to a variable use the
 last value. Pending writes survive STOP until a later scan; an immediate write
-to the same variable replaces its pending write. Writes issued after the scan's
-pending-write stage are queued for the following scan. A force takes priority over a write,
+to the same variable replaces its pending write. Writes issued after a task's
+pending-write stage are queued for the next task run, possibly in the same pass. A force takes priority over a write,
 and that write is still consumed. Loading or cold reset clears all pending writes
 and forces.
 
@@ -577,7 +615,7 @@ no VariableId and appear in neither snapshots nor the monitor.
 
 Global snapshot paths are their own names (and flattened element/member paths),
 without a program-instance prefix. Writes and forces use the global leaf's VariableId.
-Programs execute in resource declaration order, so later programs see earlier writes
-in the same task run. Forces are restored around each program instance, including
+Programs within a task execute in resource declaration order, so later programs
+see earlier writes in the same task run. Forces are restored around each program instance, including
 before a later instance reads a forced global. Located globals use the same input
 refresh, output publication and STOP safety rules as located PROGRAM variables.

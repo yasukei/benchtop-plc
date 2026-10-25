@@ -264,6 +264,14 @@ export interface ProgramInstanceIR {
   task: number;
   storage: InstanceStorage[];
 }
+export type EventInputIR =
+  { kind: "variable"; variable: VariableId } | { kind: "address"; address: DirectAddress };
+export interface EventTaskIR {
+  name: string;
+  priority: number;
+  single: EventInputIR;
+}
+export type TaskIR = CyclicTaskIR | EventTaskIR;
 export interface CyclicTaskIR {
   name: string;
   intervalMs: number;
@@ -276,7 +284,7 @@ export interface ConfigurationIR extends SourceNode {
   explicit: boolean;
   resource: {
     name: string;
-    tasks: CyclicTaskIR[];
+    tasks: TaskIR[];
     programs: ProgramInstanceIR[];
   };
   programs: ProgramBodyIR[];

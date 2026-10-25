@@ -1,3 +1,4 @@
+import { checkTasks } from "./tasks.js";
 import { checkProgramConnections } from "./program-connections.js";
 import {
   parseConfiguration,
@@ -312,6 +313,8 @@ export function compileProject(
           symbol.descriptor = { ...array, element: { kind: "functionBlock", name: variant } };
       }
     }
+  const tasks = config && globals ? checkTasks(config, globals) : undefined;
+  diagnostics.push(...(tasks?.diagnostics.map(configDiagnostic) ?? []));
   const connections =
     config && globals
       ? checkProgramConnections(
@@ -328,10 +331,11 @@ export function compileProject(
       ? {
           name: config.name.name,
           resource: config.resource.name,
-          task: config.task,
+          tasks: tasks!.tasks,
           programs: config.programs.map((instance) => ({
             name: instance.name.name,
             program: programs.findIndex((ast) => ast.name.key === instance.type.key),
+            task: config.tasks.findIndex((task) => task.name.key === instance.task?.key),
           })),
           explicit: true,
           span: config.span,
@@ -339,8 +343,8 @@ export function compileProject(
       : {
           name: implicit.name ?? "Config",
           resource: implicit.resource ?? "Res",
-          task: { name: "Cyclic", intervalMs: 10, priority: 1, ...implicit.task },
-          programs: [{ name: implicit.instance ?? "mainInstance", program: 0 }],
+          tasks: [{ name: "Cyclic", intervalMs: 10, priority: 1, ...implicit.task }],
+          programs: [{ name: implicit.instance ?? "mainInstance", program: 0, task: 0 }],
           explicit: false,
           span: programs[0]!.span,
         },

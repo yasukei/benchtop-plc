@@ -338,7 +338,7 @@ cannot be written or forced; dereferenced values retain their target's identity.
 `name`, source `span`, and `explicit`). It contains:
 
 - `programs`: shared PROGRAM names, spans and statement bodies, once per POU;
-- `resource`: its name, cyclic `tasks` (`name`, `intervalMs`, `priority`) and
+- `resource`: its name, `tasks` in declaration order and
   `programs` in declaration order (`name`, zero-based `program` and `task` indexes,
   and per-instance `storage`);
 - `variables`: one flat monitored table across every program instance;
@@ -356,3 +356,21 @@ Each PROGRAM uses its first instance in resource declaration order. Uninstantiat
 PROGRAMs have no entries; an earlier instance's values cannot be overwritten by
 another instance of the same body. Runtime faults carry `task` and a qualified
 `instance` path as well as the executing `pou`.
+
+## Task IR and telemetry
+
+`TaskIR` is a cyclic task (`name`, `intervalMs`, `priority`) or event task
+(`name`, `priority`, `single`). `single` is JSON data: either
+`{ kind: "variable", variable: VariableId }` bound to a non-constant BOOL global,
+or `{ kind: "address", address: DirectAddress }` for a supported input bit.
+An instance's zero-based `task` index selects its task independently of its
+resource declaration position. The implicit configuration remains one cyclic task.
+
+Every `RuntimeSnapshot` includes `tasks: TaskTelemetry[]` in declaration order,
+empty before load. Each entry contains `name`, `runCount`, `lastExecutionTimeMs`,
+`maxExecutionTimeMs` and `overruns`. All numbers are JSON-safe; timing uses the
+injected Clock. Snapshots copy entries so clients cannot mutate scheduler state.
+Load/cold reset clear the values; STOP/RUN preserve them. `scanCount` counts passes
+with at least one attempted task run, including a faulting run. The Worker host
+forwards these fields in ordinary snapshot messages. Runtime faults name the task
+that failed and prevent every later task in that pass from running.

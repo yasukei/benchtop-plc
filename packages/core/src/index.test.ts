@@ -114,6 +114,7 @@ it("describes every protocol command and event as plain data", () => {
       type: "snapshot",
       snapshot: {
         scanCount: 1,
+        tasks: [],
         lastExecutionTimeMs: 0.2,
         inputs: [true, false, false, false, false, false, false, false],
         outputs: [false, false, false, false, false, false, false, false],

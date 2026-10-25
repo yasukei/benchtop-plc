@@ -13,8 +13,7 @@ export interface Configuration {
   resourceGlobals: Declaration[];
   name: Identifier;
   resource: Identifier;
-  task: CyclicTaskIR;
-  taskName: Identifier;
+  tasks: { name: Identifier; intervalMs?: number; single?: Token[]; priority: number }[];
   programs: {
     name: Identifier;
     type: Identifier;
@@ -94,7 +93,7 @@ class ConfigurationParser {
   private at(key: string): boolean {
     return this.current.key === key;
   }
-  private task(): { name: Identifier; intervalMs: number; priority: number } {
+  private task(): Configuration["tasks"][number] {
     this.expect("TASK");
     const name = this.identifier();
     this.expect("(");
@@ -109,7 +108,10 @@ class ConfigurationParser {
           this.expect(",");
         values.push(this.take());
       }
-      if (parameters.has(parameter.key) || !["INTERVAL", "PRIORITY"].includes(parameter.key))
+      if (
+        parameters.has(parameter.key) ||
+        !["INTERVAL", "PRIORITY", "SINGLE"].includes(parameter.key)
+      )
         this.report({
           code: "config.task-parameter",
           severity: "error",
@@ -150,7 +152,12 @@ class ConfigurationParser {
         if (!(error instanceof RangeError)) throw error;
       }
     }
-    if (!Number.isInteger(intervalMs) || intervalMs < 10 || intervalMs > 3600000)
+    if (parameters.has("INTERVAL") === parameters.has("SINGLE"))
+      this.report({ code: "config.task-trigger", severity: "error", span: name.span, args: {} });
+    if (
+      parameters.has("INTERVAL") &&
+      (!Number.isInteger(intervalMs) || intervalMs < 10 || intervalMs > 3600000)
+    )
       this.report({
         code: "config.interval",
         severity: "error",
@@ -177,7 +184,12 @@ class ConfigurationParser {
         span: priorityTokens[0]?.span ?? name.span,
         args: {},
       });
-    return { name, intervalMs, priority };
+    return {
+      name,
+      priority,
+      ...(parameters.has("INTERVAL") ? { intervalMs } : {}),
+      ...(parameters.has("SINGLE") ? { single: parameters.get("SINGLE")! } : {}),
+    };
   }
   private globals(): Declaration[] {
     const declarations: Declaration[] = [];
@@ -214,7 +226,15 @@ class ConfigurationParser {
     this.identifier();
     const resourceGlobals = this.globals();
     if (!this.at("TASK")) this.error("config.task-count");
-    const task = this.task();
+    const tasks: Configuration["tasks"] = [];
+    while (this.at("TASK")) tasks.push(this.task());
+    if (tasks.length > 16)
+      this.report({
+        code: "config.task-count",
+        severity: "error",
+        span: tasks[16]!.name.span,
+        args: {},
+      });
     const programs: Configuration["programs"] = [];
     while (this.at("PROGRAM")) {
       this.take();
@@ -276,8 +296,7 @@ class ConfigurationParser {
       globals,
       resourceGlobals,
       resource,
-      taskName: task.name,
-      task: { name: task.name.name, intervalMs: task.intervalMs, priority: task.priority },
+      tasks,
       programs,
       span: joinedSpan(start.span, end.span),
     };
@@ -314,11 +333,11 @@ export function checkConfiguration(
   const report = (diagnostic: Diagnostic) =>
     diagnostics.push({ ...diagnostic, pou: config.name.name });
   const names = new Set([...pous.keys(), ...typeNames]);
-  const taskName = config.taskName;
+  const taskNames = new Set(config.tasks.map((task) => task.name.key));
   for (const name of [
     config.name,
     config.resource,
-    taskName,
+    ...config.tasks.map((task) => task.name),
     ...config.programs.map((p) => p.name),
     ...[...config.globals, ...config.resourceGlobals].flatMap((d) => d.names),
   ]) {
@@ -352,7 +371,7 @@ export function checkConfiguration(
       args: {},
     });
   for (const instance of config.programs) {
-    if (instance.task && instance.task.key !== taskName.key)
+    if (instance.task && !taskNames.has(instance.task.key))
       report({
         code: "config.unknown-task",
         severity: "error",

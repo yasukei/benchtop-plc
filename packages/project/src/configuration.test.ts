@@ -58,7 +58,7 @@ describe("configuration exchange", () => {
     expect(readProject(writeProject(opened.value!).value!).value?.configurationSource).toBe(source);
     expect(
       compileProject(opened.value!.pous, [], opened.value!.configurationSource).diagnostics,
-    ).toContainEqual(expect.objectContaining({ code: "config.task-count" }));
+    ).toEqual([]);
   });
 
   it("generates source for several tasks or several instances without an extension", () => {

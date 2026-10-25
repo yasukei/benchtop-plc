@@ -66,6 +66,8 @@ export interface DiagnosticArgs {
   "config.program-type": { name: string };
   "config.interval": NoArguments;
   "config.priority": NoArguments;
+  "config.task-trigger": NoArguments;
+  "config.single": NoArguments;
   "config.connection-parameter": { name: string };
   "config.connection-direction": { name: string };
   "config.connection-duplicate": { name: string };

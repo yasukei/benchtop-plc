@@ -38,7 +38,17 @@ export interface StatementAnnotation {
   values: InlineValue[];
 }
 
+export interface TaskTelemetry {
+  name: string;
+  runCount: number;
+  lastExecutionTimeMs: number;
+  maxExecutionTimeMs: number;
+  overruns: number;
+}
+
 export interface RuntimeSnapshot {
+  /** In task declaration order; empty before load. */
+  tasks: TaskTelemetry[];
   scanCount: number;
   lastExecutionTimeMs: number;
   inputs: IoImage;
