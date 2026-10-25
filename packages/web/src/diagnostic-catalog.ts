@@ -103,11 +103,12 @@ export const diagnosticEn = {
   "decl.name-collision": ({ name, kind }) =>
     `${name} conflicts with a ${kind === "type" ? "type" : "function"} name.`,
   "decl.direct-address-type": ({ name, type }) =>
-    `Direct address on ${name} requires BOOL; found ${typeText(type)}.`,
+    `Type ${typeText(type)} does not fit the direct address on ${name}.`,
   "decl.temp-address": () => "Temporary variables cannot have direct addresses.",
   "decl.parameter-address": () =>
     "PROGRAM parameters cannot declare direct addresses. Connect them in the configuration instead.",
   "decl.at-multiple-names": () => "AT cannot apply to multiple declared names.",
+  "decl.output-overlap": ({ address, other }) => `Output writers overlap: ${address} and ${other}.`,
   "decl.address-out-of-range": ({ address }) => `Address is outside supported I/O: ${address}.`,
   "decl.nonconstant-initializer": ({ name }) =>
     `Initializer for ${name} must be a constant expression.`,
@@ -297,11 +298,13 @@ export const diagnosticJa = {
   "decl.name-collision": ({ name, kind }) =>
     `${name}は${kind === "type" ? "型" : "関数"}の名前と衝突しています。`,
   "decl.direct-address-type": ({ name, type }) =>
-    `${name}の直接アドレスにはBOOLが必要ですが、${typeText(type)}です。`,
+    `${name}の直接アドレスに型${typeText(type)}は対応していません。`,
   "decl.temp-address": () => "一時変数に直接アドレスは指定できません。",
   "decl.parameter-address": () =>
     "PROGRAMのパラメーター宣言に直接アドレスは指定できません。コンフィグレーションで接続してください。",
   "decl.at-multiple-names": () => "ATを複数の宣言名に適用することはできません。",
+  "decl.output-overlap": ({ address, other }) =>
+    `出力への書き込みが重複しています: ${address}、${other}。`,
   "decl.address-out-of-range": ({ address }) => `対応するI/Oの範囲外のアドレスです: ${address}。`,
   "decl.nonconstant-initializer": ({ name }) => `${name}の初期値には定数式が必要です。`,
   "decl.fb-initializer": ({ name }) =>

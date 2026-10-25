@@ -79,7 +79,7 @@ const increment = (variable = 0, line = 2) =>
   assign(variable, binary("+", ref(variable), literal(1)), line);
 const output = {
   ...scalar("q", "BOOL", false),
-  address: { area: "Q", byte: 0, bit: 0 },
+  address: { area: "Q", size: "X", byte: 0, bit: 0 },
 } as Variable;
 
 describe("runtime scans over hand-written IR", () => {
@@ -94,7 +94,7 @@ describe("runtime scans over hand-written IR", () => {
     expect(runtime.snapshot().scanCount).toBe(0);
     clock.advance(21);
     expect(value(runtime.snapshot())).toBe(3);
-    expect(runtime.snapshot().outputs[0]).toBe(true);
+    expect(runtime.snapshot().outputs[0]).toBe(1);
     runtime.stop();
     expect(runtime.state).toBe("STOP");
     expect(runtime.snapshot().outputs.every((bit) => !bit)).toBe(true);
@@ -110,7 +110,7 @@ describe("runtime scans over hand-written IR", () => {
     const order: string[] = [];
     const input = {
       ...scalar("input", "BOOL", false),
-      address: { area: "I", byte: 0, bit: 0 },
+      address: { area: "I", size: "X", byte: 0, bit: 0 },
     } as Variable;
     const { runtime, clock } = setup(
       program(
@@ -121,7 +121,7 @@ describe("runtime scans over hand-written IR", () => {
         stages: {
           readInputs: () => {
             order.push("read");
-            return [true, false, false, false, false, false, false, false];
+            return [1, ...Array<number>(63).fill(0)];
           },
           applyPendingWrites: (memory) => {
             order.push("writes");
@@ -137,7 +137,7 @@ describe("runtime scans over hand-written IR", () => {
           writeOutputs: (outputs) => {
             if (outputs[0]) {
               order.push("output");
-              expect(outputs[0]).toBe(true);
+              expect(outputs[0]).toBe(1);
             }
           },
         },
@@ -376,7 +376,7 @@ describe("runtime scans over hand-written IR", () => {
         span: at(8),
         args: {},
       });
-      expect(runtime.snapshot().outputs[0]).toBe(false);
+      expect(runtime.snapshot().outputs[0]).toBe(0);
       runtime.run();
       runtime.stop();
       clock.advance(100);
@@ -472,7 +472,7 @@ describe("runtime scans over hand-written IR", () => {
     const { runtime, clock } = setup(program([assign(0, literal(true), 2, "BOOL")], [output]));
     runtime.run();
     clock.advance(10);
-    expect(runtime.snapshot().outputs[0]).toBe(true);
+    expect(runtime.snapshot().outputs[0]).toBe(1);
     runtime.setEmergencyStop(true);
     expect(runtime.state).toBe("ESTOP");
     expect(value(runtime.snapshot())).toBe(false);
@@ -490,7 +490,7 @@ describe("runtime scans over hand-written IR", () => {
     expect(runtime.snapshot().scanCount).toBe(0);
     runtime.run();
     clock.advance(10);
-    expect(runtime.snapshot().outputs[0]).toBe(true);
+    expect(runtime.snapshot().outputs[0]).toBe(1);
   });
 
   it("records last execution per statement, sorts columns and omits stale annotations", () => {
@@ -666,7 +666,7 @@ it("does not publish outputs after an emergency stop in a scan stage", () => {
       applyForces: () => {
         throw new Error("Must not reach forces after emergency stop");
       },
-      writeOutputs: (image) => published.push(image[0]),
+      writeOutputs: (image) => published.push(!!image[0]),
     },
   });
   runtime.load(program([assign(0, literal(true), 2, "BOOL")], [output]));
@@ -764,7 +764,7 @@ it("turns off outputs on host failures and propagates configuration errors", () 
   runtime.run();
   expect(() => clock.advance(10)).toThrow("Host failure");
   expect(runtime.state).toBe("FAULT");
-  expect(runtime.snapshot().outputs[0]).toBe(false);
+  expect(runtime.snapshot().outputs[0]).toBe(0);
 });
 
 it("keeps closure-owned FB outputs live across scans while coercing and annotating them", () => {
@@ -916,10 +916,10 @@ it("releases emergency stop from RUN to STOP without an automatic restart", () =
   );
   runtime.run();
   clock.advance(10);
-  expect(runtime.snapshot().outputs[0]).toBe(true);
+  expect(runtime.snapshot().outputs[0]).toBe(1);
   runtime.setEmergencyStop(true);
   expect(runtime.state).toBe("ESTOP");
-  expect(runtime.snapshot().outputs[0]).toBe(false);
+  expect(runtime.snapshot().outputs[0]).toBe(0);
   runtime.run();
   runtime.scanOnce();
   clock.advance(30);
@@ -933,5 +933,5 @@ it("releases emergency stop from RUN to STOP without an automatic restart", () =
   runtime.run();
   clock.advance(10);
   expect(value(runtime.snapshot())).toBe(2);
-  expect(runtime.snapshot().outputs[0]).toBe(true);
+  expect(runtime.snapshot().outputs[0]).toBe(1);
 });

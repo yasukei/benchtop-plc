@@ -222,8 +222,8 @@ it("indexes dense and compact snapshots by variable ID and refreshes changed wat
     scanCount: 1,
     tasks: [],
     lastExecutionTimeMs: 0,
-    inputs: [false, false, false, false, false, false, false, false],
-    outputs: [false, false, false, false, false, false, false, false],
+    inputs: [0, ...Array<number>(63).fill(0)],
+    outputs: [0, ...Array<number>(63).fill(0)],
     variables: [
       { kind: "scalar", dataType: "INT", value: 10 },
       { kind: "scalar", dataType: "INT", value: 20 },
@@ -283,4 +283,18 @@ it("groups globals beside program instances while keeping their original paths",
     id: 0,
     depth: 0,
   });
+});
+
+it("formats invalid located real snapshots with raw bits and a localized label", () => {
+  const variable = {
+    kind: "scalar",
+    name: "sample",
+    key: "SAMPLE",
+    dataType: "REAL",
+    initialValue: 0,
+    span: { line: 1, column: 1, endLine: 1, endColumn: 2 },
+  } as const;
+  expect(variableValue(variable, { kind: "invalidReal", bits: "16#7FC00000" }, [], "無効")).toBe(
+    "無効 (16#7FC00000)",
+  );
 });

@@ -602,7 +602,8 @@
       "address": {
         "area": "I",
         "byte": 0,
-        "bit": 0
+        "bit": 0,
+        "size": "X"
       },
       "path": ["mainInstance", "StartPB"],
       "instance": "mainInstance"
@@ -622,7 +623,8 @@
       "address": {
         "area": "I",
         "byte": 0,
-        "bit": 1
+        "bit": 1,
+        "size": "X"
       },
       "path": ["mainInstance", "StopPB"],
       "instance": "mainInstance"
@@ -642,7 +644,8 @@
       "address": {
         "area": "I",
         "byte": 0,
-        "bit": 2
+        "bit": 2,
+        "size": "X"
       },
       "path": ["mainInstance", "ResetPB"],
       "instance": "mainInstance"
@@ -662,7 +665,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 0
+        "bit": 0,
+        "size": "X"
       },
       "path": ["mainInstance", "Running"],
       "instance": "mainInstance"
@@ -682,7 +686,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 1
+        "bit": 1,
+        "size": "X"
       },
       "path": ["mainInstance", "Lamp"],
       "instance": "mainInstance"
@@ -702,7 +707,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 2
+        "bit": 2,
+        "size": "X"
       },
       "path": ["mainInstance", "Alarm"],
       "instance": "mainInstance"

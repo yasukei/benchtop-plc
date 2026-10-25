@@ -1,3 +1,4 @@
+import { parseDirectAddress, readDirectValue } from "@benchtop-plc/core";
 import { formatDiagnostic } from "../diagnostic-catalog.js";
 import type { Language } from "../catalog.js";
 import { createMomentaryInput } from "./momentary.js";
@@ -32,9 +33,14 @@ function Part({
   const input = useMemo(
     () =>
       createMomentaryInput((value) => {
-        if (part.bit !== null) store.send({ type: "setInput", bit: part.bit, value });
+        if (part.address !== null)
+          store.send({
+            type: "setInput",
+            address: part.address,
+            value: { dataType: "BOOL", value },
+          });
       }),
-    [store, part.bit],
+    [store, part.address],
   );
   useEffect(() => {
     const release = input.release;
@@ -49,14 +55,15 @@ function Part({
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [input]);
+  const address = part.address ? parseDirectAddress(part.address) : null;
+  const image = part.kind === "led" ? state.snapshot?.outputs : state.snapshot?.inputs;
+  const bit = !!(address && image && readDirectValue(image, address, "BOOL"));
   const active =
     part.kind === "estop"
       ? state.emergencyActive || state.runtimeState === "ESTOP"
       : part.kind === "led"
-        ? !state.emergencyActive &&
-          state.runtimeState === "RUN" &&
-          !!state.snapshot?.outputs[part.bit!]
-        : !!state.snapshot?.inputs[part.bit!];
+        ? !state.emergencyActive && state.runtimeState === "RUN" && bit
+        : bit;
   if (part.kind === "led")
     return (
       <output className="led-part" aria-label={part.label} data-on={active} data-color={part.color}>
@@ -79,7 +86,11 @@ function Part({
       onClick={() => {
         if (part.kind === "estop") store.setEmergency(!active);
         if (part.kind === "selector")
-          store.send({ type: "setInput", bit: part.bit!, value: !active });
+          store.send({
+            type: "setInput",
+            address: part.address!,
+            value: { dataType: "BOOL", value: !active },
+          });
       }}
       onPointerDown={(event) => {
         if (part.kind !== "pushbutton" || event.button !== 0) return;
@@ -142,8 +153,8 @@ export function OperatorPanel({
     estop: text.estopPart,
   };
   const addresses = Array.from(
-    { length: 8 },
-    (_, bit) => `%${part?.kind === "led" ? "Q" : "I"}X0.${bit}`,
+    { length: 512 },
+    (_, bit) => `%${part?.kind === "led" ? "Q" : "I"}X${Math.floor(bit / 8)}.${bit % 8}`,
   );
   const change = (next: PanelPart) =>
     store.setLayout(state.layout.map((p) => (p.id === next.id ? next : p)));

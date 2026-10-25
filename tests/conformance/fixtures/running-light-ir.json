@@ -1175,7 +1175,8 @@
       "address": {
         "area": "I",
         "byte": 0,
-        "bit": 0
+        "bit": 0,
+        "size": "X"
       },
       "path": ["mainInstance", "StartPB"],
       "instance": "mainInstance"
@@ -1195,7 +1196,8 @@
       "address": {
         "area": "I",
         "byte": 0,
-        "bit": 1
+        "bit": 1,
+        "size": "X"
       },
       "path": ["mainInstance", "StopPB"],
       "instance": "mainInstance"
@@ -1215,7 +1217,8 @@
       "address": {
         "area": "I",
         "byte": 0,
-        "bit": 2
+        "bit": 2,
+        "size": "X"
       },
       "path": ["mainInstance", "Direction"],
       "instance": "mainInstance"
@@ -1235,7 +1238,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 0
+        "bit": 0,
+        "size": "X"
       },
       "path": ["mainInstance", "Out0"],
       "instance": "mainInstance"
@@ -1255,7 +1259,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 1
+        "bit": 1,
+        "size": "X"
       },
       "path": ["mainInstance", "Out1"],
       "instance": "mainInstance"
@@ -1275,7 +1280,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 2
+        "bit": 2,
+        "size": "X"
       },
       "path": ["mainInstance", "Out2"],
       "instance": "mainInstance"
@@ -1295,7 +1301,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 3
+        "bit": 3,
+        "size": "X"
       },
       "path": ["mainInstance", "Out3"],
       "instance": "mainInstance"
@@ -1315,7 +1322,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 4
+        "bit": 4,
+        "size": "X"
       },
       "path": ["mainInstance", "Out4"],
       "instance": "mainInstance"
@@ -1335,7 +1343,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 5
+        "bit": 5,
+        "size": "X"
       },
       "path": ["mainInstance", "Out5"],
       "instance": "mainInstance"
@@ -1355,7 +1364,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 6
+        "bit": 6,
+        "size": "X"
       },
       "path": ["mainInstance", "Out6"],
       "instance": "mainInstance"
@@ -1375,7 +1385,8 @@
       "address": {
         "area": "Q",
         "byte": 0,
-        "bit": 7
+        "bit": 7,
+        "size": "X"
       },
       "path": ["mainInstance", "Out7"],
       "instance": "mainInstance"

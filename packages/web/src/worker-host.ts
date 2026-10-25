@@ -1,4 +1,11 @@
-import type { IoImage, RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
+import {
+  parseDirectAddress,
+  validDirectAddress,
+  writeDirectValue,
+  type IoImage,
+  type RuntimeToUiMessage,
+  type UiToRuntimeMessage,
+} from "@benchtop-plc/core";
 import { createRuntime, RuntimeCommandRejected } from "@benchtop-plc/runtime";
 import type { Clock, Ticker } from "@benchtop-plc/runtime";
 import { cycleOptions, type CycleMs } from "./store.js";
@@ -10,7 +17,7 @@ export function createWorkerHost(
   post: (message: RuntimeToUiMessage) => void,
 ) {
   let configured = false;
-  const inputs: IoImage = [false, false, false, false, false, false, false, false];
+  const inputs: IoImage = Array<number>(64).fill(0);
   const publish = () => {
     post({ type: "state", state: runtime.state });
     // The panel input image is live even while STOP prevents scan sampling.
@@ -35,7 +42,7 @@ export function createWorkerHost(
         case "load":
           runtime.load(message.ir);
           configured = message.ir.kind === "configuration" && message.ir.explicit;
-          inputs.fill(false);
+          inputs.fill(0);
           break;
         case "watch":
           runtime.watch(message.variables);
@@ -51,14 +58,18 @@ export function createWorkerHost(
           break;
         case "coldReset":
           runtime.coldReset();
-          inputs.fill(false);
+          inputs.fill(0);
           break;
         case "estop":
           runtime.setEmergencyStop(message.active);
           break;
-        case "setInput":
-          inputs[message.bit] = message.value;
+        case "setInput": {
+          const address = parseDirectAddress(message.address);
+          if (!address || address.area !== "I" || !validDirectAddress(address))
+            throw new RangeError("Invalid input address");
+          writeDirectValue(inputs, address, message.value);
           break;
+        }
         case "setCycle":
           if (!configured && !cycleOptions.includes(message.ms as CycleMs))
             throw new RangeError("Unsupported cycle");

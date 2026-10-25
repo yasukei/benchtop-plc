@@ -151,10 +151,10 @@ it("preserves outputs while changing an implicit configuration's cycle", () => {
   runtime.load(ir);
   runtime.run();
   clock.advance(10);
-  expect(runtime.snapshot().outputs[0]).toBe(true);
+  expect(runtime.snapshot().outputs[0]).toBe(1);
   runtime.setCycle(20);
   expect(runtime.state).toBe("RUN");
-  expect(runtime.snapshot().outputs[0]).toBe(true);
+  expect(runtime.snapshot().outputs[0]).toBe(1);
   clock.advance(19);
   expect(runtime.snapshot().scanCount).toBe(1);
   clock.advance(1);

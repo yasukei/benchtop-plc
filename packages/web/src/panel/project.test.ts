@@ -145,3 +145,19 @@ it.each([{ dataTypes: [] }, { dataTypes: ["TYPE Speed : INT; END_TYPE"] }])(
     expect(project.dataTypes).toEqual(["TYPE OldType : (Idle, Running); END_TYPE"]);
   },
 );
+
+it("saves the 0.5.0 panel unchanged as version 1", () => {
+  const original = readProject(sampleXml).value!;
+  const opened = openPanelProject(sampleXml)!;
+  expect(opened.layout[0]).toHaveProperty("address", "%IX0.0");
+  const xml = savePanelProject(original.pous, opened.layout, 10, original, original.dataTypes)!;
+  expect(xml).toContain('<panel:panel version="1">');
+  expect(readProject(xml).value?.panel).toEqual(original.panel);
+});
+it("saves a lamp beyond byte zero as version 2 and opens it with its address", () => {
+  const layout = [{ ...addPart([], "led", "Lamp")[0]!, address: "%QX1.0" }];
+  const xml = savePanelProject(["PROGRAM Main END_PROGRAM"], layout, 10, null, [])!;
+  expect(xml).toContain('<panel:panel version="2">');
+  expect(xml).not.toContain("&quot;bit&quot;");
+  expect(openPanelProject(xml)?.layout).toEqual(layout);
+});

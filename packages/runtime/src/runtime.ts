@@ -9,7 +9,13 @@ import type {
   TypedValue,
   VariableId,
 } from "@benchtop-plc/core";
-import { isCharacterType, isLongType, scalarBase, validateScalar } from "@benchtop-plc/core";
+import {
+  readDirectValue,
+  isCharacterType,
+  isLongType,
+  scalarBase,
+  validateScalar,
+} from "@benchtop-plc/core";
 import { checkInterval } from "./clock.js";
 import type { Clock, Ticker } from "./clock.js";
 import { Interpreter, RuntimeFault } from "./interpreter.js";
@@ -323,12 +329,13 @@ class PlcRuntime implements Runtime {
         ? [...(this.options.stages?.readInputs?.() ?? this.inputs)]
         : this.inputs;
       const ready = scheduler.ready(start, singleScan, (input) => {
-        if (input.kind === "address") return eventImage[input.address.bit]!;
+        if (input.kind === "address")
+          return Boolean(readDirectValue(eventImage, input.address, "BOOL"));
         const force = this.forces.get(input.variable);
         if (force) return Boolean(force.value);
         const declaration = memory.ir.variables[input.variable];
         return declaration?.kind === "scalar" && declaration.address?.area === "I"
-          ? eventImage[declaration.address.bit]!
+          ? Boolean(readDirectValue(eventImage, declaration.address, "BOOL"))
           : Boolean(memory.read(input.variable));
       });
       const ir = memory.ir;

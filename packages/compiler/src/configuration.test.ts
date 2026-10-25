@@ -254,7 +254,7 @@ END_RESOURCE END_CONFIGURATION`;
     {
       name: "InputEdge",
       priority: 1,
-      single: { kind: "address", address: { area: "I", byte: 0, bit: 7 } },
+      single: { kind: "address", address: { area: "I", size: "X", byte: 0, bit: 7 } },
     },
   ]);
   expect(result.ir!.resource.programs.map((instance) => instance.task)).toEqual([1, 0, 2]);
@@ -288,7 +288,7 @@ it.each([
   "TRUE",
   "flag AND TRUE",
   "%QX0.0",
-  "%IX1.0",
+  "%IX64.0",
   "%IX0.8",
   "",
 ])("rejects SINGLE := %s with a configuration diagnostic", (input) => {

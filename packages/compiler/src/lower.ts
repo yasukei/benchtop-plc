@@ -1,4 +1,5 @@
 import {
+  parseDirectAddress,
   coerceValue,
   arrayType,
   structureType,
@@ -118,23 +119,14 @@ class Lowerer {
       return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
     if (symbol.descriptor && referenceType(symbol.descriptor, this.checked.types))
       return { ...base, kind: "reference", dataType: symbol.descriptor, initialValue: null };
-    if (symbol.type === "BOOL") {
-      const address = declaration.address;
-      return {
-        ...base,
-        kind: "scalar",
-        dataType: "BOOL",
-        initialValue: Boolean(symbol.initialValue),
-        ...(address
-          ? // The checker has already restricted direct addresses to byte 0, bits 0–7.
-            { address: { area: address.area, byte: 0 as const, bit: address.bit as IR.IoBit } }
-          : {}),
-      };
-    }
     return {
       ...base,
       kind: "scalar",
       dataType: symbol.descriptor ?? (symbol.type as IR.DataType),
+      ...(declaration.address ? { address: parseDirectAddress(declaration.address.text)! } : {}),
+      ...(declaration.address && declaration.initializer
+        ? { addressInitializer: true as const }
+        : {}),
       initialValue: coerceValue(
         symbol.type as IR.DataType,
         required(symbol.initialValue ?? undefined),

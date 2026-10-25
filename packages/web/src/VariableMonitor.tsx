@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import {
+  formatDirectAddress,
   formatType,
   type ConfigurationIR,
   type TypeTable,
@@ -178,7 +179,7 @@ export function VariableMonitor({
                     </th>
                     <td>
                       {variable.kind === "scalar" && variable.address
-                        ? `%${variable.address.area}X0.${variable.address.bit}`
+                        ? formatDirectAddress(variable.address)
                         : null}
                     </td>
                     <td>
@@ -186,7 +187,7 @@ export function VariableMonitor({
                         ? formatType(variable.dataType)
                         : variable.fbType}
                     </td>
-                    <td>{variableValue(variable, values.get(id), types)}</td>
+                    <td>{variableValue(variable, values.get(id), types, text.invalidReal)}</td>
                     <td>
                       {variable.kind === "scalar" &&
                         (variable.dataType === "BOOL" ? (

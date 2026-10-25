@@ -1,4 +1,4 @@
-import { isStandardFunction } from "@benchtop-plc/core";
+import { parseDirectAddress, isStandardFunction } from "@benchtop-plc/core";
 import type { BinaryOperator, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import type {
   Address,
@@ -335,13 +335,9 @@ export class Parser {
       const token = this.current;
       if (token.kind !== "address") this.expected("address");
       this.take();
-      const match = /^%([IQ])X([0-9]+)\.([0-9]+)$/.exec(token.key)!;
       address = {
         text: token.text,
-        ...(token.dataType ? { dataType: token.dataType } : {}),
-        area: match[1] as "I" | "Q",
-        byte: Number(match[2]),
-        bit: Number(match[3]),
+        ...parseDirectAddress(token.text)!,
         span: token.span,
       };
     }

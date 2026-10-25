@@ -16,11 +16,9 @@ export type VariableId = number;
 export type FrameSlot = number;
 export type IoBit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
-export interface DirectAddress {
-  area: "I" | "Q";
-  byte: 0;
-  bit: IoBit;
-}
+export type DirectAddress = { area: "I" | "Q" | "M" } & (
+  { size: "X"; byte: number; bit: IoBit } | { size: "B" | "W" | "D" | "L"; index: number }
+);
 
 export type CounterType = "INT" | "DINT" | "LINT" | "UDINT" | "ULINT";
 export type FunctionBlockType =
@@ -201,14 +199,29 @@ export type ScalarVariable = VariableBase &
           kind: "scalar";
           dataType: K;
           initialValue: ValueByType[K];
-          address?: K extends "BOOL" ? DirectAddress : never;
+          address?: DirectAddress & {
+            size: K extends "BOOL"
+              ? "X"
+              : K extends "BYTE" | "SINT" | "USINT"
+                ? "B"
+                : K extends "WORD" | "INT" | "UINT"
+                  ? "W"
+                  : K extends "DWORD" | "DINT" | "UDINT" | "REAL"
+                    ? "D"
+                    : K extends "LWORD" | "LINT" | "ULINT" | "LREAL"
+                      ? "L"
+                      : never;
+          };
+          /** Apply an explicit located initializer after zeroing the memory area. */
+          addressInitializer?: true;
         };
       }[DataType]
     | {
         kind: "scalar";
         dataType: Exclude<TypeDescriptor, DataType>;
         initialValue: TypedValue["value"];
-        address?: never;
+        address?: DirectAddress;
+        addressInitializer?: true;
       }
   );
 

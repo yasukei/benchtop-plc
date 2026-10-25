@@ -25,9 +25,9 @@ describe("panel layout", () => {
     expect(new Set(layout.map((p) => p.id)).size).toBe(5);
     expect(addPart(layout, "estop", "Duplicate")).toBe(layout);
     expect(addressFor(assignAddress(layout[0]!, "%QX0.7"))).toBe("%QX0.7");
-    for (const address of ["%IX0.0", "%QX0.8", "%QX1.0", "bad"])
+    for (const address of ["%IX0.0", "%QX0.8", "%QX64.0", "bad"])
       expect(() => assignAddress(layout[0]!, address)).toThrow();
-    expect(assignAddress(layout[4]!, "%IX0.0").bit).toBeNull();
+    expect(assignAddress(layout[4]!, "%IX0.0").address).toBeNull();
   });
   it("moves with clamping, deletes only the target, and leaves prior layouts immutable", () => {
     const layout = addPart(addPart([], "led", "A"), "pushbutton", "B");
@@ -46,7 +46,7 @@ describe("panel layout", () => {
       {},
       [null],
       [{ ...layout[0], x: 2 }],
-      [{ ...layout[0], bit: null }],
+      [{ ...layout[0], address: null }],
       [{ ...layout[0], color: "purple" }],
       [layout[0], layout[0]],
       [{ ...layout[0], x: NaN }],

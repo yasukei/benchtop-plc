@@ -136,9 +136,9 @@ timer : tOn;`);
     expect(ir.variables[0]!.span).toEqual(ir.variables[1]!.span);
     expect(ir.variables[7]).toMatchObject({
       dataType: "BOOL",
-      address: { area: "I", byte: 0, bit: 7 },
+      address: { area: "I", size: "X", byte: 0, bit: 7 },
     });
-    expect(ir.variables[8]).toMatchObject({ address: { area: "Q", byte: 0, bit: 0 } });
+    expect(ir.variables[8]).toMatchObject({ address: { area: "Q", size: "X", byte: 0, bit: 0 } });
     expect(ir.variables[9]).toMatchObject({ kind: "functionBlock", fbType: "TON" });
     expect(ir.variables[0]).not.toHaveProperty("address");
   });

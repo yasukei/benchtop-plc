@@ -22,7 +22,7 @@ it.each([
   ["Lamp => %IX0.0", "config.connection-target"],
   ["Lamp => input", "config.connection-target"],
   ["Start := n > 0", "config.connection-target"],
-  ["Start := %IX1.0", "decl.address-out-of-range"],
+  ["Start := %IX64.0", "decl.address-out-of-range"],
   ["Threshold := %IX0.0", "decl.direct-address-type"],
 ])("rejects %s in the configuration source", (connections, code) => {
   const result = compileProject([program], [], configuration(connections));

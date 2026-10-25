@@ -118,6 +118,7 @@ END_PROGRAM`);
     expect(ast.declarations[1]?.address).toEqual({
       text: "%ix12.9",
       area: "I",
+      size: "X",
       byte: 12,
       bit: 9,
       span: { line: 4, column: 12, endLine: 4, endColumn: 19 },

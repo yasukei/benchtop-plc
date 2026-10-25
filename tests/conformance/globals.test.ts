@@ -102,7 +102,7 @@ it("initializes global constants, derived values and located globals before prog
   expect(value("link")).toEqual({ kind: "reference", target: "POINTS[2].X" });
   runtime.run();
   clock.advance(10);
-  expect(runtime.snapshot().outputs[0]).toBe(true);
+  expect(runtime.snapshot().outputs[0]).toBe(1);
   runtime.stop();
   runtime.coldReset();
   expect(value("POINTS[2].X")).toMatchObject({ value: 7 });

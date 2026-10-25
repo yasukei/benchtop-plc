@@ -37,6 +37,7 @@ import type {
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
 import {
+  typed,
   isReferenceAddress,
   type ReferenceAddress,
   type StoredValue,
@@ -98,13 +99,19 @@ export class Interpreter {
           if (endpoint.kind === "storage")
             this.store(this.programMemory.frame([endpoint.storage]), 0, value);
           else if (endpoint.kind === "address")
-            this.programMemory.writeAddress(endpoint.address, Boolean(value));
+            this.programMemory.writeAddress(
+              endpoint.address,
+              typed(this.base(parameter.descriptor(0)), value as ScalarValue),
+            );
         } else {
           const value =
             endpoint.kind === "storage"
               ? read(this.programMemory.frame([endpoint.storage]))
               : endpoint.kind === "address"
-                ? this.programMemory.readAddress(endpoint.address)
+                ? this.programMemory.readAddress(
+                    endpoint.address,
+                    this.base(parameter.descriptor(0)),
+                  )
                 : endpoint.value;
           this.store(parameter, 0, value);
         }

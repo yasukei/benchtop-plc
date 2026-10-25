@@ -1,4 +1,4 @@
-import { isStandardFunction, isFunctionBlockType } from "@benchtop-plc/core";
+import { parseDirectAddress, isStandardFunction, isFunctionBlockType } from "@benchtop-plc/core";
 import type { CyclicTaskIR, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import { Parser } from "./parser.js";
 import type { Address, Declaration, Expression, Identifier, Program } from "./ast.js";
@@ -262,12 +262,9 @@ class ConfigurationParser {
           let value: Expression | Address;
           if (this.current.kind === "address") {
             const token = this.take();
-            const match = /^%([IQ])X([0-9]+)\.([0-9]+)$/.exec(token.key)!;
             value = {
               text: token.text,
-              area: match[1] as "I" | "Q",
-              byte: Number(match[2]),
-              bit: Number(match[3]),
+              ...parseDirectAddress(token.text)!,
               span: token.span,
             };
           } else {

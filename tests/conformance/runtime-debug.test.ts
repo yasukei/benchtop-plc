@@ -8,7 +8,7 @@ function setup(declarations: string, body: string) {
   expect(result.diagnostics).toEqual([]);
   if (!result.ir) throw new Error("Expected compiled IR");
   const clock = new VirtualClock();
-  const inputs: IoImage = [false, false, false, false, false, false, false, false];
+  const inputs: IoImage = [0, ...Array<number>(63).fill(0)];
   const published: IoImage[] = [];
   const runtime = createRuntime({
     clock,
@@ -42,8 +42,8 @@ describe("runtime debug conformance", () => {
     expect(value(2)).toBe(true);
     expect(runtime.snapshot()).toMatchObject({
       scanCount: 3,
-      inputs: [false, false, false, false, false, false, false, false],
-      outputs: [true, false, false, false, false, false, false, false],
+      inputs: [0, ...Array<number>(63).fill(0)],
+      outputs: [1, ...Array<number>(63).fill(0)],
       forced: [0, 1],
     });
     runtime.force(0, null);
@@ -54,7 +54,7 @@ describe("runtime debug conformance", () => {
     expect(value(1)).toBe(false);
     expect(value(2)).toBe(false);
     expect(runtime.snapshot().forced).toEqual([]);
-    expect(runtime.snapshot().outputs[0]).toBe(false);
+    expect(runtime.snapshot().outputs[0]).toBe(0);
   });
 
   it("writes immediately in STOP and only once at the next scan boundary in RUN", () => {
@@ -221,8 +221,8 @@ describe("runtime debug conformance", () => {
     const snapshot = runtime.step();
     expect(snapshot.variables[2]).toMatchObject({ outputs: [{ value: true }, { value: 10 }] });
     const expected = structuredClone(snapshot);
-    snapshot.inputs[0] = true;
-    snapshot.outputs[0] = true;
+    snapshot.inputs[0] = 1;
+    snapshot.outputs[0] = 1;
     snapshot.forced.length = 0;
     const block = snapshot.variables[2];
     if (block?.kind !== "functionBlock") throw new Error("Expected FB");
@@ -231,7 +231,7 @@ describe("runtime debug conformance", () => {
     const scalar = snapshot.variables[0];
     if (scalar?.kind !== "scalar") throw new Error("Expected scalar");
     scalar.value = 999;
-    inputs[0] = true;
+    inputs[0] = 1;
     expect(runtime.snapshot()).toEqual(expected);
     expect(JSON.parse(JSON.stringify(expected))).toEqual(expected);
   });

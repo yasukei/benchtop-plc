@@ -184,10 +184,10 @@ it("allows bit addresses on globals and rejects other address types and ranges",
   expect(
     compile(program("VAR_EXTERNAL g : BOOL; END_VAR", ""), configuration("g AT %QX0.1 : BOOL;")).ir!
       .variables[0],
-  ).toMatchObject({ address: { area: "Q", byte: 0, bit: 1 } });
+  ).toMatchObject({ address: { area: "Q", size: "X", byte: 0, bit: 1 } });
   for (const [declaration, code] of [
     ["g AT %QX0.1 : INT;", "decl.direct-address-type"],
-    ["g AT %IX1.0 : BOOL;", "decl.address-out-of-range"],
+    ["g AT %IX64.0 : BOOL;", "decl.address-out-of-range"],
   ]) {
     expect(compile(program("", ""), configuration(declaration)).diagnostics).toContainEqual(
       expect.objectContaining({ code, sourceKind: "configuration" }),

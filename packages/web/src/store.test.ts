@@ -11,8 +11,8 @@ const snapshot: RuntimeSnapshot = {
   scanCount: 1,
   tasks: [],
   lastExecutionTimeMs: 0.25,
-  inputs: [false, false, false, false, false, false, false, false],
-  outputs: [false, false, false, false, false, false, false, false],
+  inputs: [0, ...Array<number>(63).fill(0)],
+  outputs: [0, ...Array<number>(63).fill(0)],
   variables: [{ kind: "scalar", dataType: "DINT", value: 1 }],
   forced: [],
   annotations: {},
@@ -252,7 +252,7 @@ it("round trips source and panel through the project package and rejects loading
     label: "Lamp",
     x: 0.25,
     y: 0.75,
-    bit: 1,
+    address: "%QX0.1",
     color: "amber",
   } as const;
   store.setLayout([part]);
@@ -286,15 +286,15 @@ it("restores the bundled example's source, panel and cycle through the project l
   expect(restored.diagnostics).toEqual([]);
   expect(restored.layout).toHaveLength(7);
   expect(
-    restored.layout.map(({ kind, label, bit, color }) => ({ kind, label, bit, color })),
+    restored.layout.map(({ kind, label, address, color }) => ({ kind, label, address, color })),
   ).toEqual([
-    { kind: "pushbutton", label: "START", bit: 0, color: "green" },
-    { kind: "pushbutton", label: "STOP", bit: 1, color: "red" },
-    { kind: "pushbutton", label: "RESET", bit: 2, color: "white" },
-    { kind: "led", label: "Running", bit: 0, color: "green" },
-    { kind: "led", label: "Lamp", bit: 1, color: "amber" },
-    { kind: "led", label: "Alarm", bit: 2, color: "red" },
-    { kind: "estop", label: "Emergency stop", bit: null, color: "red" },
+    { kind: "pushbutton", label: "START", address: "%IX0.0", color: "green" },
+    { kind: "pushbutton", label: "STOP", address: "%IX0.1", color: "red" },
+    { kind: "pushbutton", label: "RESET", address: "%IX0.2", color: "white" },
+    { kind: "led", label: "Running", address: "%QX0.0", color: "green" },
+    { kind: "led", label: "Lamp", address: "%QX0.1", color: "amber" },
+    { kind: "led", label: "Alarm", address: "%QX0.2", color: "red" },
+    { kind: "estop", label: "Emergency stop", address: null, color: "red" },
   ]);
   expect(restored.project?.pous[0]).toBe(restored.source);
   expect(restored.cycleMs).toBe(10);

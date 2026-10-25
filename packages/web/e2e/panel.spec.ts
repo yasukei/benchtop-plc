@@ -8,13 +8,21 @@ const reference = readFileSync(
   "utf8",
 );
 const layout: PanelLayout = [
-  { id: "1", kind: "pushbutton", label: "START", bit: 0, color: "green", x: 0, y: 0 },
-  { id: "2", kind: "pushbutton", label: "STOP PB", bit: 1, color: "green", x: 0.5, y: 0 },
-  { id: "3", kind: "selector", label: "RESET", bit: 2, color: "green", x: 1, y: 0 },
-  { id: "4", kind: "led", label: "Running", bit: 0, color: "green", x: 0, y: 0.5 },
-  { id: "5", kind: "led", label: "Lamp", bit: 1, color: "amber", x: 0.5, y: 0.5 },
-  { id: "6", kind: "led", label: "Alarm LED", bit: 2, color: "red", x: 1, y: 0.5 },
-  { id: "7", kind: "estop", label: "Emergency stop", bit: null, color: "red", x: 0.5, y: 1 },
+  { id: "1", kind: "pushbutton", label: "START", address: "%IX0.0", color: "green", x: 0, y: 0 },
+  {
+    id: "2",
+    kind: "pushbutton",
+    label: "STOP PB",
+    address: "%IX0.1",
+    color: "green",
+    x: 0.5,
+    y: 0,
+  },
+  { id: "3", kind: "selector", label: "RESET", address: "%IX0.2", color: "green", x: 1, y: 0 },
+  { id: "4", kind: "led", label: "Running", address: "%QX0.0", color: "green", x: 0, y: 0.5 },
+  { id: "5", kind: "led", label: "Lamp", address: "%QX0.1", color: "amber", x: 0.5, y: 0.5 },
+  { id: "6", kind: "led", label: "Alarm LED", address: "%QX0.2", color: "red", x: 1, y: 0.5 },
+  { id: "7", kind: "estop", label: "Emergency stop", address: null, color: "red", x: 0.5, y: 1 },
 ];
 async function openReference(page: Page, panelLayout = layout) {
   await page.goto("/");

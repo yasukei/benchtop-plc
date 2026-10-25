@@ -1,3 +1,4 @@
+import { encodePanel } from "./panel.js";
 import {
   check,
   parsePou,
@@ -632,7 +633,9 @@ function readExtensions(
         if (
           payload.uri !== name ||
           payload.name !== (name === PANEL_NAMESPACE ? "panel" : "source") ||
-          payload.attributes.version !== "1" ||
+          !(name === PANEL_NAMESPACE ? ["1", "2"] : ["1"]).includes(
+            payload.attributes.version ?? "",
+          ) ||
           Object.keys(payload.attributes).length !== 1 ||
           payload.children.length
         ) {
@@ -1172,7 +1175,7 @@ export function writeProject(project: Project): ProjectResult<string> {
   let panel: string;
   try {
     if (!validJson(project.panel)) fail("project.invalid", "panel");
-    panel = JSON.stringify(project.panel);
+    panel = JSON.stringify(encodePanel(project.panel).value);
     if (panel === undefined) fail("project.invalid", "panel");
   } catch {
     return {
@@ -1186,7 +1189,7 @@ export function writeProject(project: Project): ProjectResult<string> {
     element(
       "data",
       { name: PANEL_NAMESPACE, handleUnknown: "discard" },
-      element("panel:panel", { version: "1" }, escapeXml(panel)),
+      element("panel:panel", { version: encodePanel(project.panel).version }, escapeXml(panel)),
     ),
   );
   const xml =

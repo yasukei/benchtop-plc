@@ -1,3 +1,4 @@
+import { outputOverlapWarnings } from "./direct-addresses.js";
 import { checkTasks } from "./tasks.js";
 import { checkProgramConnections } from "./program-connections.js";
 import {
@@ -353,5 +354,15 @@ export function compileProject(
     connections?.connections,
   );
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));
+  diagnostics.push(
+    ...outputOverlapWarnings(ir).map((diagnostic) =>
+      diagnostic.pou === ir.name
+        ? configDiagnostic(diagnostic)
+        : {
+            ...diagnostic,
+            sourceIndex: sourceIndexes.get(programs.find((p) => p.name.name === diagnostic.pou)!),
+          },
+    ),
+  );
   return { ir, diagnostics };
 }

@@ -30,9 +30,16 @@ class ManualTicker implements Ticker {
   }
 }
 
-function setup(source: string, pous = [counter], options: Partial<RuntimeOptions> = {}) {
+function setup(
+  source: string,
+  pous = [counter],
+  options: Partial<RuntimeOptions> = {},
+  overlaps = 0,
+) {
   const result = compileProject(pous, [], source);
-  expect(result.diagnostics).toEqual([]);
+  expect(result.diagnostics.map((d) => d.code)).toEqual(
+    Array(overlaps).fill("decl.output-overlap"),
+  );
   const ir = structuredClone(result.ir!);
   const clock = new VirtualClock();
   const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock), ...options });
@@ -116,7 +123,7 @@ it("breaks equal priorities by longest wait, then task declaration order", () =>
 });
 
 it("samples rising edges on every pass and preserves the sample over STOP, including steps", () => {
-  const inputs: IoImage = [false, false, false, false, false, false, false, false];
+  const inputs: IoImage = [0, ...Array<number>(63).fill(0)];
   const { runtime, clock, value } = setup(
     config("TASK Edge (SINGLE := %IX0.0, PRIORITY := 0);", instance("A", "Edge")),
     [counter],
@@ -126,7 +133,7 @@ it("samples rising edges on every pass and preserves the sample over STOP, inclu
   clock.advance(10);
   expect(runtime.snapshot().scanCount).toBe(0);
   runtime.stop();
-  inputs[0] = true;
+  inputs[0] = 1;
   clock.advance(100);
   runtime.step();
   expect(value("A.n")).toMatchObject({ value: 1 });
@@ -134,10 +141,10 @@ it("samples rising edges on every pass and preserves the sample over STOP, inclu
   runtime.run();
   clock.advance(20);
   expect(value("A.n")).toMatchObject({ value: 1 });
-  inputs[0] = false;
+  inputs[0] = 0;
   clock.advance(10);
   runtime.stop();
-  inputs[0] = true;
+  inputs[0] = 1;
   runtime.run();
   clock.advance(10);
   expect(value("A.n")).toMatchObject({ value: 2 });
@@ -167,7 +174,7 @@ it("defers a global edge produced during a pass and samples inputs even when the
 });
 
 it("samples a located BOOL global from fresh inputs, and clears samples/statistics on load", () => {
-  const inputs: IoImage = [false, true, false, false, false, false, false, false];
+  const inputs: IoImage = [2, ...Array<number>(63).fill(0)];
   const { runtime, clock, ir, value } = setup(
     config(
       "TASK Edge (SINGLE := flag, PRIORITY := 0);",
@@ -298,12 +305,13 @@ it("refreshes and publishes images per task, consuming pending writes in the fir
     ],
     {
       stages: {
-        readInputs: () => [++reads === 1, false, false, false, false, false, false, false],
+        readInputs: () => [Number(++reads === 1), ...Array<number>(63).fill(0)],
         writeOutputs: (image) => {
-          published.push(image[0]);
+          published.push(!!image[0]);
         },
       },
     },
+    1,
   );
   runtime.run();
   runtime.write(id("g"), { dataType: "INT", value: 10 });
@@ -356,7 +364,7 @@ it("gives each task its own loop budget and faults all tasks with the offending 
 });
 
 it("retains slow and event PROGRAM annotations between runs of their first instances", () => {
-  const inputs: IoImage = [false, false, false, false, false, false, false, false];
+  const inputs: IoImage = [0, ...Array<number>(63).fill(0)];
   const { runtime, clock, ir } = setup(
     config(
       cyclic("Fast", 10) + cyclic("Slow", 30) + "TASK Edge (SINGLE := %IX0.0, PRIORITY := 0);",
@@ -373,7 +381,7 @@ it("retains slow and event PROGRAM annotations between runs of their first insta
   clock.advance(20);
   const slow = runtime.snapshot().annotations.Counter;
   expect(Object.values(slow!).flat()[0]!.values).toEqual([{ dataType: "DINT", value: 1 }]);
-  inputs[0] = true;
+  inputs[0] = 1;
   clock.advance(10);
   const edge = runtime.snapshot().annotations.EventProgram;
   expect(Object.values(edge!).flat()[0]!.values).toEqual([{ dataType: "DINT", value: 1 }]);

@@ -1,4 +1,4 @@
-import type { IoBit } from "@benchtop-plc/core";
+import { parseDirectAddress, validDirectAddress } from "@benchtop-plc/core";
 
 export const partKinds = ["led", "pushbutton", "selector", "estop"] as const;
 export const ledColors = ["green", "amber", "red", "blue", "white"] as const;
@@ -22,20 +22,25 @@ export interface PanelPart {
   label: string;
   x: number;
   y: number;
-  bit: IoBit | null;
+  address: string | null;
   color: PartColor;
 }
 export type PanelLayout = PanelPart[];
 const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 export function addressFor(part: PanelPart): string {
-  return part.bit === null ? "" : `%${part.kind === "led" ? "Q" : "I"}X0.${part.bit}`;
+  return part.address ?? "";
 }
 export function assignAddress(part: PanelPart, address: string): PanelPart {
-  if (part.kind === "estop") return { ...part, bit: null };
-  const match = /^%([IQ])X0\.([0-7])$/i.exec(address);
-  if (!match || match[1]!.toUpperCase() !== (part.kind === "led" ? "Q" : "I"))
+  if (part.kind === "estop") return { ...part, address: null };
+  const parsed = parseDirectAddress(address);
+  if (
+    !parsed ||
+    parsed.size !== "X" ||
+    !validDirectAddress(parsed) ||
+    parsed.area !== (part.kind === "led" ? "Q" : "I")
+  )
     throw new RangeError("Invalid panel address");
-  return { ...part, bit: Number(match[2]) as IoBit };
+  return { ...part, address: address.toUpperCase() };
 }
 /** Search row by row using the same fixed footprint in edit and operate modes. */
 export function findPartPosition(layout: PanelLayout, size: PanelSize): { x: number; y: number } {
@@ -74,8 +79,8 @@ export function addPart(
   const area = kind === "led" ? "Q" : "I";
   const used = layout.filter((part) => addressFor(part).startsWith(`%${area}`));
   const bit =
-    Array.from({ length: 8 }, (_, bit) => bit).find(
-      (bit) => !used.some((part) => part.bit === bit),
+    Array.from({ length: 512 }, (_, bit) => bit).find(
+      (bit) => !used.some((part) => part.address === `%${area}X${Math.floor(bit / 8)}.${bit % 8}`),
     ) ?? 0;
   return [
     ...layout,
@@ -84,7 +89,7 @@ export function addPart(
       kind,
       label,
       ...findPartPosition(layout, size),
-      bit: kind === "estop" ? null : (bit as IoBit),
+      address: kind === "estop" ? null : `%${area}X${Math.floor(bit / 8)}.${bit % 8}`,
       color: "green",
     },
   ];
@@ -102,7 +107,16 @@ export function readLayout(value: unknown): PanelLayout | null {
   const parts: PanelLayout = [];
   for (const item of value) {
     if (!item || typeof item !== "object") return null;
-    const p = item as Partial<PanelPart>;
+    const p = item as Partial<PanelPart> & { bit?: number | null };
+    const address =
+      p.address !== undefined
+        ? p.address
+        : p.kind === "estop" && p.bit === null
+          ? null
+          : Number.isInteger(p.bit) && p.bit! >= 0 && p.bit! <= 7
+            ? `%${p.kind === "led" ? "Q" : "I"}X0.${p.bit}`
+            : undefined;
+    const parsed = typeof address === "string" ? parseDirectAddress(address) : null;
     if (
       typeof p.id !== "string" ||
       ids.has(p.id) ||
@@ -120,7 +134,12 @@ export function readLayout(value: unknown): PanelLayout | null {
       !Number.isFinite(p.y) ||
       p.y < 0 ||
       p.y > 1 ||
-      (p.kind === "estop" ? p.bit !== null : !Number.isInteger(p.bit) || p.bit! < 0 || p.bit! > 7)
+      (p.kind === "estop"
+        ? address !== null
+        : !parsed ||
+          parsed.size !== "X" ||
+          !validDirectAddress(parsed) ||
+          parsed.area !== (p.kind === "led" ? "Q" : "I"))
     )
       return null;
     ids.add(p.id);
@@ -134,7 +153,7 @@ export function readLayout(value: unknown): PanelLayout | null {
           : p.color!,
       x: p.x,
       y: p.y,
-      bit: p.bit!,
+      address: address === null ? null : address!.toUpperCase(),
     });
   }
   return parts.filter((p) => p.kind === "estop").length > 1 ? null : parts;

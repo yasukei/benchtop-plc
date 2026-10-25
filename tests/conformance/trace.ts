@@ -1,3 +1,4 @@
+import { writeDirectValue, scalarBase, type TypedValue } from "@benchtop-plc/core";
 import { snapshotVariable } from "@benchtop-plc/core";
 import { compileProject } from "@benchtop-plc/compiler";
 import { standardFunctionBlocks } from "@benchtop-plc/core";
@@ -139,7 +140,7 @@ export function runTrace(
   if (!ir || codes.length > 0)
     throw new Error(`${name}: expected successful compilation, actual ${JSON.stringify(codes)}`);
   const clock = new VirtualClock();
-  const image: IoImage = [false, false, false, false, false, false, false, false];
+  const image: IoImage = [0, ...Array<number>(63).fill(0)];
   let pending: [number, ScalarValue][] = [];
   const runtime = createRuntime({
     clock,
@@ -169,7 +170,11 @@ export function runTrace(
             throw new Error(`Cannot set input or scalar variable: ${key}`);
           if ((variable.dataType === "BOOL") !== (typeof value === "boolean"))
             throw new Error(`Wrong value type for ${key}`);
-          if (variable.address?.area === "I") image[variable.address.bit] = Boolean(value);
+          if (variable.address?.area === "I")
+            writeDirectValue(image, variable.address, {
+              dataType: scalarBase(variable.dataType, ir.types),
+              value,
+            } as TypedValue);
           else pending.push([variableIndex, value]);
         }
         clock.advance(step.advanceMs ?? (step.scans ?? 0) * trace.cycleMs);

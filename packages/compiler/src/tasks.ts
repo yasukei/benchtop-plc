@@ -1,4 +1,10 @@
-import { resolveType, type Diagnostic, type DirectAddress, type IoBit } from "@benchtop-plc/core";
+import {
+  resolveType,
+  type Diagnostic,
+  type DirectAddress,
+  parseDirectAddress,
+  validDirectAddress,
+} from "@benchtop-plc/core";
 import type { CheckedProgram } from "./checked.js";
 import type { Configuration } from "./configuration.js";
 
@@ -27,13 +33,13 @@ export function checkTasks(config: Configuration, globals: CheckedProgram) {
       }
     }
     if (tokens.length === 1 && token?.kind === "address") {
-      const match = /^%IX([0-9]+)\.([0-7])$/.exec(token.key);
-      if (match && Number(match[1]) === 0) {
+      const address = parseDirectAddress(token.text);
+      if (address?.area === "I" && address.size === "X" && validDirectAddress(address)) {
         tasks.push({
           ...common,
           single: {
             kind: "address",
-            address: { area: "I", byte: 0, bit: Number(match[2]) as IoBit },
+            address,
           },
         });
         continue;

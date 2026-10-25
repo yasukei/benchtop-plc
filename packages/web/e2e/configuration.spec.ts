@@ -48,7 +48,7 @@ END_RESOURCE END_CONFIGURATION\r
       buffer: Buffer.from(writeProject(project).value!),
     });
     const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
-    await expect(diagnostics).toContainText("No diagnostics");
+    await expect(diagnostics).toContainText("Output writers overlap");
     await expect(page.getByText("Instance: A", { exact: true })).toBeVisible();
     const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
     await expect(monitor.getByRole("button", { name: "A", exact: true })).toBeVisible();
@@ -101,7 +101,7 @@ END_RESOURCE END_CONFIGURATION\r
       )
       .toBe(configurationSource);
     await page.reload();
-    await expect(diagnostics).toContainText("No diagnostics");
+    await expect(diagnostics).toContainText("Output writers overlap");
     await expect(page.getByLabel("Cycle (ms)")).toHaveCount(0);
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Save project", exact: true }).click();
