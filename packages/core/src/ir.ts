@@ -345,6 +345,9 @@ export interface UserFunctionBlockStorage {
   storage: InstanceStorage[];
 }
 export interface UserFunctionBlockIR extends SourceNode {
+  methods?: UserMethodIR[];
+  /** Case-insensitive method name to implementation index. */
+  methodTable?: Record<string, number>;
   name: string;
   variables: LocalVariable[];
   inputs: FrameSlot[];
@@ -353,6 +356,11 @@ export interface UserFunctionBlockIR extends SourceNode {
   inOuts?: FrameSlot[];
   temporaries: FrameSlot[];
   body: Statement[];
+}
+
+/** Slots below memberCount address the receiver; other slots address fresh locals. */
+export interface UserMethodIR extends UserFunctionIR {
+  memberCount: number;
 }
 
 export interface UserFunctionIR extends SourceNode {
@@ -374,6 +382,8 @@ export interface InOutBinding {
 
 export interface UserFunctionCall extends SourceNode {
   kind: "userFunctionCall";
+  /** For a method, function indexes the owning block's methods instead. */
+  method?: { block: number; receiver?: StorageReference };
   function: number;
   /** In source order, including for formal calls. Omitted inputs keep their initial values. */
   inputs: { variable: FrameSlot; value: Expression }[];
@@ -399,7 +409,7 @@ export interface FunctionBlockMemberReference extends SourceNode {
   kind: "fbMember";
   variable: FrameSlot;
   /** Indexed instance, resolved once before accessing ports or evaluating call inputs. */
-  instance?: IndexReference;
+  instance?: StorageReference;
   port: "input" | "output";
   member: number;
   dataType: TypeDescriptor;
@@ -410,7 +420,7 @@ export interface UserFunctionBlockMemberReference extends SourceNode {
   kind: "userFbMember";
   variable: FrameSlot;
   /** Indexed instance, resolved once before accessing ports or evaluating call inputs. */
-  instance?: IndexReference;
+  instance?: StorageReference;
   port: "input" | "output";
   member: number;
   dataType: TypeDescriptor;

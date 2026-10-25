@@ -73,6 +73,16 @@ class Lowerer {
   private userCall(node: IR.SourceNode, call: UserCallInfo): IR.UserFunctionCall {
     return {
       kind: "userFunctionCall",
+      ...(call.method
+        ? {
+            method: {
+              block: call.method.block,
+              ...(call.method.receiver
+                ? { receiver: this.reference(call.method.receiver) as IR.StorageReference }
+                : {}),
+            },
+          }
+        : {}),
       function: call.function,
       dataType: call.resultDescriptor ?? call.result,
       span: span(node),
@@ -152,6 +162,13 @@ class Lowerer {
     | IR.UserFunctionBlockMemberReference {
     const info = required(this.checked.expressions.get(node));
     const dataType = info.descriptor ?? info.dataType;
+    if (node.kind === "member" && node.instance.key === "THIS")
+      return {
+        kind: "variable",
+        variable: required(this.checked.references.get(node.member)).variable,
+        dataType,
+        span: span(node),
+      };
     if (node.kind === "dereference")
       return {
         kind: "dereference",
@@ -173,9 +190,7 @@ class Lowerer {
         kind: "index",
         ...(typeof dataType !== "string" && dataType.kind === "functionBlock"
           ? {
-              instanceName:
-                this.checked.symbols[this.checked.references.get(rootName(node))!.variable]!.name
-                  .key,
+              instanceName: rootName(node).key,
             }
           : {}),
         array,
@@ -254,7 +269,7 @@ class Lowerer {
     const member = {
       variable: reference.variable,
       ...(node.kind === "field"
-        ? { instance: this.reference(node.object) as IR.IndexReference }
+        ? { instance: this.reference(node.object) as IR.StorageReference }
         : {}),
       port: required(reference.port),
       member: required(reference.member),
@@ -544,12 +559,7 @@ class Lowerer {
           value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
       case "call": {
-        const resolved = this.checked.references.get(node.call.name);
-        const symbol = resolved && this.checked.symbols[resolved.variable];
-        if (
-          node.call.instance ||
-          (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
-        )
+        if (this.checked.blockInOuts.has(node.call))
           return { ...this.blockCall(node.call), span: span(node) };
         const user = this.checked.userCalls.get(node.call);
         if (user) return { ...base, kind: "call", call: this.userCall(node.call, user) };
@@ -912,6 +922,7 @@ export function lower(
 export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
   const ir = new Lowerer(checked).run();
   const parameters = sections(checked);
+  const offset = checked.memberCount ?? 0;
   return {
     name: ir.name,
     span: ir.span,
@@ -926,11 +937,17 @@ export function lowerFunction(checked: CheckedProgram): IR.UserFunctionIR {
         throw new Error("Checked function contains an FB");
       return variable;
     }),
-    inputs: parameters.flatMap((section, index) => (section === "VAR_INPUT" ? [index] : [])),
-    outputs: parameters.flatMap((section, index) => (section === "VAR_OUTPUT" ? [index] : [])),
+    inputs: parameters.flatMap((section, index) =>
+      section === "VAR_INPUT" ? [index + offset] : [],
+    ),
+    outputs: parameters.flatMap((section, index) =>
+      section === "VAR_OUTPUT" ? [index + offset] : [],
+    ),
     ...(parameters.includes("VAR_IN_OUT")
       ? {
-          inOuts: parameters.flatMap((section, index) => (section === "VAR_IN_OUT" ? [index] : [])),
+          inOuts: parameters.flatMap((section, index) =>
+            section === "VAR_IN_OUT" ? [index + offset] : [],
+          ),
         }
       : {}),
     ...(checked.result ? { result: checked.result.id } : {}),

@@ -38,7 +38,10 @@ export function readsInferredMember(node: Expression, instances: ReadonlySet<str
         readsInferredMember(node.left, instances) || readsInferredMember(node.right, instances)
       );
     case "functionCall":
-      return node.args.some((arg) => readsInferredMember(arg, instances));
+      return (
+        !!(node.receiver && readsInferredMember(node.receiver, instances)) ||
+        node.args.some((arg) => readsInferredMember(arg, instances))
+      );
     case "enumeration":
     case "literal":
     case "name":
@@ -60,6 +63,11 @@ export function visitBlockBindings(
           visit(rootName(node.target.object).key, node.target.member.key, node.value);
         break;
       case "call":
+        if (
+          node.call.receiver &&
+          !(node.call.receiver.kind === "name" && node.call.receiver.name.key === "THIS")
+        )
+          break;
         node.call.args.forEach((value, index) => {
           const port = node.call.inputNames?.[index];
           if (port) visit(node.call.name.key, port.key, value);

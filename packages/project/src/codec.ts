@@ -2,6 +2,7 @@ import { encodePanel } from "./panel.js";
 import {
   check,
   parsePou,
+  parseConfiguration,
   parseDataType,
   resolveDataTypes,
   type DataTypeDeclaration,
@@ -173,8 +174,13 @@ function interval(value: string): boolean {
     match.slice(1).every((part) => part === undefined || Number.isFinite(Number(part)))
   );
 }
+function legacyDraft(source: string, kind: "pou" | "dataType" | "configuration"): boolean {
+  const parse =
+    kind === "pou" ? parsePou : kind === "dataType" ? parseDataType : parseConfiguration;
+  return !parse(source).ast && !!parse(source, true).ast;
+}
 function validateIdentifier(name: string, path: string): void {
-  const result = splitProgram(`PROGRAM ${name}\nEND_PROGRAM`);
+  const result = splitProgram(`PROGRAM ${name}\nEND_PROGRAM`, [], undefined, true);
   if (!result.value || result.value.name !== name) fail("project.invalid", path);
 }
 
@@ -199,7 +205,7 @@ function validateInitializers(
   types: TypeTable,
   globals?: GlobalScope,
 ): void {
-  const ast = parsePou(joinProgram(program)).ast;
+  const ast = parsePou(joinProgram(program), true).ast;
   if (!ast) fail("project.invalid", "pou/interface");
   // Check declarations together in their POU context; body/name/section errors do not block exchange.
   const result = check(
@@ -244,16 +250,20 @@ interface SplitDataType {
   type: string;
   initialValue?: string;
 }
-function parseType(source: string): DataTypeDeclaration {
-  const parsed = parseDataType(source);
+function parseType(source: string, legacyNames = false): DataTypeDeclaration {
+  const parsed = parseDataType(source, legacyNames);
   if (!parsed.ast) throw new ProjectError(parsed.diagnostics[0]!);
   return parsed.ast;
 }
 function joinDataType(type: SplitDataType): string {
   return `TYPE ${type.name} : ${type.type}${type.initialValue === undefined ? "" : ` := ${type.initialValue}`}; END_TYPE\n`;
 }
-function splitDataType(source: string, declarations: DataTypeDeclaration[]): SplitDataType {
-  const ast = parseType(source);
+function splitDataType(
+  source: string,
+  declarations: DataTypeDeclaration[],
+  legacyNames = false,
+): SplitDataType {
+  const ast = parseType(source, legacyNames);
   // Initializers do not change the TC6 base type. Resolve definitions separately
   // so an unresolved initializer can still be exchanged (ADR 0014/0015).
   const context = declarations.filter((item) => item.name.key !== ast.name.key);
@@ -276,6 +286,8 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
     const split = splitProgram(
       `PROGRAM __STRUCT_SOURCE VAR ${ast.members.map((member) => expressionText(source, member.span)).join(" ")} END_VAR END_PROGRAM`,
       resolved.types,
+      undefined,
+      legacyNames,
     );
     if (!split.value || !ast.members.length || ast.members.some((member) => member.address))
       fail("project.invalid", `dataType/${ast.name.name}/struct`);
@@ -285,6 +297,8 @@ function splitDataType(source: string, declarations: DataTypeDeclaration[]): Spl
     const split = splitProgram(
       `PROGRAM __TYPE_SOURCE VAR __VALUE : REF_TO ${expressionText(source, ast.reference.span)}; END_VAR END_PROGRAM`,
       resolved.types,
+      undefined,
+      legacyNames,
     );
     if (!split.value) fail("project.invalid", `dataType/${ast.name.name}/baseType`);
     type = split.value.variables[0]!.type;
@@ -707,10 +721,22 @@ export function readProject(xml: string): ProjectResult<Project> {
       };
     });
     const canonicalTypes = declarations.map(joinDataType);
-    const typeAsts = canonicalTypes.map(parseType);
+    // Validate the standard XML even when a reserved name makes its text a draft.
+    const validationAsts = canonicalTypes.map((source) => parseType(source, true));
+    validateTypeInitializers(validationAsts);
+    for (const source of canonicalTypes)
+      if (legacyDraft(source, "dataType")) splitDataType(source, validationAsts, true);
+    // Draft types are unknown to the remaining texts, preserving their source unchanged.
+    const typeAsts = canonicalTypes
+      .filter((source) => !legacyDraft(source, "dataType"))
+      .map((source) => parseType(source));
     const resolved = resolveDataTypes(typeAsts);
     validateTypeInitializers(typeAsts);
     const dataTypes = declarations.map((_, index) => {
+      const preservedDraft = extensions.sources.get(dataTypeNodes[index]!);
+      if (preservedDraft !== undefined && legacyDraft(preservedDraft, "dataType"))
+        return preservedDraft;
+      if (legacyDraft(canonicalTypes[index]!, "dataType")) return canonicalTypes[index]!;
       // Normalize folded enum values and bounds before comparing preserved source.
       const normalized = splitDataType(canonicalTypes[index]!, typeAsts);
       let source = canonicalTypes[index]!;
@@ -778,7 +804,7 @@ export function readProject(xml: string): ProjectResult<Project> {
       };
       validateInitializers(split, resolved.types, globals);
       let program = joinProgram(split);
-      const parsed = splitProgram(program, resolved.types, globals);
+      const parsed = splitProgram(program, resolved.types, globals, true);
       if (!parsed.value) fail("project.invalid", "pou/interface");
       if (
         JSON.stringify(parsed.value) !==
@@ -792,7 +818,10 @@ export function readProject(xml: string): ProjectResult<Project> {
         (pouNodes.length === 1 ? extensions.sources.get(root) : undefined);
       if (source !== undefined) {
         const preserved = splitProgram(source, resolved.types, globals);
-        if (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(split))
+        if (
+          legacyDraft(source, "pou") ||
+          (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(split))
+        )
           program = source;
         else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
       }
@@ -864,6 +893,7 @@ export function readProject(xml: string): ProjectResult<Project> {
     const preserved = extensions.sources.get(configuration);
     let configurationSource: string | undefined;
     if (preserved !== undefined) {
+      if (legacyDraft(preserved, "configuration")) configurationSource = preserved;
       try {
         if (sameConfiguration(splitConfiguration(preserved, resolved.types), structure))
           configurationSource = preserved;
@@ -880,10 +910,17 @@ export function readProject(xml: string): ProjectResult<Project> {
       structure.tasks.length === 1 &&
       task!.interval !== undefined &&
       task!.instances.length <= 1;
-    if (configurationSource === undefined && (preserved !== undefined || !implicit)) {
+    if (
+      configurationSource === undefined &&
+      (preserved !== undefined ||
+        !implicit ||
+        legacyDraft(joinConfiguration(structure), "configuration"))
+    ) {
       configurationSource = joinConfiguration(structure);
       // Prevent XML attributes from injecting declarations into generated source.
-      if (!sameConfiguration(splitConfiguration(configurationSource, resolved.types), structure))
+      if (
+        !sameConfiguration(splitConfiguration(configurationSource, resolved.types, true), structure)
+      )
         fail("project.invalid", "configuration");
     }
     const binding = implicit ? task!.instances[0] : undefined;
@@ -1039,7 +1076,7 @@ export function writeProject(project: Project): ProjectResult<string> {
   let dataTypes: string;
   let resolved: ReturnType<typeof resolveDataTypes>;
   try {
-    const asts = project.dataTypes.map(parseType);
+    const asts = project.dataTypes.map((source) => parseType(source));
     resolved = resolveDataTypes(asts);
     validateTypeInitializers(asts);
     dataTypes = project.dataTypes

@@ -53,7 +53,9 @@ const keywords = new Set([
    VAR_IN_OUT VAR_TEMP VAR_GLOBAL VAR_EXTERNAL VAR_ACCESS VAR_CONFIG RETAIN NON_RETAIN
    CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE REF_TO REF NULL
    EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE
-   TASK WITH ON READ_ONLY READ_WRITE`.split(/\s+/),
+   TASK WITH ON READ_ONLY READ_WRITE METHOD END_METHOD THIS PUBLIC PROTECTED PRIVATE INTERNAL`.split(
+    /\s+/,
+  ),
 ]);
 
 /** Case-insensitive ST keyword classification, including reserved type names. */
@@ -403,9 +405,25 @@ class Lexer {
 }
 
 /** Tokenize one source file, reporting the first lexical error as data. */
-export function lex(source: string): LexResult {
+export const newlyReservedWords = new Set([
+  "METHOD",
+  "END_METHOD",
+  "THIS",
+  "PUBLIC",
+  "PROTECTED",
+  "PRIVATE",
+  "INTERNAL",
+]);
+
+/** legacyNames is for validating pre-method project text during import only. */
+export function lex(source: string, legacyNames = false): LexResult {
   try {
-    return { tokens: new Lexer(source).run(), diagnostics: [] };
+    const tokens = new Lexer(source).run();
+    if (legacyNames)
+      for (const token of tokens)
+        if (token.kind === "keyword" && newlyReservedWords.has(token.key))
+          token.kind = "identifier";
+    return { tokens, diagnostics: [] };
   } catch (error) {
     if (error instanceof FrontendError) return { tokens: null, diagnostics: [error.diagnostic] };
     throw error;

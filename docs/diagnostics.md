@@ -432,3 +432,22 @@ Section errors point to the section; address errors point to the address.
 Configuration errors retain configuration source identity. Restore mismatches and
 storage failures are UI warnings rather than PLC faults; skipped paths arrive in
 the retentiveRestored event.
+
+## Method diagnostics
+
+| Code                     | Arguments | Meaning                                        |
+| ------------------------ | --------- | ---------------------------------------------- |
+| `access.duplicate`       | None      | Two access specifiers on one method or section |
+| `access.invalid-section` | None      | Access on a section other than block `VAR`     |
+| `access.hidden`          | `name`    | Method hidden from the calling type            |
+| `method.invalid-owner`   | None      | METHOD in PROGRAM or FUNCTION                  |
+| `method.name-collision`  | `name`    | Duplicate method, member clash or local shadow |
+| `method.unknown`         | `name`    | Receiver has no such method                    |
+| `method.instance-in-out` | `name`    | Instance VAR_IN_OUT used from a method         |
+| `method.this-outside`    | None      | THIS without a block instance context          |
+| `method.this-call`       | None      | Attempt to call the instance body through THIS |
+
+Inaccessible data members retain `fb.unknown-member`. Method parameters, section
+restrictions, missing results, assignment types and recursion reuse function/POU
+codes. Runtime faults use `Type.Method` in `pou`, retain a span in the owning block
+text and include `instance` when the receiver path is known.

@@ -15,6 +15,7 @@ import type {
 } from "./ast.js";
 
 export interface UserCallInfo {
+  method?: { block: number; receiver?: AssignmentTarget };
   function: number;
   inputs: { variable: number; value: Expression; dataType: DataType }[];
   outputs: { variable: number; target: AssignmentTarget }[];
@@ -35,6 +36,8 @@ export interface GlobalScope {
   constants: ReadonlyMap<string, ConstantSymbol>;
   /** Selecting argument types collected across every POU in the project. */
   bindings: Map<string, DataType[]>;
+  /** Selecting argument types shared by a block body and all its methods. */
+  memberBindings?: Map<string, DataType[]>;
 }
 export interface VariableSymbol {
   /** Index in declaration order, shared by all resolved references. */
@@ -69,6 +72,7 @@ export interface ResolvedReference {
 /** Semantic side tables use AST object identity; they are compiler-local, not wire IR. */
 export interface CheckedProgram {
   ast: Program;
+  memberCount?: number;
   types: TypeTable;
   symbols: readonly VariableSymbol[];
   constants: ReadonlyMap<string, ConstantSymbol>;

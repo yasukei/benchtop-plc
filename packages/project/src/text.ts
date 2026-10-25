@@ -30,8 +30,9 @@ export function splitProgram(
   source: string,
   types: TypeTable = [],
   globals?: GlobalScope,
+  legacyNames = false,
 ): ProjectResult<SplitProgram> {
-  const result = parsePou(source);
+  const result = parsePou(source, legacyNames);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
   const invalidCapacity = (name: string, length: number | undefined): boolean =>
@@ -71,6 +72,7 @@ export function splitProgram(
   const { tokens } = lex(source);
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
   const start =
+    ast.methods?.at(-1)?.span ??
     endVars.at(-1)?.span ??
     (ast.resultReference ? ast.resultReference.span : undefined) ??
     ast.resultArray?.span ??

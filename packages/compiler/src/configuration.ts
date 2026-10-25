@@ -323,11 +323,14 @@ class ConfigurationParser {
   }
 }
 
-export function parseConfiguration(source: string): {
+export function parseConfiguration(
+  source: string,
+  legacyNames = false,
+): {
   ast?: Configuration;
   diagnostics: Diagnostic[];
 } {
-  const scanned = lex(source);
+  const scanned = lex(source, legacyNames);
   if (!scanned.tokens) return { diagnostics: scanned.diagnostics };
   const parser = new ConfigurationParser(scanned.tokens);
   try {

@@ -10,7 +10,7 @@ import { isReservedStandardName } from "./reserved-names.js";
 import { isFunctionBlockType, isStandardFunction, leafCount } from "@benchtop-plc/core";
 import type { Diagnostic, ConfigurationIR } from "@benchtop-plc/core";
 import type { Program } from "./ast.js";
-import type { CheckedProgram, VariableSymbol } from "./checked.js";
+import type { CheckedProgram, VariableSymbol, GlobalScope } from "./checked.js";
 import { check, checkDeclarations } from "./checker.js";
 import { lower, lowerFunction, lowerFunctionBlock } from "./lower.js";
 import { blockVariant } from "./overloaded-blocks.js";
@@ -189,24 +189,34 @@ export function compileProject(
     if (!result.checked) return { diagnostics };
     globals = result.checked;
   }
-  const scope = globals
-    ? {
-        symbols: globals.symbols,
-        constants: globals.constants,
-        bindings: new Map<string, import("@benchtop-plc/core").DataType[]>(),
-      }
-    : undefined;
+  const scope: GlobalScope | undefined =
+    globals || blocks.some((block) => block.methods?.length)
+      ? {
+          symbols: globals?.symbols ?? [],
+          constants: globals?.constants ?? new Map(),
+          bindings: new Map(),
+          memberBindings: new Map(),
+        }
+      : undefined;
+  const methods = blocks.flatMap((owner) =>
+    (owner.methods ?? []).map((method) => {
+      method.owner = owner;
+      sourceIndexes.set(method, sourceIndexes.get(owner)!);
+      return method;
+    }),
+  );
+  const allBodies = [...asts, ...methods];
   const interfaces = new Map<Program, CheckedProgram>();
-  for (const ast of asts) {
+  for (const ast of allBodies) {
     const result = checkDeclarations(ast, resolved.types, pous, blockIds, scope);
     if (result.checked) interfaces.set(ast, result.checked);
   }
-  // Discover overload bindings in every body before selecting a shared global FB variant.
+  // Discover overload bindings before selecting shared global and instance FB variants.
   if (scope)
-    for (const ast of asts)
+    for (const ast of allBodies)
       check(ast, pous, functionIds, blockIds, resolved.types, interfaces, scope);
   const checked = new Map<Program, CheckedProgram>();
-  for (const ast of asts) {
+  for (const ast of allBodies) {
     const result = check(ast, pous, functionIds, blockIds, resolved.types, interfaces, scope);
     diagnostics.push(
       ...result.diagnostics.map((diagnostic) => ({
@@ -217,7 +227,7 @@ export function compileProject(
     if (result.checked) checked.set(ast, result.checked);
   }
   if (
-    checked.size !== asts.length ||
+    checked.size !== allBodies.length ||
     diagnostics.some((diagnostic) => diagnostic.severity === "error")
   )
     return { diagnostics };
@@ -230,7 +240,9 @@ export function compileProject(
     const edges = [
       ...[...checked.get(ast)!.userCalls].map(([node, call]) => ({
         node,
-        callee: functions[call.function]!,
+        callee: call.method
+          ? blocks[call.method.block]!.methods![call.function]!
+          : functions[call.function]!,
       })),
       ...[...checked.get(ast)!.blockCalls].map(([node, block]) => ({
         node,
@@ -258,7 +270,7 @@ export function compileProject(
     visiting.delete(ast);
     visited.add(ast);
   };
-  for (const ast of asts) visit(ast);
+  for (const ast of allBodies) visit(ast);
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
   // Instance-array limits include every monitored member, not just the instance slots.
   const blockLeafCounts = new Map<number, number>();
@@ -349,7 +361,18 @@ export function compileProject(
           explicit: false,
           span: programs[0]!.span,
         },
-    blocks.map((ast) => lowerFunctionBlock(checked.get(ast)!)),
+    blocks.map((ast) => ({
+      ...lowerFunctionBlock(checked.get(ast)!),
+      ...(ast.methods?.length
+        ? {
+            methods: ast.methods.map((method) => ({
+              ...lowerFunction(checked.get(method)!),
+              memberCount: checked.get(method)!.memberCount!,
+            })),
+            methodTable: Object.fromEntries(ast.methods.map((m, i) => [m.name.key, i])),
+          }
+        : {}),
+    })),
     globals,
     connections?.connections,
   );

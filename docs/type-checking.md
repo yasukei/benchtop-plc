@@ -624,3 +624,21 @@ report `config.connection-parameter`, `config.connection-direction`,
 errors reuse ordinary assignment, constant, and declaration diagnostics. Every
 connection error names the configuration source, including its source index and
 span. Unconnected parameters are valid under explicit and implicit configurations.
+
+## Method scope and access
+
+Methods see their instance's inputs, outputs, variables, constants and externals,
+and their own parameters, variables and optional result. Instance `VAR_IN_OUT`
+parameters are unavailable because their caller storage may no longer exist.
+Method locals cannot shadow a member or method; method and member names are unique
+case-insensitively. Methods reject `VAR_TEMP`, `VAR_EXTERNAL`, retention qualifiers
+and local block instances, as functions do.
+
+Methods and block `VAR` sections default to `PROTECTED`. `PRIVATE` and `PROTECTED`
+allow access from the declaring type, including another instance of that type.
+`PUBLIC` and `INTERNAL` allow access throughout the current global namespace.
+Block inputs and outputs keep their existing public access and output write rules.
+`THIS` requires an instance context; `THIS(...)` cannot call a block body. A void
+method in an expression reports `call.no-result`; result assignment uses ordinary
+type rules. Recursion through any combination of methods, functions and bodies is
+rejected with `pou.recursion`.

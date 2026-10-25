@@ -170,6 +170,14 @@ export class MemoryFrame implements ScanMemory {
     protected readonly types: TypeTable = [],
   ) {}
 
+  /** Share persistent receiver cells and append freshly initialized method locals. */
+  methodFrame(definition: import("@benchtop-plc/core").UserMethodIR): MemoryFrame {
+    return new MemoryFrame(
+      [...this.cells, ...definition.variables.map((v) => initialCell(v, this.types))],
+      this.types,
+    );
+  }
+
   asAggregateCell(descriptor: TypeDescriptor): AggregateCell & { path?: string } {
     return { kind: "aggregate", descriptor, elements: this.cells };
   }
@@ -586,7 +594,13 @@ export class Memory extends MemoryFrame {
       }),
       ir.types ?? [],
     );
-    for (const block of ir.functionBlocks ?? []) validateLiterals(block.body);
+    for (const block of ir.functionBlocks ?? []) {
+      validateLiterals(block.body);
+      for (const method of block.methods ?? []) {
+        validateLiterals(method.body);
+        method.variables.forEach((v) => initialCell(v, ir.types ?? []));
+      }
+    }
     this.functionInitialCells = functionInitialCells;
     ir.variables.forEach((variable, id) => {
       if (variable.kind !== "scalar" || !variable.address) return;

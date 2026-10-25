@@ -17,6 +17,7 @@ import type {
   Program,
   Statement,
 } from "./ast.js";
+import { rootName } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
 import { isElementaryTypeName, lex } from "./lexer.js";
 import type { Token } from "./lexer.js";
@@ -153,15 +154,29 @@ export class Parser {
     return joinedSpan(start, this.previous.span);
   }
 
-  run(pou = false): Program {
-    if (!pou || !["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(this.current.key))
+  private access(): import("./ast.js").Access | undefined {
+    if (
+      this.current.kind !== "keyword" ||
+      !["PUBLIC", "PROTECTED", "PRIVATE", "INTERNAL"].includes(this.current.key)
+    )
+      return;
+    const access = this.take().key as import("./ast.js").Access;
+    if (["PUBLIC", "PROTECTED", "PRIVATE", "INTERNAL"].includes(this.current.key))
+      this.fail({ code: "access.duplicate", severity: "error", span: this.current.span, args: {} });
+    return access;
+  }
+
+  run(pou = false, method = false): Program {
+    if (method) this.expect("METHOD");
+    else if (!pou || !["PROGRAM", "FUNCTION", "FUNCTION_BLOCK"].includes(this.current.key))
       this.expect("PROGRAM");
     else this.take();
     const header = this.previous;
     const start = header.span;
     // Type names are accepted here so namespace clashes receive semantic diagnostics.
+    const access = method ? this.access() : undefined;
     const name = this.identifier(pou);
-    const hasResult = header.key === "FUNCTION" && this.accept(":");
+    const hasResult = (method || header.key === "FUNCTION") && this.accept(":");
     const resultReference = hasResult && this.accept("REF_TO") ? this.typeSyntax() : undefined;
     const resultArray =
       !resultReference && hasResult && this.at("ARRAY") ? this.arrayDeclaration() : undefined;
@@ -183,6 +198,14 @@ export class Parser {
       ).includes(this.current.key)
     ) {
       const section = this.take();
+      const sectionAccess = this.access();
+      if (sectionAccess && (header.key !== "FUNCTION_BLOCK" || section.key !== "VAR"))
+        this.fail({
+          code: "access.invalid-section",
+          severity: "error",
+          span: section.span,
+          args: {},
+        });
       let constant = false,
         retain = false,
         nonRetain = false;
@@ -192,18 +215,23 @@ export class Parser {
         retain ||= qualifier === "RETAIN";
         nonRetain ||= qualifier === "NON_RETAIN";
       }
-      if (section.key !== "VAR" || constant || retain || nonRetain)
+      if (section.key !== "VAR" || sectionAccess || constant || retain || nonRetain)
         sections.push({
           name: section.key,
+          ...(sectionAccess ? { access: sectionAccess } : {}),
           ...(retain ? { retain: true } : {}),
           ...(nonRetain ? { nonRetain: true } : {}),
           span: section.span,
           ...(constant ? { constant: true } : {}),
         });
       while (!this.at("END_VAR")) {
-        if (this.current.kind === "eof" || this.current.key.startsWith("END_"))
+        if (
+          this.current.kind === "eof" ||
+          (this.current.kind === "keyword" && this.current.key.startsWith("END_"))
+        )
           this.missingEnd("END_VAR");
         const declaration = this.declaration();
+        if (sectionAccess) declaration.access = sectionAccess;
         if (constant) declaration.constant = true;
         if (retain) declaration.retain = true;
         if (nonRetain) declaration.nonRetain = true;
@@ -213,15 +241,29 @@ export class Parser {
       }
       this.expect("END_VAR");
     }
+    const methods: Program[] = [];
+    while (this.current.kind === "keyword" && this.at("METHOD") && !method) {
+      if (header.key !== "FUNCTION_BLOCK")
+        this.fail({
+          code: "method.invalid-owner",
+          severity: "error",
+          span: this.current.span,
+          args: {},
+        });
+      methods.push(this.run(true, true));
+    }
     const end = `END_${header.key}` as `END_${string}`;
     const body = this.body([end], end);
     this.expect(end);
     const span = this.spanFrom(start);
     this.accept(";");
-    if (this.current.kind !== "eof") this.expected("eof");
+    if (method) Object.assign(span, this.spanFrom(start));
+    if (!method && this.current.kind !== "eof") this.expected("eof");
     return {
+      ...(methods.length ? { methods } : {}),
+      ...(access ? { access } : {}),
       kind:
-        header.key === "FUNCTION"
+        method || header.key === "FUNCTION"
           ? "function"
           : header.key === "FUNCTION_BLOCK"
             ? "functionBlock"
@@ -461,7 +503,7 @@ export class Parser {
     while (!stops.includes(this.current.key)) {
       if (
         this.current.kind === "eof" ||
-        this.current.key.startsWith("END_") ||
+        (this.current.kind === "keyword" && this.current.key.startsWith("END_")) ||
         ["ELSE", "ELSIF", "UNTIL"].includes(this.current.key)
       ) {
         if (requiredBeforeEnd) this.expected(requiredBeforeEnd);
@@ -490,7 +532,10 @@ export class Parser {
       this.expect("OF");
       const branches: CaseBranch[] = [];
       while (!this.at("ELSE") && !this.at("END_CASE")) {
-        if (this.current.kind === "eof" || this.current.key.startsWith("END_"))
+        if (
+          this.current.kind === "eof" ||
+          (this.current.kind === "keyword" && this.current.key.startsWith("END_"))
+        )
           this.missingEnd("END_CASE");
         const labelStart = this.current.span;
         const labels = this.caseLabels();
@@ -539,7 +584,9 @@ export class Parser {
       const until = this.expression();
       if (
         this.current.kind === "eof" ||
-        (!this.at("END_REPEAT") && this.current.key.startsWith("END_"))
+        (!this.at("END_REPEAT") &&
+          this.current.kind === "keyword" &&
+          this.current.key.startsWith("END_"))
       )
         this.missingEnd("END_REPEAT");
       this.expect("END_REPEAT");
@@ -555,9 +602,12 @@ export class Parser {
     const keywordCall =
       ["AND", "OR", "XOR", "MOD", "NOT"].includes(token.key) &&
       this.tokens[this.cursor + 1]?.key === "(";
-    const name = keywordCall
-      ? (this.take(), { name: token.text, key: token.key, span: token.span })
-      : this.identifier();
+    const name =
+      token.key === "THIS"
+        ? (this.take(), { name: token.text, key: token.key, span: token.span })
+        : keywordCall
+          ? (this.take(), { name: token.text, key: token.key, span: token.span })
+          : this.identifier();
     if (this.accept("(")) {
       const call = this.functionArguments(name, !isFunction(name.key));
       this.expect(";");
@@ -581,8 +631,13 @@ export class Parser {
       return { kind: "call", call, span: this.spanFrom(start) };
     }
     const target = this.reference(name);
+    if ((target.kind === "member" || target.kind === "field") && this.accept("(")) {
+      const call = this.methodArguments(target);
+      this.expect(";");
+      return { kind: "call", call, span: this.spanFrom(start) };
+    }
     if (target.kind === "index" && this.accept("(")) {
-      const call = this.functionArguments(name, true);
+      const call = this.functionArguments(rootName(target), true);
       call.instance = target;
       this.expect(";");
       return { kind: "call", call, span: this.spanFrom(start) };
@@ -735,10 +790,14 @@ export class Parser {
     const keywordCall =
       ["AND", "OR", "XOR", "MOD", "REF"].includes(token.key) &&
       this.tokens[this.cursor + 1]?.key === "(";
-    if (token.kind !== "identifier" && !keywordCall) this.expected("expression");
-    const name = keywordCall
-      ? (this.take(), { name: token.text, key: token.key, span: token.span })
-      : this.identifier();
+    if (token.kind !== "identifier" && token.key !== "THIS" && !keywordCall)
+      this.expected("expression");
+    const name =
+      token.key === "THIS"
+        ? (this.take(), { name: token.text, key: token.key, span: token.span })
+        : keywordCall
+          ? (this.take(), { name: token.text, key: token.key, span: token.span })
+          : this.identifier();
     if (this.accept("#")) {
       const member = this.identifier();
       return {
@@ -751,7 +810,21 @@ export class Parser {
     if (this.accept("(")) {
       return this.functionArguments(name);
     }
-    return this.reference(name);
+    const reference = this.reference(name);
+    if ((reference.kind === "member" || reference.kind === "field") && this.accept("("))
+      return this.methodArguments(reference);
+    return reference;
+  }
+  private methodArguments(
+    target: import("./ast.js").MemberReference | import("./ast.js").FieldReference,
+  ): FunctionCall {
+    const call = this.functionArguments(target.member);
+    call.receiver =
+      target.kind === "member"
+        ? { kind: "name", name: target.instance, span: target.instance.span }
+        : target.object;
+    call.span = joinedSpan(target.span, call.span);
+    return call;
   }
   private functionArguments(name: Identifier, blockSyntax = false): FunctionCall {
     const args: Expression[] = [];
@@ -769,7 +842,12 @@ export class Parser {
         if (named) {
           const port = this.identifier();
           if (this.accept("=>")) {
-            const target = this.reference(this.identifier());
+            const token = this.current;
+            const name =
+              token.key === "THIS"
+                ? (this.take(), { name: token.text, key: token.key, span: token.span })
+                : this.identifier();
+            const target = this.reference(name);
             outputs.push({ name: port, target, span: joinedSpan(port.span, target.span) });
           } else {
             this.assignmentOperator();
@@ -797,12 +875,12 @@ export function parse(source: string): ParseResult {
 }
 
 /** Parse exactly one POU; project-wide name resolution belongs to compilation. */
-export function parsePou(source: string): ParseResult {
-  return parseSource(source, true);
+export function parsePou(source: string, legacyNames = false): ParseResult {
+  return parseSource(source, true, legacyNames);
 }
 
-function parseSource(source: string, pou: boolean): ParseResult {
-  const result = lex(source);
+function parseSource(source: string, pou: boolean, legacyNames = false): ParseResult {
+  const result = lex(source, legacyNames);
   if (result.tokens === null) return { ast: null, diagnostics: result.diagnostics };
   try {
     return { ast: new Parser(result.tokens).run(pou), diagnostics: [] };
@@ -823,11 +901,14 @@ function parseSource(source: string, pou: boolean): ParseResult {
 }
 
 /** Parse exactly one data type source, separately from the POU list. */
-export function parseDataType(source: string): {
+export function parseDataType(
+  source: string,
+  legacyNames = false,
+): {
   ast: DataTypeDeclaration | null;
   diagnostics: Diagnostic[];
 } {
-  const result = lex(source);
+  const result = lex(source, legacyNames);
   if (!result.tokens) return { ast: null, diagnostics: result.diagnostics };
   try {
     return { ast: new Parser(result.tokens).dataType(), diagnostics: [] };

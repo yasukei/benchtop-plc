@@ -408,3 +408,15 @@ but excludes string capacity so strings can truncate. `retentive` events carry
 complete sets, never deltas. `retentiveRestored.skipped` carries distinct missing,
 obsolete or mismatched paths for the UI to report. Retention records are independent
 of monitor watches, snapshot compaction, forces and VariableId allocation.
+
+## Function block methods
+
+`UserFunctionBlockIR.methods` holds each `UserMethodIR` once; `methodTable` maps
+upper-case names to implementation indices. A method has function-style inputs,
+outputs, in-out aliases, an optional result and fresh local variables. Slots below
+`memberCount` refer to the receiver's block variables; subsequent slots refer to
+`variables`, starting at `memberCount`. Member declarations are not copied into
+method definitions. A `userFunctionCall` with `method` indexes that block's methods
+with `function`; `method.receiver` selects explicit instance storage, including
+indexed or nested instances. Its absence means the current instance (`THIS`).
+The checked compiler AST's owner links never cross the IR boundary.

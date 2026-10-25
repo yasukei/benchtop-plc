@@ -187,6 +187,45 @@ class Checker {
   }
 
   run(ast: AST.Program, declarationsOnly = false): CheckResult {
+    const owner = ast.owner;
+    let memberCount = 0;
+    if (owner) {
+      const members =
+        this.interfaces.get(owner) ??
+        new Checker(
+          owner,
+          this.pous,
+          this.functionIds,
+          this.blockIds,
+          this.types,
+          new Map(),
+          this.globals,
+        ).run(owner, true).checked;
+      if (members) {
+        for (const symbol of members.symbols) {
+          const member = { ...symbol };
+          this.symbols.push(member);
+          this.names.set(member.name.key, member);
+        }
+        for (const [key, constant] of members.constants) this.constants.set(key, constant);
+      }
+      memberCount = this.symbols.length;
+      for (const declaration of ast.declarations)
+        for (const name of declaration.names)
+          if (
+            owner.declarations.some((d) => d.names.some((n) => n.key === name.key)) ||
+            owner.methods?.some((m) => m.name.key === name.key)
+          )
+            this.report("method.name-collision", { name: name.name }, name.span);
+    }
+    if (ast.methods) {
+      const names = new Set(ast.declarations.flatMap((d) => d.names.map((n) => n.key)));
+      for (const method of ast.methods) {
+        if (names.has(method.name.key))
+          this.report("method.name-collision", { name: method.name.name }, method.name.span);
+        names.add(method.name.key);
+      }
+    }
     for (const section of ast.sections ?? []) {
       if (section.retain || section.nonRetain) {
         if (section.retain && section.nonRetain)
@@ -271,6 +310,7 @@ class Checker {
     return {
       checked: {
         ast,
+        ...(owner ? { memberCount } : {}),
         types: this.types,
         symbols: this.symbols,
         constants: this.constants,
@@ -325,6 +365,12 @@ class Checker {
         const shared = this.globals.bindings.get(symbol.external) ?? [];
         types = [...new Set([...shared, ...types])];
         this.globals.bindings.set(symbol.external, types);
+      }
+      const owner = this.ast.owner ?? (this.ast.kind === "functionBlock" ? this.ast : undefined);
+      if (owner && !symbol.external && this.globals?.memberBindings) {
+        const key = `${owner.name.key}.${symbol.name.key}`;
+        types = [...new Set([...(this.globals.memberBindings.get(key) ?? []), ...types])];
+        this.globals.memberBindings.set(key, types);
       }
       if (!types.length) continue;
       const variant = blockVariant(symbol.type, types);
@@ -1035,6 +1081,27 @@ class Checker {
     write = false,
     instance = false,
   ): ExpressionInfo | null {
+    if (node.kind === "member" && node.instance.key === "THIS") {
+      if (!(this.ast.owner ?? (this.ast.kind === "functionBlock" ? this.ast : undefined))) {
+        this.report("method.this-outside", {}, node.instance.span);
+        return null;
+      }
+      const owner = this.ast.owner ?? this.ast;
+      if (!owner.declarations.some((d) => d.names.some((n) => n.key === node.member.key))) {
+        this.report(
+          "fb.unknown-member",
+          { name: "THIS", member: node.member.name },
+          node.member.span,
+        );
+        return null;
+      }
+      const local: AST.NameReference = { kind: "name", name: node.member, span: node.span };
+      return this.reference(local, write, instance);
+    }
+    if (node.kind === "name" && node.name.key === "THIS") {
+      this.report("method.this-outside", {}, node.span);
+      return null;
+    }
     if (node.kind === "dereference") {
       const value = this.expression(node.reference);
       if (!value) return null;
@@ -1065,8 +1132,15 @@ class Checker {
       }
       this.expressions.set(node.object, object);
       if (typeof object.descriptor !== "string" && object.descriptor?.kind === "functionBlock") {
-        const symbol = this.names.get(rootName(node.object).key);
-        return symbol ? this.blockMember(symbol, node.member, write) : null;
+        const type = object.descriptor;
+        const symbol: VariableSymbol = {
+          id: this.references.get(rootName(node.object))?.variable ?? 0,
+          name: rootName(node.object),
+          type: type.name,
+          userBlock: this.blockIds.get(type.name),
+          initialValue: null,
+        };
+        return this.blockMember(symbol, node.member, write);
       }
       return this.field(object.descriptor ?? object.dataType, node.member);
     }
@@ -1155,6 +1229,22 @@ class Checker {
         ? null
         : { dataType: "BOOL", constant: !!((BigInt(constant.value) >> BigInt(bit)) & 1n) };
     }
+    if (
+      this.ast.owner?.declarations.some(
+        (d) => d.section === "VAR_IN_OUT" && d.names.some((n) => n.key === name.key),
+      )
+    ) {
+      this.report("method.instance-in-out", { name: name.name }, name.span);
+      return null;
+    }
+    if (
+      this.ast.owner?.declarations.some(
+        (d) => d.section === "VAR_TEMP" && d.names.some((n) => n.key === name.key),
+      )
+    ) {
+      this.report("name.undeclared", { name: name.name }, name.span);
+      return null;
+    }
     const symbol = this.resolve(name);
     if (!symbol) return null;
     if (node.kind === "name") {
@@ -1203,15 +1293,21 @@ class Checker {
             name: member,
             type: this.parameterType(pou, declaration),
             section: declaration.section,
+            access: declaration.access ?? "PROTECTED",
           })),
         );
       const index = parameters.findIndex(
         (parameter) =>
           parameter.name.key === member.key &&
-          ["VAR_INPUT", "VAR_OUTPUT"].includes(parameter.section ?? ""),
+          !["VAR_TEMP", "VAR_IN_OUT", "VAR_EXTERNAL"].includes(parameter.section ?? ""),
       );
       const parameter = parameters[index];
       if (!parameter?.type) {
+        this.report("fb.unknown-member", { name: name.name, member: member.name }, member.span);
+        return null;
+      }
+      const sameType = (this.ast.owner ?? this.ast).name.key === pou.name.key;
+      if (!parameter.section && !["PUBLIC", "INTERNAL"].includes(parameter.access) && !sameType) {
         this.report("fb.unknown-member", { name: name.name, member: member.name }, member.span);
         return null;
       }
@@ -1224,7 +1320,7 @@ class Checker {
       this.references.set(member, {
         variable: symbol.id,
         member: index,
-        port: parameter.section === "VAR_INPUT" ? "input" : "output",
+        port: parameter.section === "VAR_OUTPUT" ? "output" : "input",
         userBlock: true,
       });
       return { dataType: this.base(parameter.type, this.types), descriptor: parameter.type };
@@ -1664,6 +1760,13 @@ class Checker {
     statement = false,
     expectedType?: TypeDescriptor,
   ): ExpressionInfo | null {
+    if (node.name.key === "THIS") {
+      this.report("method.this-call", {}, node.span);
+      return null;
+    }
+    const owner = this.ast.owner ?? (this.ast.kind === "functionBlock" ? this.ast : undefined);
+    if (node.receiver || owner?.methods?.some((m) => m.name.key === node.name.key))
+      return this.methodCall(node, statement, owner);
     if (node.name.key === "REF") {
       if (statement) {
         this.report("type.invalid-reference-target", {}, node.span);
@@ -2067,6 +2170,53 @@ class Checker {
     return { dataType: "DINT" };
   }
 
+  private methodCall(
+    node: AST.FunctionCall,
+    statement: boolean,
+    owner?: AST.Program,
+  ): ExpressionInfo | null {
+    let target = owner;
+    let receiver = node.receiver;
+    if (receiver?.kind === "name" && receiver.name.key === "THIS") {
+      receiver = undefined;
+      if (!owner) {
+        this.report("method.this-outside", {}, node.span);
+        return null;
+      }
+      const symbol = this.names.get(node.name.key);
+      if (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined)) {
+        this.report("fb.call-in-expression", { name: node.name.name }, node.span);
+        return null;
+      }
+    } else if (receiver) {
+      const info = this.reference(receiver, false, true);
+      if (info) this.expressions.set(receiver, info);
+      const type = info?.descriptor;
+      target =
+        typeof type === "object" && type.kind === "functionBlock"
+          ? this.pous.get(type.name)
+          : undefined;
+    }
+    const index = target?.methods?.findIndex((m) => m.name.key === node.name.key) ?? -1;
+    const method = index < 0 ? undefined : target?.methods?.[index];
+    if (!target || !method) {
+      this.report("method.unknown", { name: node.name.name }, node.name.span);
+      return null;
+    }
+    if (!["PUBLIC", "INTERNAL"].includes(method.access ?? "PROTECTED") && owner !== target) {
+      this.report("access.hidden", { name: node.name.name }, node.name.span);
+      return null;
+    }
+    const info = this.userFunctionCall(node, method, statement);
+    const call = this.userCalls.get(node)!;
+    call.function = index;
+    call.method = { block: this.blockIds.get(target.name.key)!, ...(receiver ? { receiver } : {}) };
+    const offset = this.interfaces.get(target)?.symbols.length ?? 0;
+    for (const parameter of [...call.inputs, ...call.outputs, ...call.inOuts])
+      parameter.variable += offset;
+    return info;
+  }
+
   private userFunctionCall(
     node: AST.FunctionCall,
     pou: AST.Program,
@@ -2246,7 +2396,8 @@ class Checker {
       this.report("fb.not-function-block", { name: node.name.name }, node.span);
       return;
     }
-    if (this.ast.kind === "function") this.report("pou.function-block-in-function", {}, node.span);
+    if (this.ast.kind === "function" && !this.ast.owner)
+      this.report("pou.function-block-in-function", {}, node.span);
     if (node.args.length && !node.inputNames) {
       this.report("fb.unsupported-call", { name: node.name.name }, node.span);
       return;
@@ -2394,8 +2545,12 @@ class Checker {
         case "call": {
           const symbol = this.names.get(node.call.name.key);
           if (
-            node.call.instance ||
-            (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined))
+            (!node.call.receiver ||
+              (node.call.receiver.kind === "name" &&
+                node.call.receiver.name.key === "THIS" &&
+                (this.ast.owner !== undefined || this.ast.kind === "functionBlock"))) &&
+            (node.call.instance ||
+              (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined)))
           )
             this.blockCall(node.call);
           else {
@@ -2412,7 +2567,11 @@ class Checker {
             inputNames: node.inputs.map((input) => input.name),
             span: node.span,
           };
-          if (this.pous.has(node.instance.key)) {
+          if (
+            this.pous.has(node.instance.key) ||
+            (this.ast.owner ?? this.ast).methods?.some((m) => m.name.key === node.instance.key) ||
+            node.instance.key === "THIS"
+          ) {
             this.functionCall(call, true);
             const info = this.userCalls.get(call);
             if (info) {

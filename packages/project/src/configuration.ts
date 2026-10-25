@@ -24,8 +24,12 @@ export class ConfigurationError extends Error {
 }
 
 /** Exchange accepts representable declarations even before the compiler can run them. */
-export function splitConfiguration(source: string, types: TypeTable = []): ConfigurationStructure {
-  const scanned = lex(source);
+export function splitConfiguration(
+  source: string,
+  types: TypeTable = [],
+  legacyNames = false,
+): ConfigurationStructure {
+  const scanned = lex(source, legacyNames);
   if (!scanned.tokens) throw new ConfigurationError(scanned.diagnostics[0]);
   const tokens = scanned.tokens;
   let cursor = 0;
@@ -51,6 +55,7 @@ export function splitConfiguration(source: string, types: TypeTable = []): Confi
       type
         ? `PROGRAM __INSTANCE VAR x : ${token.text}; END_VAR END_PROGRAM`
         : `PROGRAM ${token.text} END_PROGRAM`,
+      legacyNames,
     );
     if (!parsed.ast) invalid("configuration/identifier");
     take();
@@ -58,7 +63,10 @@ export function splitConfiguration(source: string, types: TypeTable = []): Confi
   };
   const scalar = (values: Token[], type: DataType): number | string => {
     const text = values.map((token) => token.text).join(" ");
-    const ast = parsePou(`PROGRAM __TASK VAR x : ${type} := ${text}; END_VAR END_PROGRAM`).ast;
+    const ast = parsePou(
+      `PROGRAM __TASK VAR x : ${type} := ${text}; END_VAR END_PROGRAM`,
+      legacyNames,
+    ).ast;
     if (!ast) return invalid(`task/${type}`);
     const result = check(ast);
     const value = result.checked?.symbols[0]?.initialValue;
@@ -118,10 +126,13 @@ export function splitConfiguration(source: string, types: TypeTable = []): Confi
         } while (depth > 0);
         // Connections live only in the exact source extension. Validate their syntax
         // with the compiler while leaving semantic errors exchangeable, as for POUs.
-        const parsed = parseConfiguration(`CONFIGURATION C RESOURCE R ON Cpu
+        const parsed = parseConfiguration(
+          `CONFIGURATION C RESOURCE R ON Cpu
           TASK T (INTERVAL := T#10ms, PRIORITY := 0);
           PROGRAM A WITH T : Main ${connectionTokens.map((token) => token.text).join(" ")};
-          END_RESOURCE END_CONFIGURATION`);
+          END_RESOURCE END_CONFIGURATION`,
+          legacyNames,
+        );
         if (!parsed.ast || parsed.diagnostics.some((d) => d.severity === "error"))
           return invalid("pouInstance/connections");
       }
@@ -188,10 +199,12 @@ export function splitConfiguration(source: string, types: TypeTable = []): Confi
   const combined = splitProgram(
     `PROGRAM __GLOBALS ${globalSource} ${resourceGlobalSource} END_PROGRAM`,
     types,
+    undefined,
+    legacyNames,
   );
   if (!combined.value) throw new ConfigurationError(combined.diagnostics[0]!);
   const count =
-    parsePou(`PROGRAM __GLOBALS ${globalSource} END_PROGRAM`).ast?.declarations.reduce(
+    parsePou(`PROGRAM __GLOBALS ${globalSource} END_PROGRAM`, legacyNames).ast?.declarations.reduce(
       (n, d) => n + d.names.length,
       0,
     ) ?? 0;

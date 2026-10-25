@@ -141,6 +141,16 @@ export const diagnosticEn = {
     `${section} is not supported in a ${pouKinds[kind] ?? kind} POU.`,
   "pou.direct-address": () => "Direct addresses are allowed only in the PROGRAM.",
   "pou.function-block-in-function": () => "A function cannot declare a function block instance.",
+  "access.duplicate": () => "Only one access specifier is allowed.",
+  "access.invalid-section": () => "An access specifier is not allowed on this section.",
+  "access.hidden": ({ name }) => `Member or method ${name} is inaccessible here.`,
+  "method.invalid-owner": () => "Methods can only be declared in a function block.",
+  "method.name-collision": ({ name }) =>
+    `Method or local name ${name} conflicts with an instance member or method.`,
+  "method.unknown": ({ name }) => `Unknown method ${name}.`,
+  "method.instance-in-out": ({ name }) => `Instance VAR_IN_OUT ${name} is unavailable in methods.`,
+  "method.this-outside": () => "THIS requires a function block context.",
+  "method.this-call": () => "A method cannot call the instance body through THIS.",
   "pou.recursion": ({ name }) => `Recursive call to ${name}.`,
   "call.program": ({ name }) => `PROGRAM ${name} cannot be called.`,
   "call.no-result": ({ name }) =>
@@ -344,6 +354,17 @@ export const diagnosticJa = {
   "pou.direct-address": () => "直接アドレスはPROGRAMでのみ使用できます。",
   "pou.function-block-in-function": () =>
     "関数ではファンクションブロックのインスタンスを宣言できません。",
+  "access.duplicate": () => "アクセス指定子は1つだけ指定できます。",
+  "access.invalid-section": () => "このセクションにアクセス指定子は指定できません。",
+  "access.hidden": ({ name }) => `メンバーまたはメソッド${name}にはここからアクセスできません。`,
+  "method.invalid-owner": () => "メソッドはファンクションブロック内でのみ宣言できます。",
+  "method.name-collision": ({ name }) =>
+    `メソッドまたはローカル変数${name}がインスタンスのメンバーまたはメソッドと重複しています。`,
+  "method.unknown": ({ name }) => `不明なメソッド${name}です。`,
+  "method.instance-in-out": ({ name }) =>
+    `インスタンスのVAR_IN_OUT ${name}はメソッド内では使用できません。`,
+  "method.this-outside": () => "THISはファンクションブロック内でのみ使用できます。",
+  "method.this-call": () => "THISでインスタンス本体を呼び出すことはできません。",
   "pou.recursion": ({ name }) => `${name}への再帰呼び出しです。`,
   "call.program": ({ name }) => `PROGRAM ${name}は呼び出せません。`,
   "call.no-result": ({ name }) => `関数${name}には戻り値がないため、式の中で使用できません。`,
