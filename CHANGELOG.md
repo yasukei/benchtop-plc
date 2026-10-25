@@ -8,6 +8,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-25
+
+Configurations, tasks and global variables: configuration sources with several program instances, cyclic and event tasks, global variables, PROGRAM parameters, byte, word and memory addresses, numeric panel parts, and retentive variables with warm restart. Contains a breaking change to monitor paths; see Changed.
+
 ### Added
 
 - Tank station reference project combining two parameterized tank controllers,
@@ -48,7 +52,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   when their program's first instance runs again.
 
 - PROGRAM inputs and outputs with per-instance configuration connections to
-  constants, globals and existing BOOL I/O addresses. Values copy around each
+  constants, globals and direct addresses. Values copy around each
   instance with forces restored at every boundary. Connected inputs reject monitor
   writes and accept forces; unconnected inputs keep their values. PLCopen XML
   preserves program interfaces and exact connection source text. Direct addresses
@@ -57,7 +61,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - Configuration and resource global variables and constants, imported by PROGRAMs
   and function blocks through VAR_EXTERNAL. Globals share storage across instances,
-  support derived types, references, FBs and existing bit addresses, and appear in
+  support derived types, references, FBs and direct addresses, and appear in
   a Globals monitor group with write and force controls. PLCopen XML preserves global
   and external declarations and CONSTANT attributes; imported constants work in
   array bounds and CASE labels. Invalid global declarations report configuration
@@ -72,12 +76,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   instances, and event task inputs. Imports without preserved text reconstruct
   configuration source when the implicit model cannot represent the structure.
   The web app compiles imported configurations, keeps them through autosave and
-  hides the implicit cycle selector while a configuration source is present;
-  execution still requires the compiler's supported single cyclic task.
+  hides the implicit cycle selector while a configuration source is present.
 
-- Configuration source compilation with one resource, one cyclic task and up to
-  64 independent program instances sharing their PROGRAM bodies. Configured task
-  intervals drive runtime execution; explicit configurations reject cycle commands.
+- Configuration source compilation with one resource and up to 64 independent
+  program instances sharing their PROGRAM bodies. Configured task intervals drive
+  runtime execution; explicit configurations reject cycle commands.
   Existing projects use an implicit configuration and keep their cycle control.
 
 - ADR 0016 documents the accepted design for configurations, tasks and scheduling,
@@ -397,7 +400,8 @@ First release: the single-file HTML prototype rebuilt as a tested monorepo.
   setting unless you choose Light or Dark.
 - The app opens with the blink example and its panel.
 
-[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/yasukei/benchtop-plc/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yasukei/benchtop-plc/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/yasukei/benchtop-plc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/yasukei/benchtop-plc/compare/v0.2.0...v0.3.0

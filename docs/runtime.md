@@ -639,7 +639,8 @@ a located declaration. A STOP single scan also finishes with zero outputs.
 Load and cold reset zero M and apply explicit located initializers in order:
 configuration globals, resource globals, then each program instance in declaration
 order. An uninitialized overlapping view does not erase an earlier initializer.
-Warm restart is deferred to #157.
+Warm restart also zeroes M and reapplies these initializers; see
+[Retentive storage and warm restart](#retentive-storage-and-warm-restart).
 
 Writing an overlapping integer view can store any IEEE bit pattern without a
 fault. A program read of a REAL/LREAL NaN or infinity, including an input connection

@@ -601,8 +601,9 @@ length is the global's. A FUNCTION external is invalid; the implicit configurati
 has no matching globals. Assigning an imported global constant is rejected by
 `decl.constant-not-writable`. Global constants may refer to earlier global constants;
 external constants are available to local constant expressions, bounds and CASE
-labels. REF accepts mutable externals and their elements/members. Global AT addresses
-follow the existing BOOL bit-address rules. RETAIN remains deferred.
+labels. REF accepts mutable externals and their elements/members. Global `AT`
+addresses follow the [direct-address rules](compiler.md#located-variables-and-direct-connections).
+Globals accept `RETAIN`/`NON_RETAIN` except with `AT` or `CONSTANT`.
 
 ## PROGRAM configuration connections
 
@@ -613,9 +614,9 @@ global outputs use assignment conversions. Aggregate and reference globals follo
 the existing exact-type rules, and strings use the receiving storage's capacity.
 An input-mapped global is not an output destination. PROGRAM inputs and outputs
 cannot declare `AT` addresses (`decl.parameter-address`); addresses must be
-connected in the configuration. Only BOOL bit addresses in
-byte 0 are currently supported; #155 adds numeric and memory addresses. Address
-connections must bind the parameter's type as a located declaration would.
+connected in the configuration. Address connections must bind the parameter's type
+as a located declaration would. A direct address cannot connect to a parameter
+declared in a `RETAIN` or `NON_RETAIN` section (`decl.retention-address`).
 
 Unknown parameters, incorrect direction, repeated connections, and invalid targets
 report `config.connection-parameter`, `config.connection-direction`,

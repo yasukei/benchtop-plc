@@ -175,11 +175,14 @@ END_CONFIGURATION
 ```
 
 The AST retains configuration/resource/task/instance/type identifiers and task
-bindings. `ON` consumes any identifier and discards it. The current subset requires
-one resource, one cyclic task and `WITH` on every instance. Duplicate task
-parameters and unsupported parameters (including `SINGLE`) are diagnostics, as
-are a second resource or configuration. Task parameter names are contextual:
-`INTERVAL`, `SINGLE` and `PRIORITY` remain ordinary identifier tokens.
-Both parameter values must be literals; the parser checks their exact numeric
-limits, while project checking resolves task/type names and namespace collisions.
-Global declarations and program parameter connections are not yet parsed.
+bindings. `ON` consumes any identifier and discards it. The current subset supports
+one resource, up to 16 tasks and `WITH` on every instance. Each task requires either
+`INTERVAL` or `SINGLE`, together with `PRIORITY`. Duplicate or unsupported task
+parameters are diagnostics, as are a second resource or configuration. Task
+parameter names are contextual: `INTERVAL`, `SINGLE` and `PRIORITY` remain ordinary
+identifier tokens. `INTERVAL` and `PRIORITY` values must be literals; the parser
+checks their exact numeric limits. `SINGLE` retains its address or global-name
+tokens for project checking, which resolves event inputs, task/type names and
+namespace collisions. The parser also accepts `VAR_GLOBAL` sections in the
+configuration and resource, and program parameter connections (`:=` inputs and
+`=>` outputs).
