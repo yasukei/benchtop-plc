@@ -322,6 +322,7 @@ or Restore example initializes all values as a program load.
 
 When autosaved text does not compile, retained records remain in storage until
 the first successful load. Missing or mismatched records leave defaults; an alert
-lists the count and every affected path. Storage being unavailable or full raises
+lists the count and every affected path; the alert clears on the next successful
+program load, warm restart or cold reset. Storage being unavailable or full raises
 a warning without stopping the PLC. Retained values are local browser state and
 are not embedded in project XML.

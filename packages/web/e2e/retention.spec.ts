@@ -75,29 +75,45 @@ test("acknowledging a division-by-zero fault performs a warm restart into STOP",
   await expect(page.getByRole("button", { name: "Warm restart", exact: true })).toBeVisible();
 });
 
-test("reload reports changed and missing retained paths from unapplied source edits", async ({
-  page,
-}) => {
-  await apply(page);
-  await page.getByRole("button", { name: "Single scan", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Structured Text", exact: true })
-    .fill(`PROGRAM Retained VAR RETAIN added : INT; ctr : CTD; END_VAR END_PROGRAM`);
-  await expect
-    .poll(() =>
-      page.evaluate(
-        (key) => JSON.parse(localStorage.getItem(key)!).pous[0].source,
-        autosaveStorageKey,
-      ),
-    )
-    .toContain("added");
-  await page.reload();
-  await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
-  const warning = page.getByRole("alert").filter({ hasText: "Retained values not restored (3)" });
-  await expect(warning).toContainText("mainInstance.kept");
-  await expect(warning).toContainText("mainInstance.ctr");
-  await expect(warning).toContainText("mainInstance.added");
-});
+for (const action of ["load", "warmRestart", "coldReset"] as const) {
+  test(`reload reports mismatched retained paths and ${action} clears the warning`, async ({
+    page,
+  }) => {
+    await apply(page);
+    await page.getByRole("button", { name: "Single scan", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: "Structured Text", exact: true })
+      .fill(`PROGRAM Retained VAR RETAIN added : INT; ctr : CTD; END_VAR END_PROGRAM`);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key)!).pous[0].source,
+          autosaveStorageKey,
+        ),
+      )
+      .toContain("added");
+    await page.reload();
+    await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+    const warning = page.getByRole("alert").filter({ hasText: "Retained values not restored (3)" });
+    await expect(warning).toContainText("mainInstance.kept");
+    await expect(warning).toContainText("mainInstance.ctr");
+    await expect(warning).toContainText("mainInstance.added");
+    if (action === "load") {
+      await page.getByRole("textbox", { name: "Structured Text", exact: true }).fill(source);
+      await page.getByRole("button", { name: "RUN", exact: true }).click();
+      await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+      await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
+    } else {
+      await page
+        .getByRole("button", {
+          name: action === "warmRestart" ? "Warm restart" : "Cold reset",
+          exact: true,
+        })
+        .click();
+    }
+    await expect(warning).toHaveCount(0);
+  });
+}
 
 test("storage failure warns while retained execution continues", async ({ page }) => {
   await page.addInitScript(() => {

@@ -170,7 +170,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       loadedConfigurationSource: state.configuration?.source ?? null,
       loadedIr: result.ir,
     });
-    update({ snapshot: null, diagnostic: null, rejection: null });
+    update({ snapshot: null, diagnostic: null, rejection: null, retentiveSkipped: [] });
     const retentive = pendingRestore;
     pendingRestore = undefined;
     client.send({ type: "load", ir: result.ir, ...(retentive === undefined ? {} : { retentive }) });
@@ -496,6 +496,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     send(message: UiToRuntimeMessage) {
       if (state.connection !== "connected") return;
       if (state.rejection) update({ rejection: null });
+      if (message.type === "warmRestart" || message.type === "coldReset")
+        update({ retentiveSkipped: [] });
       if (message.type === "setCycle") {
         if (state.configuration) return;
         if (!cycleOptions.includes(message.ms as CycleMs))

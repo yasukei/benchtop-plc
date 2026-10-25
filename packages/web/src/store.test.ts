@@ -661,3 +661,26 @@ END_RESOURCE END_CONFIGURATION`;
   expect(worker.sent.at(-1)).toEqual({ type: "setCycle", ms: 20 });
   store.dispose();
 });
+
+it("clears an old restore warning on a successful load and accepts fresh restore results", () => {
+  const { store, worker } = setup();
+  worker.receive({ type: "retentiveRestored", skipped: ["mainInstance.removed"] });
+  store.setSource("PROGRAM unfinished");
+  expect(store.loadEditor()).toBe(false);
+  expect(store.getSnapshot().retentiveSkipped).toEqual(["mainInstance.removed"]);
+  store.setSource(demoSource);
+  expect(store.loadEditor()).toBe(true);
+  expect(store.getSnapshot().retentiveSkipped).toEqual([]);
+  worker.receive({ type: "retentiveRestored", skipped: ["mainInstance.changed"] });
+  expect(store.getSnapshot().retentiveSkipped).toEqual(["mainInstance.changed"]);
+  store.dispose();
+});
+
+it.each(["warmRestart", "coldReset"] as const)("clears an old restore warning on %s", (type) => {
+  const { store, worker } = setup();
+  worker.receive({ type: "retentiveRestored", skipped: ["mainInstance.removed"] });
+  store.send({ type });
+  expect(store.getSnapshot().retentiveSkipped).toEqual([]);
+  expect(worker.sent.at(-1)).toEqual({ type });
+  store.dispose();
+});

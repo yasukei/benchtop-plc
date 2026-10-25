@@ -14,8 +14,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   STOP. Retained scalars and counter/edge/bistable state survive browser reloads;
   timers and references reset. Browser storage saves complete retained sets at most
   once per second during execution and after state-changing commands, reports
-  restore mismatches by path, and warns on storage failures. PLCopen XML preserves
-  retention qualifiers on POU and global variable lists.
+  restore mismatches by path until the next load or reset, and warns on storage
+  failures. PLCopen XML preserves retention qualifiers on POU and global variable lists.
 
 - Numeric operator panel inputs and displays for byte, word, double-word and
   long-word I/O, with type validation, exact 64-bit integer entry, optional input
