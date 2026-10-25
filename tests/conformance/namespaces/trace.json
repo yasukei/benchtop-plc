@@ -5,12 +5,22 @@
     {
       "label": "same simple class names have separate storage",
       "scans": 1,
-      "expect": { "P.belt.speed": 1, "P.hoist.speed": 10, "P.total": 11 }
+      "expect": {
+        "P.belt.speed": 1,
+        "P.hoist.speed": 10,
+        "P.total": 11,
+        "P.stateValue.Motor": 11
+      }
     },
     {
       "label": "qualified program runs on the configuration task",
       "scans": 2,
-      "expect": { "P.belt.speed": 3, "P.hoist.speed": 30, "P.total": 33 }
+      "expect": {
+        "P.belt.speed": 3,
+        "P.hoist.speed": 30,
+        "P.total": 33,
+        "P.stateValue.Motor": 33
+      }
     }
   ]
 }

@@ -729,4 +729,6 @@ INTERNAL member access uses the declaring type's namespace subtree, including
 inherited declarations; global types remain project-wide. Namespace roots join
 the shared name space with `decl.name-collision` kind `type`. Declarations cannot
 equal namespaces or use standard simple names. A variable collides with a
-namespaced declaration only where its simple name is visible.
+namespaced declaration only where its simple name is visible. Structure fields
+keep a separate member namespace and may reuse visible type names; namespace
+roots remain reserved for them.

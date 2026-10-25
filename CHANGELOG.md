@@ -14,7 +14,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   USING imports with ordered lexical lookup and ambiguity diagnostics. INTERNAL
   declarations, members and methods respect namespace boundaries. Project files
   preserve exact namespace sources and exchange qualified names; source lists and
-  monitor types display qualified names.
+  monitor types display qualified names. Structure fields keep their independent
+  member names, including names shared with visible types.
 
 - References to user function block and class instances (`REF_TO Motor`, `REF(inst)`
   and `REF(THIS)`). Dereferences support member access, dynamic method calls and

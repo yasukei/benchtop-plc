@@ -251,3 +251,28 @@ it("keeps missing instance diagnostics separate from known namespace lookups", (
     "namespace.unknown",
   );
 });
+
+it("keeps structure field names independent of visible namespaced types", () => {
+  expect(
+    codes(
+      [main("A.RecordType"), motor("A")],
+      [
+        wrap("A", "TYPE Count : INT; END_TYPE"),
+        wrap(
+          "A",
+          "TYPE RecordType : STRUCT Motor: INT; Count: Count; RecordType: INT; END_STRUCT; END_TYPE",
+        ),
+        "USING A; TYPE ImportedRecord : STRUCT Motor: INT; Count: Count; END_STRUCT; END_TYPE",
+      ],
+    ),
+  ).toEqual([]);
+});
+
+it("keeps namespace roots reserved for structure fields", () => {
+  expect(
+    codes(
+      [main("INT"), motor("A")],
+      [wrap("A", "TYPE RecordType : STRUCT A: INT; END_STRUCT; END_TYPE")],
+    ),
+  ).toContain("decl.name-collision");
+});

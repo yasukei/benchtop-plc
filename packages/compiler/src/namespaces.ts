@@ -142,13 +142,15 @@ export function resolveNamespaces(
         const call = value as import("./ast.js").FunctionBlockCall;
         if (!locals.has(call.instance.key)) resolve(call.instance, source, source);
       }
+      // Structure fields have their own member scope, but still reserve namespace roots.
       if (node.kind === "declaration") {
         for (const name of (value as import("./ast.js").Declaration).names)
           if (
             roots.has(name.key) ||
-            candidates(name, source).some(
-              (item) => item.namespace && (sameNamespace(item, source) || !item.internal),
-            )
+            ("body" in source &&
+              candidates(name, source).some(
+                (item) => item.namespace && (sameNamespace(item, source) || !item.internal),
+              ))
           )
             report(source, name, "decl.name-collision", name.name);
       }

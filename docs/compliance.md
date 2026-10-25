@@ -413,7 +413,8 @@ then imports plus globals with ambiguity detection; qualified names are absolute
 INTERNAL declarations require a namespace and are accessible only in it and its
 descendants. INTERNAL members of global types remain project-wide. Namespace
 roots reserve project names, declaration names cannot equal namespaces, and
-standard simple names stay reserved. TC6 names/references are qualified and exact
+standard simple names stay reserved. Structure fields may reuse visible type
+names while still reserving namespace roots. TC6 names/references are qualified and exact
 source text survives exchange. Library project management is outside this scope.
 These follow the 3rd edition and project restrictions; 4th-edition verification
 remains pending.
