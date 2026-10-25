@@ -48,6 +48,55 @@ describe("numeric panel bindings", () => {
     ).toMatchObject({ label: "", dataType: "REAL" });
     expect(readLayout([{ ...addPart([], "numericDisplay", "Value")[0], min: 0 }])).toBeNull();
   });
+  it.each([
+    ["numericInput", "pushbutton", "I"],
+    ["numericInput", "selector", "I"],
+    ["numericDisplay", "led", "Q"],
+  ] as const)("allocates disjoint defaults for %s and %s in either order", (numeric, bit, area) => {
+    let layout = addPart([], numeric, "First");
+    layout = addPart(layout, numeric, "Second");
+    layout = addPart(layout, bit, "Bit");
+    expect(layout.map((part) => part.address)).toEqual([
+      `%${area}W0`,
+      `%${area}W1`,
+      `%${area}X4.0`,
+    ]);
+
+    layout = addPart([], bit, "First bit");
+    layout = addPart(layout, numeric, "Number");
+    layout = addPart(layout, bit, "Second bit");
+    expect(layout.map((part) => part.address)).toEqual([
+      `%${area}X0.0`,
+      `%${area}W1`,
+      `%${area}X0.1`,
+    ]);
+  });
+  it.each([
+    ["USINT", "%IB1", "%IW1", "%IX0.0"],
+    ["DINT", "%ID0", "%IW2", "%IX4.0"],
+    ["ULINT", "%IL0", "%IW4", "%IX8.0"],
+  ] as const)("accounts for the byte range of existing %s parts", (type, address, word, bit) => {
+    const existing = assignAddress(assignNumericType(input(), type), address);
+    expect(addPart([existing], "numericInput", "Number")[1]?.address).toBe(word);
+    expect(addPart([existing], "pushbutton", "Bit")[1]?.address).toBe(bit);
+  });
+  it("keeps input and output areas separate and reuses addresses after deletion", () => {
+    const existing = input();
+    expect(addPart([existing], "numericDisplay", "Output")[1]?.address).toBe("%QW0");
+    expect(addPart([existing], "led", "Lamp")[1]?.address).toBe("%QX0.0");
+    const second = addPart([existing], "numericInput", "Second")[1]!;
+    expect(addPart([second], "numericInput", "Reused")[1]?.address).toBe("%IW0");
+    expect(assignAddress(second, "%IW0").address).toBe("%IW0");
+  });
+  it("falls back to the first address only after all candidates are occupied", () => {
+    const full = Array.from({ length: 8 }, (_, index) => ({
+      ...assignNumericType(input(), "ULINT"),
+      id: String(index),
+      address: `%IL${index}`,
+    }));
+    expect(addPart(full, "numericInput", "Number").at(-1)?.address).toBe("%IW0");
+    expect(addPart(full, "pushbutton", "Bit").at(-1)?.address).toBe("%IX0.0");
+  });
   it("spaces wider numeric parts apart from bit controls", () => {
     let layout = addPart([], "led", "Lamp");
     layout = addPart(layout, "numericInput", "Setpoint");

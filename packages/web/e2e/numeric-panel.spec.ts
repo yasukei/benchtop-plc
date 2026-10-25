@@ -18,7 +18,8 @@ END_PROGRAM`);
     .selectOption("numericInput");
   await panel.getByRole("button", { name: "Add part", exact: true }).click();
   await panel.getByLabel("Label", { exact: true }).fill("Setpoint");
-  await expect(panel.getByRole("combobox", { name: "Address", exact: true })).toHaveValue("%IW0");
+  await expect(panel.getByRole("combobox", { name: "Address", exact: true })).toHaveValue("%IW1");
+  await panel.getByRole("combobox", { name: "Address", exact: true }).selectOption("%IW0");
   await expect(panel.getByRole("combobox", { name: "Type", exact: true })).toHaveValue("INT");
   await panel.getByLabel("Minimum", { exact: true }).fill("-100");
   await panel.getByLabel("Maximum", { exact: true }).fill("100");
@@ -28,12 +29,15 @@ END_PROGRAM`);
     .selectOption("numericDisplay");
   await panel.getByRole("button", { name: "Add part", exact: true }).click();
   await panel.getByLabel("Label", { exact: true }).fill("Actual");
-  await expect(panel.getByRole("combobox", { name: "Address", exact: true })).toHaveValue("%QW0");
+  await expect(panel.getByRole("combobox", { name: "Address", exact: true })).toHaveValue("%QW1");
+  await panel.getByRole("combobox", { name: "Address", exact: true }).selectOption("%QW0");
   await panel
     .getByRole("combobox", { name: "Part type", exact: true })
     .selectOption("numericInput");
   await panel.getByRole("button", { name: "Add part", exact: true }).click();
   await panel.getByLabel("Label", { exact: true }).fill("Mirror input");
+  await expect(panel.getByRole("combobox", { name: "Address", exact: true })).toHaveValue("%IW1");
+  await panel.getByRole("combobox", { name: "Address", exact: true }).selectOption("%IW0");
   const downloadPromise = page.waitForEvent("download");
   await panel.getByRole("button", { name: "Save project", exact: true }).click();
   const saved = await (await downloadPromise).path();

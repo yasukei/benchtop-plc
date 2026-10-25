@@ -289,7 +289,11 @@ bindings and save version 1 when possible, otherwise address-based version 2.
 
 Numeric inputs and displays bind the B/W/D/L sizes in the input and output areas,
 respectively. Add a numeric part in **Edit panel**, select its type (which selects
-its address size), then choose an address. The supported types are BYTE/SINT/USINT,
+its address size), then choose an address. New parts automatically select the first
+address that does not overlap an existing panel binding in the same area, falling
+back to the first address only when no free address remains. Separate bit controls
+can share a byte. Explicit rebinding still permits overlapping views.
+The supported types are BYTE/SINT/USINT,
 WORD/INT/UINT, DWORD/DINT/UDINT/REAL and LWORD/LINT/ULINT/LREAL. Labels are optional.
 Inputs use a number field; configure optional **Minimum** and **Maximum** bounds
 with **Apply range**. Bounds must fit the type, and the minimum must be less than

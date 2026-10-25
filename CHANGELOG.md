@@ -15,6 +15,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   bounds and sliders, and monitor formatting for outputs and invalid real values.
   The panel editor configures their labels, types and addresses; numeric layouts
   save as panel extension version 2 while legacy layouts keep their version rules.
+  New parts default to free addresses that avoid existing bit and numeric bindings.
 
 - Typed direct addresses in 64-byte input/output areas and a 1,024-byte memory
   area, with shared overlapping views, little-endian byte/word/double-word/long-word
