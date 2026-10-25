@@ -141,3 +141,16 @@ it("faults on an out-of-range input copy before executing its instance", () => {
   });
   expect(value("A.ran")).toMatchObject({ value: false });
 });
+
+it.each(["VAR_INPUT", "VAR_OUTPUT"])(
+  "requires configuration connections instead of AT on PROGRAM %s",
+  (section) => {
+    const result = compileProject([
+      `PROGRAM Main ${section} signal AT %QX0.0 : BOOL; END_VAR END_PROGRAM`,
+    ]);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "decl.parameter-address", pou: "Main" }),
+    );
+  },
+);

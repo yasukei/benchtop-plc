@@ -752,6 +752,11 @@ class Checker {
     if (declaration.address) {
       const address = declaration.address;
       if (declaration.section === "VAR_TEMP") this.report("decl.temp-address", {}, address.span);
+      if (
+        this.ast.kind === "program" &&
+        (declaration.section === "VAR_INPUT" || declaration.section === "VAR_OUTPUT")
+      )
+        this.report("decl.parameter-address", {}, address.span);
       if (this.ast.kind !== "program") this.report("pou.direct-address", {}, address.span);
       if (declaration.names.length > 1) this.report("decl.at-multiple-names", {}, address.span);
       if (address.byte !== 0 || address.bit < 0 || address.bit > 7)

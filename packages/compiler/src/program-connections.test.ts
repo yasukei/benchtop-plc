@@ -67,3 +67,27 @@ it("connects contextual enumeration literals and aliases to BOOL addresses", () 
     value: 0,
   });
 });
+
+it.each([
+  ["VAR_INPUT", "%IX0.0", "Start := TRUE"],
+  ["VAR_OUTPUT", "%QX0.0", "Start => %QX0.1"],
+])("rejects AT on PROGRAM %s with and without a connection", (section, address, connection) => {
+  const source = `PROGRAM Main ${section} Start AT ${address} : BOOL; END_VAR END_PROGRAM`;
+  for (const configurationSource of [undefined, configuration(connection)]) {
+    const result = compileProject([source], [], configurationSource);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "decl.parameter-address",
+        pou: "Main",
+        sourceIndex: 0,
+        span: {
+          line: 1,
+          column: source.indexOf(address) + 1,
+          endLine: 1,
+          endColumn: source.indexOf(address) + address.length + 1,
+        },
+      }),
+    );
+  }
+});

@@ -611,7 +611,9 @@ address; an output connection (`=>`) accepts a mutable global or output address.
 Global/constant inputs use contextual typing and implicit widening as FB inputs do;
 global outputs use assignment conversions. Aggregate and reference globals follow
 the existing exact-type rules, and strings use the receiving storage's capacity.
-An input-mapped global is not an output destination. Only BOOL bit addresses in
+An input-mapped global is not an output destination. PROGRAM inputs and outputs
+cannot declare `AT` addresses (`decl.parameter-address`); addresses must be
+connected in the configuration. Only BOOL bit addresses in
 byte 0 are currently supported; #155 adds numeric and memory addresses. Address
 connections must bind the parameter's type as a located declaration would.
 

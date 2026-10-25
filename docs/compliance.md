@@ -85,7 +85,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 | Feature                      | Status  | Notes                                                                                                                                                                      |
 | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROGRAM`                    | Partial | One implicitly, or multiple PROGRAM bodies with 1–64 configured instances; VAR_INPUT/VAR_OUTPUT and per-instance connections; no PROGRAM VAR_IN_OUT (restriction)          |
+| `PROGRAM`                    | Partial | One implicit PROGRAM or 1–64 configured instances; VAR_INPUT/VAR_OUTPUT connections; no PROGRAM VAR_IN_OUT or AT on parameters (restrictions)                              |
 | `FUNCTION`                   | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
 | `FUNCTION_BLOCK`             | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
 | Classes, methods, interfaces | No      |                                                                                                                                                                            |

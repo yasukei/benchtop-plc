@@ -14,7 +14,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   constants, globals and existing BOOL I/O addresses. Values copy around each
   instance with forces restored at every boundary. Connected inputs reject monitor
   writes and accept forces; unconnected inputs keep their values. PLCopen XML
-  preserves program interfaces and exact connection source text.
+  preserves program interfaces and exact connection source text. Direct addresses
+  connect in the configuration; `AT` on PROGRAM input/output declarations is rejected.
 
 - Configuration and resource global variables and constants, imported by PROGRAMs
   and function blocks through VAR_EXTERNAL. Globals share storage across instances,

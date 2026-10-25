@@ -39,6 +39,7 @@ export interface DiagnosticArgs {
   "decl.name-collision": { name: string; kind: "type" | "function" };
   "decl.direct-address-type": { name: string; type: string };
   "decl.temp-address": NoArguments;
+  "decl.parameter-address": NoArguments;
   "decl.at-multiple-names": NoArguments;
   "decl.address-out-of-range": { address: string };
   "decl.nonconstant-initializer": { name: string };

@@ -102,6 +102,8 @@ export const diagnosticEn = {
   "decl.direct-address-type": ({ name, type }) =>
     `Direct address on ${name} requires BOOL; found ${typeText(type)}.`,
   "decl.temp-address": () => "Temporary variables cannot have direct addresses.",
+  "decl.parameter-address": () =>
+    "PROGRAM parameters cannot declare direct addresses. Connect them in the configuration instead.",
   "decl.at-multiple-names": () => "AT cannot apply to multiple declared names.",
   "decl.address-out-of-range": ({ address }) => `Address is outside supported I/O: ${address}.`,
   "decl.nonconstant-initializer": ({ name }) =>
@@ -291,6 +293,8 @@ export const diagnosticJa = {
   "decl.direct-address-type": ({ name, type }) =>
     `${name}の直接アドレスにはBOOLが必要ですが、${typeText(type)}です。`,
   "decl.temp-address": () => "一時変数に直接アドレスは指定できません。",
+  "decl.parameter-address": () =>
+    "PROGRAMのパラメーター宣言に直接アドレスは指定できません。コンフィグレーションで接続してください。",
   "decl.at-multiple-names": () => "ATを複数の宣言名に適用することはできません。",
   "decl.address-out-of-range": ({ address }) => `対応するI/Oの範囲外のアドレスです: ${address}。`,
   "decl.nonconstant-initializer": ({ name }) => `${name}の初期値には定数式が必要です。`,

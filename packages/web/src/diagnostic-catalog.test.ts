@@ -67,6 +67,7 @@ const examples = {
   "decl.name-collision": { name: "ABS", kind: "function" },
   "decl.direct-address-type": { name: "Counter", type: "INT" },
   "decl.temp-address": {},
+  "decl.parameter-address": {},
   "decl.at-multiple-names": {},
   "decl.address-out-of-range": { address: "%IX1.0" },
   "decl.nonconstant-initializer": { name: "Counter" },

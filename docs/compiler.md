@@ -200,6 +200,8 @@ following the block definitions.
 ## PROGRAM parameters and connections
 
 PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`; `VAR_IN_OUT` remains rejected.
+`AT` on a PROGRAM parameter declaration is rejected (`decl.parameter-address`);
+connect direct addresses in the configuration instead.
 An instance can connect named parameters, for example:
 
 ```iecst
