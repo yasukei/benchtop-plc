@@ -6,6 +6,8 @@ import {
   internalValue,
   scalarBase,
   referenceLike,
+  referenceType,
+  resolveType,
   interfaceType,
   type StorageReference,
   type InlineValue,
@@ -542,10 +544,24 @@ export class Interpreter {
         if (referenceLike(statement.target.dataType, this.programMemory.ir.types)) {
           let value = this.referenceExpression(statement.value);
           if (statement.attempt && value) {
-            const target = interfaceType(statement.target.dataType, this.programMemory.ir.types)!;
-            const block = value.frame.userBlock(value.variable).block;
-            if (!this.programMemory.ir.functionBlocks![block]!.interfaces?.includes(target.name))
-              value = null;
+            const types = this.programMemory.ir.types;
+            const target = interfaceType(statement.target.dataType, types);
+            const blocks = this.programMemory.ir.functionBlocks!;
+            let block: number | undefined = value.frame.userBlock(value.variable).block;
+            if (target) {
+              if (!blocks[block]!.interfaces?.includes(target.name)) value = null;
+            } else {
+              const ref = referenceType(statement.target.dataType, types)!;
+              const type = resolveType(ref.target, types);
+              if (typeof type !== "object" || type.kind !== "functionBlock")
+                throw new Error("Invalid assignment attempt target");
+              while (
+                block !== undefined &&
+                blocks[block]!.name.toUpperCase() !== type.name.toUpperCase()
+              )
+                block = blocks[block]!.base;
+              if (block === undefined) value = null;
+            }
           }
           const location = this.location(statement.target as StorageReference);
           this.annotate(statement, [location.frame.writeReference(location.variable, value)]);

@@ -195,6 +195,17 @@ export function sameScalarType(
         compare(la.element, ra.element)
       );
     if (structureType(a, table) || structureType(b, table)) return left === right;
+    if (
+      (typeof left === "object" && left.kind === "functionBlock") ||
+      (typeof right === "object" && right.kind === "functionBlock")
+    )
+      return (
+        typeof left === "object" &&
+        left.kind === "functionBlock" &&
+        typeof right === "object" &&
+        right.kind === "functionBlock" &&
+        left.name.toUpperCase() === right.name.toUpperCase()
+      );
     const li = interfaceType(a, table),
       ri = interfaceType(b, table);
     if (li || ri) return !!li && !!ri && li.name.toUpperCase() === ri.name.toUpperCase();

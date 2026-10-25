@@ -458,7 +458,7 @@ class Checker {
   private arrayDeclaration(node: AST.ArrayDeclaration): TypeDescriptor | undefined {
     if (this.unsupportedBlockArrays.has(node)) return undefined;
     const key = declarationType(node.typeName.key);
-    const block = !node.array && (isBlock(key) || this.blockIds.has(key));
+    const block = !node.array && !node.reference && (isBlock(key) || this.blockIds.has(key));
     if (block && (node.subrange || node.stringLength !== undefined)) {
       this.report("type.invalid-constant", {}, node.span);
       return undefined;
@@ -647,21 +647,28 @@ class Checker {
         return undefined;
       };
       if (this.failedReferenceTargets.has(reference)) return fail();
-      if (
-        !reference.reference &&
-        !reference.array &&
-        (isBlock(reference.typeName.key) || this.blockIds.has(reference.typeName.key))
-      ) {
+      if (!reference.reference && !reference.array && isBlock(reference.typeName.key)) {
         this.report("type.invalid-reference-target", {}, reference.typeName.span);
         return fail();
       }
-      const target = this.descriptor(
-        reference.typeName,
-        reference.subrange,
-        reference.stringLength,
-        reference.array,
-        reference.reference,
-      );
+      const target: TypeDescriptor | undefined =
+        !reference.reference &&
+        !reference.array &&
+        !reference.subrange &&
+        reference.stringLength === undefined &&
+        this.blockIds.has(reference.typeName.key)
+          ? {
+              kind: "functionBlock",
+              name: reference.typeName.key,
+              block: this.blockIds.get(reference.typeName.key)!,
+            }
+          : this.descriptor(
+              reference.typeName,
+              reference.subrange,
+              reference.stringLength,
+              reference.array,
+              reference.reference,
+            );
       if (!target) {
         if (!this.failedReferenceTypes.has(reference.typeName)) {
           let leaf = reference;
@@ -681,7 +688,11 @@ class Checker {
           : r
             ? valid(r.target)
             : !interfaceType(type, this.types) &&
-              !(typeof type !== "string" && type.kind === "functionBlock");
+              !(
+                typeof type === "object" &&
+                type.kind === "functionBlock" &&
+                !this.blockIds.has(type.name)
+              );
       };
       if (!valid(target)) {
         this.report("type.invalid-reference-target", {}, reference.typeName.span);
@@ -1220,6 +1231,10 @@ class Checker {
         this.report("type.invalid-reference-target", {}, node.span);
         return null;
       }
+      if (!instance && typeof ref.target === "object" && ref.target.kind === "functionBlock") {
+        this.report("fb.instance-as-value", { name: rootName(node).name }, node.span);
+        return null;
+      }
       return { dataType: this.base(ref.target), descriptor: ref.target };
     }
     if (node.kind === "field") {
@@ -1487,7 +1502,7 @@ class Checker {
     if (
       expected &&
       interfaceType(expected, this.types) &&
-      ["name", "member", "field", "index"].includes(node.kind)
+      ["name", "member", "field", "index", "dereference"].includes(node.kind)
     ) {
       const value = this.reference(node as AST.AssignmentTarget, false, true);
       if (
@@ -1500,6 +1515,7 @@ class Checker {
           .concat(this.ast.declarations)
           .find((d) => d.names.some((n) => n.key === root.key));
         if (
+          node.kind !== "dereference" &&
           root.key !== "THIS" &&
           (!declaration ||
             declaration.constant ||
@@ -1683,7 +1699,7 @@ class Checker {
             !["=", "<>"].includes(node.operator) ||
             (!left.nullReference &&
               !right.nullReference &&
-              !sameScalarType(lr.target, rr.target, this.types))
+              !(this.referenceAssignable(lr, rr) || this.referenceAssignable(rr, lr)))
           ) {
             if (left.nullReference || right.nullReference) {
               this.report("type.invalid-reference-target", {}, node.span);
@@ -1888,8 +1904,7 @@ class Checker {
       this.report("type.invalid-reference-target", {}, node.span);
       return null;
     };
-    if (node.args.length !== 1 || node.inputNames || node.outputs || this.ast.kind === "function")
-      return invalid();
+    if (node.args.length !== 1 || node.inputNames || node.outputs) return invalid();
     const target = node.args[0]!;
     if (!["name", "member", "field", "index"].includes(target.kind)) return invalid();
     const access = target as AST.AssignmentTarget;
@@ -1902,16 +1917,26 @@ class Checker {
             ? noDereference(value.object)
             : true;
     if (!noDereference(access)) return invalid();
-    const name = rootName(access);
-    const declaration = this.ast.declarations.find((d) => d.names.some((n) => n.key === name.key));
+    let root = access;
+    while (root.kind === "field" || root.kind === "index")
+      root = root.kind === "field" ? root.object : root.array;
+    const name =
+      root.kind === "member" && root.instance.key === "THIS" ? root.member : rootName(root);
+    const declaration = (this.ast.owner?.declarations ?? [])
+      .concat(this.ast.declarations)
+      .find((d) => d.names.some((n) => n.key === name.key));
+    const owner =
+      this.ast.owner ?? (["class", "functionBlock"].includes(this.ast.kind) ? this.ast : undefined);
     if (
-      !declaration ||
-      declaration.constant ||
-      declaration.section === "VAR_TEMP" ||
-      declaration.section === "VAR_IN_OUT"
+      !(name.key === "THIS" && owner) &&
+      (!declaration ||
+        declaration.constant ||
+        declaration.section === "VAR_TEMP" ||
+        declaration.section === "VAR_IN_OUT" ||
+        (this.ast.kind === "function" && this.ast.declarations.includes(declaration)))
     )
       return invalid();
-    const info = this.reference(access, false);
+    const info = this.reference(access, false, true);
     if (!info) return null;
     const selector =
       access.kind === "member" || access.kind === "field"
@@ -1919,7 +1944,8 @@ class Checker {
         : undefined;
     if (selector?.bit !== undefined) return invalid();
     const type = info.descriptor ?? info.dataType;
-    if (typeof type !== "string" && type.kind === "functionBlock") return invalid();
+    if (typeof type !== "string" && type.kind === "functionBlock" && !this.blockIds.has(type.name))
+      return invalid();
     this.expressions.set(access, info);
     return { dataType: "INT", descriptor: { kind: "reference", target: type } };
   }
@@ -2588,7 +2614,7 @@ class Checker {
   private blockCall(node: AST.FunctionCall): void {
     let symbol = this.resolve(node.name);
     if (!symbol) return;
-    if (isScalar(symbol.type)) {
+    if (isScalar(symbol.type) && node.instance?.kind !== "dereference") {
       this.report("fb.not-function-block", { name: node.name.name }, node.name.span);
       return;
     }
@@ -2614,7 +2640,7 @@ class Checker {
       this.report("class.not-callable", { name: node.name.name }, node.span);
       return;
     }
-    if (this.ast.kind === "function" && !this.ast.owner)
+    if (this.ast.kind === "function" && !this.ast.owner && node.instance?.kind !== "dereference")
       this.report("pou.function-block-in-function", {}, node.span);
     if (node.args.length && !node.inputNames) {
       this.report("fb.unsupported-call", { name: node.name.name }, node.span);
@@ -2682,6 +2708,35 @@ class Checker {
     }
   }
 
+  /** Assignment permits only upward conversion of instance reference targets. */
+  private referenceAssignable(target: TypeDescriptor, source: TypeDescriptor): boolean {
+    const t = referenceType(target, this.types),
+      s = referenceType(source, this.types);
+    if (!t || !s) return false;
+    const left = resolveType(t.target, this.types),
+      right = resolveType(s.target, this.types);
+    if (
+      typeof left === "object" &&
+      left.kind === "functionBlock" &&
+      typeof right === "object" &&
+      right.kind === "functionBlock"
+    ) {
+      let actual = this.pous.get(right.name);
+      while (actual) {
+        if (actual.name.key === left.name) return true;
+        actual = actual.baseType;
+      }
+      return false;
+    }
+    return sameScalarType(target, source, this.types);
+  }
+
+  private instanceReference(type: TypeDescriptor): boolean {
+    const ref = referenceType(type, this.types);
+    const target = ref && resolveType(ref.target, this.types);
+    return typeof target === "object" && target.kind === "functionBlock";
+  }
+
   private assignment(target: TypeDescriptor, info: ExpressionInfo, span: SourceSpan): boolean {
     const source = info.descriptor ?? info.dataType;
     const ti = interfaceType(target, this.types),
@@ -2708,7 +2763,7 @@ class Checker {
     if (referenceType(target, this.types) || referenceType(source, this.types)) {
       if (
         referenceType(target, this.types) &&
-        (info.nullReference || sameScalarType(target, source, this.types))
+        (info.nullReference || this.referenceAssignable(target, source))
       )
         return true;
       this.report("type.assign-mismatch", { from: source, to: target }, span);
@@ -2781,9 +2836,13 @@ class Checker {
             if (
               !target ||
               !value ||
-              !interfaceType(target.descriptor ?? target.dataType, this.types) ||
+              !(
+                interfaceType(target.descriptor ?? target.dataType, this.types) ||
+                this.instanceReference(target.descriptor ?? target.dataType)
+              ) ||
               !(
                 value.nullReference ||
+                this.instanceReference(value.descriptor ?? value.dataType) ||
                 (variableSource(node.value) &&
                   interfaceType(value.descriptor ?? value.dataType, this.types))
               )

@@ -436,3 +436,12 @@ types. Malformed, duplicated or unsupported-version records are rejected.
 IMPLEMENTS stays in the exact source extension of classes and function blocks and
 does not affect comparison against standard TC6 declarations/body. Other TC6 tools
 may discard the interface record, as indicated by handleUnknown.
+
+## References to instances (ADR 0017)
+
+User block/class reference targets use the existing TC6 pointer mapping:
+`REF_TO Motor` is `<pointer><baseType><derived name="MOTOR"/></baseType></pointer>`
+(the standard interface uses canonical type names). This applies to variables,
+parameters/results, aliases, array elements and structure members. Source
+extensions preserve exact spelling and text on save/reopen, alongside the target
+type's class/method extension. Reference values and live bindings are not saved.

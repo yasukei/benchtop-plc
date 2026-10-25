@@ -684,7 +684,7 @@ export class Parser {
       this.expect(";");
       return { kind: "call", call, span: this.spanFrom(start) };
     }
-    if (target.kind === "index" && this.accept("(")) {
+    if ((target.kind === "index" || target.kind === "dereference") && this.accept("(")) {
       const call = this.functionArguments(rootName(target), true);
       call.instance = target;
       this.expect(";");

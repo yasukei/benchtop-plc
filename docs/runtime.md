@@ -736,3 +736,18 @@ list; mismatch and NULL both store NULL without a fault. Interface cells start
 NULL on load, cold reset, warm restart and reload, even under RETAIN. STOP/RUN,
 single scans and FAULT preserve targets. Snapshots expose the instance path or
 NULL using the existing reference value shape; writes and forces are rejected.
+
+## References to user instances (ADR 0017)
+
+Reference addresses may identify user block/class cells as well as data cells.
+Dereferenced method receivers and body calls resolve the address before arguments
+and dispatch using the actual block definition. `REF(THIS)` uses the receiver's
+persistent identity. Interface binding of a dereferenced instance resolves that
+storage too, so `a := r^` with NULL faults like member, method and body access.
+
+Assignment attempts check the actual instance's implemented interfaces or walk
+its base chain to match a target reference type; mismatches and NULL sources clear
+the target without faulting. Snapshots use the instance path, for example
+`{ kind: "reference", target: "mainInstance.MOTORS[2]" }`. Instance references are
+never retained, including nested RETAIN leaves; warm restart, cold reset and load
+clear them, while STOP/RUN preserves them.

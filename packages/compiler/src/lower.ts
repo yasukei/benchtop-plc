@@ -422,6 +422,12 @@ class Lowerer {
         };
       }
       case "functionCall": {
+        if (
+          node.name.key === "REF" &&
+          node.args[0]?.kind === "name" &&
+          node.args[0].name.key === "THIS"
+        )
+          return { ...base, kind: "instanceReference" };
         if (node.name.key === "REF")
           return {
             ...base,
@@ -513,20 +519,10 @@ class Lowerer {
             },
           }));
     const inOuts = this.checked.blockInOuts.get(node) ?? [];
-    return {
+    const common = {
       ...(inOuts.length ? { inOuts: this.inOutBindings(inOuts) } : {}),
       span: span(node),
-      kind: (
-        node.kind === "functionCall" && node.instance
-          ? this.checked.blockCalls.has(node)
-          : symbol.userBlock !== undefined
-      )
-        ? "userFbCall"
-        : "fbCall",
       variable,
-      ...(node.kind === "functionCall" && node.instance
-        ? { instance: this.reference(node.instance) as IR.IndexReference }
-        : {}),
       inputs: inputs
         .filter((input) => !inOuts.some((binding) => binding.actual === input.value))
         .map((input) => {
@@ -549,6 +545,21 @@ class Lowerer {
           }
         : {}),
     };
+    const instance =
+      node.kind === "functionCall" && node.instance
+        ? (this.reference(node.instance) as IR.IndexReference | IR.Dereference)
+        : undefined;
+    const user =
+      node.kind === "functionCall" && node.instance
+        ? this.checked.blockCalls.has(node)
+        : symbol.userBlock !== undefined;
+    return user
+      ? { ...common, kind: "userFbCall", ...(instance ? { instance } : {}) }
+      : {
+          ...common,
+          kind: "fbCall",
+          ...(instance ? { instance: instance as IR.IndexReference } : {}),
+        };
   }
 
   private integerConstant(node: AST.Expression, target: IR.TypeDescriptor): number | string {

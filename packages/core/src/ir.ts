@@ -234,7 +234,7 @@ export interface FunctionBlockVariable extends VariableBase {
   initialValue: null;
 }
 
-/** Reference and interface values start unbound and acquire targets during execution. */
+/** References to data or user instances, and interface values, start unbound. */
 export interface ReferenceVariable extends VariableBase {
   kind: "reference";
   dataType: TypeDescriptor;
@@ -611,8 +611,8 @@ export interface UserFunctionBlockCallStatement extends SourceNode {
   inOuts?: InOutBinding[];
   kind: "userFbCall";
   variable: FrameSlot;
-  /** Indexed instance, resolved once before accessing ports or evaluating call inputs. */
-  instance?: IndexReference;
+  /** Instance storage, including a dereference; resolved before evaluating arguments. */
+  instance?: StorageReference;
   inputs: FunctionBlockInput[];
   outputs?: FunctionOutputAssignment[];
 }

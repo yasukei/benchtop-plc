@@ -153,3 +153,13 @@ it("uses structure name equivalence through aliases and counts nested scalar lea
     ],
   ]);
 });
+
+it("compares instance reference targets by name without treating them as scalars", () => {
+  const ref = (name: string): TypeDescriptor => ({
+    kind: "reference",
+    target: { kind: "functionBlock", name },
+  });
+  expect(sameScalarType(ref("Motor"), ref("MOTOR"))).toBe(true);
+  expect(sameScalarType(ref("Motor"), ref("Servo"))).toBe(false);
+  expect(sameScalarType(ref("Motor"), { kind: "reference", target: "INT" })).toBe(false);
+});

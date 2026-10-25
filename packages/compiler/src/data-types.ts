@@ -217,7 +217,7 @@ export function resolveDataTypes(
         { kind: "program", name: ast.name, span: ast.span, body: [], declarations },
         new Map(),
         new Map(),
-        new Map(),
+        blockIds,
         types,
       );
       diagnostics.push(...result.diagnostics.map((d) => ({ ...d, pou: ast.name.name })));

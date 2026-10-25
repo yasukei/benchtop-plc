@@ -151,7 +151,7 @@ export interface FunctionCall extends SourceNode {
   receiver?: AssignmentTarget;
   kind: "functionCall";
   name: Identifier;
-  instance?: ArrayAccess;
+  instance?: ArrayAccess | Dereference;
   args: Expression[];
   /** Present for formal calls; positional and formal inputs cannot be mixed. */
   inputNames?: Identifier[];

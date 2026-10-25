@@ -477,3 +477,14 @@ assignment with `attempt: true` tests the actual type and stores NULL on mismatc
 PROGRAM interface in-outs share the configured global's InstanceStorage directly.
 They allocate no separate monitored leaf and appear in neither input nor output
 transfer lists, preserving in-out alias semantics across program instances.
+
+## Instance reference targets (ADR 0017)
+
+A ReferenceVariable may have `{ kind: "reference", target: { kind: "functionBlock",
+name, block } }`, where the target identifies a shared user block/class definition.
+`referenceOf` can address persistent instance storage; `instanceReference` with a
+reference descriptor represents `REF(THIS)`. Interface binding of `r^` uses an
+instanceReference whose target is a dereference. `userFbCall.instance` accepts any
+StorageReference, including a dereference, resolved once before arguments.
+Method receivers also accept dereferences. Both dispatch using the instance's
+actual type. `assignment.attempt` also supports instance reference targets.
