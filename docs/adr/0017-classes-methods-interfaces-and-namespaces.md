@@ -181,6 +181,9 @@ about 4th edition clauses. The checks and project restrictions below are tracked
   - A derived body with statements replaces the base body. The base body then runs
     only where the derived body calls `SUPER();`, which takes no arguments and runs
     the base body (or the body the base inherits) with the instance's current inputs.
+  - A body of only comments has no statements, so it inherits the base body.
+    `RETURN;` is a statement, so a body of just `RETURN;` replaces the base body with
+    nothing.
   - `SUPER();` in a method, in a class, or in a function block without a base is a
     compile error.
 - `ABSTRACT` and `FINAL` appear in the type header (`CLASS ABSTRACT Actuator`) and the
@@ -450,11 +453,14 @@ This ADR adds no diagnostic code. Rows added to the run-time error table of ADR 
     without its base's members, methods or interfaces.
   - A class is written as `pouType="functionBlock"` with its own variable sections and
     an empty ST body. Other tools see a function block that does nothing when called.
-  - Interfaces have no TC6 counterpart. They are written in a project-root `addData`
-    record, `https://github.com/yasukei/benchtop-plc/ns/interface/1`, with one
-    `source` element per interface in project order. Other tools do not see them, and
-    an interface-typed variable appears to them as `<derived name="IActuator"/>`, a
-    type they cannot resolve.
+  - Interfaces have no TC6 counterpart. They are written in one project-root
+    `addData/data` record with `name="https://github.com/yasukei/benchtop-plc/ns/interface/1"`
+    and `handleUnknown="discard"`, like the existing records. Its single child is an
+    `interfaces` element in that namespace with `version="1"`, which holds one
+    `source` element per interface in project order, each with the interface's exact
+    text. Other tools do not see interfaces, and a re-save by another tool drops them,
+    as it drops methods. An interface-typed variable appears to other tools as
+    `<derived name="IActuator"/>`, a type they cannot resolve.
   - A namespaced declaration is written with its qualified name in `name` (TC6 allows
     any string) and in every `derived` type reference and `typeName`:
     `<pou name="Conveyor.Devices.Motor">` and `<derived name="Conveyor.Devices.Motor"/>`.
@@ -470,20 +476,28 @@ This ADR adds no diagnostic code. Rows added to the run-time error table of ADR 
   project compiles.
 - Access specifiers, `ABSTRACT`, `FINAL`, `EXTENDS`, `IMPLEMENTS` and `USING` exist
   only in the source text (restriction).
-- A 0.6.0 file opens unchanged unless one of its texts uses a new reserved word as a
-  name; the user then renames it in 0.6.0 first, and the changelog says so. A project
-  that uses none of the new features saves as 0.6.0 wrote it. Such a file is rejected
-  with `project.invalid` in both places a name can appear:
-  - Text generated from the standard elements (a variable or POU named `Class`) no
-    longer parses, which already rejects the file today.
-  - A preserved source extension text that does not parse would today fall back to the
-    standard elements with `project.stale-source`. This changes: when the text fails to
-    parse because a new reserved word stands where a name is expected, the file is
-    rejected with `project.invalid` instead. This covers names that exist only in the
-    source text, such as the resource type in `RESOURCE R ON Class` (TC6 does not store
-    it), and keeps the file from silently losing what only the source text holds, such
-    as program parameter connections (ADR 0016). Other unparsable preserved texts keep
-    the `project.stale-source` fallback.
+- A 0.6.0 file whose texts use none of the new reserved words as names opens
+  unchanged, and a project that uses none of the new features saves as 0.6.0 wrote it.
+- A 0.6.0 file that uses a new reserved word as a name (an enumeration value `Final`, a
+  variable `Class`) still opens, so the user can rename it in the current app; the
+  hosted app has no 0.6.0 build to go back to. Each text that fails to parse because
+  a new reserved word stands where a name is expected opens as an unparsable draft,
+  as autosave already keeps drafts (ADR 0014):
+  - With a source extension, the draft is the preserved text, not the standard
+    elements. This keeps names and data that exist only in the source text, such as
+    the resource type in `RESOURCE R ON Class` (TC6 does not store it) and program
+    parameter connections (ADR 0016). Today an unparsable preserved text falls back to
+    the standard elements with `project.stale-source`; this case is an exception.
+  - Without one, the draft is the text generated from the standard elements, which
+    today would reject the file.
+  - A data type whose text is a draft counts as unknown while the other texts are
+    read, so they open unchanged and report it when the project compiles.
+  - The drafts show their parse errors. As for any unparsable text (ADR 0014), the
+    project cannot run or be saved to a file until they parse; autosave keeps them.
+
+  Other unparsable preserved texts keep the `project.stale-source` fallback, and other
+  failures still reject the file. The changelog entries that reserve the words say
+  how such a file opens.
 
 ### Web app
 
@@ -558,8 +572,8 @@ forbids other behavior:
   only in the source text of the project file; derived function blocks write only
   their own variables; interfaces live in a project-root `addData` record and are
   listed after data types; qualified names are written in TC6 `name` attributes.
-- A 0.6.0 file that uses a new reserved word as a name is rejected on open, including
-  when the name appears only in a preserved source text.
+- A 0.6.0 file that uses a new reserved word as a name opens with the affected texts as
+  unparsable drafts, preserved source text first, for the user to rename.
 
 Issue #92 records each item. If a decision changes, the corresponding item there must
 change with it. This ADR does not update `docs/compliance.md`: each implementing
@@ -587,7 +601,8 @@ Milestone 8.
   as composites; the restriction can be relaxed later, for example with a run-time
   check, without breaking accepted programs.
 - Twenty new reserved words can break existing programs and 0.6.0 files that use them
-  as names; this is allowed in 0.x and listed in the changelog.
+  as names; this is allowed in 0.x and listed in the changelog. Such files still open,
+  with the affected texts as drafts to rename.
 - Other PLCopen tools see classes as empty function blocks and do not see methods,
   inheritance, interfaces or namespace semantics. benchtop-plc files keep their full
   meaning through the source extension.
