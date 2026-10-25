@@ -1,6 +1,6 @@
 import {
   coerceValue,
-  referenceType,
+  referenceLike,
   cloneInitialValue,
   isAggregateType,
   leafCount,
@@ -28,6 +28,7 @@ import { scalarTypes } from "./type-rules.js";
 export function resolveDataTypes(
   declarations: readonly DataTypeDeclaration[],
   blockIds: ReadonlyMap<string, number> = new Map(),
+  interfaceTypes: TypeTable = [],
 ): {
   types: TypeTable;
   diagnostics: Diagnostic[];
@@ -60,6 +61,7 @@ export function resolveDataTypes(
         : { kind: "alias", type: { kind: "named", name: ast.typeName!.name } },
     initialValue: [],
   }));
+  types.push(...interfaceTypes);
   const publish = (entry: TypeEntry): void => {
     const index = types.findIndex((type) => type.name.toUpperCase() === entry.name.toUpperCase());
     if (index < 0) types.push(entry);
@@ -312,7 +314,9 @@ export function resolveDataTypes(
       if (scalarTypes.some((type) => type === key)) base = key as (typeof scalarTypes)[number];
       else {
         const other = pending.get(key);
-        const entry = other ? resolveDependency(other) : undefined;
+        const entry = other
+          ? resolveDependency(other)
+          : types.find((t) => t.name.toUpperCase() === key);
         if (!entry) {
           if (failedCycles.has(ast.name.key)) {
             visiting.delete(ast.name.key);
@@ -411,7 +415,7 @@ export function resolveDataTypes(
       visiting.delete(ast.name.key);
       return undefined;
     }
-    if (referenceType(base, types)) {
+    if (referenceLike(base, types)) {
       const entry: TypeEntry = {
         name: ast.name.name,
         definition: { kind: "alias", type: base },
@@ -552,9 +556,12 @@ export function resolveDataTypes(
   };
   for (const ast of declarations) resolve(ast);
   return {
-    types: declarations.flatMap((ast) =>
-      types.filter((entry) => entry.name.toUpperCase() === ast.name.key),
-    ),
+    types: [
+      ...interfaceTypes,
+      ...declarations.flatMap((ast) =>
+        types.filter((entry) => entry.name.toUpperCase() === ast.name.key),
+      ),
+    ],
     diagnostics,
   };
 }

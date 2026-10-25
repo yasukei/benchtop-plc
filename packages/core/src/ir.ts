@@ -234,7 +234,7 @@ export interface FunctionBlockVariable extends VariableBase {
   initialValue: null;
 }
 
-/** References start unbound; targets are established only by executing REF assignments. */
+/** Reference and interface values start unbound and acquire targets during execution. */
 export interface ReferenceVariable extends VariableBase {
   kind: "reference";
   dataType: TypeDescriptor;
@@ -249,6 +249,8 @@ export interface ProgramIR extends SourceNode {
   body: Statement[];
   /** Ordered data type declarations; absent for elementary-only projects. */
   types?: TypeTable;
+  /** Interface prototypes have parameter/result layouts and empty bodies. */
+  interfaces?: { name: string; extends: string[]; methods: UserFunctionIR[] }[];
   /** Shared bodies; call indices address this array. Absent in a single-program IR. */
   functions?: UserFunctionIR[];
   functionBlocks?: UserFunctionBlockIR[];
@@ -305,6 +307,7 @@ export interface ConfigurationIR extends SourceNode {
   programs: ProgramBodyIR[];
   variables: Variable[];
   types?: TypeTable;
+  interfaces?: { name: string; extends: string[]; methods: UserFunctionIR[] }[];
   functions?: UserFunctionIR[];
   functionBlocks?: UserFunctionBlockIR[];
   composites?: { name: string; path: string[]; dataType: TypeDescriptor }[];
@@ -346,6 +349,8 @@ export interface UserFunctionBlockStorage {
 }
 /** Shared instance definitions. The legacy table name includes classes, whose body is empty. */
 export interface UserFunctionBlockIR extends SourceNode {
+  /** Canonical implemented-interface names, including inherited interfaces. */
+  interfaces?: string[];
   /** Base definition index; variables and method slots are flattened base first. */
   base?: number;
   /** Definition declaring the effective body; absent means this definition. */
@@ -395,8 +400,8 @@ export interface InOutBinding {
 
 export interface UserFunctionCall extends SourceNode {
   kind: "userFunctionCall";
-  /** For a method, function indexes the owning block's methods instead. */
-  method?: { block: number; receiver?: StorageReference; static?: true };
+  /** function indexes block methods, or interface prototypes when interface is present (block = -1). */
+  method?: { block: number; interface?: string; receiver?: StorageReference; static?: true };
   function: number;
   /** In source order, including for formal calls. Omitted inputs keep their initial values. */
   inputs: { variable: FrameSlot; value: Expression }[];
@@ -551,6 +556,12 @@ export interface ArrayBoundExpression extends SourceNode {
 }
 
 export type Expression =
+  | (SourceNode & {
+      kind: "instanceReference";
+      /** Absent selects THIS; otherwise binds a persistent instance storage location. */
+      target?: StorageReference;
+      dataType: TypeDescriptor;
+    })
   | Dereference
   | (SourceNode & {
       kind: "referenceOf";
@@ -573,6 +584,7 @@ export type Expression =
   | FunctionCallExpression;
 
 export interface AssignmentStatement extends SourceNode {
+  attempt?: true;
   kind: "assignment";
   target: AssignmentTarget;
   value: Expression;

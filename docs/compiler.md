@@ -202,7 +202,9 @@ following the block definitions.
 
 ## PROGRAM parameters and connections
 
-PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`; `VAR_IN_OUT` remains rejected.
+PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`, plus `VAR_IN_OUT` for interface
+variables and arrays of interfaces. Every in-out requires an explicit configuration
+connection (`:=`) to a mutable global of exactly the same type.
 `AT` on a PROGRAM parameter declaration is rejected (`decl.parameter-address`);
 connect direct addresses in the configuration instead.
 An instance can connect named parameters, for example:
@@ -212,7 +214,7 @@ PROGRAM A WITH T : Main (Start := %IX0.0, Lamp => %QX0.0, Threshold := gThreshol
 ```
 
 Connection lists must contain at least one connection and cannot end with a comma.
-Omit the parentheses when every parameter is unconnected.
+Omit the parentheses when every input/output is unconnected and there are no in-outs.
 
 Input sources are constants (including constant expressions and enumeration values),
 globals, or direct addresses. Output destinations are mutable globals or output/memory
@@ -223,6 +225,8 @@ input/assignment conversions; addresses bind the parameter type as an `AT` would
 parameter storage and a global storage slot, constant, or address. Connected input
 leaves carry `connectedInput: true`. PROGRAM bodies and storage remain independent
 of the connection lists, so every instance can connect to different sources.
+Interface in-outs instead share the connected global storage directly, with no
+input/output transfers; assignments through either name are immediately visible.
 
 At task start the runtime reads inputs, consumes pending writes, and restores forces.
 For each instance in declaration order it copies connected inputs, restores forces,
@@ -284,7 +288,7 @@ or indirect containment cycle is allowed. Class names join the shared namespace;
 a variable with a class name reports `decl.name-collision` with kind `"type"`.
 `v()` reports `class.not-callable`; call `v.Open()` instead. Definitions and methods
 are shared in the IR, while each instance has independent storage.
-Inheritance, interfaces, instance references and namespaces remain unsupported.
+Instance references and namespaces remain unsupported.
 
 ## Inheritance (ADR 0017)
 
@@ -300,3 +304,19 @@ replaces it and can call `SUPER();`. Method calls through implicit or explicit
 `THIS` dispatch using the instance's actual type; `SUPER.M()` selects the base
 implementation. The recursion graph includes every possible descendant override
 for a THIS call, and only the selected implementation for a SUPER call.
+
+## Interfaces and assignment attempts
+
+`compileProject` accepts INTERFACE sources alongside POUs. Interfaces may extend
+multiple interfaces. The compiler resolves the acyclic interface graph before data
+types and checks inherited prototypes and PUBLIC implementations after declaration
+types resolve. IMPLEMENTS is inherited through class/function-block base types.
+Concrete types must provide every prototype with an identical signature.
+
+Interface variables default to NULL and accept only NULL initializers. They support
+parameters, results, arrays, structures, globals and temporary storage, but cannot
+be CONSTANT or located. Assignment accepts compatible interface values, NULL, THIS
+and persistent implementing instances. Instance conversion preserves identity.
+`target ?= source;` accepts interface variables and a NULL source and is never an
+expression. Interface calls add recursion edges to every implementing method in
+the project, conservatively rejecting composite forwarding cycles.

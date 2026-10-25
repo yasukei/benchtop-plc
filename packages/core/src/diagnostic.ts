@@ -10,6 +10,12 @@ export type AssignmentHint = "explicit-conversion";
 
 /** Stable code-to-argument contract. See docs/diagnostics.md for field semantics. */
 export interface DiagnosticArgs {
+  "interface.unknown": { name: string };
+  "interface.cycle": { name: string };
+  "interface.signature": { name: string };
+  "interface.unimplemented": { name: string };
+  "interface.lifetime": NoArguments;
+  "interface.assignment-attempt": NoArguments;
   "inheritance.unknown-base": { name: string };
   "inheritance.base-kind": { name: string };
   "inheritance.cycle": { name: string };

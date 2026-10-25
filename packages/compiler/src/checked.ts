@@ -15,7 +15,7 @@ import type {
 } from "./ast.js";
 
 export interface UserCallInfo {
-  method?: { block: number; receiver?: AssignmentTarget; static?: true };
+  method?: { block: number; interface?: string; receiver?: AssignmentTarget; static?: true };
   function: number;
   inputs: { variable: number; value: Expression; dataType: DataType }[];
   outputs: { variable: number; target: AssignmentTarget }[];
@@ -52,6 +52,7 @@ export interface VariableSymbol {
 }
 
 export interface ExpressionInfo {
+  interfaceValue?: TypeDescriptor;
   nullReference?: boolean;
   dataType: DataType;
   descriptor?: TypeDescriptor;

@@ -79,36 +79,37 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Arrays                                          | Partial | Up to three dimensions, 10,000 scalar leaves, nested arrays, initializers, indexing and whole-array assignment/selection; inline function block instance arrays with indexed calls and per-element state (ADR 0015).                                                                                                                              |
 | Structures                                      | Partial | Named structures, member defaults, nested array/member access, initializers, whole-structure assignment/MOVE/SEL/MUX and scalar monitoring (ADR 0015).                                                                                                                                                                                            |
 | Variable-length arrays                          | Partial | `ARRAY[*, ...]` only in direct VAR_IN_OUT, matching rank/element types, actual bounds and DINT LOWER_BOUND/UPPER_BOUND with constant dimension (ADR 0015; 3rd edition basis).                                                                                                                                                                     |
-| References                                      | Partial | `REF_TO`, `REF`, `^`, `NULL`, exact target types, identity equality, MOVE/SEL/MUX, dereferenced in-outs, parameters/results and recursive structures (ADR 0015). Persistent targets only; no instance references, assignment attempts, allocation or pointer arithmetic (restrictions; 3rd edition basis).                                        |
+| References                                      | Partial | `REF_TO`, `REF`, `^`, `NULL`, exact target types, identity equality, MOVE/SEL/MUX, dereferenced in-outs, parameters/results and recursive structures (ADR 0015). Persistent targets only; no instance references, reference assignment attempts, allocation or pointer arithmetic (restrictions; 3rd edition basis).                              |
 
 ## Program organization units
 
-| Feature                    | Status  | Notes                                                                                                                                                                      |
-| -------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROGRAM`                  | Partial | One implicit PROGRAM or 1–64 configured instances; VAR_INPUT/VAR_OUTPUT connections; no PROGRAM VAR_IN_OUT or AT on parameters (restrictions)                              |
-| `FUNCTION`                 | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
-| `FUNCTION_BLOCK`           | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
-| Methods on function blocks | Yes     | ADR 0017: access by type, fresh locals, formal/positional calls; no instance VAR_IN_OUT in methods                                                                         |
-| Classes                    | Partial | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; single inheritance, ABSTRACT and FINAL; no IMPLEMENTS yet (#178); see class restrictions     |
-| Inheritance                | Yes     | ADR 0017: same-kind EXTENDS, dynamic OVERRIDE, SUPER methods/bodies, ABSTRACT and FINAL; conservative recursion checks                                                     |
-| Interfaces                 | No      |                                                                                                                                                                            |
-| Namespaces                 | No      |                                                                                                                                                                            |
+| Feature                    | Status  | Notes                                                                                                                                                                                                 |
+| -------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PROGRAM`                  | Partial | One implicit PROGRAM or 1–64 configured instances; VAR_INPUT/VAR_OUTPUT connections; VAR_IN_OUT only for interface variables bound to exact-type globals; no AT on parameters (restrictions)          |
+| `FUNCTION`                 | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances; VAR_TEMP only for interface variables |
+| `FUNCTION_BLOCK`           | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                                                         |
+| Methods on function blocks | Yes     | ADR 0017: access by type, fresh locals, formal/positional calls; no instance VAR_IN_OUT in methods                                                                                                    |
+| Classes                    | Partial | ADR 0017: bodyless types, methods, instance arrays, retention and monitoring; single inheritance, ABSTRACT and FINAL; IMPLEMENTS; see class restrictions                                              |
+| Inheritance                | Yes     | ADR 0017: same-kind EXTENDS, dynamic OVERRIDE, SUPER methods/bodies, ABSTRACT and FINAL; conservative recursion checks                                                                                |
+| Interfaces                 | Partial | ADR 0017: prototypes, multiple interface inheritance, IMPLEMENTS, NULL/identity, dynamic calls, persistent instance targets; see interface restrictions.                                              |
+| Namespaces                 | No      |                                                                                                                                                                                                       |
 
 ## Operators and statements (ST)
 
-| Feature                                       | Status | Notes                                                                                                                                                                                                                                                                |
-| --------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `+ - * / MOD`, unary `+` and `-`              | Yes    | MOD accepts integers only; TIME/LTIME support duration addition/subtraction, scaling by a numeric right operand, and unary signs (minus rejects unsigned integers); calendar differences yield TIME/LTIME, TOD/DT ± duration select the narrowest matching signature |
-| `**`                                          | Yes    | ANY_REAL base, independent ANY_NUM exponent; untyped integer base becomes LREAL; result has the base type (ADR 0013)                                                                                                                                                 |
-| `AND`, `&`, `OR`, `XOR`, `NOT`                | Yes    | BOOL and BYTE/WORD/DWORD/LWORD only; operands use their common bit type; `&` is an alias for AND                                                                                                                                                                     |
-| Comparisons                                   | Yes    | Common type per ADR 0013; BOOL ordering is `FALSE < TRUE`; calendar values compare chronologically                                                                                                                                                                   |
-| Bit access `x.n`                              | Yes    | BYTE/WORD/DWORD/LWORD variables; a constant index within the width, readable and writable                                                                                                                                                                            |
-| Assignment `:=`                               | Yes    | Only ADR 0013 widening is implicit; narrowing needs an explicit conversion                                                                                                                                                                                           |
-| Function calls as statements and `=>` outputs | Yes    | User and standard functions and FBs: writable outputs follow assignment widening; FB inputs remain formal only                                                                                                                                                       |
-| FB call with named inputs                     | Yes    |                                                                                                                                                                                                                                                                      |
-| `IF`, `CASE`, `FOR`, `WHILE`, `REPEAT`        | Yes    | CASE selectors and labels, and FOR variables and bounds, must be integers; CASE labels must be constant                                                                                                                                                              |
-| `EXIT`, `RETURN`                              | Yes    | RETURN leaves the current POU                                                                                                                                                                                                                                        |
-| `CONTINUE`                                    | No     |                                                                                                                                                                                                                                                                      |
+| Feature                                       | Status  | Notes                                                                                                                                                                                                                                                                |
+| --------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `+ - * / MOD`, unary `+` and `-`              | Yes     | MOD accepts integers only; TIME/LTIME support duration addition/subtraction, scaling by a numeric right operand, and unary signs (minus rejects unsigned integers); calendar differences yield TIME/LTIME, TOD/DT ± duration select the narrowest matching signature |
+| Assignment attempt `?=`                       | Partial | Interface-variable target and interface-variable/NULL source; mismatch clears target. REF_TO forms are deferred to #179.                                                                                                                                             |
+| `**`                                          | Yes     | ANY_REAL base, independent ANY_NUM exponent; untyped integer base becomes LREAL; result has the base type (ADR 0013)                                                                                                                                                 |
+| `AND`, `&`, `OR`, `XOR`, `NOT`                | Yes     | BOOL and BYTE/WORD/DWORD/LWORD only; operands use their common bit type; `&` is an alias for AND                                                                                                                                                                     |
+| Comparisons                                   | Yes     | Common type per ADR 0013; BOOL ordering is `FALSE < TRUE`; calendar values compare chronologically                                                                                                                                                                   |
+| Bit access `x.n`                              | Yes     | BYTE/WORD/DWORD/LWORD variables; a constant index within the width, readable and writable                                                                                                                                                                            |
+| Assignment `:=`                               | Yes     | Only ADR 0013 widening is implicit; narrowing needs an explicit conversion                                                                                                                                                                                           |
+| Function calls as statements and `=>` outputs | Yes     | User and standard functions and FBs: writable outputs follow assignment widening; FB inputs remain formal only                                                                                                                                                       |
+| FB call with named inputs                     | Yes     |                                                                                                                                                                                                                                                                      |
+| `IF`, `CASE`, `FOR`, `WHILE`, `REPEAT`        | Yes     | CASE selectors and labels, and FOR variables and bounds, must be integers; CASE labels must be constant                                                                                                                                                              |
+| `EXIT`, `RETURN`                              | Yes     | RETURN leaves the current POU                                                                                                                                                                                                                                        |
+| `CONTINUE`                                    | No      |                                                                                                                                                                                                                                                                      |
 
 ## Standard functions
 
@@ -253,8 +254,10 @@ An empty user call uses all declared input defaults when there are no required i
 input-only functions, with every input supplied in declaration order; this is
 Partial support of the standard's non-formal parameter list.
 
-Project restrictions: functions cannot declare VAR_TEMP or FB instances; PROGRAM
-cannot declare VAR_INPUT, VAR_OUTPUT or VAR_IN_OUT; direct addresses are allowed
+Project restrictions: functions cannot declare FB instances, and VAR_TEMP in
+functions is limited to interface variables. PROGRAM allows VAR_INPUT/VAR_OUTPUT;
+VAR_IN_OUT is limited to interface variables, with required configuration bindings
+to mutable globals of exactly the same type. Direct addresses are allowed
 in PROGRAM VAR and configuration/resource globals, and are forbidden in both
 functions and function blocks.
 EN/ENO remains deferred. CONSTANT is supported on VAR, VAR_GLOBAL and matching VAR_EXTERNAL, with elementary, string, character, alias, enum and subrange types and no AT. VAR_IN_OUT supports exact-type scalar/array/structure/reference caller variables, elements, members and dereferenced storage in formal calls only; instance members, bits, expressions and FB instances are rejected (restrictions).
@@ -345,7 +348,8 @@ still pending. PERSISTENT and retained timers remain unsupported.
 
 Methods precede a function block's body; access defaults to PROTECTED and INTERNAL
 currently covers the global project namespace. Methods have function-style local
-storage and cannot declare instances, VAR_TEMP, VAR_EXTERNAL or retention. They
+storage and cannot declare instances, VAR_EXTERNAL or retention. VAR_TEMP is
+limited to interface variables. They
 cannot use the instance's VAR_IN_OUT or call its body through THIS. Member instances
 and their indexed elements can be called through THIS; bounds faults identify the
 member array in the instance path. Recursion is
@@ -360,8 +364,8 @@ inline arrays; they cannot be called, initialized, CONSTANT, parameters, structu
 members or function/method locals. Containment cycles are rejected. Access defaults
 to PROTECTED and is checked by type; monitoring ignores it. RETAIN/NON_RETAIN work
 for class instances and members. TC6 carries classes as empty function blocks with
-exact text in the source extension. Interfaces, references to instances and
-namespaces remain unsupported. These are 3rd-edition-based semantics and project
+exact text in the source extension. References to instances and namespaces remain
+unsupported. These are 3rd-edition-based semantics and project
 restrictions; 4th-edition verification remains pending.
 
 ## Inheritance restrictions (ADR 0017)
@@ -381,3 +385,20 @@ methods have no statements and require an abstract type and non-private access.
 Concrete types implement all abstract methods; abstract types cannot be instantiated.
 ABSTRACT with FINAL and abstract function blocks with body statements are rejected.
 These follow the 3rd edition and project restrictions, pending 4th edition checks.
+
+## Interface restrictions (ADR 0017)
+
+Interfaces contain public prototypes only and may extend several interfaces, with
+identical signatures for shared method names. Concrete classes and function blocks
+implement every prototype with PUBLIC methods. Interface variables support NULL,
+identity equality, compatible interface/instance/THIS assignment and dynamic method
+calls. They cannot be CONSTANT, located, dereferenced, called as bodies or used to
+access instance fields. Persistent storage is required for an instance target.
+
+Assignment attempt (`?=`) is supported between interface variables, with NULL also
+allowed as source. It binds when the actual type implements the target interface,
+and otherwise clears the target without a fault. Reference forms (#179),
+namespace access and INTERNAL interface headers (#180) remain unsupported. Dynamic
+recursion edges include every implementing method, rejecting composite forwarding
+cycles conservatively. These follow the 3rd edition and project restrictions;
+4th-edition verification remains pending.

@@ -192,6 +192,7 @@ configuration and resource, and program parameter connections (`:=` inputs and
 `METHOD [PUBLIC | PROTECTED | PRIVATE | INTERNAL] name [: type] ... END_METHOD`
 appears inside `FUNCTION_BLOCK`, after its variable sections and before its body.
 A method allows `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR CONSTANT`/`VAR`.
+Interface variables additionally allow `VAR_TEMP`.
 Calls parse as `instance.M(...)`, `instances[i].M(...)`, `M(...)` or `THIS.M(...)`;
 `THIS.member` accesses an instance member, including calls to member function block
 instances (`THIS.timer(...)`) and their array elements (`THIS.items[i](...)`).
@@ -224,3 +225,15 @@ validates bases, abstract bodies and override compatibility. `EXTENDS`, `OVERRID
 `SUPER`, `ABSTRACT` and `FINAL` are reserved, with the existing legacy-name import
 path for 0.6.0 files. `SUPER.M(...)` parses as a method receiver and `SUPER();` as a
 body call; the checker restricts their contexts and targets.
+
+## Interface syntax
+
+A source may contain `INTERFACE Name [EXTENDS I1, I2] ... END_INTERFACE`. Its body
+contains METHOD prototypes with an optional result type and VAR_INPUT, VAR_OUTPUT
+and VAR_IN_OUT sections only. Prototypes have no statements or access specifiers;
+their access is public. INTERNAL interface headers belong to namespace support.
+
+Function block and class headers accept `IMPLEMENTS I1, I2` after EXTENDS.
+INTERFACE, END_INTERFACE and IMPLEMENTS are reserved; the existing legacy-name
+import path preserves affected 0.6.0 drafts. The lexer recognizes `?=` as one token.
+It is accepted only in statement assignment position, never inside an expression.

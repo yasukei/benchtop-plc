@@ -9,6 +9,7 @@ import {
   addFunction,
   addFunctionBlock,
   addClass,
+  addInterface,
   compilePous,
   createPous,
   deletePou,
@@ -455,6 +456,26 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         selectedConfiguration: false,
         selectedDataType: null,
         source: pous.at(-1)!.source,
+        diagnostics: compilePous(
+          pous,
+          pouSources(state.dataTypes),
+          state.project,
+          state.cycleMs,
+          state.configuration,
+        ).diagnostics,
+      });
+    },
+    addInterface() {
+      clearTimeout(compileTimer);
+      const pous = addInterface(state.pous, state.dataTypes);
+      update({
+        pous,
+        editorSession: state.editorSession + 1,
+        saveDiagnostics: [],
+        selectedPou: 0,
+        selectedConfiguration: false,
+        selectedDataType: null,
+        source: pous[0]!.source,
         diagnostics: compilePous(
           pous,
           pouSources(state.dataTypes),

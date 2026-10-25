@@ -3,6 +3,7 @@ import {
   resolveType,
   validDirectAddress,
   addressBinds,
+  sameScalarType,
   type Diagnostic,
   type SourceNode,
   type ScalarValue,
@@ -15,6 +16,7 @@ import { checkConnection } from "./checker.js";
 export interface CheckedConnection extends SourceNode {
   parameter: number;
   output: boolean;
+  inOut?: true;
   endpoint:
     | { kind: "global"; key: string }
     | { kind: "constant"; value: ScalarValue | null }
@@ -51,7 +53,7 @@ export function checkProgramConnections(
       const declaration = definition.ast.declarations.find(
         (d) =>
           d.names.some((n) => n.key === name.key) &&
-          ["VAR_INPUT", "VAR_OUTPUT"].includes(d.section ?? ""),
+          ["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT"].includes(d.section ?? ""),
       );
       if (!declaration) {
         report("config.connection-parameter");
@@ -68,6 +70,34 @@ export function checkProgramConnections(
       }
       const symbol = definition.symbols.find((s) => s.name.key === name.key)!;
       const type = symbol.descriptor!;
+      if (declaration.section === "VAR_IN_OUT") {
+        const global =
+          !("area" in value) && value.kind === "name"
+            ? globals.symbols.find((s) => s.name.key === value.name.key)
+            : undefined;
+        if (!global?.descriptor) {
+          report("config.connection-target");
+          continue;
+        }
+        if (!sameScalarType(type, global.descriptor, definition.types)) {
+          diagnostics.push({
+            code: "call.in-out-type",
+            severity: "error",
+            args: { from: global.descriptor, to: type },
+            span: value.span,
+            pou: config.name.name,
+          });
+          continue;
+        }
+        result.push({
+          span: value.span,
+          parameter: symbol.id,
+          output: false,
+          inOut: true,
+          endpoint: { kind: "global", key: global.name.key },
+        });
+        continue;
+      }
       if ("area" in value) {
         if (declaration.retain || declaration.nonRetain) {
           diagnostics.push({
@@ -141,6 +171,16 @@ export function checkProgramConnections(
           : { kind: "constant", value: checked.info.constant ?? null },
       });
     }
+    for (const declaration of definition.ast.declarations.filter((d) => d.section === "VAR_IN_OUT"))
+      for (const name of declaration.names)
+        if (!seen.has(name.key))
+          diagnostics.push({
+            code: "call.missing-in-out",
+            severity: "error",
+            args: { name: instance.name.name, parameter: name.name },
+            span: instance.name.span,
+            pou: config.name.name,
+          });
     return result;
   });
   return { connections, diagnostics };

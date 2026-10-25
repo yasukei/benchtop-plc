@@ -6,7 +6,7 @@ import {
   isAggregateType,
   arrayIndices,
   scalarBase,
-  referenceType,
+  referenceLike,
   enumerationType,
   isCalendarType,
   getStandardFunctionSignature,
@@ -49,7 +49,7 @@ class Lowerer {
           this.checked.result
             ? [
                 {
-                  kind: referenceType(this.checked.result.descriptor!, this.checked.types)
+                  kind: referenceLike(this.checked.result.descriptor!, this.checked.types)
                     ? "reference"
                     : this.checked.result.aggregateValues
                       ? structureType(this.checked.result.descriptor!, this.checked.types)
@@ -77,6 +77,7 @@ class Lowerer {
         ? {
             method: {
               block: call.method.block,
+              ...(call.method.interface ? { interface: call.method.interface } : {}),
               ...(call.method.static ? { static: true as const } : {}),
               ...(call.method.receiver
                 ? { receiver: this.reference(call.method.receiver) as IR.StorageReference }
@@ -133,7 +134,7 @@ class Lowerer {
       return { ...base, kind: "userFunctionBlock", block: symbol.userBlock, initialValue: null };
     if (isBlock(symbol.type))
       return { ...base, kind: "functionBlock", fbType: symbol.type, initialValue: null };
-    if (symbol.descriptor && referenceType(symbol.descriptor, this.checked.types))
+    if (symbol.descriptor && referenceLike(symbol.descriptor, this.checked.types))
       return { ...base, kind: "reference", dataType: symbol.descriptor, initialValue: null };
     return {
       ...base,
@@ -299,8 +300,8 @@ class Lowerer {
 
   private widen(expression: IR.Expression, target: IR.TypeDescriptor): IR.Expression {
     if (
-      referenceType(target, this.checked.types) ||
-      referenceType(expression.dataType, this.checked.types) ||
+      referenceLike(target, this.checked.types) ||
+      referenceLike(expression.dataType, this.checked.types) ||
       isAggregateType(target, this.checked.types) ||
       isAggregateType(expression.dataType, this.checked.types)
     )
@@ -361,6 +362,16 @@ class Lowerer {
           enumerationType(info.descriptor ?? info.dataType, this.checked.types)))
     )
       return literal();
+    if (node.kind === "group") return { ...this.expression(node.expression), span: span(node) };
+    if (typeof info.descriptor === "object" && info.descriptor.kind === "functionBlock")
+      return {
+        ...base,
+        dataType: info.interfaceValue!,
+        kind: "instanceReference",
+        ...(node.kind === "name" && node.name.key === "THIS"
+          ? {}
+          : { target: this.reference(node as AST.AssignmentTarget) as IR.StorageReference }),
+      };
     switch (node.kind) {
       case "null":
         return { ...base, kind: "null" };
@@ -378,9 +389,6 @@ class Lowerer {
       case "name":
       case "member":
         return this.reference(node);
-      case "group":
-        // IR has no grouping node; its root retains the full parenthesized source construct.
-        return { ...this.expression(node.expression), span: span(node) };
       case "unary":
         return {
           ...base,
@@ -392,8 +400,8 @@ class Lowerer {
         const left = this.expression(node.left),
           right = this.expression(node.right);
         if (
-          referenceType(left.dataType, this.checked.types) ||
-          referenceType(right.dataType, this.checked.types)
+          referenceLike(left.dataType, this.checked.types) ||
+          referenceLike(right.dataType, this.checked.types)
         )
           return { ...base, kind: "binary", operator: node.operator, left, right };
         const leftType = scalarBase(left.dataType, this.checked.types),
@@ -562,6 +570,7 @@ class Lowerer {
         return {
           ...base,
           kind: "assignment",
+          ...(node.attempt ? { attempt: true as const } : {}),
           target: this.target(node.target),
           value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
@@ -826,7 +835,7 @@ export function lower(
             )[0]!;
           }
           variables.push({
-            kind: referenceType(type, checked.types) ? "reference" : "scalar",
+            kind: referenceLike(type, checked.types) ? "reference" : "scalar",
             name,
             key: name.toUpperCase(),
             path: segments,
@@ -870,7 +879,7 @@ export function lower(
     const storage = allocate(
       layouts[instance.program]!.variables,
       temporarySlots,
-      [],
+      sections(definition).flatMap((section, slot) => (section === "VAR_IN_OUT" ? [slot] : [])),
       `${instance.name}.`,
       true,
     );
@@ -878,6 +887,12 @@ export function lower(
     const inputs: IR.ProgramConnectionIR[] = [],
       outputs: IR.ProgramConnectionIR[] = [];
     for (const connection of connections?.[index] ?? []) {
+      if (connection.inOut) {
+        if (connection.endpoint.kind !== "global")
+          throw new Error("Checked PROGRAM in-out is not global storage");
+        storage[connection.parameter] = required(globalStorage.get(connection.endpoint.key));
+        continue;
+      }
       const parameter = storage[connection.parameter]!;
       const endpoint: IR.ProgramConnectionEndpoint =
         connection.endpoint.kind === "global"

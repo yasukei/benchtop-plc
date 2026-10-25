@@ -18,6 +18,8 @@ import {
   MAX_STRING_LENGTH,
   scalarBase,
   referenceType,
+  referenceLike,
+  interfaceType,
   enumerationType,
   subrangeType,
   sameScalarType,
@@ -237,6 +239,25 @@ class Checker {
         names.add(method.name.key);
       }
     }
+    const interfaceSection = (name: string): boolean => {
+      const declarations = ast.declarations.filter((d) => d.section === name);
+      const interfaceStorage = (type: TypeDescriptor): boolean =>
+        !!interfaceType(type, this.types) ||
+        !!(arrayType(type, this.types) && interfaceStorage(arrayType(type, this.types)!.element));
+      return (
+        declarations.length > 0 &&
+        declarations.every((d) => {
+          const type = this.descriptor(
+            d.typeName,
+            d.subrange,
+            d.stringLength,
+            d.array,
+            d.reference,
+          );
+          return !!type && interfaceStorage(type);
+        })
+      );
+    };
     for (const section of ast.sections ?? []) {
       this.declarationOwner = section.declaringType;
       if (section.retain || section.nonRetain) {
@@ -255,8 +276,11 @@ class Checker {
           section.name !== "VAR_TEMP" &&
           section.name !== "VAR_EXTERNAL" &&
           section.name !== "VAR_INPUT" &&
-          section.name !== "VAR_OUTPUT") ||
-        (ast.kind === "function" && ["VAR_TEMP", "VAR_EXTERNAL"].includes(section.name)) ||
+          section.name !== "VAR_OUTPUT" &&
+          !(section.name === "VAR_IN_OUT" && interfaceSection("VAR_IN_OUT"))) ||
+        (ast.kind === "function" &&
+          ["VAR_TEMP", "VAR_EXTERNAL"].includes(section.name) &&
+          !(section.name === "VAR_TEMP" && interfaceSection("VAR_TEMP"))) ||
         (ast.kind === "class" && !["VAR", "VAR_EXTERNAL"].includes(section.name))
       )
         this.report("pou.invalid-section", { section: section.name, kind: ast.kind }, section.span);
@@ -425,7 +449,7 @@ class Checker {
   /** Composite descriptors remain authoritative; scalar-only side tables use an unused INT tag. */
   private base(type: TypeDescriptor, table = this.types): DataType {
     return isAggregateType(type, table) ||
-      referenceType(type, table) ||
+      referenceLike(type, table) ||
       (typeof type !== "string" && type.kind === "functionBlock")
       ? "INT"
       : scalarBase(type, table);
@@ -523,7 +547,7 @@ class Checker {
           if (isAggregateType(target, this.types))
             result[index] = this.aggregateInitial(target, member.value);
           else {
-            if (referenceType(target, this.types)) {
+            if (referenceLike(target, this.types)) {
               if (member.value.kind !== "null")
                 this.report("type.reference-initializer", {}, member.value.span);
               result[index] = null;
@@ -574,7 +598,7 @@ class Checker {
           const values = item.values.map((value) => {
             if (isAggregateType(array.element, this.types))
               return this.aggregateInitial(array.element, value);
-            if (referenceType(array.element, this.types)) {
+            if (referenceLike(array.element, this.types)) {
               if (value.kind !== "null") this.report("type.reference-initializer", {}, value.span);
               return null;
             }
@@ -656,7 +680,8 @@ class Checker {
           ? !a.dimensions.includes("*") && valid(a.element)
           : r
             ? valid(r.target)
-            : !(typeof type !== "string" && type.kind === "functionBlock");
+            : !interfaceType(type, this.types) &&
+              !(typeof type !== "string" && type.kind === "functionBlock");
       };
       if (!valid(target)) {
         this.report("type.invalid-reference-target", {}, reference.typeName.span);
@@ -689,7 +714,7 @@ class Checker {
       this.report("type.invalid-constant", {}, name.span);
       return type;
     } else if (key === "CHAR" || key === "WCHAR") type = { kind: "character", base: key };
-    if (range && (isAggregateType(type, this.types) || referenceType(type, this.types))) {
+    if (range && (isAggregateType(type, this.types) || referenceLike(type, this.types))) {
       this.report("type.invalid-constant", {}, range.span);
       return undefined;
     }
@@ -723,7 +748,7 @@ class Checker {
   }
 
   private defaultValue(type: TypeDescriptor): ScalarValue | null {
-    if (referenceType(type, this.types)) return null;
+    if (referenceLike(type, this.types)) return null;
     if (isAggregateType(type, this.types)) return 0;
     if (typeof type !== "string" && type.kind === "named")
       return typeEntry(type, this.types).initialValue as ScalarValue;
@@ -819,7 +844,7 @@ class Checker {
       declaration.constant &&
       (block ||
         (descriptor &&
-          (isAggregateType(descriptor, this.types) || referenceType(descriptor, this.types))))
+          (isAggregateType(descriptor, this.types) || referenceLike(descriptor, this.types))))
     )
       this.report("decl.constant-type", {}, declaration.typeName.span);
     if ((declaration.retain || declaration.nonRetain) && declaration.address)
@@ -999,7 +1024,7 @@ class Checker {
       return;
     }
     const value = declaration.initializer;
-    if (descriptor && referenceType(descriptor, this.types)) {
+    if (descriptor && referenceLike(descriptor, this.types)) {
       if (value && value.kind !== "null") this.report("type.reference-initializer", {}, value.span);
       return;
     }
@@ -1086,7 +1111,7 @@ class Checker {
       return null;
     }
     const base =
-      isAggregateType(type, this.types) || referenceType(type, this.types)
+      isAggregateType(type, this.types) || referenceLike(type, this.types)
         ? undefined
         : scalarBase(type, this.types);
     if (!base || !isBitType(base) || base === "BOOL" || bit < 0 || bit >= bitWidths[base]) {
@@ -1172,6 +1197,18 @@ class Checker {
       return this.reference(local, write, instance);
     }
     if (node.kind === "name" && node.name.key === "THIS") {
+      const owner =
+        this.ast.owner ??
+        (["class", "functionBlock"].includes(this.ast.kind) ? this.ast : undefined);
+      if (owner && instance)
+        return {
+          dataType: "INT",
+          descriptor: {
+            kind: "functionBlock",
+            name: owner.name.key,
+            block: this.blockIds.get(owner.name.key),
+          },
+        };
       this.report("method.this-outside", {}, node.span);
       return null;
     }
@@ -1248,7 +1285,7 @@ class Checker {
           !isIntegerType(info.dataType) ||
           this.enum(info) ||
           isAggregateType(type, this.types) ||
-          referenceType(type, this.types)
+          referenceLike(type, this.types)
         ) {
           this.report("type.array-index-not-integer", { type }, index.span);
           return;
@@ -1447,6 +1484,38 @@ class Checker {
         return null;
       }
     }
+    if (
+      expected &&
+      interfaceType(expected, this.types) &&
+      ["name", "member", "field", "index"].includes(node.kind)
+    ) {
+      const value = this.reference(node as AST.AssignmentTarget, false, true);
+      if (
+        value &&
+        typeof value.descriptor === "object" &&
+        value.descriptor.kind === "functionBlock"
+      ) {
+        const root = rootName(node as AST.AssignmentTarget);
+        const declaration = (this.ast.owner?.declarations ?? [])
+          .concat(this.ast.declarations)
+          .find((d) => d.names.some((n) => n.key === root.key));
+        if (
+          root.key !== "THIS" &&
+          (!declaration ||
+            declaration.constant ||
+            ["VAR_TEMP", "VAR_IN_OUT"].includes(declaration.section ?? "") ||
+            (this.ast.kind === "function" &&
+              !this.ast.owner &&
+              declaration.section !== "VAR_EXTERNAL"))
+        ) {
+          this.report("interface.lifetime", {}, node.span);
+          return null;
+        }
+        value.interfaceValue = expected;
+        this.expressions.set(node, value);
+        return value;
+      }
+    }
     switch (node.kind) {
       case "null":
         info = {
@@ -1546,7 +1615,7 @@ class Checker {
         if (!operand) return null;
         const dataType =
           this.enum(operand) ||
-          referenceType(operand.descriptor ?? operand.dataType, this.types) ||
+          referenceLike(operand.descriptor ?? operand.dataType, this.types) ||
           (operand.descriptor && isAggregateType(operand.descriptor, this.types))
             ? null
             : unaryType(node.operator, operand.dataType);
@@ -1583,6 +1652,28 @@ class Checker {
             : this.operands([node.left, node.right], scaling);
         const [left, right] = values;
         if (!left || !right) return null;
+        const li = interfaceType(left.descriptor ?? left.dataType, this.types),
+          ri = interfaceType(right.descriptor ?? right.dataType, this.types);
+        if (li || ri) {
+          if (
+            !["=", "<>"].includes(node.operator) ||
+            !(li || left.nullReference) ||
+            !(ri || right.nullReference)
+          ) {
+            this.report(
+              "type.operand-mismatch",
+              {
+                operator: node.operator,
+                left: left.descriptor ?? left.dataType,
+                right: right.descriptor ?? right.dataType,
+              },
+              node.span,
+            );
+            return null;
+          }
+          info = { dataType: "BOOL" };
+          break;
+        }
         const lr = referenceType(left.descriptor ?? left.dataType, this.types),
           rr = referenceType(right.descriptor ?? right.dataType, this.types);
         if (lr || rr) {
@@ -1975,7 +2066,7 @@ class Checker {
     const reference =
       args.find(
         (arg) =>
-          arg && !arg.nullReference && referenceType(arg.descriptor ?? arg.dataType, this.types),
+          arg && !arg.nullReference && referenceLike(arg.descriptor ?? arg.dataType, this.types),
       ) ?? args.find((arg) => arg?.nullReference);
     if (reference) {
       if (!["MOVE", "SEL", "MUX"].includes(name)) {
@@ -2001,7 +2092,7 @@ class Checker {
           index >= firstValue
             ? arg.nullReference ||
               sameScalarType(descriptor, arg.descriptor ?? arg.dataType, this.types)
-            : !referenceType(arg.descriptor ?? arg.dataType, this.types) &&
+            : !referenceLike(arg.descriptor ?? arg.dataType, this.types) &&
               !isAggregateType(arg.descriptor ?? arg.dataType, this.types) &&
               !this.enum(arg) &&
               expected.includes(arg.dataType);
@@ -2282,9 +2373,10 @@ class Checker {
     } else if (receiver) {
       const info = this.reference(receiver, false, true);
       if (info) this.expressions.set(receiver, info);
-      const type = info?.descriptor;
+      const type =
+        info?.descriptor && (interfaceType(info.descriptor, this.types) ?? info.descriptor);
       target =
-        typeof type === "object" && type.kind === "functionBlock"
+        typeof type === "object" && (type.kind === "functionBlock" || type.kind === "interface")
           ? this.pous.get(type.name)
           : undefined;
     }
@@ -2306,10 +2398,14 @@ class Checker {
     const call = this.userCalls.get(node)!;
     call.function = index;
     call.method = {
-      block: this.blockIds.get(target.name.key)!,
+      block: target.kind === "interface" ? -1 : this.blockIds.get(target.name.key)!,
       ...(receiver ? { receiver } : {}),
       ...(superCall ? { static: true } : {}),
     };
+    if (target.kind === "interface") {
+      call.method.interface = target.name.key;
+      return info;
+    }
     const offset = this.interfaces.get(method.owner ?? target)?.symbols.length ?? 0;
     for (const parameter of [...call.inputs, ...call.outputs, ...call.inOuts])
       parameter.variable += offset;
@@ -2588,6 +2684,23 @@ class Checker {
 
   private assignment(target: TypeDescriptor, info: ExpressionInfo, span: SourceSpan): boolean {
     const source = info.descriptor ?? info.dataType;
+    const ti = interfaceType(target, this.types),
+      si = interfaceType(source, this.types);
+    if (ti || si) {
+      if (
+        ti &&
+        (info.nullReference ||
+          (si &&
+            (si.name.toUpperCase() === ti.name.toUpperCase() ||
+              si.extends.includes(ti.name.toUpperCase()))) ||
+          (typeof source === "object" &&
+            source.kind === "functionBlock" &&
+            this.pous.get(source.name)?.implemented?.includes(ti.name.toUpperCase())))
+      )
+        return true;
+      this.report("type.assign-mismatch", { from: source, to: target }, span);
+      return false;
+    }
     if (info.nullReference && !referenceType(target, this.types)) {
       this.report("type.invalid-reference-target", {}, span);
       return false;
@@ -2657,9 +2770,27 @@ class Checker {
           const target = this.reference(node.target, true),
             value = this.expression(
               node.value,
-              failed ? undefined : (target?.descriptor ?? target?.dataType),
+              failed || node.attempt ? undefined : (target?.descriptor ?? target?.dataType),
             );
           if (target) this.expressions.set(node.target, target);
+          if (node.attempt) {
+            const variableSource = (value: AST.Expression): boolean =>
+              value.kind === "group"
+                ? variableSource(value.expression)
+                : ["name", "member", "field", "index", "dereference"].includes(value.kind);
+            if (
+              !target ||
+              !value ||
+              !interfaceType(target.descriptor ?? target.dataType, this.types) ||
+              !(
+                value.nullReference ||
+                (variableSource(node.value) &&
+                  interfaceType(value.descriptor ?? value.dataType, this.types))
+              )
+            )
+              this.report("interface.assignment-attempt", {}, node.span);
+            break;
+          }
           if (target && value && !failed)
             this.assignment(target.descriptor ?? target.dataType, value, node.value.span);
           break;
@@ -2732,7 +2863,7 @@ class Checker {
             selector &&
             (!isInteger(selector.dataType) ||
               this.aggregate(selector) ||
-              referenceType(selector.descriptor ?? selector.dataType, this.types))
+              referenceLike(selector.descriptor ?? selector.dataType, this.types))
           )
             this.report(
               "type.case-selector-not-integer",
@@ -2784,7 +2915,7 @@ class Checker {
               !isInteger(symbol.type) ||
               (symbol.descriptor &&
                 (enumerationType(symbol.descriptor, this.types) ||
-                  referenceType(symbol.descriptor, this.types) ||
+                  referenceLike(symbol.descriptor, this.types) ||
                   isAggregateType(symbol.descriptor, this.types)))
             )
               this.report(

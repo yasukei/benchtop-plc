@@ -201,7 +201,9 @@ normal `pnpm test` and CI). No network access is used by the project package.
 Function and function block `VAR_IN_OUT` sections map to `interface/inOutVars`,
 preserving declaration order and exact source text. Canonical imports without
 source extensions reconstruct `VAR_IN_OUT` sections. As with other representable
-sections, an in-out section on a PROGRAM can be exchanged but compilation reports
+sections, an in-out section on a PROGRAM can be exchanged. Compilation allows
+interface variables and arrays of interfaces there, requiring exact-type global
+bindings in the preserved configuration source; other types report
 `pou.invalid-section`. In-out declaration initializers are also exchangeable
 semantic errors (`decl.in-out-initializer`); their usual type and range checks
 still apply on save and import.
@@ -419,3 +421,18 @@ These semantics survive only through preserved sources; tools ignoring extension
 see the declared TC6 variables and bodies without inheritance. A 0.6.0 text using
 one of the newly reserved words as an identifier opens as an editable draft through
 the existing legacy-name path, preserving source extensions first.
+
+## Interfaces
+
+Interface sources are stored in a single project-root addData/data record named
+`https://github.com/yasukei/benchtop-plc/ns/interface/1`, with
+`handleUnknown="discard"`. Its payload is an `interfaces` element in that namespace
+with `version="1"`, containing one text-only `source` element per interface in
+project order. Source text is XML-escaped and preserved exactly. Interfaces are
+listed before other POUs in the in-memory source list; they have no TC6 pou element.
+Missing records are allowed: interface-typed variables then compile as unknown
+types. Malformed, duplicated or unsupported-version records are rejected.
+
+IMPLEMENTS stays in the exact source extension of classes and function blocks and
+does not affect comparison against standard TC6 declarations/body. Other TC6 tools
+may discard the interface record, as indicated by handleUnknown.

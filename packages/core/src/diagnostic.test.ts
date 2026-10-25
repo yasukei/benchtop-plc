@@ -2,6 +2,12 @@ import { expect, expectTypeOf, it } from "vitest";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceSpan } from "./index.js";
 
 const examples = {
+  "interface.unknown": { name: "I" },
+  "interface.cycle": { name: "I" },
+  "interface.signature": { name: "Run" },
+  "interface.unimplemented": { name: "Run" },
+  "interface.lifetime": {},
+  "interface.assignment-attempt": {},
   "inheritance.unknown-base": { name: "Motor" },
   "inheritance.base-kind": { name: "Motor" },
   "inheritance.cycle": { name: "Motor" },

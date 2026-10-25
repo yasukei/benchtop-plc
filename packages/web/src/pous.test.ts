@@ -211,3 +211,13 @@ it("adds uniquely named classes with one public method", () => {
   expect(compilePous(added).diagnostics).toEqual([]);
   expect(deletePou(added, 2)).toEqual(pous);
 });
+
+it("adds an interface before POUs with one public prototype and a unique name", async () => {
+  const { addInterface } = await import("./pous.js");
+  const pous = createPous([main, "CLASS I1 END_CLASS"]);
+  const added = addInterface(pous, createDataTypes(["TYPE I2 : INT; END_TYPE"]));
+  expect(added[0]).toMatchObject({ name: "I3", kind: "INTERFACE" });
+  expect(added[0]!.source).toContain("METHOD Run");
+  expect(compilePous(added).diagnostics).toEqual([]);
+  expect(deletePou(added, 0)).toEqual(pous);
+});

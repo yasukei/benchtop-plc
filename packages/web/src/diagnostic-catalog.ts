@@ -33,6 +33,15 @@ const enBounds = { from: "start", to: "end", step: "step" };
 const jaBounds = { from: "開始値", to: "終了値", step: "増分" };
 
 export const diagnosticEn = {
+  "interface.unknown": ({ name }) => `Interface ${name} is unknown.`,
+  "interface.cycle": ({ name }) => `Interface inheritance through ${name} forms a cycle.`,
+  "interface.signature": ({ name }) => `Inherited prototype ${name} has incompatible signatures.`,
+  "interface.unimplemented": ({ name }) =>
+    `A public implementation with the signature of ${name} is required.`,
+  "interface.lifetime": () => "The interface target must have persistent instance storage.",
+  "interface.assignment-attempt": () =>
+    "Assignment attempt requires interface variables and an interface variable or NULL source.",
+
   "inheritance.unknown-base": ({ name }) => `Base type ${name} is unknown.`,
   "inheritance.base-kind": ({ name }) =>
     `Base ${name} must have the same kind as the derived type.`,
@@ -279,6 +288,14 @@ export const diagnosticEn = {
 } satisfies DiagnosticCatalog;
 
 export const diagnosticJa = {
+  "interface.unknown": ({ name }) => `インターフェース${name}が見つかりません。`,
+  "interface.cycle": ({ name }) => `インターフェース${name}の継承が循環しています。`,
+  "interface.signature": ({ name }) => `継承したプロトタイプ${name}のシグネチャが一致しません。`,
+  "interface.unimplemented": ({ name }) => `${name}と同じシグネチャのPUBLICメソッドが必要です。`,
+  "interface.lifetime": () => "インターフェースの参照先には永続的なインスタンス領域が必要です。",
+  "interface.assignment-attempt": () =>
+    "代入試行の代入先はインターフェース変数、代入元はインターフェース変数またはNULLにしてください。",
+
   "inheritance.unknown-base": ({ name }) => `基底型${name}が見つかりません。`,
   "inheritance.base-kind": ({ name }) => `基底型${name}は派生型と同じ種類である必要があります。`,
   "inheritance.cycle": ({ name }) => `${name}を介した継承が循環しています。`,
