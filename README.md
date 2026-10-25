@@ -38,15 +38,17 @@ Dependencies point inward, `web → compiler | runtime | project → core` (and
 The web app opens the bundled blink example (or the work autosaved in this
 browser), compiles it and runs it in a Web Worker. The
 [blink](examples/blink/), [running light](examples/running-light/),
-[motor starters](examples/motor-starters/), [batch mixer](examples/batch-mixer/)
-and [tank station](examples/tank-station/)
+[motor starters](examples/motor-starters/), [batch mixer](examples/batch-mixer/),
+[tank station](examples/tank-station/) and [sorting conveyor](examples/sorting-conveyor/)
 reference projects include documented panel controls and virtual-time conformance traces. Motor starters reuses a
 user-defined function block for two interlocked motors, with a nested TON start
 delay and a shared function. Batch mixer combines an enumerated state machine,
 an array of recipe structures, a recipe reference, timers and string status
 messages. Tank station combines two parameterized PROGRAM instances, fast and slow
 tasks, an alarm event task, shared globals, memory flags and retained pump run-time
-counters with numeric panel controls. Load an example's XML with **Open project**. See
+counters with numeric panel controls. Sorting conveyor combines namespaced classes,
+inheritance, method overrides, an interface array, a reference to an instance and
+function block methods with retained bin totals. Load an example's XML with **Open project**. See
 [the web app guide](docs/web-app.md) for the host boundary and browser tests.
 
 Contributor and agent conventions are in [`AGENTS.md`](AGENTS.md).

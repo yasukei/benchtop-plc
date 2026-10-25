@@ -197,6 +197,9 @@ END_RESOURCE END_CONFIGURATION`;
     const tankStation = XmlDocument.fromString(
       readFileSync(new URL("../../examples/tank-station/project.xml", import.meta.url), "utf8"),
     );
+    const sortingConveyor = XmlDocument.fromString(
+      readFileSync(new URL("../../examples/sorting-conveyor/project.xml", import.meta.url), "utf8"),
+    );
     const invalid = XmlDocument.fromString(xml.replace('priority="1"', 'priority="65536"'));
     try {
       expect(() => validator.validate(document)).not.toThrow();
@@ -205,9 +208,11 @@ END_RESOURCE END_CONFIGURATION`;
       expect(() => validator.validate(motorStarters)).not.toThrow();
       expect(() => validator.validate(batchMixer)).not.toThrow();
       expect(() => validator.validate(tankStation)).not.toThrow();
+      expect(() => validator.validate(sortingConveyor)).not.toThrow();
       expect(() => validator.validate(invalid)).toThrow();
     } finally {
       invalid.dispose();
+      sortingConveyor.dispose();
       tankStation.dispose();
       batchMixer.dispose();
       motorStarters.dispose();

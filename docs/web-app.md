@@ -162,6 +162,19 @@ STOP before reloading to flush the latest retained values to browser storage.
 Cold reset and opening a project initialize the counters. Save/reopen preserves
 the configuration, all three PROGRAM texts and the panel; XML excludes live values.
 
+Try the [sorting conveyor example](../examples/sorting-conveyor/) for classes,
+interfaces, namespaces and retained function block counters together. Open
+`examples/sorting-conveyor/project.xml`, press **RUN**, wait for an idle scan,
+then press and release **START**. Hold **PART A** or **PART B** to light the
+matching DIVERT lamp and count one part in that bin; release to retract the gate.
+The belt stays running until **STOP BELT**; **RESET TOTALS** clears both bin counts.
+The monitor shows `BinATotal` and `BinBTotal`. Expand `Actuators` to inspect the
+interface targets, `Belt` for motor speed and the gates for diverter angles.
+The same method call dispatches to the two derived device types. Warm restart
+keeps counts and disarms the belt; press RUN to republish totals, then a fresh
+START to resume. Save/reopen preserves all seven source texts, including namespace
+wrappers and interface prototypes, and the panel; opening a project resets counts.
+
 ## Structured Text editor
 
 A thin React wrapper owns a CodeMirror 6 editor controller. Highlighting is a
