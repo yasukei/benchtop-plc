@@ -1,4 +1,4 @@
-import { parseDirectAddress, validDirectAddress } from "@benchtop-plc/core";
+import { formatDirectAddress, parseDirectAddress, validDirectAddress } from "@benchtop-plc/core";
 
 export const partKinds = ["led", "pushbutton", "selector", "estop"] as const;
 export const ledColors = ["green", "amber", "red", "blue", "white"] as const;
@@ -40,7 +40,7 @@ export function assignAddress(part: PanelPart, address: string): PanelPart {
     parsed.area !== (part.kind === "led" ? "Q" : "I")
   )
     throw new RangeError("Invalid panel address");
-  return { ...part, address: address.toUpperCase() };
+  return { ...part, address: formatDirectAddress(parsed) };
 }
 /** Search row by row using the same fixed footprint in edit and operate modes. */
 export function findPartPosition(layout: PanelLayout, size: PanelSize): { x: number; y: number } {
@@ -153,7 +153,7 @@ export function readLayout(value: unknown): PanelLayout | null {
           : p.color!,
       x: p.x,
       y: p.y,
-      address: address === null ? null : address!.toUpperCase(),
+      address: address === null ? null : formatDirectAddress(parsed!),
     });
   }
   return parts.filter((p) => p.kind === "estop").length > 1 ? null : parts;

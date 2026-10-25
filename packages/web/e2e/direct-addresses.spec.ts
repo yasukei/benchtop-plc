@@ -4,8 +4,8 @@ import type { PanelLayout } from "../src/panel/layout.js";
 
 test("operates and resaves panel bits beyond byte zero", async ({ page }) => {
   const layout: PanelLayout = [
-    { id: "1", kind: "selector", label: "Start", address: "%IX63.7", color: "green", x: 0, y: 0 },
-    { id: "2", kind: "led", label: "Lamp", address: "%QX1.0", color: "green", x: 0.5, y: 0 },
+    { id: "1", kind: "selector", label: "Start", address: "%ix063.07", color: "green", x: 0, y: 0 },
+    { id: "2", kind: "led", label: "Lamp", address: "%qx01.00", color: "green", x: 0.5, y: 0 },
     { id: "3", kind: "estop", label: "Emergency", address: null, color: "red", x: 1, y: 0 },
   ];
   const source = `PROGRAM Main VAR start AT %IX63.7 : BOOL; lamp AT %QX1.0 : BOOL;
@@ -45,6 +45,7 @@ test("operates and resaves panel bits beyond byte zero", async ({ page }) => {
   await page.getByRole("button", { name: "Emergency", exact: true }).click();
   await page.getByRole("button", { name: "Edit panel", exact: true }).click();
   await page.getByRole("button", { name: "Lamp", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Address", exact: true })).toHaveValue("%QX1.0");
   await page.getByRole("combobox", { name: "Address", exact: true }).selectOption("%QX63.7");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save project", exact: true }).click();

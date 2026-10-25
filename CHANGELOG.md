@@ -16,7 +16,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   fault on program reads and display safely with raw bits in the monitor. The I/O
   image shows used addresses in their declared types. Panel bit controls support
   every I/O byte; projects save the address-based panel extension version 2 only
-  when needed and retain version 1 compatibility for byte-zero layouts.
+  when needed and retain version 1 compatibility for byte-zero layouts. Imported
+  panel addresses are normalized so address selection and automatic bindings stay
+  consistent.
 
 - Up to 16 cyclic and rising-edge event tasks with non-preemptive priority
   scheduling, independent intervals, missed-activation overrun counts and task-level
