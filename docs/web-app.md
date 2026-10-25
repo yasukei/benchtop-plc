@@ -146,6 +146,22 @@ Idle, clears the reference and resets timers. A fresh START edge begins a comple
 batch. Save/reopen preserves both TYPE texts, the PROGRAM, recipe initializers
 and panel; runtime state is reset.
 
+Try the [tank station example](../examples/tank-station/) for configurations,
+tasks, globals and retention together. Open `examples/tank-station/project.xml`,
+set SETPOINT (%) to 50 and both LEVEL inputs below 50, press **RUN**, wait for an
+idle scan, then press and release **START 1** and **START 2**. Each pump fills
+until its level reaches the shared setpoint; change the levels manually.
+The panel **STOP TANKS** button disarms both tanks. A level of 90 trips a latched
+alarm; lower the level, press **ACK**, then press START again to resume.
+Control runs every 100 ms; statistics reads the pump flags in `%MW0` every
+500 ms and publishes `ActivePumps` on `%QW3` (also visible under Stats in the monitor). ACK triggers an event task on a rising edge.
+RUN 1 and RUN 2 display retained pump-on activation counts in units of 0.1 s,
+saturating at 65,535. Warm restart and page reload preserve the counters and
+disarm both tanks; press RUN to republish counts on the output words. Use toolbar
+STOP before reloading to flush the latest retained values to browser storage.
+Cold reset and opening a project initialize the counters. Save/reopen preserves
+the configuration, all three PROGRAM texts and the panel; XML excludes live values.
+
 ## Structured Text editor
 
 A thin React wrapper owns a CodeMirror 6 editor controller. Highlighting is a

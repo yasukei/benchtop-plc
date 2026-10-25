@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Tank station reference project combining two parameterized tank controllers,
+  fast control and slower statistics tasks, an alarm acknowledge event task,
+  shared globals and a high-level constant, `%M` pump flags, numeric panel
+  controls and retentive run-time counters with virtual-clock and browser tests.
+
 - RETAIN and NON_RETAIN declarations, warm restart and fault acknowledgement into
   STOP. Retained scalars and counter/edge/bistable state survive browser reloads;
   timers and references reset. Browser storage saves complete retained sets at most
