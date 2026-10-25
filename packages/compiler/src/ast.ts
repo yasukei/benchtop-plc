@@ -9,7 +9,13 @@ export interface Identifier extends SourceNode {
 /** Syntactically valid addresses may exceed the runtime's supported I/O range. */
 export type Address = SourceNode & import("@benchtop-plc/core").DirectAddress & { text: string };
 
+export type Access = "PUBLIC" | "PROTECTED" | "PRIVATE" | "INTERNAL";
+
 export interface Program extends SourceNode {
+  methods?: Program[];
+  access?: Access;
+  /** Compiler-local owner for a method checked as a function with instance storage. */
+  owner?: Program;
   kind: "program" | "function" | "functionBlock";
   name: Identifier;
   resultType?: Identifier;
@@ -19,6 +25,7 @@ export interface Program extends SourceNode {
   resultStringLength?: number;
   sections?: {
     name: string;
+    access?: Access;
     constant?: boolean;
     retain?: boolean;
     nonRetain?: boolean;
@@ -37,6 +44,7 @@ export interface TypeSyntax extends SourceNode {
 }
 export interface Declaration extends SourceNode {
   reference?: TypeSyntax;
+  access?: Access;
   kind: "declaration";
   names: [Identifier, ...Identifier[]];
   address?: Address;
@@ -127,6 +135,7 @@ export interface GroupExpression extends SourceNode {
 }
 
 export interface FunctionCall extends SourceNode {
+  receiver?: AssignmentTarget;
   kind: "functionCall";
   name: Identifier;
   instance?: ArrayAccess;

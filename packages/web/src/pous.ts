@@ -210,7 +210,9 @@ export function diagnosticPouIndex(
   diagnostic: Diagnostic,
 ): number | undefined {
   const index = diagnostic.pou
-    ? pous.findIndex((pou) => pou.name.toUpperCase() === diagnostic.pou!.toUpperCase())
+    ? pous.findIndex(
+        (pou) => pou.name.toUpperCase() === diagnostic.pou!.split(".")[0]!.toUpperCase(),
+      )
     : pous.findIndex((pou) => pou.kind === "PROGRAM");
   return index < 0 ? undefined : index;
 }

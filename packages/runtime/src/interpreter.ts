@@ -64,6 +64,7 @@ export class Interpreter {
   private pou: string;
   private callDepth = 0;
   private instancePath?: string;
+  private receiver?: { frame: MemoryFrame; block: number; path: string };
 
   constructor(
     private readonly programMemory: Memory,
@@ -767,6 +768,8 @@ export class Interpreter {
     const caller = this.memory,
       callerPou = this.pou,
       callerPath = this.instancePath;
+    const callerReceiver = this.receiver;
+    this.receiver = instance;
     this.memory = instance.frame;
     this.pou = definition.name;
     this.instancePath = instance.path;
@@ -774,6 +777,7 @@ export class Interpreter {
     try {
       this.execute(definition.body);
     } finally {
+      this.receiver = callerReceiver;
       instance.frame.unbind(definition.inOuts ?? []);
       this.callDepth--;
       this.memory = caller;
@@ -797,49 +801,54 @@ export class Interpreter {
   }
 
   private userCall(call: UserFunctionCall): StoredValue {
-    const definition = this.functions[call.function];
+    // Resolve the receiver before any arguments, including indexed instance calls.
+    const location = call.method?.receiver ? this.location(call.method.receiver) : undefined;
+    const receiver = call.method
+      ? location
+        ? location.frame.userBlock(location.variable)
+        : this.receiver
+      : undefined;
+    const definition = call.method
+      ? this.programMemory.ir.functionBlocks![receiver!.block]!.methods![call.function]
+      : this.functions[call.function];
     if (!definition) throw new Error("Missing function body");
     const args = this.arguments(call.inputs, call.inOuts ?? []);
     const caller = this.memory,
       callerPou = this.pou,
       callerPath = this.instancePath;
-    const locals = this.programMemory.functionFrame(call.function);
+    const callerReceiver = this.receiver;
+    const locals = call.method
+      ? receiver!.frame.methodFrame(definition as import("@benchtop-plc/core").UserMethodIR)
+      : this.programMemory.functionFrame(call.function);
     for (const [slot, value] of args.values) this.store(locals, slot, value);
     for (const [slot, actual] of args.aliases) locals.bind(slot, actual.frame, actual.variable);
     let result: StoredValue;
     this.memory = locals;
-    this.pou = definition.name;
-    this.instancePath = undefined;
+    this.receiver = receiver;
+    this.pou = receiver
+      ? `${this.programMemory.ir.functionBlocks![receiver.block]!.name}.${definition.name}`
+      : definition.name;
+    this.instancePath = receiver?.path;
     this.callDepth++;
     try {
       this.execute(definition.body);
       result =
         definition.result === undefined
           ? null
-          : referenceType(
-                definition.variables[definition.result]!.dataType,
-                this.programMemory.ir.types,
-              )
+          : referenceType(locals.descriptor(definition.result), this.programMemory.ir.types)
             ? locals.readReference(definition.result)
-            : isAggregateType(
-                  definition.variables[definition.result]!.dataType,
-                  this.programMemory.ir.types,
-                )
+            : isAggregateType(locals.descriptor(definition.result), this.programMemory.ir.types)
               ? locals.aggregateValue(definition.result)
               : locals.read(definition.result);
     } finally {
+      this.receiver = callerReceiver;
       this.callDepth--;
       this.memory = caller;
       this.pou = callerPou;
       this.instancePath = callerPath;
     }
     for (const output of call.outputs) {
-      this.copyOutput(
-        output.target,
-        locals,
-        output.variable,
-        definition.variables[output.variable]!.dataType,
-      );
+      this.copyOutput(output.target, locals, output.variable, locals.descriptor(output.variable));
     }
     return result;
   }

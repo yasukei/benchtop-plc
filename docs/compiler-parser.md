@@ -186,3 +186,18 @@ tokens for project checking, which resolves event inputs, task/type names and
 namespace collisions. The parser also accepts `VAR_GLOBAL` sections in the
 configuration and resource, and program parameter connections (`:=` inputs and
 `=>` outputs).
+
+## Method syntax
+
+`METHOD [PUBLIC | PROTECTED | PRIVATE | INTERNAL] name [: type] ... END_METHOD`
+appears inside `FUNCTION_BLOCK`, after its variable sections and before its body.
+A method allows `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR CONSTANT`/`VAR`.
+Calls parse as `instance.M(...)`, `instances[i].M(...)`, `M(...)` or `THIS.M(...)`;
+`THIS.member` accesses an instance member. Access precedes all other qualifiers on
+function block `VAR` sections. Duplicate access qualifiers and access on other
+sections are errors. These seven new keywords are reserved: `METHOD`, `END_METHOD`,
+`THIS`, `PUBLIC`, `PROTECTED`, `PRIVATE`, `INTERNAL`.
+
+The optional `legacyNames` parser/lexer argument is used only to validate syntax
+when importing older project files. Compilation and editor parsing always use the
+current reserved words. Import does not make such source executable.

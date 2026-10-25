@@ -5,6 +5,7 @@ import {
   deriveDataType,
   deleteDataType,
   diagnosticSourceMatches,
+  diagnosticPouIndex,
   addFunction,
   addFunctionBlock,
   compilePous,
@@ -188,4 +189,15 @@ it("routes configuration diagnostics only to the configuration editor", () => {
   expect(diagnosticSourceMatches(diagnostic, 0, null)).toBe(false);
   expect(diagnosticSourceMatches(diagnostic, 0, 0)).toBe(false);
   expect(diagnosticSourceMatches({ ...diagnostic, sourceKind: "pou" }, 0, null, true)).toBe(false);
+});
+
+it("locates method faults in the owning function block text", () => {
+  expect(
+    diagnosticPouIndex(createPous([main, "FUNCTION_BLOCK Counter END_FUNCTION_BLOCK"]), {
+      code: "runtime.division-by-zero",
+      severity: "error",
+      args: {},
+      pou: "Counter.Increment",
+    }),
+  ).toBe(1);
 });

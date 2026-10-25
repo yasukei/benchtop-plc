@@ -83,13 +83,14 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Program organization units
 
-| Feature                      | Status  | Notes                                                                                                                                                                      |
-| ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROGRAM`                    | Partial | One implicit PROGRAM or 1–64 configured instances; VAR_INPUT/VAR_OUTPUT connections; no PROGRAM VAR_IN_OUT or AT on parameters (restrictions)                              |
-| `FUNCTION`                   | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
-| `FUNCTION_BLOCK`             | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
-| Classes, methods, interfaces | No      |                                                                                                                                                                            |
-| Namespaces                   | No      |                                                                                                                                                                            |
+| Feature                    | Status  | Notes                                                                                                                                                                      |
+| -------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PROGRAM`                  | Partial | One implicit PROGRAM or 1–64 configured instances; VAR_INPUT/VAR_OUTPUT connections; no PROGRAM VAR_IN_OUT or AT on parameters (restrictions)                              |
+| `FUNCTION`                 | Partial | Multi-source compilation; scalar inputs, outputs, in-outs and result or no result; fresh locals, defaults, formal/positional calls and RETURN; no FB instances or VAR_TEMP |
+| `FUNCTION_BLOCK`           | Partial | Persistent independent instances; arbitrary acyclic nesting; VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR/VAR_TEMP; no direct addresses (restrictions)                              |
+| Methods on function blocks | Yes     | ADR 0017: access by type, fresh locals, formal/positional calls; no instance VAR_IN_OUT in methods                                                                         |
+| Classes, interfaces        | No      |                                                                                                                                                                            |
+| Namespaces                 | No      |                                                                                                                                                                            |
 
 ## Operators and statements (ST)
 
@@ -337,3 +338,12 @@ exact block variant; missing/mismatched paths produce warnings and initial value
 The last second of changes can be lost on reload. These are ADR 0016 restrictions
 and implementation choices based on the 3rd edition; 4th edition verification is
 still pending. PERSISTENT and retained timers remain unsupported.
+
+## Method restrictions (ADR 0017)
+
+Methods precede a function block's body; access defaults to PROTECTED and INTERNAL
+currently covers the global project namespace. Methods have function-style local
+storage and cannot declare instances, VAR_TEMP, VAR_EXTERNAL or retention. They
+cannot use the instance's VAR_IN_OUT or call its body through THIS. Recursion is
+rejected conservatively across methods, functions and block bodies. These rules
+follow the 3rd edition and project restrictions, pending 4th edition verification.

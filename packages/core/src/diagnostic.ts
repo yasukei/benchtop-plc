@@ -10,6 +10,15 @@ export type AssignmentHint = "explicit-conversion";
 
 /** Stable code-to-argument contract. See docs/diagnostics.md for field semantics. */
 export interface DiagnosticArgs {
+  "access.duplicate": NoArguments;
+  "access.invalid-section": NoArguments;
+  "access.hidden": { name: string };
+  "method.invalid-owner": NoArguments;
+  "method.name-collision": { name: string };
+  "method.unknown": { name: string };
+  "method.instance-in-out": { name: string };
+  "method.this-outside": NoArguments;
+  "method.this-call": NoArguments;
   "project.invalid-xml": NoArguments;
   "project.missing": { path: string };
   "project.unsupported": { path: string };

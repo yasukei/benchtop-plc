@@ -12,6 +12,17 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - ADR 0017 documents the accepted design for methods, classes, inheritance,
   interfaces, references to instances and namespaces for Milestone 7.
+- Function block methods with instance storage, fresh call-local variables,
+  formal and positional parameters, return values, access specifiers and THIS.
+  Method calls show inline values in PROGRAM bodies; monitor access stays unrestricted.
+  Project files preserve exact methods and access in the source extension.
+
+### Changed
+
+- METHOD, END_METHOD, THIS, PUBLIC, PROTECTED, PRIVATE and INTERNAL are now reserved.
+  Affected 0.6.0 project texts open as editable drafts, preserving source extensions
+  or using generated text when absent. Autosave keeps drafts; rename the identifiers
+  before running or exporting the project.
 
 ## [0.6.0] - 2026-10-25
 

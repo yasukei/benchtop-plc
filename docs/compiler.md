@@ -255,3 +255,15 @@ connect to I.
 Overlapping Q writers (located declarations and direct output connections) emit
 `decl.output-overlap` warnings, including separate instances. Independent bits in
 the same byte do not overlap. I and M aliases produce no overlap warnings.
+
+## Methods on function blocks
+
+A function block declares methods after its variable sections and before its body.
+Methods compile once into the block definition, with function-style parameter
+checking and separate local slots. Overloaded standard block variants collect
+selecting argument types across the body and every method before checking calls.
+Calls accept formal or positional arguments as
+user functions do, and can appear as statements or, with a result type, expressions.
+The recursion graph includes methods as distinct nodes, including unreachable
+methods and cycles through functions or block bodies. Member and method access is
+checked by declaring type; all types currently share the global namespace.

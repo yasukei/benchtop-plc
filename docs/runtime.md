@@ -675,3 +675,14 @@ their paths without faulting. A block is validated as a whole before its ports
 are restored; no CV or port can leak across a changed block type. Scalar members
 of retained user blocks have their own leaf records; standard-block ports never
 have separate leaf records.
+
+## Method invocation
+
+A method resolves its receiver before evaluating arguments, shares its instance's
+persistent cells and appends fresh cells for parameters, locals and its result.
+In-out arguments alias caller cells and outputs copy back after execution, as for
+functions. `RETURN` ends only the current method. Method loops count against the
+same scan watchdog budget as their callers. Faults retain the original source span,
+name the method as `Counter.Increment` and include the receiver path when known.
+Nested method calls restore the caller's instance context on return. Method locals
+are absent from snapshots and cannot be written or forced through the protocol.

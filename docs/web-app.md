@@ -342,3 +342,15 @@ lists the count and every affected path; the alert clears on the next successful
 program load, warm restart or cold reset. Storage being unavailable or full raises
 a warning without stopping the PLC. Retained values are local browser state and
 are not embedded in project XML.
+
+## Function block methods and import drafts
+
+Method calls in PROGRAM bodies display inline return values like function calls.
+Method bodies do not display inline values. The monitor includes instance members
+regardless of access and supports their existing writes and forces; method locals
+never appear. A method fault navigates to its owning function block's source.
+
+Older project texts using a newly reserved method keyword as an identifier open
+in the editor with parse diagnostics. RUN and file export remain blocked until the
+text parses; autosave preserves the draft across reloads. Rename the identifier to
+resume running and saving the project.

@@ -371,3 +371,20 @@ A disagreement between XML qualifiers and a source extension reports
 project.stale-source and uses the XML structure. Compilation separately rejects
 illegal qualifier combinations and sections. These attributes describe storage
 semantics; live retained values stay in browser autosave and are not project data.
+
+## Methods and older reserved identifiers
+
+A block with methods writes its own declarations and body to TC6's standard
+`functionBlock` POU; methods and access specifiers exist only in its exact source
+extension. Reopening compares the standard declarations and body without methods
+or access, then restores the exact source. Other tools see the block without its
+methods, and removing the extension loses the methods.
+
+A 0.6.0 text that fails current parsing but parses with the previous keyword set
+opens as an editable draft. Its preserved source wins when present; otherwise the
+standard elements generate the draft. This applies to POUs, data types and
+configuration text, preserving resource type names and parameter connections.
+Draft data types remain unknown while reading other texts, which keep their exact
+source. Other damaged preserved text still falls back with `project.stale-source`;
+invalid XML, unsupported elements and invalid initializers still reject the file.
+Drafts cannot be exported until their reserved names are renamed.
