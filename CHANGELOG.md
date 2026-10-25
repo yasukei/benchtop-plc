@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Sorting conveyor reference project combining namespaced classes, inheritance,
+  interface-array dispatch, an instance reference and function block methods with
+  retained bin totals. Includes sensor buttons, diverter lamps, numeric displays,
+  a virtual-clock conformance trace and a browser acceptance test.
+
 - Namespaces for data types, POUs, classes and interfaces, qualified names and
   USING imports with ordered lexical lookup and ambiguity diagnostics. INTERNAL
   declarations, members and methods respect namespace boundaries. Project files
