@@ -17,6 +17,7 @@ import type {
   Program,
   Statement,
 } from "./ast.js";
+import { rootName } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
 import { isElementaryTypeName, lex } from "./lexer.js";
 import type { Token } from "./lexer.js";
@@ -636,7 +637,7 @@ export class Parser {
       return { kind: "call", call, span: this.spanFrom(start) };
     }
     if (target.kind === "index" && this.accept("(")) {
-      const call = this.functionArguments(name, true);
+      const call = this.functionArguments(rootName(target), true);
       call.instance = target;
       this.expect(";");
       return { kind: "call", call, span: this.spanFrom(start) };

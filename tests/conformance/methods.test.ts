@@ -146,3 +146,40 @@ it("selects a single overloaded instance variant across block bodies and methods
   expect(scan()).toMatchObject({ x: "10000000" });
   expect(runtime.diagnostic).toBeNull();
 });
+
+it("executes THIS-qualified scalar and indexed member bodies with outputs and aliases", () => {
+  const { scan, runtime } = setup([
+    `PROGRAM Main VAR o: Owner; seen: INT; done: BOOL; END_VAR
+    o.Run(); seen := o.Count(); done := o.Done(); END_PROGRAM`,
+    `FUNCTION_BLOCK Owner
+    VAR timer: TON; items: ARRAY[1..2] OF TON; inner: InnerBlock; total: INT; ready: BOOL; i: INT := 2; END_VAR
+    METHOD PUBLIC Run
+      THIS.timer(IN := TRUE, PT := LTIME#0s);
+      THIS.items[i](IN := THIS.timer.Q, PT := LTIME#0s, Q => THIS.ready);
+      THIS.inner(Step := 3, Acc := THIS.total);
+    END_METHOD
+    METHOD PUBLIC Count : INT Count := total; END_METHOD
+    METHOD PUBLIC Done : BOOL Done := ready; END_METHOD
+    END_FUNCTION_BLOCK`,
+    `FUNCTION_BLOCK InnerBlock VAR_INPUT Step: INT; END_VAR VAR_IN_OUT Acc: INT; END_VAR
+    Acc := Acc + Step; END_FUNCTION_BLOCK`,
+  ]);
+  expect(scan()).toMatchObject({ seen: 3, done: true });
+  expect(scan()).toMatchObject({ seen: 6, done: true });
+  expect(runtime.diagnostic).toBeNull();
+});
+
+it("reports the member array path for bounds faults through THIS", () => {
+  const { runtime } = setup([
+    "PROGRAM Main VAR o: Owner; x: BOOL; END_VAR x := o.Get(5); END_PROGRAM",
+    `FUNCTION_BLOCK Owner VAR items: ARRAY[1..2] OF TON; END_VAR
+    METHOD PUBLIC Get : BOOL VAR_INPUT i: INT; END_VAR Get := THIS.items[i].Q; END_METHOD
+    END_FUNCTION_BLOCK`,
+  ]);
+  runtime.scanOnce();
+  expect(runtime.diagnostic).toMatchObject({
+    code: "runtime.index-out-of-range",
+    pou: "Owner.Get",
+    instance: "mainInstance.O.ITEMS[5]",
+  });
+});

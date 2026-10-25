@@ -16,6 +16,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   formal and positional parameters, return values, access specifiers and THIS.
   Method calls show inline values in PROGRAM bodies; monitor access stays unrestricted.
   Project files preserve exact methods and access in the source extension.
+  THIS-qualified member instances and indexed elements support body calls, and
+  their bounds faults identify the member array in the instance path.
 
 ### Changed
 

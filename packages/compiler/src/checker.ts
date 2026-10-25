@@ -2183,6 +2183,11 @@ class Checker {
         this.report("method.this-outside", {}, node.span);
         return null;
       }
+      const symbol = this.names.get(node.name.key);
+      if (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined)) {
+        this.report("fb.call-in-expression", { name: node.name.name }, node.span);
+        return null;
+      }
     } else if (receiver) {
       const info = this.reference(receiver, false, true);
       if (info) this.expressions.set(receiver, info);
@@ -2540,7 +2545,10 @@ class Checker {
         case "call": {
           const symbol = this.names.get(node.call.name.key);
           if (
-            !node.call.receiver &&
+            (!node.call.receiver ||
+              (node.call.receiver.kind === "name" &&
+                node.call.receiver.name.key === "THIS" &&
+                (this.ast.owner !== undefined || this.ast.kind === "functionBlock"))) &&
             (node.call.instance ||
               (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined)))
           )

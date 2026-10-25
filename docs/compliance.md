@@ -344,6 +344,8 @@ still pending. PERSISTENT and retained timers remain unsupported.
 Methods precede a function block's body; access defaults to PROTECTED and INTERNAL
 currently covers the global project namespace. Methods have function-style local
 storage and cannot declare instances, VAR_TEMP, VAR_EXTERNAL or retention. They
-cannot use the instance's VAR_IN_OUT or call its body through THIS. Recursion is
+cannot use the instance's VAR_IN_OUT or call its body through THIS. Member instances
+and their indexed elements can be called through THIS; bounds faults identify the
+member array in the instance path. Recursion is
 rejected conservatively across methods, functions and block bodies. These rules
 follow the 3rd edition and project restrictions, pending 4th edition verification.

@@ -158,3 +158,39 @@ it("does not infer an unrelated block variant from a qualified method name", () 
   expect(result.diagnostics).toEqual([]);
   expect(result.ir?.functionBlocks?.[0]?.variables[0]).toMatchObject({ fbType: "TON" });
 });
+
+it.each([
+  "THIS.timer(IN := TRUE, PT := LTIME#1s);",
+  "THIS.inner();",
+  "THIS.items[i](IN := TRUE, PT := LTIME#1s);",
+])("calls THIS-qualified member instances in bodies and methods: %s", (call) => {
+  for (const method of [false, true]) {
+    const result = compileProject([
+      main(),
+      block(
+        method ? `METHOD PUBLIC Run ${call} END_METHOD` : "",
+        "VAR timer: TON; inner: InnerBlock; items: ARRAY[1..2] OF TON; i: INT := 2; END_VAR",
+        method ? "Run();" : call,
+      ),
+      "FUNCTION_BLOCK InnerBlock END_FUNCTION_BLOCK",
+    ]);
+    expect(result.diagnostics).toEqual([]);
+    const variables = result.ir!.functionBlocks![0]!.variables;
+    if (call.includes("THIS.timer")) expect(variables[0]).toMatchObject({ fbType: "TON_LTIME" });
+  }
+});
+
+it("rejects THIS-qualified instance calls outside a block and in expressions", () => {
+  expect(
+    compileProject([main("THIS.timer();", "timer: TON;")]).diagnostics.map((d) => d.code),
+  ).toContain("method.this-outside");
+  expect(
+    compileProject([
+      main(),
+      block(
+        "METHOD M VAR x: BOOL; END_VAR x := THIS.timer(); END_METHOD",
+        "VAR timer: TON; END_VAR",
+      ),
+    ]).diagnostics.map((d) => d.code),
+  ).toContain("fb.call-in-expression");
+});

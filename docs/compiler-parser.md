@@ -193,7 +193,9 @@ configuration and resource, and program parameter connections (`:=` inputs and
 appears inside `FUNCTION_BLOCK`, after its variable sections and before its body.
 A method allows `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR CONSTANT`/`VAR`.
 Calls parse as `instance.M(...)`, `instances[i].M(...)`, `M(...)` or `THIS.M(...)`;
-`THIS.member` accesses an instance member. Access precedes all other qualifiers on
+`THIS.member` accesses an instance member, including calls to member function block
+instances (`THIS.timer(...)`) and their array elements (`THIS.items[i](...)`).
+Access precedes all other qualifiers on
 function block `VAR` sections. Duplicate access qualifiers and access on other
 sections are errors. These seven new keywords are reserved: `METHOD`, `END_METHOD`,
 `THIS`, `PUBLIC`, `PROTECTED`, `PRIVATE`, `INTERNAL`.

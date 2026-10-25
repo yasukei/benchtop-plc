@@ -269,7 +269,7 @@ export type Statement =
 export function rootName(node: AssignmentTarget): Identifier {
   if (node.kind === "dereference") return rootName(node.reference);
   if (node.kind === "name") return node.name;
-  if (node.kind === "member") return node.instance;
+  if (node.kind === "member") return node.instance.key === "THIS" ? node.member : node.instance;
   return rootName(
     node.kind === "index" ? node.array : node.kind === "field" ? node.object : node.element,
   );

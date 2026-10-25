@@ -559,13 +559,7 @@ class Lowerer {
           value: this.widen(this.expression(node.value), this.target(node.target).dataType),
         };
       case "call": {
-        const resolved = this.checked.references.get(node.call.name);
-        const symbol = resolved && this.checked.symbols[resolved.variable];
-        if (
-          !node.call.receiver &&
-          (node.call.instance ||
-            (symbol && (isBlock(symbol.type) || symbol.userBlock !== undefined)))
-        )
+        if (this.checked.blockInOuts.has(node.call))
           return { ...this.blockCall(node.call), span: span(node) };
         const user = this.checked.userCalls.get(node.call);
         if (user) return { ...base, kind: "call", call: this.userCall(node.call, user) };

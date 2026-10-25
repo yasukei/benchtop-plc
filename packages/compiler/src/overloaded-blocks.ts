@@ -1,25 +1,9 @@
 import type { DataType, FunctionBlockType } from "@benchtop-plc/core";
-import { type AssignmentTarget, type Expression, type Statement } from "./ast.js";
+import { rootName, type Expression, type Statement } from "./ast.js";
 import { assignable, commonType } from "./type-rules.js";
 
 export const selectingPort = (type: string): "PT" | "PV" | null =>
   ["TON", "TOF", "TP"].includes(type) ? "PT" : ["CTU", "CTD", "CTUD"].includes(type) ? "PV" : null;
-
-/** THIS qualifies a member without changing its declaration identity. */
-function instanceName(node: AssignmentTarget): string {
-  if (node.kind === "name") return node.name.key;
-  if (node.kind === "member")
-    return node.instance.key === "THIS" ? node.member.key : node.instance.key;
-  return instanceName(
-    node.kind === "field"
-      ? node.object
-      : node.kind === "index"
-        ? node.array
-        : node.kind === "dereference"
-          ? node.reference
-          : node.element,
-  );
-}
 
 /** Reads of inferred ports exclude the whole expression, even inside a fixed-result call. */
 export function readsInferredMember(node: Expression, instances: ReadonlySet<string>): boolean {
@@ -37,7 +21,7 @@ export function readsInferredMember(node: Expression, instances: ReadonlySet<str
       );
     case "field":
       return (
-        (instances.has(instanceName(node.object)) &&
+        (instances.has(rootName(node.object).key) &&
           ["PT", "PV", "ET", "CV"].includes(node.member.key)) ||
         readsInferredMember(node.object, instances)
       );
@@ -76,10 +60,14 @@ export function visitBlockBindings(
         if (node.target.kind === "member")
           visit(node.target.instance.key, node.target.member.key, node.value);
         if (node.target.kind === "field")
-          visit(instanceName(node.target.object), node.target.member.key, node.value);
+          visit(rootName(node.target.object).key, node.target.member.key, node.value);
         break;
       case "call":
-        if (node.call.receiver) break;
+        if (
+          node.call.receiver &&
+          !(node.call.receiver.kind === "name" && node.call.receiver.name.key === "THIS")
+        )
+          break;
         node.call.args.forEach((value, index) => {
           const port = node.call.inputNames?.[index];
           if (port) visit(node.call.name.key, port.key, value);
