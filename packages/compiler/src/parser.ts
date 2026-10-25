@@ -166,17 +166,20 @@ export class Parser {
     return access;
   }
 
-  run(pou = false, method = false): Program {
+  run(pou = false, method = false, prototype = false): Program {
     if (method) this.expect("METHOD");
-    else if (!pou || !["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS"].includes(this.current.key))
+    else if (
+      !pou ||
+      !["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS", "INTERFACE"].includes(this.current.key)
+    )
       this.expect("PROGRAM");
     else this.take();
     const header = this.previous;
     const start = header.span;
     // Type names are accepted here so namespace clashes receive semantic diagnostics.
-    const access = method ? this.access() : undefined;
+    const access = method && !prototype ? this.access() : undefined;
     const modifiers: Pick<Program, "abstract" | "final" | "override"> = {};
-    if (method || ["CLASS", "FUNCTION_BLOCK"].includes(header.key)) {
+    if ((method && !prototype) || ["CLASS", "FUNCTION_BLOCK"].includes(header.key)) {
       if (this.accept("ABSTRACT")) modifiers.abstract = true;
       else if (this.accept("FINAL")) modifiers.final = true;
       if (["ABSTRACT", "FINAL"].includes(this.current.key))
@@ -193,6 +196,16 @@ export class Parser {
       !method && ["CLASS", "FUNCTION_BLOCK"].includes(header.key) && this.accept("EXTENDS")
         ? this.identifier(true)
         : undefined;
+    const extended: Identifier[] = [];
+    if (header.key === "INTERFACE" && this.accept("EXTENDS"))
+      do {
+        extended.push(this.identifier(true));
+      } while (this.accept(","));
+    const implemented: Identifier[] = [];
+    if (!method && ["CLASS", "FUNCTION_BLOCK"].includes(header.key) && this.accept("IMPLEMENTS"))
+      do {
+        implemented.push(this.identifier(true));
+      } while (this.accept(","));
     const hasResult = (method || header.key === "FUNCTION") && this.accept(":");
     const resultReference = hasResult && this.accept("REF_TO") ? this.typeSyntax() : undefined;
     const resultArray =
@@ -214,7 +227,10 @@ export class Parser {
         : ["VAR"]
       ).includes(this.current.key)
     ) {
+      if (header.key === "INTERFACE") this.expected("METHOD");
       const section = this.take();
+      if (prototype && !["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT"].includes(section.key))
+        this.expected("VAR_INPUT");
       const sectionAccess = this.access();
       if (
         sectionAccess &&
@@ -244,6 +260,7 @@ export class Parser {
           span: section.span,
           ...(constant ? { constant: true } : {}),
         });
+      if (prototype && (constant || retain || nonRetain)) this.expected("VAR_INPUT");
       while (!this.at("END_VAR")) {
         if (
           this.current.kind === "eof" ||
@@ -263,16 +280,17 @@ export class Parser {
     }
     const methods: Program[] = [];
     while (this.current.kind === "keyword" && this.at("METHOD") && !method) {
-      if (!["FUNCTION_BLOCK", "CLASS"].includes(header.key))
+      if (!["FUNCTION_BLOCK", "CLASS", "INTERFACE"].includes(header.key))
         this.fail({
           code: "method.invalid-owner",
           severity: "error",
           span: this.current.span,
           args: {},
         });
-      methods.push(this.run(true, true));
+      methods.push(this.run(true, true, header.key === "INTERFACE"));
     }
     const end = `END_${header.key}` as `END_${string}`;
+    if ((header.key === "INTERFACE" || prototype) && !this.at(end)) this.expected(end);
     if (header.key === "CLASS" && !this.at(end))
       this.fail({ code: "class.body", severity: "error", span: this.current.span, args: {} });
     const body = this.body([end], end);
@@ -283,17 +301,22 @@ export class Parser {
     if (!method && this.current.kind !== "eof") this.expected("eof");
     return {
       ...modifiers,
+      ...(extended.length ? { extends: extended } : {}),
+      ...(implemented.length ? { implements: implemented } : {}),
+      ...(prototype ? { access: "PUBLIC" as const } : {}),
       ...(base ? { base } : {}),
       ...(methods.length ? { methods } : {}),
       ...(access ? { access } : {}),
       kind:
         method || header.key === "FUNCTION"
           ? "function"
-          : header.key === "CLASS"
-            ? "class"
-            : header.key === "FUNCTION_BLOCK"
-              ? "functionBlock"
-              : "program",
+          : header.key === "INTERFACE"
+            ? "interface"
+            : header.key === "CLASS"
+              ? "class"
+              : header.key === "FUNCTION_BLOCK"
+                ? "functionBlock"
+                : "program",
       name,
       declarations,
       body,
@@ -667,10 +690,17 @@ export class Parser {
       this.expect(";");
       return { kind: "call", call, span: this.spanFrom(start) };
     }
-    this.assignmentOperator();
+    const attempt = this.accept("?=");
+    if (!attempt) this.assignmentOperator();
     const value = this.expression();
     this.expect(";");
-    return { kind: "assignment", target, value, span: this.spanFrom(start) };
+    return {
+      kind: "assignment",
+      ...(attempt ? { attempt: true } : {}),
+      target,
+      value,
+      span: this.spanFrom(start),
+    };
   }
 
   private conditionalBranch(start: SourceSpan): ConditionalBranch {
@@ -912,7 +942,7 @@ function parseSource(source: string, pou: boolean, legacyNames = false): ParseRe
       const name = result.tokens[1];
       const diagnostic = {
         ...error.diagnostic,
-        ...(["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS"].includes(
+        ...(["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS", "INTERFACE"].includes(
           result.tokens[0]?.key ?? "",
         ) && name?.kind === "identifier"
           ? { pou: name.text }

@@ -12,6 +12,9 @@ export type Address = SourceNode & import("@benchtop-plc/core").DirectAddress & 
 export type Access = "PUBLIC" | "PROTECTED" | "PRIVATE" | "INTERNAL";
 
 export interface Program extends SourceNode {
+  extends?: Identifier[];
+  implements?: Identifier[];
+  implemented?: string[];
   abstract?: true;
   final?: true;
   override?: true;
@@ -23,7 +26,7 @@ export interface Program extends SourceNode {
   access?: Access;
   /** Compiler-local owner for a method checked as a function with instance storage. */
   owner?: Program;
-  kind: "program" | "function" | "functionBlock" | "class";
+  kind: "program" | "function" | "functionBlock" | "class" | "interface";
   name: Identifier;
   resultType?: Identifier;
   resultReference?: TypeSyntax;
@@ -189,6 +192,7 @@ export type Expression =
   | FunctionCall;
 
 export interface Assignment extends SourceNode {
+  attempt?: true;
   kind: "assignment";
   target: AssignmentTarget;
   value: Expression;

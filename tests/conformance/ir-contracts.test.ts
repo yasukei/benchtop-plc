@@ -20,6 +20,12 @@ it("represents every milestone IR variant as transportable data", () => {
   };
   const expressions: Record<Expression["kind"], Expression> = {
     null: { kind: "null", dataType: { kind: "reference", target: "INT" }, span },
+    instanceReference: {
+      kind: "instanceReference",
+      target: variable,
+      dataType: { kind: "interface", name: "I", extends: [] },
+      span,
+    },
     referenceOf: {
       kind: "referenceOf",
       target: variable,

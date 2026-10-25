@@ -5,7 +5,8 @@ import {
   type AssignmentTarget,
   internalValue,
   scalarBase,
-  referenceType,
+  referenceLike,
+  interfaceType,
   type StorageReference,
   type InlineValue,
   SubrangeViolation,
@@ -64,7 +65,12 @@ export class Interpreter {
   private pou: string;
   private callDepth = 0;
   private instancePath?: string;
-  private receiver?: { frame: MemoryFrame; block: number; path: string };
+  private receiver?: {
+    frame: MemoryFrame;
+    block: number;
+    path: string;
+    referenceAddress: () => ReferenceAddress;
+  };
 
   constructor(
     private readonly programMemory: Memory,
@@ -89,7 +95,7 @@ export class Interpreter {
         const endpoint = connection.endpoint;
         const read = (frame: MemoryFrame): StoredValue => {
           const type = frame.descriptor(0);
-          return referenceType(type, ir.types)
+          return referenceLike(type, ir.types)
             ? frame.readReference(0)
             : isAggregateType(type, ir.types)
               ? frame.aggregateValue(0)
@@ -261,6 +267,11 @@ export class Interpreter {
 
   private referenceExpression(expr: Expression): ReferenceAddress | null {
     if (expr.kind === "null") return null;
+    if (expr.kind === "instanceReference") {
+      if (!expr.target) return this.receiver!.referenceAddress();
+      const location = this.location(expr.target);
+      return location.frame.address(location.variable);
+    }
     if (expr.kind === "referenceOf") {
       if (expr.target.kind === "fbMember") {
         const target = expr.target;
@@ -276,7 +287,7 @@ export class Interpreter {
       const args: (ReferenceAddress | null | ScalarValue)[] = [];
       for (const i of expr.evaluationOrder ?? expr.args.map((_, i) => i)) {
         const arg = expr.args[i]!;
-        args[i] = referenceType(arg.dataType, this.programMemory.ir.types)
+        args[i] = referenceLike(arg.dataType, this.programMemory.ir.types)
           ? this.referenceExpression(arg)
           : this.expression(arg);
       }
@@ -387,6 +398,7 @@ export class Interpreter {
         return expr.upper ? dimension.upper : dimension.lower;
       }
       case "null":
+      case "instanceReference":
       case "referenceOf":
         throw new Error("Reference used as scalar");
       case "dereference":
@@ -419,8 +431,8 @@ export class Interpreter {
       }
       case "binary": {
         if (
-          referenceType(expr.left.dataType, this.programMemory.ir.types) ||
-          referenceType(expr.right.dataType, this.programMemory.ir.types)
+          referenceLike(expr.left.dataType, this.programMemory.ir.types) ||
+          referenceLike(expr.right.dataType, this.programMemory.ir.types)
         ) {
           const left = this.referenceExpression(expr.left),
             right = this.referenceExpression(expr.right);
@@ -527,8 +539,14 @@ export class Interpreter {
   private statement(statement: Statement): Flow {
     switch (statement.kind) {
       case "assignment":
-        if (referenceType(statement.target.dataType, this.programMemory.ir.types)) {
-          const value = this.referenceExpression(statement.value);
+        if (referenceLike(statement.target.dataType, this.programMemory.ir.types)) {
+          let value = this.referenceExpression(statement.value);
+          if (statement.attempt && value) {
+            const target = interfaceType(statement.target.dataType, this.programMemory.ir.types)!;
+            const block = value.frame.userBlock(value.variable).block;
+            if (!this.programMemory.ir.functionBlocks![block]!.interfaces?.includes(target.name))
+              value = null;
+          }
           const location = this.location(statement.target as StorageReference);
           this.annotate(statement, [location.frame.writeReference(location.variable, value)]);
           break;
@@ -545,7 +563,7 @@ export class Interpreter {
           const result = this.userCall(statement.call);
           if (
             statement.call.dataType !== null &&
-            referenceType(statement.call.dataType, this.programMemory.ir.types)
+            referenceLike(statement.call.dataType, this.programMemory.ir.types)
           ) {
             if (result !== null && !isReferenceAddress(result))
               throw new Error("Expected reference result");
@@ -563,7 +581,7 @@ export class Interpreter {
             ]);
           break;
         }
-        if (referenceType(statement.call.dataType, this.programMemory.ir.types)) {
+        if (referenceLike(statement.call.dataType, this.programMemory.ir.types)) {
           this.annotate(statement, [
             this.memory.referenceValue(this.referenceExpression(statement.call)),
           ]);
@@ -666,7 +684,7 @@ export class Interpreter {
   }
 
   private argumentValue(expr: Expression): StoredValue {
-    if (referenceType(expr.dataType, this.programMemory.ir.types))
+    if (referenceLike(expr.dataType, this.programMemory.ir.types))
       return this.referenceExpression(expr);
     return isAggregateType(expr.dataType, this.programMemory.ir.types)
       ? this.aggregateExpression(expr)
@@ -709,7 +727,7 @@ export class Interpreter {
     slot: number,
     type: import("@benchtop-plc/core").TypeDescriptor,
   ): void {
-    if (referenceType(type, this.programMemory.ir.types)) {
+    if (referenceLike(type, this.programMemory.ir.types)) {
       const destination = this.location(target as StorageReference);
       destination.frame.writeReference(destination.variable, frame.readReference(slot));
       return;
@@ -824,19 +842,34 @@ export class Interpreter {
 
   private userCall(call: UserFunctionCall): StoredValue {
     // Resolve the receiver before any arguments, including indexed instance calls.
-    const location = call.method?.receiver ? this.location(call.method.receiver) : undefined;
+    let location = call.method?.receiver ? this.location(call.method.receiver) : undefined;
+    if (call.method?.interface && location) {
+      const address = location.frame.readReference(location.variable);
+      if (!address) this.fault("runtime.null-reference", call.span);
+      location = address;
+    }
     const receiver = call.method
       ? location
         ? location.frame.userBlock(location.variable)
         : this.receiver
       : undefined;
     const staticMethod = call.method
-      ? this.programMemory.ir.functionBlocks![call.method.block]!.methods![call.function]
+      ? call.method.interface
+        ? this.programMemory.ir.interfaces!.find((i) => i.name === call.method!.interface)!.methods[
+            call.function
+          ]
+        : this.programMemory.ir.functionBlocks![call.method.block]!.methods![call.function]
       : undefined;
     const definition = call.method
       ? call.method.static
         ? staticMethod
-        : this.programMemory.ir.functionBlocks![receiver!.block]!.methods![call.function]
+        : this.programMemory.ir.functionBlocks![receiver!.block]!.methods![
+            call.method.interface
+              ? this.programMemory.ir.functionBlocks![receiver!.block]!.methodTable![
+                  staticMethod!.name.toUpperCase()
+                ]!
+              : call.function
+          ]
       : this.functions[call.function];
     if (!definition) throw new Error("Missing function body");
     // Signature order is stable across overrides; locals and receiver sizes are not.
@@ -872,7 +905,7 @@ export class Interpreter {
       result =
         definition.result === undefined
           ? null
-          : referenceType(locals.descriptor(definition.result), this.programMemory.ir.types)
+          : referenceLike(locals.descriptor(definition.result), this.programMemory.ir.types)
             ? locals.readReference(definition.result)
             : isAggregateType(locals.descriptor(definition.result), this.programMemory.ir.types)
               ? locals.aggregateValue(definition.result)

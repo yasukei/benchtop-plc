@@ -148,42 +148,53 @@ export function PouList({
       >
         {text.addClass}
       </button>
+      <button
+        onClick={() => {
+          setDeleting(null);
+          store.addInterface();
+        }}
+      >
+        {text.addInterface}
+      </button>
       <ul>
-        {state.pous.map((pou, index) => (
-          <li key={index}>
-            <button
-              aria-pressed={
-                !state.selectedConfiguration &&
-                state.selectedDataType === null &&
-                state.selectedPou === index
-              }
-              onClick={() => {
-                setDeleting(null);
-                store.selectPou(index);
-              }}
-            >
-              <strong>{pou.name}</strong>
-              <span>{text[pou.kind]}</span>
-              <span>
-                {text.diagnosticCount.replace(
-                  "{count}",
-                  String(
-                    state.diagnostics.filter(
-                      (diagnostic) => diagnosticPouSourceIndex(diagnostic) === index,
-                    ).length,
-                  ),
-                )}
-              </span>
-            </button>
-            <button
-              disabled={pou.kind === "PROGRAM"}
-              aria-label={text.deletePou.replace("{name}", pou.name)}
-              onClick={() => setDeleting({ index, pou })}
-            >
-              {text.delete}
-            </button>
-          </li>
-        ))}
+        {state.pous
+          .map((pou, index) => ({ pou, index }))
+          .sort((a, b) => Number(b.pou.kind === "INTERFACE") - Number(a.pou.kind === "INTERFACE"))
+          .map(({ pou, index }) => (
+            <li key={index}>
+              <button
+                aria-pressed={
+                  !state.selectedConfiguration &&
+                  state.selectedDataType === null &&
+                  state.selectedPou === index
+                }
+                onClick={() => {
+                  setDeleting(null);
+                  store.selectPou(index);
+                }}
+              >
+                <strong>{pou.name}</strong>
+                <span>{text[pou.kind]}</span>
+                <span>
+                  {text.diagnosticCount.replace(
+                    "{count}",
+                    String(
+                      state.diagnostics.filter(
+                        (diagnostic) => diagnosticPouSourceIndex(diagnostic) === index,
+                      ).length,
+                    ),
+                  )}
+                </span>
+              </button>
+              <button
+                disabled={pou.kind === "PROGRAM"}
+                aria-label={text.deletePou.replace("{name}", pou.name)}
+                onClick={() => setDeleting({ index, pou })}
+              >
+                {text.delete}
+              </button>
+            </li>
+          ))}
       </ul>
       {target && target.kind !== "PROGRAM" && (
         <div role="group" aria-label={confirmation}>

@@ -456,3 +456,20 @@ position. `method.static` selects the base table for
 runs that base definition's effective body on the current receiver. `bodyOwner`
 identifies the declaration supplying an inherited body and its fault location.
 All these fields are plain structured-cloneable data.
+
+## Interfaces (ADR 0017)
+
+An interface descriptor is `{ kind: "interface", name, extends }`; names and the
+transitive list of base interfaces are case-insensitive canonical keys. It is a
+reference value, distinct from REF_TO. `interfaceType` resolves it through named
+aliases; `referenceLike` identifies either reference storage kind. Interface leaves
+use ReferenceVariable and snapshots `{ kind: "reference", target }`. They reject
+writes and forces and are excluded from retention.
+
+ConfigurationIR.interfaces contains names, base interfaces and method prototypes
+(parameter/result layouts with empty bodies). Each instance definition lists its
+implemented interfaces, including inherited ones. A method call records the
+interface name and prototype index; runtime maps that prototype's name and
+parameter positions to the actual implementation. `instanceReference` binds a
+persistent instance storage location, or THIS when its target is absent. An
+assignment with `attempt: true` tests the actual type and stores NULL on mismatch.

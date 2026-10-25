@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Interfaces with method prototypes, multiple interface inheritance and IMPLEMENTS
+  for classes and function blocks. Interface variables bind persistent instances,
+  dispatch methods dynamically, compare identities and support assignment attempt
+  (`?=`), which clears the target on mismatch. Monitor targets as paths or NULL;
+  add interface sources from a template and preserve them in project files.
+
 - Single inheritance for function blocks and classes with EXTENDS, dynamic method
   overrides, SUPER method/body calls, ABSTRACT and FINAL. Inherited members retain
   their initializers and retention qualifiers and appear base first in the monitor.
@@ -31,6 +37,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   their bounds faults identify the member array in the instance path.
 
 ### Changed
+
+- INTERFACE, END_INTERFACE and IMPLEMENTS are now reserved. Affected 0.6.0
+  identifier drafts still open through the legacy import path.
 
 - EXTENDS, OVERRIDE, SUPER, ABSTRACT and FINAL are now reserved. Affected 0.6.0
   project texts open as editable drafts, preserving source extensions or generated

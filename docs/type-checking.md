@@ -682,3 +682,19 @@ when the call to Check is implicit.
 Declaration and section errors inherited from a base are reported only on the
 source that declares them. A derived type with invalid inherited declarations
 still fails checking; suppressing duplicate diagnostics does not make it executable.
+
+## Interface values
+
+Interface inheritance combines prototypes of identical signatures (method name,
+parameter names/sections/types/order and result type). Unknown interfaces, cycles
+and conflicting prototypes report interface diagnostic codes. Non-abstract
+implementing types require concrete PUBLIC implementations of every prototype;
+inherited implementations and implemented interfaces participate in this check.
+
+Ordinary assignment allows an extending interface to a base interface, NULL, THIS
+of an implementing type, and implementing instances with ADR 0015 lifetime.
+Function/method locals and in-out aliases cannot introduce shorter-lived instance
+targets. Interface equality compares identities, including NULL; member access,
+dereferencing and calls to an instance body are rejected. Calls expose only the
+interface's declared methods. Assignment attempts require interface operands (or
+NULL as source); REF_TO forms remain outside this feature.

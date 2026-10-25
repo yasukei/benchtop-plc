@@ -3,7 +3,7 @@ import { compileProject, lex, type CompileDiagnostic } from "@benchtop-plc/compi
 import { spanRange } from "./editor/mapping.js";
 import type { Diagnostic } from "@benchtop-plc/core";
 
-export type PouKind = "PROGRAM" | "FUNCTION" | "FUNCTION_BLOCK" | "CLASS";
+export type PouKind = "PROGRAM" | "FUNCTION" | "FUNCTION_BLOCK" | "CLASS" | "INTERFACE";
 export interface EditorPou {
   source: string;
   name: string;
@@ -118,7 +118,11 @@ export function derivePou(source: string, previous?: EditorPou): EditorPou {
   const kind = tokens?.[0]?.key;
   const name = tokens?.slice(1).find((token) => !["ABSTRACT", "FINAL"].includes(token.key));
   if (
-    (kind === "PROGRAM" || kind === "FUNCTION" || kind === "FUNCTION_BLOCK" || kind === "CLASS") &&
+    (kind === "PROGRAM" ||
+      kind === "FUNCTION" ||
+      kind === "FUNCTION_BLOCK" ||
+      kind === "CLASS" ||
+      kind === "INTERFACE") &&
     name?.kind === "identifier"
   )
     return { source, name: name.text, kind };
@@ -168,6 +172,14 @@ export function addFunctionBlock(
       `FUNCTION_BLOCK ${name}\nVAR_INPUT\n  value : BOOL;\nEND_VAR\nVAR_OUTPUT\n  Q : BOOL;\nEND_VAR\n\nQ := value;\nEND_FUNCTION_BLOCK\n`,
     ),
   ];
+}
+
+export function addInterface(
+  pous: readonly EditorPou[],
+  dataTypes: readonly EditorDataType[] = [],
+): EditorPou[] {
+  const name = uniqueFunctionName([...pous, ...dataTypes], "I");
+  return [derivePou(`INTERFACE ${name}\nMETHOD Run\nEND_METHOD\nEND_INTERFACE\n`), ...pous];
 }
 
 export function addClass(

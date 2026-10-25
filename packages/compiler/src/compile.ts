@@ -1,3 +1,4 @@
+import { resolveInterfaces, checkInterfaces } from "./interfaces.js";
 import { resolveInheritance, checkOverrides, derivesFrom } from "./inheritance.js";
 import { outputOverlapWarnings } from "./direct-addresses.js";
 import { checkTasks } from "./tasks.js";
@@ -158,7 +159,23 @@ export function compileProject(
     })),
   );
   if (inheritanceDiagnostics.length) return { diagnostics };
-  const resolved = resolveDataTypes(dataTypes, blockIds);
+  const interfaceAsts = asts.filter((ast) => ast.kind === "interface");
+  const prototypeOwners = new Map(
+    interfaceAsts.flatMap((owner) =>
+      (owner.methods ?? []).map((method) => [method, owner] as const),
+    ),
+  );
+  for (const [method, owner] of prototypeOwners)
+    sourceIndexes.set(method, sourceIndexes.get(owner)!);
+  const interfaceGraph = resolveInterfaces(interfaceAsts, pous);
+  diagnostics.push(
+    ...interfaceGraph.diagnostics.map((d) => ({
+      ...d,
+      sourceIndex: sourceIndexes.get(pous.get(d.pou!.toUpperCase())!),
+    })),
+  );
+  if (interfaceGraph.diagnostics.length) return { diagnostics };
+  const resolved = resolveDataTypes(dataTypes, blockIds, interfaceGraph.types);
   diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({
       ...diagnostic,
@@ -209,16 +226,33 @@ export function compileProject(
       : undefined;
   const methods = [...new Set(blocks.flatMap((owner) => owner.methods ?? []))];
   for (const method of methods) sourceIndexes.set(method, sourceIndexes.get(method.owner!)!);
-  const allBodies = [...asts, ...methods];
+  const prototypes = [...prototypeOwners.keys()];
+  const allBodies = [...asts.filter((ast) => ast.kind !== "interface"), ...methods];
   const interfaces = new Map<Program, CheckedProgram>();
-  for (const ast of allBodies) {
+  for (const ast of new Set([...allBodies, ...prototypes])) {
     const result = checkDeclarations(ast, resolved.types, pous, blockIds, scope);
+    const owner = prototypeOwners.get(ast);
+    if (owner)
+      diagnostics.push(
+        ...result.diagnostics.map((d) => ({
+          ...d,
+          pou: `${owner.name.name}.${ast.name.name}`,
+          sourceIndex: sourceIndexes.get(ast),
+        })),
+      );
+
     if (result.checked) interfaces.set(ast, result.checked);
   }
   diagnostics.push(
     ...checkOverrides(blocks, interfaces).map((diagnostic) => ({
       ...diagnostic,
       sourceIndex: sourceIndexes.get(pous.get(diagnostic.pou!.toUpperCase())!),
+    })),
+  );
+  diagnostics.push(
+    ...checkInterfaces(blocks, pous, interfaces, interfaceGraph.conflicts).map((d) => ({
+      ...d,
+      sourceIndex: sourceIndexes.get(pous.get(d.pou!.toUpperCase())!),
     })),
   );
   // Discover overload bindings before selecting shared global and instance FB variants.
@@ -250,6 +284,20 @@ export function compileProject(
     const edges = [
       ...[...checked.get(ast)!.userCalls].flatMap(([node, call]) => {
         if (!call.method) return [{ node, callee: functions[call.function]! }];
+        if (call.method.interface) {
+          const prototype = pous.get(call.method.interface)!.methods![call.function]!;
+          return [
+            ...new Set(
+              blocks
+                .filter((b) => b.implemented?.includes(call.method!.interface!))
+                .flatMap(
+                  (b) =>
+                    b.methods?.filter((m) => m.name.key === prototype.name.key && !m.abstract) ??
+                    [],
+                ),
+            ),
+          ].map((callee) => ({ node, callee }));
+        }
         const target = blocks[call.method.block]!;
         const targets =
           !call.method.receiver && !call.method.static
@@ -385,6 +433,7 @@ export function compileProject(
         },
     blocks.map((ast) => ({
       ...lowerFunctionBlock(checked.get(ast)!),
+      ...(ast.implemented?.length ? { interfaces: ast.implemented } : {}),
       ...(ast.baseType ? { base: blockIds.get(ast.baseType.name.key)! } : {}),
       ...(ast.bodyOwner ? { bodyOwner: blockIds.get(ast.bodyOwner.name.key)! } : {}),
       ...(ast.abstract ? { abstract: true as const } : {}),
@@ -405,6 +454,12 @@ export function compileProject(
     globals,
     connections?.connections,
   );
+  if (interfaceAsts.length)
+    ir.interfaces = interfaceAsts.map((ast) => ({
+      name: ast.name.key,
+      extends: ast.implemented ?? [],
+      methods: ast.methods!.map((method) => lowerFunction(interfaces.get(method)!)),
+    }));
   for (const block of ir.functionBlocks ?? [])
     if (block.bodyOwner !== undefined) block.body = ir.functionBlocks![block.bodyOwner]!.body;
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));

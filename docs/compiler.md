@@ -284,7 +284,7 @@ or indirect containment cycle is allowed. Class names join the shared namespace;
 a variable with a class name reports `decl.name-collision` with kind `"type"`.
 `v()` reports `class.not-callable`; call `v.Open()` instead. Definitions and methods
 are shared in the IR, while each instance has independent storage.
-Inheritance, interfaces, instance references and namespaces remain unsupported.
+Instance references and namespaces remain unsupported.
 
 ## Inheritance (ADR 0017)
 
@@ -300,3 +300,19 @@ replaces it and can call `SUPER();`. Method calls through implicit or explicit
 `THIS` dispatch using the instance's actual type; `SUPER.M()` selects the base
 implementation. The recursion graph includes every possible descendant override
 for a THIS call, and only the selected implementation for a SUPER call.
+
+## Interfaces and assignment attempts
+
+`compileProject` accepts INTERFACE sources alongside POUs. Interfaces may extend
+multiple interfaces. The compiler resolves the acyclic interface graph before data
+types and checks inherited prototypes and PUBLIC implementations after declaration
+types resolve. IMPLEMENTS is inherited through class/function-block base types.
+Concrete types must provide every prototype with an identical signature.
+
+Interface variables default to NULL and accept only NULL initializers. They support
+parameters, results, arrays, structures, globals and temporary storage, but cannot
+be CONSTANT or located. Assignment accepts compatible interface values, NULL, THIS
+and persistent implementing instances. Instance conversion preserves identity.
+`target ?= source;` accepts interface variables and a NULL source and is never an
+expression. Interface calls add recursion edges to every implementing method in
+the project, conservatively rejecting composite forwarding cycles.

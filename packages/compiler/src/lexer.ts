@@ -53,7 +53,7 @@ const keywords = new Set([
    VAR_IN_OUT VAR_TEMP VAR_GLOBAL VAR_EXTERNAL VAR_ACCESS VAR_CONFIG RETAIN NON_RETAIN
    CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE REF_TO REF NULL
    EN ENO CONFIGURATION END_CONFIGURATION RESOURCE END_RESOURCE
-   TASK WITH ON READ_ONLY READ_WRITE METHOD END_METHOD THIS EXTENDS OVERRIDE SUPER ABSTRACT FINAL PUBLIC PROTECTED PRIVATE INTERNAL`.split(
+   TASK WITH ON READ_ONLY READ_WRITE METHOD END_METHOD THIS INTERFACE END_INTERFACE IMPLEMENTS EXTENDS OVERRIDE SUPER ABSTRACT FINAL PUBLIC PROTECTED PRIVATE INTERNAL`.split(
     /\s+/,
   ),
 ]);
@@ -367,7 +367,7 @@ class Lexer {
       }
       return this.token("address", start, span);
     }
-    if ([":=", "..", "<=", ">=", "<>", "=>", "**"].some((symbol) => this.starts(symbol))) {
+    if (["?=", ":=", "..", "<=", ">=", "<>", "=>", "**"].some((symbol) => this.starts(symbol))) {
       this.advance();
       this.advance();
       return this.token("symbol", start, span);
@@ -408,6 +408,9 @@ class Lexer {
 
 /** Tokenize one source file, reporting the first lexical error as data. */
 export const newlyReservedWords = new Set([
+  "INTERFACE",
+  "END_INTERFACE",
+  "IMPLEMENTS",
   "CLASS",
   "END_CLASS",
   "EXTENDS",

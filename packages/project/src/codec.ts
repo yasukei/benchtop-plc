@@ -37,6 +37,7 @@ import {
   element,
   escapeXml,
   PANEL_NAMESPACE,
+  INTERFACE_NAMESPACE,
   parseXml,
   SOURCE_NAMESPACE,
   TC6_NAMESPACE,
@@ -612,11 +613,30 @@ function readCoordinates(header: XmlNode): void {
   }
 }
 
+function interfaceTypes(sources: readonly string[]): import("@benchtop-plc/core").TypeTable {
+  return sources.flatMap((source) => {
+    const ast = parsePou(source).ast;
+    return ast?.kind === "interface"
+      ? [
+          {
+            name: ast.name.name,
+            definition: {
+              kind: "alias" as const,
+              type: { kind: "interface" as const, name: ast.name.key, extends: [] },
+            },
+            initialValue: null,
+          },
+        ]
+      : [];
+  });
+}
+
 function readExtensions(
   root: XmlNode,
   diagnostics: Diagnostic[],
-): { panel: JsonValue; sources: Map<XmlNode, string> } {
+): { panel: JsonValue; sources: Map<XmlNode, string>; interfaces: string[] } {
   let panel: JsonValue = null;
+  const interfaces: string[] = [];
   const sources = new Map<XmlNode, string>();
   const visit = (node: XmlNode): void => {
     const seen = new Set<string>();
@@ -640,7 +660,10 @@ function readExtensions(
         )
           fail("project.invalid", `addData/${name}`);
         const known =
-          (node === root && (name === PANEL_NAMESPACE || name === SOURCE_NAMESPACE)) ||
+          (node === root &&
+            (name === PANEL_NAMESPACE ||
+              name === SOURCE_NAMESPACE ||
+              name === INTERFACE_NAMESPACE)) ||
           (node.uri === TC6_NAMESPACE &&
             ["pou", "dataType", "configuration"].includes(node.name) &&
             name === SOURCE_NAMESPACE);
@@ -652,6 +675,29 @@ function readExtensions(
         seen.add(name);
         if (data.children.length !== 1) fail("project.invalid", `addData/${name}`);
         const payload = data.children[0]!;
+        if (name === INTERFACE_NAMESPACE) {
+          if (
+            data.attributes.handleUnknown !== "discard" ||
+            payload.uri !== name ||
+            payload.name !== "interfaces" ||
+            payload.attributes.version !== "1" ||
+            Object.keys(payload.attributes).length !== 1 ||
+            payload.text.trim()
+          )
+            fail("project.invalid", "addData/interfaces");
+          for (const source of payload.children) {
+            if (
+              source.uri !== name ||
+              source.name !== "source" ||
+              Object.keys(source.attributes).length ||
+              source.children.length ||
+              parsePou(source.text).ast?.kind !== "interface"
+            )
+              fail("project.invalid", "addData/interfaces/source");
+            interfaces.push(source.text);
+          }
+          continue;
+        }
         if (
           payload.uri !== name ||
           payload.name !== (name === PANEL_NAMESPACE ? "panel" : "source") ||
@@ -676,7 +722,7 @@ function readExtensions(
     }
   };
   visit(root);
-  return { panel, sources };
+  return { panel, sources, interfaces };
 }
 
 /** Malformed or unsupported input is returned as localizable diagnostics, never thrown. */
@@ -730,7 +776,7 @@ export function readProject(xml: string): ProjectResult<Project> {
     const typeAsts = canonicalTypes
       .filter((source) => !legacyDraft(source, "dataType"))
       .map((source) => parseType(source));
-    const resolved = resolveDataTypes(typeAsts);
+    const resolved = resolveDataTypes(typeAsts, new Map(), interfaceTypes(extensions.interfaces));
     validateTypeInitializers(typeAsts);
     const dataTypes = declarations.map((_, index) => {
       const preservedDraft = extensions.sources.get(dataTypeNodes[index]!);
@@ -966,7 +1012,7 @@ export function readProject(xml: string): ProjectResult<Project> {
         fileHeader: { ...file.attributes } as unknown as FileHeader,
         contentHeader: { ...header.attributes } as unknown as ContentHeader,
         dataTypes,
-        pous: programs.map(({ source }) => source),
+        pous: [...extensions.interfaces, ...programs.map(({ source }) => source)],
         ...(configurationSource === undefined ? {} : { configurationSource }),
         configuration: structure.name,
         resource: structure.resource,
@@ -1105,7 +1151,7 @@ export function writeProject(project: Project): ProjectResult<string> {
   let resolved: ReturnType<typeof resolveDataTypes>;
   try {
     const asts = project.dataTypes.map((source) => parseType(source));
-    resolved = resolveDataTypes(asts);
+    resolved = resolveDataTypes(asts, new Map(), interfaceTypes(project.pous));
     validateTypeInitializers(asts);
     dataTypes = project.dataTypes
       .map((source) => {
@@ -1149,8 +1195,12 @@ export function writeProject(project: Project): ProjectResult<string> {
     [...(structure?.globals ?? []), ...(structure?.resourceGlobals ?? [])],
     resolved.types,
   );
+  const interfaceSources = project.pous.filter(
+    (source) => parsePou(source).ast?.kind === "interface",
+  );
+  const pouSources = project.pous.filter((source) => !interfaceSources.includes(source));
   const programs: SplitProgram[] = [];
-  for (const source of project.pous) {
+  for (const source of pouSources) {
     const parsed = splitProgram(source, resolved.types, globals, false, project.pous);
     if (!parsed.value) return { value: null, diagnostics: parsed.diagnostics };
     programs.push(parsed.value);
@@ -1195,7 +1245,7 @@ export function writeProject(project: Project): ProjectResult<string> {
             : element("returnType", {}, typeXml(program.returnType))) + groups,
         ) +
           element("body", {}, element("ST", {}, element("xhtml:p", {}, escapeXml(program.body)))) +
-          element("addData", {}, sourceXml(project.pous[index]!)),
+          element("addData", {}, sourceXml(pouSources[index]!)),
       );
     })
     .join("");
@@ -1271,7 +1321,18 @@ export function writeProject(project: Project): ProjectResult<string> {
       "data",
       { name: PANEL_NAMESPACE, handleUnknown: "discard" },
       element("panel:panel", { version: encodePanel(project.panel).version }, escapeXml(panel)),
-    ),
+    ) +
+      (interfaceSources.length
+        ? element(
+            "data",
+            { name: INTERFACE_NAMESPACE, handleUnknown: "discard" },
+            element(
+              "interfaces",
+              { xmlns: INTERFACE_NAMESPACE, version: "1" },
+              interfaceSources.map((source) => element("source", {}, escapeXml(source))).join(""),
+            ),
+          )
+        : ""),
   );
   const xml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +

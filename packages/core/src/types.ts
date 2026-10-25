@@ -7,6 +7,22 @@ import {
   type TypedValue,
 } from "./values.js";
 
+export interface InterfaceType {
+  kind: "interface";
+  name: string;
+  extends: string[];
+}
+export function interfaceType(
+  type: TypeDescriptor,
+  table: readonly TypeEntry[] = [],
+): InterfaceType | undefined {
+  const resolved = resolveType(type, table);
+  return typeof resolved !== "string" && resolved.kind === "interface" ? resolved : undefined;
+}
+export function referenceLike(type: TypeDescriptor, table: readonly TypeEntry[] = []): boolean {
+  return !!referenceType(type, table) || !!interfaceType(type, table);
+}
+
 export interface NamedType {
   kind: "named";
   name: string;
@@ -20,6 +36,7 @@ export interface SubrangeType {
 /** Plain-data descriptors; named structures are defined in the type table. */
 export type TypeDescriptor =
   | DataType
+  | InterfaceType
   | { kind: "functionBlock"; name: string; block?: number }
   | NamedType
   | SubrangeType
@@ -178,6 +195,9 @@ export function sameScalarType(
         compare(la.element, ra.element)
       );
     if (structureType(a, table) || structureType(b, table)) return left === right;
+    const li = interfaceType(a, table),
+      ri = interfaceType(b, table);
+    if (li || ri) return !!li && !!ri && li.name.toUpperCase() === ri.name.toUpperCase();
     const lr = referenceType(a, table),
       rr = referenceType(b, table);
     if (lr || rr) return !!lr && !!rr && compare(lr.target, rr.target);
@@ -243,6 +263,7 @@ export function validateScalar(
 export function formatType(type: TypeDescriptor): string {
   if (typeof type === "string") return type;
   switch (type.kind) {
+    case "interface":
     case "functionBlock":
       return type.name;
     case "named":

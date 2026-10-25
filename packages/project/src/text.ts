@@ -58,6 +58,14 @@ export function splitProgram(
   const result = parsePou(source, legacyNames);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
+  if (ast.kind === "interface")
+    return {
+      value: null,
+      diagnostics: [
+        { code: "project.unsupported", severity: "error", args: { path: "pou/interface-source" } },
+      ],
+    };
+  const kind = ast.kind;
   const inherited = inheritedConstants(source, sources);
   const invalidCapacity = (name: string, length: number | undefined): boolean =>
     length !== undefined &&
@@ -105,6 +113,7 @@ export function splitProgram(
       ? tokens!.find((token) => token.key === "]")?.span
       : undefined) ??
     ast.resultType?.span ??
+    ast.implements?.at(-1)?.span ??
     ast.base?.span ??
     ast.name.span;
   const end = tokens!.find(
@@ -115,7 +124,7 @@ export function splitProgram(
         function: "END_FUNCTION",
         functionBlock: "END_FUNCTION_BLOCK",
         class: "END_CLASS",
-      }[ast.kind],
+      }[kind],
   )!.span;
   const variables: VariableDeclaration[] = [];
   for (const declaration of ast.declarations) {

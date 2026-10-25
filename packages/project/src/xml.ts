@@ -3,6 +3,7 @@ import { SaxesParser } from "saxes";
 export const TC6_NAMESPACE = "http://www.plcopen.org/xml/tc6_0201";
 export const XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 export const PANEL_NAMESPACE = "https://github.com/yasukei/benchtop-plc/ns/panel/1";
+export const INTERFACE_NAMESPACE = "https://github.com/yasukei/benchtop-plc/ns/interface/1";
 export const SOURCE_NAMESPACE = "https://github.com/yasukei/benchtop-plc/ns/source/1";
 
 /** Small plain-data tree, never a host DOM. Element and attribute names are expanded. */

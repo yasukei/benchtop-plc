@@ -375,3 +375,12 @@ The monitor permits writes and forces regardless of member access, including
 inherited PRIVATE members. Runtime errors inside inherited implementations select
 the declaring type's source. Saving and reopening preserves exact inheritance
 sources; editing is through the Structured Text editor.
+
+## Interface sources and monitoring
+
+The source list offers Add interface with a template containing one METHOD
+prototype. Interface sources appear after data types and before the other POUs,
+use the same editor and diagnostic navigation, and survive save/open and autosave.
+Labels and interface diagnostics are available in English and Japanese. Interface
+variables display their target instance path or NULL in the monitor and inline
+values; reference rows offer no write or force controls.

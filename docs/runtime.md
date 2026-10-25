@@ -721,3 +721,18 @@ on current instance storage and inputs; RETURN leaves only that invocation. Faul
 in inherited methods and bodies name the declaring type's text and the actual
 instance path. Inherited members initialize on load/cold reset and follow ADR 0016
 qualifier inheritance during warm restart and retained reload.
+
+## Interface dispatch
+
+Interface variables use reference cells whose targets are instance storage. Calls
+resolve the receiver before arguments, fault with runtime.null-reference on NULL,
+then select the actual type's method by prototype name. Parameter positions map
+from the prototype layout to the concrete method layout, including inherited
+methods and overrides. Faults identify the declaring method's source and target
+instance path. THIS binding preserves that same instance identity.
+
+An interface assignment attempt checks the actual type's implemented-interface
+list; mismatch and NULL both store NULL without a fault. Interface cells start
+NULL on load, cold reset, warm restart and reload, even under RETAIN. STOP/RUN,
+single scans and FAULT preserve targets. Snapshots expose the instance path or
+NULL using the existing reference value shape; writes and forces are rejected.

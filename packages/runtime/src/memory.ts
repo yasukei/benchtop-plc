@@ -9,7 +9,7 @@ import {
   coerceValue,
   standardFunctionBlocks,
   type FunctionBlockType,
-  referenceType,
+  referenceLike,
   type ReferenceVariable,
   type InlineValue,
   type ReferenceValue,
@@ -72,6 +72,7 @@ type ScalarCell = (
   location?: { bytes: number[]; address: DirectAddress; dataType: DataType };
 };
 interface UserBlockCell {
+  referenceAddress: () => ReferenceAddress;
   kind: "userFunctionBlock";
   frame: MemoryFrame;
   block: number;
@@ -141,7 +142,7 @@ function initialCell(
     };
     return create(variable.dataType, variable.initialValue);
   }
-  if (variable.kind === "reference" || referenceType(variable.dataType, types)) {
+  if (variable.kind === "reference" || referenceLike(variable.dataType, types)) {
     if (variable.initialValue !== null) throw new RangeError("Reference initializer must be NULL");
     return { kind: "reference", descriptor: variable.dataType, target: null };
   }
@@ -654,6 +655,7 @@ export class Memory extends MemoryFrame {
         const frame = new MemoryFrame(cells, this.types);
         cell = {
           kind: "userFunctionBlock",
+          referenceAddress: () => new MemoryFrame([cell!], this.types).address(0),
           frame,
           block: instance.block,
           path: instance.path,
