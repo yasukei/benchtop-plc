@@ -10,6 +10,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Numeric operator panel inputs and displays for byte, word, double-word and
+  long-word I/O, with type validation, exact 64-bit integer entry, optional input
+  bounds and sliders, and monitor formatting for outputs and invalid real values.
+  The panel editor configures their labels, types and addresses; numeric layouts
+  save as panel extension version 2 while legacy layouts keep their version rules.
+
 - Typed direct addresses in 64-byte input/output areas and a 1,024-byte memory
   area, with shared overlapping views, little-endian byte/word/double-word/long-word
   access, and warnings for overlapping output writers. Invalid REAL/LREAL patterns

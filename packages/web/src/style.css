@@ -582,3 +582,25 @@ tr[data-forced="true"] {
   padding: 0.25rem 0.5rem;
   white-space: nowrap;
 }
+.numeric-part {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+.numeric-part input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.numeric-part strong {
+  overflow-wrap: anywhere;
+}
+.numeric-part [role="alert"] {
+  font-size: 0.7rem;
+}
+
+.operator-surface[data-numeric="true"] {
+  padding-inline: 78px;
+}

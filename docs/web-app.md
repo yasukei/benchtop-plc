@@ -286,3 +286,17 @@ Buttons/selectors can bind any `%IX0.0`–`%IX63.7` bit; lamps can bind any
 commands carry address strings and typed values, preserving neighboring bits.
 Emergency stop masks every output immediately. Panel files read legacy bit
 bindings and save version 1 when possible, otherwise address-based version 2.
+
+Numeric inputs and displays bind the B/W/D/L sizes in the input and output areas,
+respectively. Add a numeric part in **Edit panel**, select its type (which selects
+its address size), then choose an address. The supported types are BYTE/SINT/USINT,
+WORD/INT/UINT, DWORD/DINT/UDINT/REAL and LWORD/LINT/ULINT/LREAL. Labels are optional.
+Inputs use a number field; configure optional **Minimum** and **Maximum** bounds
+with **Apply range**. Bounds must fit the type, and the minimum must be less than
+the maximum when both are present. Both bounds enable a slider. Invalid input
+is marked and rejected without changing the input image. Long integer fields
+preserve all 64 bits. Numeric inputs are disabled when the Worker connection closes.
+Displays use monitor formatting (including hex bit strings and invalid REAL/LREAL
+patterns) and show zero outside RUN or under emergency stop. Numeric parts always
+save in panel extension version 2; existing bit-only projects retain their previous
+version selection.

@@ -1,3 +1,6 @@
+import { NumericPart } from "./NumericPart.js";
+import { assignNumericBounds, assignNumericType, panelNumericTypes } from "./numeric.js";
+import type { DataType } from "@benchtop-plc/core";
 import { parseDirectAddress, readDirectValue } from "@benchtop-plc/core";
 import { formatDiagnostic } from "../diagnostic-catalog.js";
 import type { Language } from "../catalog.js";
@@ -13,7 +16,9 @@ import {
   colorsFor,
   movePart,
   partKinds,
-  partFootprint,
+  partSize,
+  isNumericPart,
+  panelAddresses,
   minimumCanvasSize,
   type PanelPart,
   type PartKind,
@@ -151,11 +156,10 @@ export function OperatorPanel({
     pushbutton: text.pushbutton,
     selector: text.selector,
     estop: text.estopPart,
+    numericInput: text.numericInput,
+    numericDisplay: text.numericDisplay,
   };
-  const addresses = Array.from(
-    { length: 512 },
-    (_, bit) => `%${part?.kind === "led" ? "Q" : "I"}X${Math.floor(bit / 8)}.${bit % 8}`,
-  );
+  const addresses = part ? panelAddresses(part) : [];
   const change = (next: PanelPart) =>
     store.setLayout(state.layout.map((p) => (p.id === next.id ? next : p)));
   const save = () => {
@@ -257,7 +261,7 @@ export function OperatorPanel({
           </div>
         </>
       )}
-      <div className="operator-surface">
+      <div className="operator-surface" data-numeric={state.layout.some(isNumericPart)}>
         <div
           ref={canvas}
           className="operator-canvas"
@@ -270,14 +274,14 @@ export function OperatorPanel({
               style={{
                 left: `${p.x * 100}%`,
                 top: `${p.y * 100}%`,
-                width: partFootprint.width,
-                height: partFootprint.height,
+                width: partSize(p).width,
+                height: partSize(p).height,
               }}
             >
               {editing ? (
                 <button
                   className="edit-part"
-                  aria-label={p.label}
+                  aria-label={p.label || kindLabels[p.kind]}
                   aria-pressed={p.id === selected}
                   onClick={() => setSelected(p.id)}
                   onPointerDown={(event) => {
@@ -329,9 +333,17 @@ export function OperatorPanel({
                   }}
                 >
                   <span className="part-label" title={p.label}>
-                    {p.label}
+                    {p.label || kindLabels[p.kind]}
                   </span>
                 </button>
+              ) : isNumericPart(p) ? (
+                <NumericPart
+                  key={`${p.address}:${p.dataType}:${p.min}:${p.max}`}
+                  part={p}
+                  state={state}
+                  store={store}
+                  text={text}
+                />
               ) : (
                 <Part part={p} state={state} store={store} text={text} />
               )}
@@ -365,7 +377,7 @@ export function OperatorPanel({
               </select>
             </label>
           )}
-          {part.kind !== "estop" && (
+          {part.kind !== "estop" && !isNumericPart(part) && (
             <label>
               {text.color}
               <select
@@ -382,6 +394,31 @@ export function OperatorPanel({
               </select>
             </label>
           )}
+          {isNumericPart(part) && (
+            <label>
+              {text.variableType}
+              <select
+                value={part.dataType}
+                onChange={(event) =>
+                  change(assignNumericType(part, event.target.value as DataType))
+                }
+              >
+                {panelNumericTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {part.kind === "numericInput" && (
+            <NumericBounds
+              key={`${part.id}:${part.dataType}:${part.min}:${part.max}`}
+              part={part}
+              change={change}
+              text={text}
+            />
+          )}
           <button
             disabled={part.kind === "estop" && state.emergencyActive}
             onClick={() => {
@@ -394,5 +431,55 @@ export function OperatorPanel({
         </div>
       )}
     </section>
+  );
+}
+
+function NumericBounds({
+  part,
+  change,
+  text,
+}: {
+  part: PanelPart;
+  change: (part: PanelPart) => void;
+  text: ShellCatalog;
+}) {
+  const [min, setMin] = useState(part.min === undefined ? "" : String(part.min));
+  const [max, setMax] = useState(part.max === undefined ? "" : String(part.max));
+  const [invalid, setInvalid] = useState(false);
+  return (
+    <fieldset>
+      <legend>{text.numericRange}</legend>
+      <label>
+        {text.minimum}
+        <input
+          type="number"
+          step="any"
+          value={min}
+          onChange={(event) => setMin(event.target.value)}
+        />
+      </label>
+      <label>
+        {text.maximum}
+        <input
+          type="number"
+          step="any"
+          value={max}
+          onChange={(event) => setMax(event.target.value)}
+        />
+      </label>
+      <button
+        onClick={() => {
+          try {
+            change(assignNumericBounds(part, min, max));
+            setInvalid(false);
+          } catch {
+            setInvalid(true);
+          }
+        }}
+      >
+        {text.applyRange}
+      </button>
+      {invalid && <span role="alert">{text.invalidRange}</span>}
+    </fieldset>
   );
 }

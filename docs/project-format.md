@@ -326,4 +326,39 @@ every part, for example `"address": "%QX1.0"`; emergency stop uses `null`.
 The writer emits version 1 with the original bit bindings whenever every part is
 representable in byte zero, and version 2 otherwise. A 0.5.0 layout therefore saves
 back as version 1. Older apps reject version 2 as `project.unsupported`.
-Numeric panel parts are deferred to #156.
+Numeric parts always require version 2. A numeric input uses
+`"kind": "numericInput"`, an input `address` (`%IB`, `%IW`, `%ID` or `%IL`),
+`dataType`, and optional numeric `min`/`max` bounds. A numeric display uses
+`"kind": "numericDisplay"`, an output `address` (`%QB`, `%QW`, `%QD` or `%QL`),
+and `dataType`. Both have the usual `id`, fractional `x`/`y` position, and an
+optional `label`; numeric parts do not need a color. The type must match its address
+size as in ADR 0016. Bounds must fit the input type, with `min < max` when both
+are present; displays have no bounds. For example:
+
+```json
+[
+  {
+    "id": "1",
+    "kind": "numericInput",
+    "x": 0.2,
+    "y": 0.5,
+    "address": "%IW0",
+    "dataType": "INT",
+    "min": -100,
+    "max": 100,
+    "label": "Setpoint"
+  },
+  {
+    "id": "2",
+    "kind": "numericDisplay",
+    "x": 0.8,
+    "y": 0.5,
+    "address": "%QW0",
+    "dataType": "INT",
+    "label": "Actual"
+  }
+]
+```
+
+Removing numeric parts restores version 1 output if the remaining layout is
+representable in it.

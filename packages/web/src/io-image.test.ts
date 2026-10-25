@@ -64,3 +64,54 @@ it("masks all output views outside RUN and during emergency stop", () => {
     expect(readings[0]?.value).toBe("-5");
   }
 });
+
+it("includes numeric panel bindings without program declarations and formats invalid displays", () => {
+  const source = state();
+  source.snapshot.outputs.splice(0, 8, 0, 0, 192, 127, 255, 255, 255, 255);
+  const layout: AppState["layout"] = [
+    {
+      id: "1",
+      kind: "numericInput",
+      label: "In",
+      address: "%IW0",
+      dataType: "INT",
+      x: 0,
+      y: 0,
+      color: "green",
+    },
+    {
+      id: "2",
+      kind: "numericDisplay",
+      label: "Out",
+      address: "%QD0",
+      dataType: "REAL",
+      x: 0,
+      y: 0,
+      color: "green",
+    },
+    {
+      id: "3",
+      kind: "numericDisplay",
+      label: "Raw",
+      address: "%QD1",
+      dataType: "DWORD",
+      x: 0,
+      y: 0,
+      color: "green",
+    },
+  ];
+  expect(imageReadings({ ...source, loadedIr: undefined, layout }, en).map((v) => v.value)).toEqual(
+    ["-5", "Invalid (16#7FC00000)", "16#FFFFFFFF"],
+  );
+  for (const runtimeState of ["STOP", "FAULT", "ESTOP"] as const)
+    expect(
+      imageReadings({ ...source, loadedIr: undefined, layout, runtimeState }, en).map(
+        (v) => v.value,
+      ),
+    ).toEqual(["-5", "0.0", "16#00000000"]);
+  expect(
+    imageReadings({ ...source, loadedIr: undefined, layout, emergencyActive: true }, en).map(
+      (v) => v.value,
+    ),
+  ).toEqual(["-5", "0.0", "16#00000000"]);
+});
