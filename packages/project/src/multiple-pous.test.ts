@@ -180,8 +180,8 @@ describe("several POUs in PLCopen XML", () => {
       "decl.duplicate",
     ],
     [
-      "program parameters",
-      ["PROGRAM Main VAR_INPUT x : INT := 1; END_VAR END_PROGRAM"],
+      "program in-out parameters",
+      ["PROGRAM Main VAR_IN_OUT x : INT; END_VAR END_PROGRAM"],
       "pou.invalid-section",
     ],
     [

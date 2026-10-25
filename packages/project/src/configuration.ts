@@ -1,4 +1,4 @@
-import { check, lex, parsePou, type Token } from "@benchtop-plc/compiler";
+import { check, lex, parsePou, parseConfiguration, type Token } from "@benchtop-plc/compiler";
 import { splitProgram, joinProgram } from "./text.js";
 import type { VariableDeclaration } from "./model.js";
 import type { DataType, Diagnostic, TypeTable } from "@benchtop-plc/core";
@@ -106,6 +106,25 @@ export function splitConfiguration(source: string, types: TypeTable = []): Confi
       }
       expect(":");
       const typeName = identifier(true);
+      if (current().key === "(") {
+        const connectionTokens: Token[] = [];
+        let depth = 0;
+        do {
+          const token = take();
+          if (token.kind === "eof") return invalid("pouInstance/connections");
+          connectionTokens.push(token);
+          if (token.key === "(") depth++;
+          if (token.key === ")") depth--;
+        } while (depth > 0);
+        // Connections live only in the exact source extension. Validate their syntax
+        // with the compiler while leaving semantic errors exchangeable, as for POUs.
+        const parsed = parseConfiguration(`CONFIGURATION C RESOURCE R ON Cpu
+          TASK T (INTERVAL := T#10ms, PRIORITY := 0);
+          PROGRAM A WITH T : Main ${connectionTokens.map((token) => token.text).join(" ")};
+          END_RESOURCE END_CONFIGURATION`);
+        if (!parsed.ast || parsed.diagnostics.some((d) => d.severity === "error"))
+          return invalid("pouInstance/connections");
+      }
       expect(";");
       instances.push({ name: instanceName, typeName, task });
       continue;

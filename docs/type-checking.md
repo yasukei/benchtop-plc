@@ -318,8 +318,8 @@ A FUNCTION supports scalar `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` dec
 Initializers are optional except on `VAR_IN_OUT`, where they are forbidden. `FUNCTION F : REAL` returns its result variable;
 `FUNCTION F` has no result and is callable only as a statement. Functions cannot
 declare `VAR_TEMP`, FB instances, or direct addresses.
-A PROGRAM cannot be called and cannot declare `VAR_INPUT`, `VAR_OUTPUT` or
-`VAR_IN_OUT`. Direct addresses are allowed on PROGRAM variables and configuration/resource globals.
+A PROGRAM cannot be called. It accepts `VAR_INPUT` and `VAR_OUTPUT`, while
+`VAR_IN_OUT` remains rejected. Direct addresses are allowed on PROGRAM variables and configuration/resource globals.
 
 Formal calls use `:=` inputs and `=>` outputs without mixing positional arguments.
 Omitted inputs start from their declared initial values; an empty `F()` uses these
@@ -603,3 +603,23 @@ has no matching globals. Assigning an imported global constant is rejected by
 external constants are available to local constant expressions, bounds and CASE
 labels. REF accepts mutable externals and their elements/members. Global AT addresses
 follow the existing BOOL bit-address rules. RETAIN remains deferred.
+
+## PROGRAM configuration connections
+
+An input connection (`:=`) accepts a constant, enumeration value, global, or direct
+address; an output connection (`=>`) accepts a mutable global or output address.
+Global/constant inputs use contextual typing and implicit widening as FB inputs do;
+global outputs use assignment conversions. Aggregate and reference globals follow
+the existing exact-type rules, and strings use the receiving storage's capacity.
+An input-mapped global is not an output destination. PROGRAM inputs and outputs
+cannot declare `AT` addresses (`decl.parameter-address`); addresses must be
+connected in the configuration. Only BOOL bit addresses in
+byte 0 are currently supported; #155 adds numeric and memory addresses. Address
+connections must bind the parameter's type as a located declaration would.
+
+Unknown parameters, incorrect direction, repeated connections, and invalid targets
+report `config.connection-parameter`, `config.connection-direction`,
+`config.connection-duplicate`, and `config.connection-target`. Type and address
+errors reuse ordinary assignment, constant, and declaration diagnostics. Every
+connection error names the configuration source, including its source index and
+span. Unconnected parameters are valid under explicit and implicit configurations.

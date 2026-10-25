@@ -39,6 +39,7 @@ export interface DiagnosticArgs {
   "decl.name-collision": { name: string; kind: "type" | "function" };
   "decl.direct-address-type": { name: string; type: string };
   "decl.temp-address": NoArguments;
+  "decl.parameter-address": NoArguments;
   "decl.at-multiple-names": NoArguments;
   "decl.address-out-of-range": { address: string };
   "decl.nonconstant-initializer": { name: string };
@@ -65,6 +66,10 @@ export interface DiagnosticArgs {
   "config.program-type": { name: string };
   "config.interval": NoArguments;
   "config.priority": NoArguments;
+  "config.connection-parameter": { name: string };
+  "config.connection-direction": { name: string };
+  "config.connection-duplicate": { name: string };
+  "config.connection-target": { name: string };
   "config.task-parameter": { name: string };
   "runtime.configured-cycle": NoArguments;
   "pou.duplicate": { name: string };
@@ -142,6 +147,7 @@ export interface DiagnosticArgs {
   "runtime.debug-type-mismatch": { from: TypeDescriptor; to: TypeDescriptor };
   "runtime.debug-value": NoArguments;
   "runtime.write-input-mapped": { name: string };
+  "runtime.write-connected-input": { name: string };
 }
 
 /** Expected debug command rejections; these never latch a PLC execution fault. */
@@ -150,7 +156,8 @@ export type CommandRejectionCode =
   | "runtime.debug-target"
   | "runtime.debug-type-mismatch"
   | "runtime.debug-value"
-  | "runtime.write-input-mapped";
+  | "runtime.write-input-mapped"
+  | "runtime.write-connected-input";
 
 export type DiagnosticCode = keyof DiagnosticArgs;
 export type DiagnosticSeverity = "error" | "warning";
@@ -162,6 +169,9 @@ export type Diagnostic<C extends DiagnosticCode = DiagnosticCode> = {
     severity: DiagnosticSeverity;
     /** Source POU's spelling; absent for project-level errors or unknown headers. */
     pou?: string;
+    /** Source metadata for runtime faults in configuration parameter transfers. */
+    sourceKind?: "dataType" | "pou" | "configuration";
+    sourceIndex?: number;
     task?: string;
     /** Canonical dotted path of the active function block instance. */
     instance?: string;

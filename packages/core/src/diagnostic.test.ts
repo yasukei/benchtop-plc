@@ -18,6 +18,10 @@ const examples = {
   "config.program-type": { name: "Counter" },
   "config.interval": {},
   "config.priority": {},
+  "config.connection-parameter": { name: "Start" },
+  "config.connection-direction": { name: "Start" },
+  "config.connection-duplicate": { name: "Start" },
+  "config.connection-target": { name: "Start" },
   "config.task-parameter": { name: "SINGLE" },
   "runtime.configured-cycle": {},
 
@@ -51,6 +55,7 @@ const examples = {
   "decl.name-collision": { name: "ABS", kind: "function" },
   "decl.direct-address-type": { name: "Counter", type: "INT" },
   "decl.temp-address": {},
+  "decl.parameter-address": {},
   "decl.at-multiple-names": {},
   "decl.address-out-of-range": { address: "%IX1.0" },
   "decl.nonconstant-initializer": { name: "Counter" },
@@ -121,6 +126,7 @@ const examples = {
   "runtime.debug-type-mismatch": { from: "BOOL", to: "INT" },
   "runtime.debug-value": {},
   "runtime.write-input-mapped": { name: "input" },
+  "runtime.write-connected-input": { name: "A.Start" },
 } satisfies DiagnosticArgs;
 
 it("defines a serializable argument shape for every diagnostic code", () => {

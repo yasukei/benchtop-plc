@@ -467,7 +467,7 @@ export class Memory extends MemoryFrame {
     }
     return undefined;
   }
-  private frame(storage: readonly InstanceStorage[]): MemoryFrame {
+  frame(storage: readonly InstanceStorage[]): MemoryFrame {
     return new MemoryFrame(this.storageCells(storage), this.types);
   }
 
@@ -543,7 +543,29 @@ export class Memory extends MemoryFrame {
     );
   }
 
+  private inputArea = emptyImage();
+  private outputArea = emptyImage();
+
+  readAddress(address: import("@benchtop-plc/core").DirectAddress): boolean {
+    const id = this.ir.variables.findIndex(
+      (v) =>
+        v.kind === "scalar" && v.address?.area === address.area && v.address.bit === address.bit,
+    );
+    return id >= 0
+      ? Boolean(this.read(id))
+      : (address.area === "I" ? this.inputArea : this.outputArea)[address.bit];
+  }
+
+  writeAddress(address: import("@benchtop-plc/core").DirectAddress, value: boolean): void {
+    (address.area === "I" ? this.inputArea : this.outputArea)[address.bit] = value;
+    this.ir.variables.forEach((v, id) => {
+      if (v.kind === "scalar" && v.address?.area === address.area && v.address.bit === address.bit)
+        this.write(id, value);
+    });
+  }
+
   readInputs(image: IoImage): void {
+    this.inputArea = [...image];
     this.ir.variables.forEach((variable, index) => {
       if (variable.kind === "scalar" && variable.address?.area === "I") {
         this.write(index, image[variable.address.bit]);
@@ -552,7 +574,7 @@ export class Memory extends MemoryFrame {
   }
 
   outputImage(): IoImage {
-    const image = emptyImage();
+    const image: IoImage = [...this.outputArea];
     this.ir.variables.forEach((variable, index) => {
       if (variable.kind === "scalar" && variable.address?.area === "Q") {
         image[variable.address.bit] = Boolean(this.read(index));
@@ -562,6 +584,7 @@ export class Memory extends MemoryFrame {
   }
 
   clearOutputs(): void {
+    this.outputArea = emptyImage();
     this.ir.variables.forEach((variable, index) => {
       if (variable.kind === "scalar" && variable.address?.area === "Q") this.write(index, false);
     });

@@ -255,9 +255,11 @@ class PlcRuntime implements Runtime {
 
   write(variable: VariableId, value: TypedValue): void {
     const declaration = this.debugVariable(variable);
-    if (declaration.address?.area === "I")
+    if (declaration.address?.area === "I" || declaration.connectedInput)
       throw new RuntimeCommandRejected({
-        code: "runtime.write-input-mapped",
+        code: declaration.connectedInput
+          ? "runtime.write-connected-input"
+          : "runtime.write-input-mapped",
         severity: "error",
         args: { name: declaration.name },
       });
@@ -306,10 +308,14 @@ class PlcRuntime implements Runtime {
       const annotated = new Set<number>();
       for (const [index, instance] of instances.entries()) {
         if (!active()) break;
-        if (index > 0) {
-          this.applyForces(memory);
+        interpreter.transfer(index, false);
+        if (active()) this.applyForces(memory);
+        if (
+          active() &&
+          (index > 0 ||
+            (ir.kind === "configuration" && ir.resource.programs[index]!.inputs?.length))
+        )
           this.options.stages?.applyForces?.(memory);
-        }
         executingInstance =
           ir.kind === "configuration" ? ir.resource.programs[index]!.name : undefined;
         try {
@@ -332,6 +338,10 @@ class PlcRuntime implements Runtime {
         }
         if (active()) this.options.stages?.applyForces?.(memory);
         if (active()) this.applyForces(memory);
+        if (active()) interpreter.transfer(index, true);
+        if (active()) this.applyForces(memory);
+        if (active() && ir.kind === "configuration" && ir.resource.programs[index]!.outputs?.length)
+          this.options.stages?.applyForces?.(memory);
       }
       if (active() && this.state === "RUN") {
         this.outputs = memory.outputImage();

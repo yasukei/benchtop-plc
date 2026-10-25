@@ -142,3 +142,85 @@ END_RESOURCE END_CONFIGURATION`;
   expect(reopened.value!.configurationSource).toBe(project.configurationSource);
   expect(reopened.value!.pous).toEqual(project.pous);
 });
+
+test("monitors connected PROGRAM parameters, rejects input writes and preserves connections", async ({
+  page,
+}) => {
+  const { readFileSync } = await import("node:fs");
+  const { readProject, writeProject } = await import("@benchtop-plc/project");
+  const project = readProject(
+    readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url), "utf8"),
+  ).value!;
+  project.pous = [
+    "PROGRAM Main VAR_INPUT requested : INT; END_VAR VAR_OUTPUT result : INT; END_VAR result := requested; END_PROGRAM",
+  ];
+  project.configurationSource = `CONFIGURATION Plant VAR_GLOBAL g : INT; END_VAR RESOURCE Station ON Cpu
+TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM A WITH T : Main (requested := 1, result => g);
+END_RESOURCE END_CONFIGURATION`;
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "parameters.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(writeProject(project).value!),
+  });
+  await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
+    "No diagnostics",
+  );
+  const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
+  const input = monitor.getByRole("row").filter({ has: page.locator('th[title="A.requested"]') });
+  const output = monitor.getByRole("row").filter({ has: page.locator('th[title="A.result"]') });
+  await input.getByRole("textbox", { name: "Value to write" }).fill("42");
+  await input.getByRole("button", { name: "Write", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("connected input A.requested");
+  await input.getByRole("button", { name: "Force", exact: true }).click();
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(input).toHaveAttribute("data-forced", "true");
+  await expect(output.locator("td").nth(2)).toHaveText("42");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  const saved = readProject(readFileSync((await (await downloadPromise).path())!, "utf8"));
+  expect(saved.diagnostics).toEqual([]);
+  expect(saved.value!.pous).toEqual(project.pous);
+  expect(saved.value!.configurationSource).toBe(project.configurationSource);
+});
+
+test("navigates a parameter-copy fault to its configuration connection", async ({ page }) => {
+  const { readFileSync } = await import("node:fs");
+  const { readProject, writeProject } = await import("@benchtop-plc/project");
+  const project = readProject(
+    readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url), "utf8"),
+  ).value!;
+  project.pous = ["PROGRAM Main VAR_INPUT requested : INT(0..10); END_VAR END_PROGRAM"];
+  project.configurationSource = `CONFIGURATION Plant
+VAR_GLOBAL g : INT := 11; END_VAR
+RESOURCE Station ON Cpu TASK T (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM A WITH T : Main (requested := g);
+END_RESOURCE END_CONFIGURATION`;
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "fault.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(writeProject(project).value!),
+  });
+  await page
+    .getByRole("region", { name: "POUs", exact: true })
+    .getByRole("button", { name: /^Main PROGRAM/ })
+    .click();
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(page.getByLabel("Runtime state")).toHaveText("FAULT");
+  await expect(page.locator(".runtime-fault-line")).toHaveCount(0);
+  await page
+    .getByRole("region", { name: "Diagnostics", exact: true })
+    .getByRole("button")
+    .filter({ hasText: "outside subrange" })
+    .click();
+  await expect(page.getByRole("textbox", { name: "Structured Text", exact: true })).toContainText(
+    "CONFIGURATION Plant",
+  );
+  await expect(page.locator(".runtime-fault-line")).toContainText(
+    "PROGRAM A WITH T : Main (requested := g)",
+  );
+});

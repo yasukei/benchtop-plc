@@ -1,7 +1,7 @@
 import { isStandardFunction, isFunctionBlockType } from "@benchtop-plc/core";
 import type { CyclicTaskIR, Diagnostic, SourceSpan } from "@benchtop-plc/core";
 import { Parser } from "./parser.js";
-import type { Declaration, Identifier, Program } from "./ast.js";
+import type { Address, Declaration, Expression, Identifier, Program } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
 import { exactNumber } from "./exact.js";
 import { lex, isElementaryTypeName } from "./lexer.js";
@@ -15,8 +15,19 @@ export interface Configuration {
   resource: Identifier;
   task: CyclicTaskIR;
   taskName: Identifier;
-  programs: { name: Identifier; type: Identifier; task?: Identifier }[];
+  programs: {
+    name: Identifier;
+    type: Identifier;
+    task?: Identifier;
+    connections: ProgramConnection[];
+  }[];
   span: SourceSpan;
+}
+
+export interface ProgramConnection {
+  name: Identifier;
+  output: boolean;
+  value: Expression | Address;
 }
 
 /** Existing project fields supply the implicit configuration, without adding a source. */
@@ -221,8 +232,38 @@ class ConfigurationParser {
         });
       this.expect(":");
       const type = this.identifier(true);
+      const connections: ProgramConnection[] = [];
+      if (this.at("(")) {
+        this.take();
+        while (true) {
+          const name = this.identifier();
+          const output = this.at("=>");
+          this.expect(output ? "=>" : ":=");
+          let value: Expression | Address;
+          if (this.current.kind === "address") {
+            const token = this.take();
+            const match = /^%([IQ])X([0-9]+)\.([0-9]+)$/.exec(token.key)!;
+            value = {
+              text: token.text,
+              area: match[1] as "I" | "Q",
+              byte: Number(match[2]),
+              bit: Number(match[3]),
+              span: token.span,
+            };
+          } else {
+            // Parse through the shared expression grammar without losing source spans.
+            const parser = new Parser(this.tokens.slice(this.cursor));
+            value = parser.expression();
+            this.cursor += parser.position;
+          }
+          connections.push({ name, output, value });
+          if (!this.at(",")) break;
+          this.take();
+        }
+        this.expect(")");
+      }
       this.expect(";");
-      programs.push({ name: instance, type, task: binding });
+      programs.push({ name: instance, type, task: binding, connections });
     }
     if (this.current.key === "TASK") this.error("config.task-count");
     this.expect("END_RESOURCE");
