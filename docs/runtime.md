@@ -751,3 +751,63 @@ the target without faulting. Snapshots use the instance path, for example
 `{ kind: "reference", target: "mainInstance.MOTORS[2]" }`. Instance references are
 never retained, including nested RETAIN leaves; warm restart, cold reset and load
 clear them, while STOP/RUN preserves them.
+
+## Resumable execution
+
+At load the runtime lowers statement lists into cached instructions. One loop
+executes them with an explicit stack of invocation frames; there is no separate
+debug interpreter. Each frame keeps its instruction position, evaluated operands,
+resolved argument locations and loop bounds. Expressions that cannot call a user
+body still use the scalar/aggregate tree operations. Calls retain operands in
+source evaluation order, enter a new frame and copy outputs when that frame
+returns. Scalar and aggregate outputs are captured before evaluating their targets,
+which can themselves call user code; output bindings are processed in order. Compound statements are boundaries once on entry; loop-body statements
+are boundaries on each iteration. All frames in a task share the watchdog budget.
+
+`RuntimeOptions.pause` is an internal predicate called before each statement, with
+`{ span, pou, instancePath, task }`. A method uses its declaring `Type.Method`; inherited
+bodies name their declaring type and the actual derived instance. Functions have
+a null instance path. Returning `true` suspends the pass and returns control to
+the host. `runtime.pauseLocation` exposes a detached location, and
+`runtime.resume()` continues past that boundary without invoking the predicate
+there a second time. The next boundary can suspend again. Protocol messages,
+public HALT state, breakpoints and stepping belong to later Milestone 8 issues.
+
+A suspended pass retains its ready-task list, current program instance and
+interpreter stack. A pass-level generator holds the image/write/force/publication
+stages; it yields only when the instruction loop pauses, never at an operand or
+call. Ticks and single scans cannot start another pass meanwhile. With unchanged
+clock readings and inputs, pausing and resuming preserves variables, outputs,
+annotations, write/force stages and task telemetry. The public HALT behavior for
+elapsed time, activations, inputs, writes, forces and retained values is assigned
+to #197; this internal hook does not implement that policy.
+
+Stop, emergency stop, warm restart, cold reset and load abandon the suspended
+continuation. Abandonment restores caller contexts and releases block in-out
+bindings without copying outputs or executing remaining statements. Partial
+persistent writes remain subject to the command's normal reset/retention rules.
+
+### Scan-time benchmark
+
+Run `pnpm bench:runtime` for task runs with no pause requested.
+The benchmark compiles the sorting conveyor project and a 2,000-iteration FOR
+loop that calls a user function in each iteration. It measures the interpreter's
+task run without compilation, loading or snapshot serialization, with a fixed
+task-start timestamp and reusable persistent memory. It warms up 500 task runs,
+then reports the median of 31 batches (200 conveyor runs or 10 loop runs each),
+in microseconds per task run. #197 extends this benchmark for debugging-active
+execution once breakpoints are implemented.
+
+Results for issue #194 (Node 22.22.1, Linux x86-64; same machine, sequential runs),
+using the same benchmark on base commit `f0cd173` and this implementation:
+
+| Program              | Before (µs) | After (µs) | Ratio |
+| -------------------- | ----------: | ---------: | ----: |
+| Sorting conveyor     |      70.542 |     86.848 | 1.23× |
+| Loop with user calls |   8,776.739 | 11,053.199 | 1.26× |
+
+ADR 0018 permits at most 2× the baseline median for each ordinary benchmark.
+To repeat the baseline, check out `f0cd173` in another worktree, copy
+`runtime-benchmark.config.ts` and `tests/benchmarks/runtime.bench.ts` from this
+change, install its locked dependencies and run
+`pnpm exec vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept`.

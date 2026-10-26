@@ -80,6 +80,12 @@ otherwise it leaves STOP without restarting. See [ADR 0009](adr/0009-emergency-s
 Operating-state transitions, restart semantics and run-time error reactions are
 recorded in [ADR 0010](adr/0010-operating-states-restarts-and-runtime-errors.md).
 
+The runtime lowers tree-IR bodies into cached internal instructions at load.
+An instruction loop retains invocation frames and evaluated operands across
+statement-boundary pauses. A pass continuation preserves the scheduler and I/O
+stages until execution resumes or is abandoned. See
+[runtime.md](runtime.md#resumable-execution) and ADR 0018.
+
 ## Testing
 
 1. Unit tests per package (Vitest).
