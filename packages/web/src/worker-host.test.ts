@@ -377,3 +377,40 @@ it("routes body watches and publishes the selected PROGRAM's next single scan", 
   host.handle({ type: "step" });
   expect(snapshot()?.annotations).toEqual([]);
 });
+
+it("publishes a halt with a snapshot, rejects controls non-fatally and stores no retentive values during the halt", () => {
+  const { host, clock, messages, snapshot, state } = setup();
+  const line = demoProgram.body[0]!.span.line;
+  host.handle({ type: "setBreakpoints", breakpoints: [{ pou: demoProgram.name, line }] });
+  host.handle({ type: "run" });
+  clock.advance(10);
+  expect(state()).toBe("HALT");
+  expect(messages.at(-1)).toMatchObject({
+    type: "halted",
+    operatingState: "RUN",
+    frames: [{ kind: "PROGRAM", span: { line } }],
+  });
+  expect(messages.at(-2)?.type).toBe("snapshot");
+  messages.length = 0;
+  clock.advance(5000);
+  for (const message of [{ type: "run" }, { type: "step" }, { type: "setCycle", ms: 20 }] as const)
+    host.handle(message);
+  expect(
+    messages
+      .filter((message) => message.type === "rejected")
+      .map((message) => message.diagnostic.code),
+  ).toEqual(["runtime.halted", "runtime.halted", "runtime.halted"]);
+  expect(messages.some((message) => message.type === "retentive")).toBe(false);
+  expect(snapshot()?.scanCount).toBe(0);
+  host.handle({ type: "setBreakpoints", breakpoints: [] });
+  host.handle({ type: "continue" });
+  expect(state()).toBe("RUN");
+  expect(snapshot()?.scanCount).toBe(1);
+  host.handle({ type: "continue" });
+  expect(messages).toContainEqual({
+    type: "rejected",
+    command: "continue",
+    diagnostic: { code: "runtime.not-halted", severity: "error", args: {} },
+  });
+  host.dispose();
+});

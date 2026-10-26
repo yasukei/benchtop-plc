@@ -542,3 +542,13 @@ Namespace root, namespace/declaration and standard simple-name collisions use
 `decl.name-collision` with kind `type`. Existing access diagnostics cover INTERNAL
 members and methods. Names of declarations and their types are qualified in
 diagnostic POU context and name arguments.
+
+## Halt command rejections
+
+| Code                 | Arguments | Meaning                                                         |
+| -------------------- | --------- | --------------------------------------------------------------- |
+| `runtime.halted`     | `{}`      | Nonfatal rejection of `run`, `step` or `setCycle` while halted. |
+| `runtime.not-halted` | `{}`      | Nonfatal rejection of `continue` while not halted.              |
+
+These codes use `rejected`, with the corresponding `command`, and never latch a
+FAULT. A breakpoint halt uses the separate `halted` event and reported HALT state.

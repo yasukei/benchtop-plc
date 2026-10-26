@@ -17,6 +17,7 @@ export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
+  breakpoints?: import("./breakpoints.js").SourceBreakpoints;
   instanceChoices?: import("./instances.js").InstanceChoices;
   retentive?: import("@benchtop-plc/core").RetentiveRecord[];
   configuration: EditorConfiguration | null;
@@ -184,6 +185,13 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
     const layout = readLayout(value.layout);
     if (!layout) return null;
     return {
+      ...(record(value.breakpoints) &&
+      Object.values(value.breakpoints).every(
+        (lines) =>
+          Array.isArray(lines) && lines.every((line) => Number.isInteger(line) && line > 0),
+      )
+        ? { breakpoints: value.breakpoints as Record<string, number[]> }
+        : {}),
       ...(record(value.instanceChoices) &&
       Object.values(value.instanceChoices).every((path) => typeof path === "string")
         ? { instanceChoices: value.instanceChoices as Record<string, string> }
@@ -232,6 +240,7 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
   const unsubscribe = store.subscribe(() => {
     const next = store.getSnapshot();
     if (
+      next.breakpoints === previous.breakpoints &&
       next.instanceChoices === previous.instanceChoices &&
       next.retentive === previous.retentive &&
       next.configuration === previous.configuration &&
@@ -248,6 +257,7 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
     const retainedChanged = next.retentive !== previous.retentive;
     previous = next;
     pending = {
+      ...(next.breakpoints === undefined ? {} : { breakpoints: next.breakpoints }),
       ...(next.instanceChoices === undefined ? {} : { instanceChoices: next.instanceChoices }),
       ...(next.retentive === undefined ? {} : { retentive: next.retentive }),
       configuration: next.configuration,

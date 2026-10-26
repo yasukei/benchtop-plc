@@ -290,8 +290,30 @@ The rejection codes identify invalid scalar targets, mismatched types, invalid
 values and writes to input-mapped variables. Rejections preserve operating state,
 memory, forces, pending writes and the Worker connection. They are separate from
 PLC `fault` events and never replace a latched fault's diagnostic. The host also
-publishes its current state and snapshot after a rejection. `step` outside STOP
-remains ignored as specified in #10.
+publishes its current state and snapshot after a rejection. `step` outside STOP remains ignored except in HALT, where it is rejected.
+
+### Breakpoints and halts
+
+`RuntimeState` is `STOP | RUN | FAULT | ESTOP | HALT`. Emergency stop takes
+precedence; otherwise a halt overlays `RUN` or `STOP`, leaving that operating state
+unchanged. `{ type: "setBreakpoints", breakpoints: { pou, line }[] }` replaces the
+set. Source POU names are case-insensitive (qualified for namespaces); a block or
+class source includes its declared methods. Lines are one-based. Only statement
+start lines halt; unmatched breakpoints are ignored.
+
+`{ type: "continue" }` resumes past the current halt point. Each halt sends
+`{ type: "halted", operatingState: "RUN" | "STOP", task, frames: CallFrame[] }`
+with a snapshot of the values before the statement. This release fills only the
+innermost frame: `kind` (`PROGRAM`, `FUNCTION_BLOCK`, `METHOD`, `FUNCTION`), `pou`
+(`Type.Method` for methods), `instance` (null for functions) and `span`.
+Outer frames, call-local values and stepping follow in #198.
+
+`run`, `step` and `setCycle` in HALT produce `runtime.halted`; `continue` outside
+HALT produces `runtime.not-halted`. These are nonfatal `rejected` events with the
+corresponding `command`. Stop, restart, reset, load and emergency stop abandon
+execution. Breakpoint edits apply at the next halt point; body watches apply at
+the next task run. Outputs follow the operating state, keeping the published
+image during a halt over RUN. See [runtime.md](runtime.md) for time and write rules.
 
 ## Character values
 

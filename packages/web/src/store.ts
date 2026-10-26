@@ -1,6 +1,9 @@
+import type { ChangeSet } from "@codemirror/state";
+import { haltPoints, mapBreakpointLines, mapSourceLines } from "./breakpoints.js";
 import { openPanelProject, serializePanelProject } from "./panel/project.js";
 import {
   addDataType,
+  diagnosticPouIndex,
   configurationTemplate,
   deriveConfiguration,
   createDataTypes,
@@ -25,6 +28,7 @@ import type {
   CommandRejectionMessage,
   ConfigurationIR,
   Diagnostic,
+  HaltedMessage,
   RuntimeSnapshot,
   RuntimeState,
   UiToRuntimeMessage,
@@ -52,6 +56,7 @@ export interface AppState extends SavedWork {
   loadedIr?: ConfigurationIR;
   diagnostics: EditorDiagnostic[];
   runtimeState: RuntimeState;
+  halted: HaltedMessage | null;
   snapshot: RuntimeSnapshot | null;
   diagnostic: Diagnostic | null;
   rejection: CommandRejectionMessage | null;
@@ -72,6 +77,10 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     : ((selectedDataType === null ? pous[selectedPou] : dataTypes[selectedDataType])?.source ?? "");
   let pendingRestore = typeof initial === "string" ? undefined : initial.retentive;
   let state: AppState = {
+    ...(typeof initial === "string" || initial.breakpoints === undefined
+      ? {}
+      : { breakpoints: initial.breakpoints }),
+    halted: null,
     ...(typeof initial === "string" || initial.instanceChoices === undefined
       ? {}
       : { instanceChoices: initial.instanceChoices }),
@@ -117,13 +126,46 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   }[] = [];
   const listeners = new Set<() => void>();
   let lastBodyWatches = "";
+  let lastBreakpoints = "";
+  const lineOrigins = new Map<string, { name: string; lines: (number | null)[] }>();
+  const runtimeName = (pou: { name: string }) =>
+    lineOrigins.get(pou.name.toUpperCase())?.name ?? pou.name;
+  const runtimeChoices = () => {
+    const choices = { ...state.instanceChoices };
+    for (const pou of state.pous) {
+      const path = state.instanceChoices?.[pou.name.toUpperCase()];
+      if (path) choices[runtimeName(pou).toUpperCase()] = path;
+    }
+    return choices;
+  };
+  const sendBreakpoints = (ir: ConfigurationIR) => {
+    if (state.connection !== "connected") return;
+    const breakpoints = state.pous.flatMap((pou) => {
+      const mapping = lineOrigins.get(pou.name.toUpperCase());
+      if (!mapping) return [];
+      const loadedLines = new Set(
+        (state.breakpoints?.[pou.name.toUpperCase()] ?? [])
+          .map((line) => mapping.lines[line - 1])
+          .filter((line) => line != null),
+      );
+      return haltPoints(ir, mapping.name).filter((point) => loadedLines.has(point.line));
+    });
+    const key = JSON.stringify(breakpoints);
+    if (key === "[]" && lastBreakpoints === "") return;
+    if (key !== lastBreakpoints) {
+      lastBreakpoints = key;
+      client.send({ type: "setBreakpoints", breakpoints });
+    }
+  };
   const sendBodyWatches = (ir: ConfigurationIR) => {
     if (state.connection !== "connected") return;
     const openPou =
       !state.selectedConfiguration && state.selectedDataType === null
-        ? state.pous[state.selectedPou]?.name
+        ? state.pous[state.selectedPou]
+          ? runtimeName(state.pous[state.selectedPou]!)
+          : undefined
         : undefined;
-    const bodies = watchedBodies(ir, state.instanceChoices ?? {}, openPou);
+    const bodies = watchedBodies(ir, runtimeChoices(), openPou);
     const key = JSON.stringify(bodies);
     if (key !== lastBodyWatches) {
       lastBodyWatches = key;
@@ -133,7 +175,10 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   const update = (patch: Partial<AppState>) => {
     state = { ...state, ...patch };
     for (const listener of listeners) listener();
-    if (state.loadedIr && !pendingLoads.length) sendBodyWatches(state.loadedIr);
+    if (state.loadedIr && !pendingLoads.length) {
+      sendBodyWatches(state.loadedIr);
+      sendBreakpoints(state.loadedIr);
+    }
   };
   const unsubscribe = client.subscribe((event: ClientEvent) => {
     switch (event.type) {
@@ -143,8 +188,44 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       case "retentiveRestored":
         update({ retentiveSkipped: event.skipped });
         break;
+      case "halted": {
+        const frame = event.frames[0];
+        const index = frame
+          ? diagnosticPouIndex(
+              state.pous.map((pou) => ({ ...pou, name: runtimeName(pou) })),
+              {
+                code: "runtime.halted",
+                severity: "error",
+                args: {},
+                pou: frame.pou,
+              },
+            )
+          : undefined;
+        const pou = index === undefined ? undefined : state.pous[index];
+        update({
+          halted: event,
+          ...(pou
+            ? {
+                selectedPou: index!,
+                selectedConfiguration: false,
+                selectedDataType: null,
+                source: pou.source,
+                editorSession: state.editorSession + 1,
+                ...(frame?.instance
+                  ? {
+                      instanceChoices: {
+                        ...state.instanceChoices,
+                        [pou.name.toUpperCase()]: frame.instance,
+                      },
+                    }
+                  : {}),
+              }
+            : {}),
+        });
+        break;
+      }
       case "state":
-        update({ runtimeState: event.state });
+        update({ runtimeState: event.state, ...(event.state !== "HALT" ? { halted: null } : {}) });
         break;
       case "snapshot":
         // A load publishes an empty, zero-scan snapshot before execution can resume.
@@ -187,6 +268,13 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     const result = compileEditor();
     if (!result.ir) return false;
     lastBodyWatches = "";
+    if (lastBreakpoints && lastBreakpoints !== "[]") lastBreakpoints = "reload";
+    lineOrigins.clear();
+    for (const pou of state.pous)
+      lineOrigins.set(pou.name.toUpperCase(), {
+        name: pou.name,
+        lines: pou.source.split("\n").map((_, index) => index + 1),
+      });
     pendingLoads.push({
       loadedSources: pouSources(state.pous),
       loadedDataTypes: pouSources(state.dataTypes),
@@ -199,6 +287,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     client.send({ type: "load", ir: result.ir, ...(retentive === undefined ? {} : { retentive }) });
     // Queue watches before RUN can activate an event task, without waiting for the load reply.
     sendBodyWatches(result.ir);
+    sendBreakpoints(result.ir);
     return true;
   };
   const openProject = (xml: string) => {
@@ -223,6 +312,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     const dataTypes = createDataTypes(opened.project.dataTypes);
     update({
       instanceChoices: undefined,
+      breakpoints: undefined,
+      halted: null,
       pous,
       selectedPou,
       dataTypes,
@@ -281,7 +372,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       update({ emergencyActive: active, emergencyReleased: !active });
       client.send({ type: "estop", active });
     },
-    setSource(source: string) {
+    setSource(source: string, changes?: ChangeSet) {
       if (source === state.source) return;
       clearTimeout(compileTimer);
       if (state.selectedConfiguration && state.configuration) {
@@ -307,15 +398,87 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
             index === state.selectedPou ? derivePou(source, pou) : pou,
           )
         : createPous([source]);
-      update({ source, pous, diagnostics: [], saveDiagnostics: [] });
+      const previous = state.pous[state.selectedPou];
+      const next = pous[state.selectedPou];
+      let breakpoints = state.breakpoints;
+      let instanceChoices = state.instanceChoices;
+      if (previous && next) {
+        const oldKey = previous.name.toUpperCase(),
+          newKey = next.name.toUpperCase();
+        if (oldKey !== newKey && instanceChoices?.[oldKey]) {
+          instanceChoices = { ...instanceChoices, [newKey]: instanceChoices[oldKey] };
+          delete instanceChoices[oldKey];
+        }
+        breakpoints = { ...breakpoints };
+        const lines = mapBreakpointLines(
+          previous.source,
+          source,
+          breakpoints[oldKey] ?? [],
+          changes,
+        );
+        delete breakpoints[oldKey];
+        if (lines.length) breakpoints[newKey] = lines;
+        if (!Object.keys(breakpoints).length) breakpoints = undefined;
+        const mapping = lineOrigins.get(oldKey);
+        if (mapping) {
+          lineOrigins.delete(oldKey);
+          lineOrigins.set(newKey, {
+            ...mapping,
+            lines: mapSourceLines(previous.source, source, mapping.lines, changes),
+          });
+        }
+      }
+      update({ source, pous, breakpoints, instanceChoices, diagnostics: [], saveDiagnostics: [] });
       compileTimer = setTimeout(compileEditor, 250);
+    },
+    runtimeSource() {
+      const pou = state.pous[state.selectedPou];
+      return { pou: pou ? runtimeName(pou) : undefined, choices: runtimeChoices() };
+    },
+    breakpointMarkers(): { line: number; active: boolean }[] {
+      const pou = state.pous[state.selectedPou];
+      if (
+        !pou ||
+        state.selectedConfiguration ||
+        state.selectedDataType !== null ||
+        pou.kind === "INTERFACE"
+      )
+        return [];
+      const key = pou.name.toUpperCase();
+      const mapping = lineOrigins.get(key);
+      const active =
+        state.loadedIr && mapping
+          ? new Set(haltPoints(state.loadedIr, mapping.name).map((point) => point.line))
+          : new Set<number>();
+      return (state.breakpoints?.[key] ?? []).map((line) => ({
+        line,
+        active: active.has(mapping?.lines[line - 1] ?? -1),
+      }));
+    },
+    toggleBreakpoint(line: number) {
+      if (state.selectedConfiguration || state.selectedDataType !== null) return;
+      const pou = state.pous[state.selectedPou];
+      if (!pou || pou.kind === "INTERFACE" || line < 1 || line > pou.source.split("\n").length)
+        return;
+      const key = pou.name.toUpperCase();
+      const lines = state.breakpoints?.[key] ?? [];
+      update({
+        breakpoints: {
+          ...state.breakpoints,
+          [key]: lines.includes(line)
+            ? lines.filter((item) => item !== line)
+            : [...lines, line].sort((a, b) => a - b),
+        },
+      });
     },
     selectInstance(path: string) {
       if (!state.loadedIr || state.selectedConfiguration || state.selectedDataType !== null) return;
       const pou = state.pous[state.selectedPou];
       if (
         !pou ||
-        !instancesForSource(state.loadedIr, pou.name).some((instance) => instance.path === path)
+        !instancesForSource(state.loadedIr, runtimeName(pou)).some(
+          (instance) => instance.path === path,
+        )
       )
         return;
       update({ instanceChoices: { ...state.instanceChoices, [pou.name.toUpperCase()]: path } });
@@ -523,12 +686,16 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       const pous = deletePou(state.pous, index);
       if (pous === state.pous) return;
       clearTimeout(compileTimer);
+      const breakpoints = { ...state.breakpoints };
+      delete breakpoints[state.pous[index]!.name.toUpperCase()];
+      lineOrigins.delete(state.pous[index]!.name.toUpperCase());
       const selectedPou =
         state.selectedPou > index
           ? state.selectedPou - 1
           : Math.max(0, Math.min(state.selectedPou, pous.length - 1));
       update({
         pous,
+        breakpoints,
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou,
@@ -551,7 +718,19 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     loadEditor,
     run() {
       if (state.connection !== "connected" || pendingLoads.length || state.emergencyActive) return;
-      if (state.runtimeState !== "STOP" && state.runtimeState !== "RUN") return;
+      if (
+        state.runtimeState !== "STOP" &&
+        state.runtimeState !== "RUN" &&
+        state.runtimeState !== "HALT"
+      )
+        return;
+      if (
+        state.runtimeState === "HALT" &&
+        sameSources(pouSources(state.pous), state.loadedSources) &&
+        sameSources(pouSources(state.dataTypes), state.loadedDataTypes) &&
+        (state.configuration?.source ?? null) === state.loadedConfigurationSource
+      )
+        return;
       if (
         (!sameSources(pouSources(state.pous), state.loadedSources) ||
           !sameSources(pouSources(state.dataTypes), state.loadedDataTypes) ||

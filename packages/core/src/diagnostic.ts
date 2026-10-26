@@ -120,6 +120,8 @@ export interface DiagnosticArgs {
   "config.connection-duplicate": { name: string };
   "config.connection-target": { name: string };
   "config.task-parameter": { name: string };
+  "runtime.halted": NoArguments;
+  "runtime.not-halted": NoArguments;
   "runtime.configured-cycle": NoArguments;
   "pou.duplicate": { name: string };
   "pou.name-collision": { name: string };
@@ -201,6 +203,8 @@ export interface DiagnosticArgs {
 
 /** Expected debug command rejections; these never latch a PLC execution fault. */
 export type CommandRejectionCode =
+  | "runtime.halted"
+  | "runtime.not-halted"
   | "runtime.configured-cycle"
   | "runtime.debug-target"
   | "runtime.debug-type-mismatch"

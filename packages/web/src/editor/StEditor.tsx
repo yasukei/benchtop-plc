@@ -1,4 +1,5 @@
 import { useImperativeHandle, useLayoutEffect, useRef, type Ref } from "react";
+import type { ChangeSet } from "@codemirror/state";
 import type { SourceSpan } from "@benchtop-plc/core";
 import { createStEditor, type EditorProps, type StEditorController } from "./controller.js";
 
@@ -7,7 +8,10 @@ export interface StEditorHandle {
 }
 
 export function StEditor(
-  props: EditorProps & { onChange: (source: string) => void; ref?: Ref<StEditorHandle> },
+  props: EditorProps & {
+    onChange: (source: string, changes?: ChangeSet) => void;
+    ref?: Ref<StEditorHandle>;
+  },
 ) {
   const parent = useRef<HTMLDivElement>(null);
   const controller = useRef<StEditorController | null>(null);

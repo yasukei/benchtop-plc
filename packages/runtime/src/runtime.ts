@@ -1,5 +1,7 @@
 import type {
   BodyWatch,
+  Breakpoint,
+  HaltedMessage,
   AnnotatedBody,
   Statement,
   StatementAnnotation,
@@ -53,6 +55,9 @@ export interface RuntimeOptions {
 
 export interface Runtime {
   readonly state: RuntimeState;
+  readonly halted: HaltedMessage | null;
+  setBreakpoints(breakpoints: readonly Breakpoint[]): void;
+  continue(): RuntimeSnapshot;
   readonly diagnostic: Diagnostic | null;
   readonly pauseLocation: PauseLocation | null;
   /** Invocation annotations for the active task, outermost first; internal debugger support. */
@@ -80,7 +85,7 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   return new PlcRuntime(options);
 }
 
-type OperatingState = Exclude<RuntimeState, "ESTOP">;
+type OperatingState = Exclude<RuntimeState, "ESTOP" | "HALT">;
 
 /** Expected validation failures, distinguished from host/library programming errors. */
 export class RuntimeCommandRejected extends Error {
@@ -99,6 +104,65 @@ class PlcRuntime implements Runtime {
   private scanning = false;
   private pass?: Generator<void, void, void>;
   private location: PauseLocation | null = null;
+  private breakpointHalt = false;
+  private haltStart = 0;
+  private pausedMs = 0;
+  private breakpoints = new Map<string, Set<number>>();
+
+  setBreakpoints(breakpoints: readonly Breakpoint[]): void {
+    this.breakpoints = new Map();
+    for (const { pou, line } of breakpoints) {
+      if (!Number.isInteger(line) || line < 1) continue;
+      const key = pou.toUpperCase();
+      if (!this.breakpoints.has(key)) this.breakpoints.set(key, new Set());
+      this.breakpoints.get(key)!.add(line);
+    }
+  }
+
+  get halted(): HaltedMessage | null {
+    if (!this.breakpointHalt || !this.location) return null;
+    const { pou, span, task, instancePath } = this.location;
+    const ir = this.memory!.ir;
+    const kind = ir.functions?.some((fn) => fn.name === pou)
+      ? "FUNCTION"
+      : ir.functionBlocks?.some((block) => block.name === pou)
+        ? "FUNCTION_BLOCK"
+        : (ir.kind === "configuration" ? ir.programs : [ir]).some((program) => program.name === pou)
+          ? "PROGRAM"
+          : "METHOD";
+    return {
+      type: "halted",
+      operatingState: this.operatingState as "RUN" | "STOP",
+      task,
+      frames: [
+        {
+          kind,
+          pou,
+          span: { ...span },
+          instance: instancePath ?? (kind === "PROGRAM" ? ir.name : null),
+        },
+      ],
+    };
+  }
+
+  private rejectHalted(): void {
+    if (this.breakpointHalt)
+      throw new RuntimeCommandRejected({ code: "runtime.halted", severity: "error", args: {} });
+  }
+
+  continue(): RuntimeSnapshot {
+    if (!this.breakpointHalt)
+      throw new RuntimeCommandRejected({ code: "runtime.not-halted", severity: "error", args: {} });
+    return this.resume();
+  }
+
+  private endHalt(): void {
+    if (!this.breakpointHalt) return;
+    const end = this.options.clock.now();
+    this.pausedMs += end - this.haltStart;
+    this.scheduler?.excludeHalt(this.haltStart, end);
+    this.breakpointHalt = false;
+  }
   private interpreter?: Interpreter;
   get frameAnnotations(): AnnotatedBody[] {
     return (this.interpreter?.frameAnnotations ?? []).map((body) => ({
@@ -133,7 +197,7 @@ class PlcRuntime implements Runtime {
   }
 
   get state(): RuntimeState {
-    return this.emergencyStop ? "ESTOP" : this.operatingState;
+    return this.emergencyStop ? "ESTOP" : this.breakpointHalt ? "HALT" : this.operatingState;
   }
   get diagnostic(): Diagnostic | null {
     return this.fault
@@ -146,6 +210,7 @@ class PlcRuntime implements Runtime {
   }
 
   private halt(state: OperatingState): void {
+    this.endHalt();
     this.operatingState = state;
     this.generation++;
     if (!this.scanning) {
@@ -209,6 +274,7 @@ class PlcRuntime implements Runtime {
   }
 
   setCycle(ms: number): void {
+    this.rejectHalted();
     if (this.location) return;
     if (this.memory?.ir.kind === "configuration" && this.memory.ir.explicit)
       throw new RuntimeCommandRejected({
@@ -230,6 +296,7 @@ class PlcRuntime implements Runtime {
   }
 
   run(): void {
+    this.rejectHalted();
     if (this.state !== "STOP" || !this.memory || this.scanning || this.pass) return;
     this.operatingState = "RUN";
     this.startTicker();
@@ -361,13 +428,15 @@ class PlcRuntime implements Runtime {
     if (this.state === "RUN" || this.scanning) this.pendingWrites.set(variable, checked);
     else {
       this.pendingWrites.delete(variable);
+      if (this.breakpointHalt && this.forces.has(variable)) return;
       this.memory?.write(variable, checked.value);
       // Debug commands cannot energize outputs outside RUN (ADR 0009).
-      this.memory?.clearOutputs();
+      if (!this.breakpointHalt) this.memory?.clearOutputs();
     }
   }
 
   step(): RuntimeSnapshot {
+    this.rejectHalted();
     return this.state === "STOP" ? this.scanOnce() : this.snapshot();
   }
 
@@ -376,6 +445,7 @@ class PlcRuntime implements Runtime {
   }
 
   scanOnce(): RuntimeSnapshot {
+    this.rejectHalted();
     return this.scanPass(true);
   }
 
@@ -390,6 +460,7 @@ class PlcRuntime implements Runtime {
   }
 
   private advancePass(): RuntimeSnapshot {
+    this.endHalt();
     this.location = null;
     this.scanning = true;
     try {
@@ -408,6 +479,7 @@ class PlcRuntime implements Runtime {
     const scheduler = this.scheduler;
     if (!memory || !scheduler || this.state === "FAULT" || this.state === "ESTOP") return;
     const start = this.options.clock.now();
+    const passPaused = this.pausedMs;
     const generation = this.generation;
     const active = () => generation === this.generation;
     let ran = false;
@@ -437,6 +509,7 @@ class PlcRuntime implements Runtime {
         executingTask = scheduler.tasks[taskIndex]!.name;
         executingInstance = undefined;
         const taskStart = this.options.clock.now();
+        const taskPaused = this.pausedMs;
         // Capture the watch set at the task boundary, including for resumable runs.
         const watches = watchedBodyKeys(ir, this.bodyWatches);
         for (const key of this.annotations.keys())
@@ -456,7 +529,7 @@ class PlcRuntime implements Runtime {
             });
             return entries;
           },
-          this.options.debuggingActive?.() ?? false,
+          this.breakpoints.size > 0 || (this.options.debuggingActive?.() ?? false),
         );
         this.interpreter = interpreter;
         try {
@@ -485,13 +558,28 @@ class PlcRuntime implements Runtime {
             )
               this.options.stages?.applyForces?.(memory);
             if (active()) {
-              const pause: PauseHook | undefined = this.options.pause
-                ? (location) => {
-                    if (!this.options.pause!(location)) return false;
-                    this.location = location;
-                    return true;
-                  }
-                : undefined;
+              const pause: PauseHook | undefined =
+                this.options.pause || this.breakpoints.size
+                  ? (location) => {
+                      const key = location.pou.toUpperCase();
+                      const source = ir.functionBlocks?.find((block) =>
+                        block.methods?.some(
+                          (method) => `${block.name}.${method.name}`.toUpperCase() === key,
+                        ),
+                      );
+                      const breakpoint =
+                        this.breakpoints.get(key)?.has(location.span.line) ||
+                        (source &&
+                          this.breakpoints.get(source.name.toUpperCase())?.has(location.span.line));
+                      if (!breakpoint && !this.options.pause?.(location)) return false;
+                      if (breakpoint) {
+                        this.breakpointHalt = true;
+                        this.haltStart = this.options.clock.now();
+                      }
+                      this.location = location;
+                      return true;
+                    }
+                  : undefined;
               let completed = interpreter.executeProgram(index, pause);
               while (!completed && active()) {
                 yield;
@@ -517,7 +605,15 @@ class PlcRuntime implements Runtime {
         } finally {
           interpreter.abandon();
           this.interpreter = undefined;
-          scheduler.finish(taskIndex, taskStart, this.options.clock.now(), singleScan);
+          // A fault is counted; generator return() and cancelled runs are not.
+          if (active())
+            scheduler.finish(
+              taskIndex,
+              taskStart,
+              this.options.clock.now(),
+              singleScan,
+              this.pausedMs - taskPaused,
+            );
         }
       }
     } catch (error) {
@@ -543,7 +639,8 @@ class PlcRuntime implements Runtime {
       }
       if (ran) {
         this.count++;
-        this.duration = this.options.clock.now() - start;
+        if (active() || this.operatingState === "FAULT")
+          this.duration = this.options.clock.now() - start - (this.pausedMs - passPaused);
       }
       this.location = null;
     }

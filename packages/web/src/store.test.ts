@@ -800,3 +800,113 @@ END_RESOURCE END_CONFIGURATION`),
   host.dispose();
   store.dispose();
 });
+
+it("maps breakpoints to loaded text through edits and renames, then resends them after applying", () => {
+  const worker = new FakeWorker();
+  const source = "PROGRAM Main\nVAR n: INT; END_VAR\nn := n + 1;\nEND_PROGRAM";
+  const store = createAppStore(new RuntimeClient(worker), source);
+  store.loadEditor();
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  store.toggleBreakpoint(3);
+  expect(worker.sent.at(-1)).toEqual({
+    type: "setBreakpoints",
+    breakpoints: [{ pou: "Main", line: 3 }],
+  });
+  store.setSource(source.replace("n :=", "\nn :=").replace("Main", "Renamed"));
+  expect(store.breakpointMarkers()).toEqual([{ line: 4, active: true }]);
+  expect(worker.sent.filter((message) => message.type === "setBreakpoints").at(-1)).toEqual({
+    type: "setBreakpoints",
+    breakpoints: [{ pou: "Main", line: 3 }],
+  });
+  store.toggleBreakpoint(3);
+  expect(store.breakpointMarkers()).toEqual([
+    { line: 3, active: false },
+    { line: 4, active: true },
+  ]);
+  worker.receive({ type: "state", state: "HALT" });
+  store.run();
+  expect(worker.sent.at(-1)).toEqual({ type: "run" });
+  expect(worker.sent.filter((message) => message.type === "setBreakpoints").at(-1)).toEqual({
+    type: "setBreakpoints",
+    breakpoints: [{ pou: "Renamed", line: 4 }],
+  });
+  store.dispose();
+});
+
+it("opens the halted method's source and instance, retains its banner through edits, and clears it on Stop", () => {
+  const worker = new FakeWorker();
+  const store = createAppStore(new RuntimeClient(worker), "PROGRAM Main END_PROGRAM");
+  store.addFunctionBlock();
+  const source =
+    "FUNCTION_BLOCK Counter\nMETHOD PUBLIC Count\nRETURN;\nEND_METHOD\nEND_FUNCTION_BLOCK";
+  store.setSource(source);
+  store.selectPou(0);
+  const halted = {
+    type: "halted",
+    operatingState: "RUN",
+    task: "Cyclic",
+    frames: [
+      {
+        kind: "METHOD",
+        pou: "Counter.Count",
+        instance: "mainInstance.BinA",
+        span: { line: 3, column: 1, endLine: 3, endColumn: 8 },
+      },
+    ],
+  } as const;
+  worker.receive({ type: "state", state: "HALT" });
+  worker.receive({ ...halted, frames: [...halted.frames] });
+  expect(store.getSnapshot()).toMatchObject({
+    selectedPou: 1,
+    source,
+    halted,
+    instanceChoices: { COUNTER: "mainInstance.BinA" },
+  });
+  store.setSource(source + "\n");
+  expect(store.getSnapshot().halted).toEqual(halted);
+  worker.receive({ type: "state", state: "STOP" });
+  expect(store.getSnapshot().halted).toBeNull();
+  store.dispose();
+});
+
+it("opens a renamed source when a breakpoint in its loaded code halts, keeping the halted instance selectable", () => {
+  const worker = new FakeWorker();
+  const store = createAppStore(
+    new RuntimeClient(worker),
+    "PROGRAM Main\nVAR bin: Counter; END_VAR\nbin();\nEND_PROGRAM",
+  );
+  store.addFunctionBlock();
+  const source = "FUNCTION_BLOCK Counter VAR n: INT; END_VAR\nn := n + 1;\nEND_FUNCTION_BLOCK";
+  store.setSource(source);
+  expect(store.loadEditor()).toBe(true);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  store.toggleBreakpoint(2);
+  store.setSource(source.replace("Counter", "Renamed"));
+  store.selectPou(0);
+  worker.receive({ type: "state", state: "HALT" });
+  worker.receive({
+    type: "halted",
+    operatingState: "RUN",
+    task: "Cyclic",
+    frames: [
+      {
+        kind: "FUNCTION_BLOCK",
+        pou: "Counter",
+        instance: "mainInstance.BIN",
+        span: { line: 2, column: 1, endLine: 2, endColumn: 12 },
+      },
+    ],
+  });
+  expect(store.getSnapshot()).toMatchObject({
+    selectedPou: 1,
+    source: source.replace("Counter", "Renamed"),
+    instanceChoices: { RENAMED: "mainInstance.BIN" },
+  });
+  expect(store.runtimeSource()).toMatchObject({
+    pou: "Counter",
+    choices: { COUNTER: "mainInstance.BIN" },
+  });
+  store.selectInstance("mainInstance.BIN");
+  expect(store.breakpointMarkers()).toEqual([{ line: 2, active: true }]);
+  store.dispose();
+});
