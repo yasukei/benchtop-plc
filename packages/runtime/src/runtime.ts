@@ -19,6 +19,7 @@ import {
 } from "@benchtop-plc/core";
 import { checkInterval } from "./clock.js";
 import type { Clock, Ticker } from "./clock.js";
+import type { PauseHook, PauseLocation } from "./interpreter.js";
 import { Interpreter, RuntimeFault } from "./interpreter.js";
 import type { RuntimeLibrary } from "./library.js";
 import { emptyImage, Memory, typed } from "./memory.js";
@@ -39,11 +40,15 @@ export interface RuntimeOptions {
   intervalMs?: number;
   library?: RuntimeLibrary;
   stages?: ScanStages;
+  /** Internal statement-boundary hook; no protocol or operating-state change. */
+  pause?: PauseHook;
 }
 
 export interface Runtime {
   readonly state: RuntimeState;
   readonly diagnostic: Diagnostic | null;
+  readonly pauseLocation: PauseLocation | null;
+  resume(): RuntimeSnapshot;
   load(ir: ProgramIR | ConfigurationIR): void;
   setCycle(ms: number): void;
   run(): void;
@@ -82,6 +87,11 @@ class PlcRuntime implements Runtime {
   private memory: Memory | undefined;
   private cancel: (() => void) | undefined;
   private scanning = false;
+  private pass?: Generator<void, void, void>;
+  private location: PauseLocation | null = null;
+  get pauseLocation(): PauseLocation | null {
+    return this.location ? { ...this.location, span: { ...this.location.span } } : null;
+  }
   private generation = 0;
   private count = 0;
   private duration = 0;
@@ -117,6 +127,11 @@ class PlcRuntime implements Runtime {
   private halt(state: OperatingState): void {
     this.operatingState = state;
     this.generation++;
+    if (!this.scanning) {
+      this.pass?.return();
+      this.pass = undefined;
+      this.location = null;
+    }
     const cancel = this.cancel;
     this.cancel = undefined;
     cancel?.();
@@ -128,6 +143,7 @@ class PlcRuntime implements Runtime {
   load(ir: ProgramIR | ConfigurationIR): void {
     if (this.scanning) throw new Error("Cannot load during a scan");
     const memory = new Memory(ir, this.library);
+    Interpreter.prepare(ir);
     this.halt("STOP");
     this.memory = memory;
     const implicitTask =
@@ -165,6 +181,7 @@ class PlcRuntime implements Runtime {
   }
 
   setCycle(ms: number): void {
+    if (this.location) return;
     if (this.memory?.ir.kind === "configuration" && this.memory.ir.explicit)
       throw new RuntimeCommandRejected({
         code: "runtime.configured-cycle",
@@ -185,7 +202,7 @@ class PlcRuntime implements Runtime {
   }
 
   run(): void {
-    if (this.state !== "STOP" || !this.memory || this.scanning) return;
+    if (this.state !== "STOP" || !this.memory || this.scanning || this.pass) return;
     this.operatingState = "RUN";
     this.startTicker();
   }
@@ -331,14 +348,36 @@ class PlcRuntime implements Runtime {
   }
 
   private scanPass(singleScan: boolean): RuntimeSnapshot {
+    if (this.pass || this.scanning) return this.snapshot();
+    this.pass = this.executePass(singleScan);
+    return this.advancePass();
+  }
+
+  resume(): RuntimeSnapshot {
+    return !this.scanning && this.pass && this.location ? this.advancePass() : this.snapshot();
+  }
+
+  private advancePass(): RuntimeSnapshot {
+    this.location = null;
+    this.scanning = true;
+    try {
+      if (this.pass?.next().done) this.pass = undefined;
+    } catch (error) {
+      this.pass = undefined;
+      throw error;
+    } finally {
+      this.scanning = false;
+    }
+    return this.snapshot();
+  }
+
+  private *executePass(singleScan: boolean): Generator<void, void, void> {
     const memory = this.memory;
     const scheduler = this.scheduler;
-    if (!memory || !scheduler || this.scanning || this.state === "FAULT" || this.state === "ESTOP")
-      return this.snapshot();
+    if (!memory || !scheduler || this.state === "FAULT" || this.state === "ESTOP") return;
     const start = this.options.clock.now();
     const generation = this.generation;
     const active = () => generation === this.generation;
-    this.scanning = true;
     let ran = false;
     let executingInstance: string | undefined;
     let executingTask: string | undefined;
@@ -402,7 +441,18 @@ class PlcRuntime implements Runtime {
             try {
               if (active()) {
                 executed = true;
-                interpreter.executeProgram(index);
+                const pause: PauseHook | undefined = this.options.pause
+                  ? (location) => {
+                      if (!this.options.pause!(location)) return false;
+                      this.location = location;
+                      return true;
+                    }
+                  : undefined;
+                let completed = interpreter.executeProgram(index, pause);
+                while (!completed && active()) {
+                  yield;
+                  if (active()) completed = interpreter.resume(pause);
+                }
               }
             } finally {
               // Only the first instance in resource declaration order supplies editor annotations.
@@ -434,6 +484,7 @@ class PlcRuntime implements Runtime {
             this.options.stages?.writeOutputs?.([...this.outputs]);
           }
         } finally {
+          interpreter.abandon();
           scheduler.finish(taskIndex, taskStart, this.options.clock.now(), singleScan);
         }
       }
@@ -462,9 +513,8 @@ class PlcRuntime implements Runtime {
         this.count++;
         this.duration = this.options.clock.now() - start;
       }
-      this.scanning = false;
+      this.location = null;
     }
-    return this.snapshot();
   }
 
   snapshot(): RuntimeSnapshot {

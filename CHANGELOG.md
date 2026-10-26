@@ -10,6 +10,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Runtime documentation for internal resumable execution and its repeatable
+  scan-time benchmark.
+
 - ADR 0018 documents the accepted debugging design for Milestone 8: choosing the
   instance whose inline values a body shows, inline values in every body,
   breakpoints, the halted state, stepping and the call stack.

@@ -16,6 +16,7 @@
     "lint": "eslint . && depcruise packages tests && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
+    "bench:runtime": "vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept",
     "test:e2e": "playwright test",
     "test:e2e:pages": "playwright test -c playwright.pages.config.ts"
   },
