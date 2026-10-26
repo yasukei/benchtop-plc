@@ -61,6 +61,8 @@ export interface BodyWatch {
 }
 
 export interface AnnotatedBody extends BodyWatch {
+  /** Present for a function: the immediate caller and the call expression's start line. */
+  caller?: { pou: string; instance: string | null; line: number };
   /** Scheduler pass in which this body last started running. */
   scanCount: number;
   /** One entry per executed statement, sorted by column within each line. */
@@ -88,7 +90,7 @@ export interface RuntimeSnapshot {
   variableIds?: VariableId[];
   /** Variable IDs, encoded as an array rather than a Set for JSON transport. */
   forced: VariableId[];
-  /** Watched bodies' latest invocations; empty bodies/lines are omitted. */
+  /** Watched bodies' latest invocations; empty bodies are omitted unless they name a function caller. */
   annotations: AnnotatedBody[];
 }
 

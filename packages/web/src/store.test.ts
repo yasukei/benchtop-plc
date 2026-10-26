@@ -388,7 +388,24 @@ it("switches POUs without reloading, reloads on function edits, and blocks Run a
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
   store.selectPou(0);
   store.run();
-  expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run", "run"]);
+  expect(worker.sent.map((message) => message.type)).toEqual([
+    "load",
+    "watchBodies",
+    "run",
+    "watchBodies",
+    "run",
+  ]);
+  expect(worker.sent[1]).toEqual({
+    type: "watchBodies",
+    bodies: [
+      { pou: "Main", instance: "mainInstance" },
+      { pou: "F1", instance: null },
+    ],
+  });
+  expect(worker.sent[3]).toEqual({
+    type: "watchBodies",
+    bodies: [{ pou: "Main", instance: "mainInstance" }],
+  });
   store.selectPou(1);
   store.setSource(store.getSnapshot().source.replace("n * 2", "n * 3"));
   store.run();

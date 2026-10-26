@@ -1,4 +1,5 @@
-import type { BodyWatch, ConfigurationIR } from "@benchtop-plc/core";
+import type { BodyWatch, ConfigurationIR, RuntimeSnapshot } from "@benchtop-plc/core";
+import type { ShellCatalog } from "./catalog.js";
 
 export interface EditorInstance {
   path: string;
@@ -20,9 +21,7 @@ export function instancesForSource(ir: ConfigurationIR, pou: string): EditorInst
         : [],
     );
   const blocks = ir.functionBlocks ?? [];
-  const type = blocks.findIndex(
-    (block) => block.name.toUpperCase() === key && block.kind !== "class",
-  );
+  const type = blocks.findIndex((block) => block.name.toUpperCase() === key);
   if (type < 0) return [];
   const matches = (block: number): boolean => {
     for (
@@ -67,7 +66,7 @@ export function filterInstances(
   );
 }
 
-/** Keep every PROGRAM selected, plus the open function block source. */
+/** Keep every PROGRAM selected, plus the open block, class or function source. */
 export function watchedBodies(
   ir: ConfigurationIR,
   choices: InstanceChoices,
@@ -75,8 +74,26 @@ export function watchedBodies(
 ): BodyWatch[] {
   const sources = new Set(ir.programs.map((program) => program.name));
   if (openPou) sources.add(openPou);
-  return [...sources].flatMap((pou) => {
+  return [...sources].flatMap<BodyWatch>((pou) => {
+    if (ir.functions?.some((fn) => fn.name.toUpperCase() === pou.toUpperCase()))
+      return [{ pou, instance: null }];
     const instance = selectedInstance(ir, pou, choices);
     return instance ? [{ pou, instance: instance.path }] : [];
   });
+}
+
+/** The caller belongs to the displayed invocation, even if it ran in an older pass. */
+export function functionCallLabel(
+  snapshot: RuntimeSnapshot | null,
+  pou: string,
+  text: ShellCatalog,
+): string {
+  const caller = snapshot?.annotations.find(
+    (body) => body.pou.toUpperCase() === pou.toUpperCase() && body.instance === null,
+  )?.caller;
+  if (!caller) return text.inlineNeverCalled;
+  return (caller.instance === null ? text.inlineCalledFrom : text.inlineCalledFromInstance)
+    .replace("{pou}", caller.pou)
+    .replace("{instance}", caller.instance ?? "")
+    .replace("{line}", String(caller.line));
 }

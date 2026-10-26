@@ -85,3 +85,56 @@ test("selects the second TankControl PROGRAM instance and labels older task valu
   await page.getByRole("button", { name: /^TankControl PROGRAM/ }).click();
   await expect(picker).toHaveValue("Tank2");
 });
+
+test("shows selected method calls on the sorting conveyor, derived class instances and function callers", async ({
+  page,
+}) => {
+  const xml = example("sorting-conveyor");
+  const project = readProject(xml).value!;
+  const source = project.pous.find((source) => source.startsWith("FUNCTION_BLOCK PartCounter"))!;
+  const countLine =
+    source.split("\n").findIndex((line) => line.includes("Parts := Parts + 1;")) + 1;
+  await page.goto("/");
+  await page
+    .getByLabel("Open project", { exact: true })
+    .setInputFiles({ name: "sorting.xml", mimeType: "application/xml", buffer: Buffer.from(xml) });
+  await page.getByRole("button", { name: /^PartCounter FUNCTION_BLOCK/ }).click();
+  const picker = page.getByRole("combobox", { name: "Instance", exact: true });
+  await expect(picker).toHaveValue("mainInstance.BINA");
+  const count = page.locator(`.inline-values[data-line="${countLine}"] .inline-number`);
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(count).toHaveCount(0);
+  const panel = page.getByRole("region", { name: "Operator panel", exact: true });
+  const press = async (name: string, lamp: string) => {
+    await panel.getByRole("button", { name, exact: true }).focus();
+    await page.keyboard.down("Space");
+    try {
+      await expect(panel.getByRole("status", { name: lamp, exact: true })).toHaveAttribute(
+        "data-on",
+        "true",
+      );
+    } finally {
+      await page.keyboard.up("Space");
+    }
+  };
+  await press("START", "BELT RUN");
+  await press("PART A", "DIVERT A");
+  await expect(count).toHaveText("1");
+  await expect(
+    page.locator(`.inline-values[data-line="${countLine}"] .inline-stale`),
+  ).toBeVisible();
+  await picker.selectOption("mainInstance.BINB");
+  await expect(count).toHaveCount(0);
+  await press("PART B", "DIVERT B");
+  await expect(count).toHaveText("1");
+  await page.getByRole("button", { name: /^Devices\.Actuator CLASS/ }).click();
+  await expect(picker.locator("option")).toHaveText([
+    "mainInstance.BELT (Devices.ConveyorMotor)",
+    "mainInstance.GATEA (Devices.Diverter)",
+    "mainInstance.GATEB (Devices.Diverter)",
+  ]);
+  await page.getByRole("button", { name: /^IsActuatorActive FUNCTION/ }).click();
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByText(/Called from SortingConveyor \(mainInstance\), line/)).toBeVisible();
+  await expect(page.locator(".inline-values .inline-bool")).toHaveText("TRUE");
+});

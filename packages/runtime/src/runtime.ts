@@ -30,6 +30,7 @@ import { emptyImage, Memory, typed } from "./memory.js";
 import type { ScanMemory } from "./memory.js";
 import { standardLibrary } from "./standard-library.js";
 import { TaskScheduler } from "./task-scheduler.js";
+import { annotationLines, bodyKey, watchedBodyKeys } from "./annotations.js";
 
 export interface ScanStages {
   readInputs?(): IoImage;
@@ -46,12 +47,16 @@ export interface RuntimeOptions {
   stages?: ScanStages;
   /** Internal statement-boundary hook; no protocol or operating-state change. */
   pause?: PauseHook;
+  /** Internal debugger switch (breakpoints or a pending step), sampled at task-run boundaries. */
+  debuggingActive?: () => boolean;
 }
 
 export interface Runtime {
   readonly state: RuntimeState;
   readonly diagnostic: Diagnostic | null;
   readonly pauseLocation: PauseLocation | null;
+  /** Invocation annotations for the active task, outermost first; internal debugger support. */
+  readonly frameAnnotations: AnnotatedBody[];
   resume(): RuntimeSnapshot;
   load(ir: ProgramIR | ConfigurationIR): void;
   setCycle(ms: number): void;
@@ -94,6 +99,13 @@ class PlcRuntime implements Runtime {
   private scanning = false;
   private pass?: Generator<void, void, void>;
   private location: PauseLocation | null = null;
+  private interpreter?: Interpreter;
+  get frameAnnotations(): AnnotatedBody[] {
+    return (this.interpreter?.frameAnnotations ?? []).map((body) => ({
+      ...body,
+      scanCount: this.count + 1,
+    }));
+  }
   get pauseLocation(): PauseLocation | null {
     return this.location ? { ...this.location, span: { ...this.location.span } } : null;
   }
@@ -426,11 +438,7 @@ class PlcRuntime implements Runtime {
         executingInstance = undefined;
         const taskStart = this.options.clock.now();
         // Capture the watch set at the task boundary, including for resumable runs.
-        const watches = new Set(
-          this.bodyWatches.map((body) =>
-            JSON.stringify([body.pou.toUpperCase(), body.instance?.toUpperCase()]),
-          ),
-        );
+        const watches = watchedBodyKeys(ir, this.bodyWatches);
         for (const key of this.annotations.keys())
           if (!watches.has(key)) this.annotations.delete(key);
         const interpreter = new Interpreter(
@@ -438,17 +446,19 @@ class PlcRuntime implements Runtime {
           taskStart,
           active,
           this.library,
-          (pou, instance) => {
-            const key = JSON.stringify([pou.toUpperCase(), instance.toUpperCase()]);
+          (pou, instance, caller) => {
+            const key = bodyKey(pou, instance);
             if (!watches.has(key)) return undefined;
             const entries = new Map<Statement, StatementAnnotation>();
             this.annotations.set(key, {
-              body: { pou, instance, scanCount: this.count + 1 },
+              body: { pou, instance, scanCount: this.count + 1, ...(caller ? { caller } : {}) },
               entries,
             });
             return entries;
           },
+          this.options.debuggingActive?.() ?? false,
         );
+        this.interpreter = interpreter;
         try {
           this.inputs = [...(this.options.stages?.readInputs?.() ?? this.inputs)];
           if (active()) memory.readInputs(this.inputs);
@@ -506,6 +516,7 @@ class PlcRuntime implements Runtime {
           }
         } finally {
           interpreter.abandon();
+          this.interpreter = undefined;
           scheduler.finish(taskIndex, taskStart, this.options.clock.now(), singleScan);
         }
       }
@@ -541,15 +552,12 @@ class PlcRuntime implements Runtime {
   snapshot(): RuntimeSnapshot {
     const annotations: AnnotatedBody[] = [];
     for (const { body, entries } of this.annotations.values()) {
-      if (!entries.size) continue;
-      const lines: AnnotatedBody["lines"] = {};
-      for (const entry of entries.values())
-        (lines[entry.span.line] ??= []).push({
-          span: { ...entry.span },
-          values: entry.values.map((value) => ({ ...value })),
-        });
-      for (const line of Object.values(lines)) line.sort((a, b) => a.span.column - b.span.column);
-      annotations.push({ ...body, lines });
+      if (!entries.size && !body.caller) continue;
+      annotations.push({
+        ...body,
+        ...(body.caller ? { caller: { ...body.caller } } : {}),
+        lines: annotationLines(entries),
+      });
     }
     const compact = this.memory?.ir.variables.some((variable) => variable.watched);
     const ids = compact

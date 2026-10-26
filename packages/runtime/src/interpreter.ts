@@ -24,6 +24,7 @@ import {
   validateValue,
 } from "@benchtop-plc/core";
 import type {
+  AnnotatedBody,
   Diagnostic,
   TypeDescriptor,
   Expression,
@@ -41,6 +42,7 @@ import type {
   UserFunctionBlockCallStatement,
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
+import { annotationLines } from "./annotations.js";
 import {
   typed,
   isReferenceAddress,
@@ -70,6 +72,7 @@ export type PauseHook = (location: PauseLocation) => boolean;
 type Instruction = { statement?: Statement; run: (vm: Interpreter, frame: ExecutionFrame) => void };
 interface ExecutionFrame {
   annotations?: Map<Statement, StatementAnnotation>;
+  body?: Omit<AnnotatedBody, "lines" | "scanCount">;
   code: Instruction[];
   pc: number;
   statement?: Statement;
@@ -101,10 +104,14 @@ export class Interpreter {
     body: readonly Statement[],
     finish?: (abandoned: boolean) => void,
     annotateBody = false,
+    caller?: AnnotatedBody["caller"],
   ): void {
+    const instance = this.instancePath ?? (caller ? null : this.programMemory.ir.name);
+    const annotations = annotateBody ? this.startBody?.(this.pou, instance, caller) : undefined;
     this.stack.push({
-      annotations: annotateBody
-        ? this.startBody?.(this.pou, this.instancePath ?? this.programMemory.ir.name)
+      annotations: annotations ?? (this.recordFrames ? new Map() : undefined),
+      body: this.recordFrames
+        ? { pou: this.pou, instance, ...(caller ? { caller } : {}) }
         : undefined,
       code: Interpreter.lower(body),
       pc: 0,
@@ -113,6 +120,21 @@ export class Interpreter {
       loops: new Map(),
       finish,
     });
+  }
+
+  /** Invocation-local annotations, outermost first; empty unless debugging was active at task start. */
+  get frameAnnotations(): Omit<AnnotatedBody, "scanCount">[] {
+    return this.stack.flatMap((frame) =>
+      frame.body
+        ? [
+            {
+              ...frame.body,
+              ...(frame.body.caller ? { caller: { ...frame.body.caller } } : {}),
+              lines: annotationLines(frame.annotations!),
+            },
+          ]
+        : [],
+    );
   }
 
   static prepare(ir: ProgramIR | ConfigurationIR): void {
@@ -468,8 +490,10 @@ export class Interpreter {
     private readonly library?: RuntimeLibrary,
     private readonly startBody?: (
       pou: string,
-      instance: string,
+      instance: string | null,
+      caller?: AnnotatedBody["caller"],
     ) => Map<Statement, StatementAnnotation> | undefined,
+    private readonly recordFrames = false,
   ) {
     this.memory = programMemory.programFrame();
     this.functions = programMemory.ir.functions ?? [];
@@ -1353,30 +1377,48 @@ export class Interpreter {
       ? `${this.programMemory.ir.functionBlocks![(definition as import("@benchtop-plc/core").UserMethodIR).declaringType ?? receiver.block]!.name}.${definition.name}`
       : definition.name;
     this.instancePath = receiver?.path;
-    this.push(definition.body, (abandoned) => {
-      let result: StoredValue = null;
-      try {
-        if (!abandoned && definition.result !== undefined) {
-          result = referenceLike(locals.descriptor(definition.result), this.programMemory.ir.types)
-            ? locals.readReference(definition.result)
-            : isAggregateType(locals.descriptor(definition.result), this.programMemory.ir.types)
-              ? locals.aggregateValue(definition.result)
-              : locals.read(definition.result);
+    this.push(
+      definition.body,
+      (abandoned) => {
+        let result: StoredValue = null;
+        try {
+          if (!abandoned && definition.result !== undefined) {
+            result = referenceLike(
+              locals.descriptor(definition.result),
+              this.programMemory.ir.types,
+            )
+              ? locals.readReference(definition.result)
+              : isAggregateType(locals.descriptor(definition.result), this.programMemory.ir.types)
+                ? locals.aggregateValue(definition.result)
+                : locals.read(definition.result);
+          }
+        } finally {
+          this.receiver = callerReceiver;
+          this.memory = caller;
+          this.pou = callerPou;
+          this.instancePath = callerPath;
         }
-      } finally {
-        this.receiver = callerReceiver;
-        this.memory = caller;
-        this.pou = callerPou;
-        this.instancePath = callerPath;
-      }
-      if (abandoned) return;
-      callerFrame.values.set(call, result);
-      (callerFrame.completed ??= new Map()).set(call, (index: number) => {
-        const output = call.outputs[index]!;
-        const slot = parameterSlot(output.variable, "outputs");
-        return this.prepareOutput(output.target, locals, slot, locals.descriptor(slot));
-      });
-    });
+        if (abandoned) return;
+        callerFrame.values.set(call, result);
+        (callerFrame.completed ??= new Map()).set(call, (index: number) => {
+          const output = call.outputs[index]!;
+          const slot = parameterSlot(output.variable, "outputs");
+          return this.prepareOutput(output.target, locals, slot, locals.descriptor(slot));
+        });
+      },
+      true,
+      call.method
+        ? undefined
+        : {
+            pou: callerPou,
+            instance:
+              callerPath ??
+              (this.programMemory.ir.kind === "program" && callerPou === this.programMemory.ir.name
+                ? this.programMemory.ir.name
+                : null),
+            line: call.span.line,
+          },
+    );
     return null;
   }
 }

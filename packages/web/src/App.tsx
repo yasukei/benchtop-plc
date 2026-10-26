@@ -6,7 +6,7 @@ import {
   type EditorDiagnostic,
 } from "./pous.js";
 import { InstancePicker } from "./InstancePicker.js";
-import { selectedInstance } from "./instances.js";
+import { functionCallLabel, selectedInstance } from "./instances.js";
 import { PouList } from "./PouList.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
@@ -41,7 +41,10 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
     !state.selectedConfiguration && state.selectedDataType === null
       ? state.pous[state.selectedPou]
       : undefined;
-  const canSelectInstance = selected?.kind === "PROGRAM" || selected?.kind === "FUNCTION_BLOCK";
+  const canSelectInstance =
+    selected?.kind === "PROGRAM" ||
+    selected?.kind === "FUNCTION_BLOCK" ||
+    selected?.kind === "CLASS";
   const inlineInstance =
     loadedIr && selected && canSelectInstance
       ? selectedInstance(loadedIr, selected.name, state.instanceChoices ?? {})
@@ -209,6 +212,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                     text={text}
                   />
                 )}
+                {selected?.kind === "FUNCTION" && online && (
+                  <div className="instance-picker">
+                    {functionCallLabel(state.snapshot, selected.name, text)}
+                  </div>
+                )}
                 <StEditor
                   ir={loadedIr}
                   key={state.editorSession}
@@ -230,7 +238,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                       state.selectedConfiguration,
                     ),
                   )}
-                  snapshot={inlineInstance ? state.snapshot : null}
+                  snapshot={inlineInstance || selected?.kind === "FUNCTION" ? state.snapshot : null}
                   instance={inlineInstance?.path}
                   online={online}
                   pou={selected?.name}
