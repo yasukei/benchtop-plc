@@ -29,8 +29,8 @@ test("halts the sorting conveyor before counting a part and publishes its output
   await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue(
     "mainInstance.BINA",
   );
-  await page.locator('.breakpoint-marker[data-line="9"]').click();
-  await expect(page.locator('.breakpoint-marker[data-line="9"]')).toHaveAttribute(
+  await page.locator('.breakpoint-marker[data-line="12"]').click();
+  await expect(page.locator('.breakpoint-marker[data-line="12"]')).toHaveAttribute(
     "data-breakpoint",
     "active",
   );
@@ -38,7 +38,7 @@ test("halts the sorting conveyor before counting a part and publishes its output
   await page.keyboard.down("Space");
   try {
     await expect(page.locator(".halt-banner")).toContainText(
-      "PartCounter.Count, line 9 (mainInstance.BINA), task Cyclic",
+      "PartCounter.Count, line 12 (mainInstance.BINA), task Cyclic",
     );
     await expect(page.getByLabel("Runtime state", { exact: true })).toHaveText("HALT");
     await expect(page.locator(".runtime-halt-statement")).toHaveText("Parts := Parts + 1;");
