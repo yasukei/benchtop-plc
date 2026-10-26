@@ -115,3 +115,34 @@ it("includes numeric panel bindings without program declarations and formats inv
     ),
   ).toEqual(["-5", "0.0", "16#00000000"]);
 });
+
+it("keeps published bit and numeric outputs visible while halted over RUN", () => {
+  const source = state();
+  source.snapshot.outputs[0] = 3;
+  const layout: AppState["layout"] = [
+    ...source.layout,
+    {
+      id: "total",
+      kind: "numericDisplay",
+      label: "Total",
+      address: "%QW0",
+      dataType: "UINT",
+      color: "green",
+      x: 0,
+      y: 0,
+    },
+  ];
+  const halted = { ...source, layout, runtimeState: "HALT" as const };
+  const outputReadings = (current: Parameters<typeof imageReadings>[0]) =>
+    imageReadings(current, en).filter((reading) => reading.area === "Q");
+  expect(outputReadings(halted).map((reading) => reading.value)).toEqual(["ON", "3"]);
+  expect(
+    outputReadings({ ...halted, emergencyActive: true }).map((reading) => reading.value),
+  ).toEqual(["OFF", "0"]);
+  expect(
+    outputReadings({
+      ...halted,
+      snapshot: { ...source.snapshot, outputs: Array<number>(64).fill(0) },
+    }).map((reading) => reading.value),
+  ).toEqual(["OFF", "0"]);
+});

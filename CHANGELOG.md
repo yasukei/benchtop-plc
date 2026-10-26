@@ -31,6 +31,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   instance whose inline values a body shows, inline values in every body,
   breakpoints, the halted state, stepping and the call stack.
 
+### Fixed
+
+- Panel lamps, numeric displays and I/O image readings keep showing the last
+  published outputs while halted over RUN, including nonzero counts.
+
 ### Changed
 
 - **Breaking core protocol changes:** `RuntimeState` gains `HALT`;

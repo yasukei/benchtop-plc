@@ -1,3 +1,4 @@
+import { outputsLive } from "../io-image.js";
 import { NumericPart } from "./NumericPart.js";
 import { assignNumericBounds, assignNumericType, panelNumericTypes } from "./numeric.js";
 import type { DataType } from "@benchtop-plc/core";
@@ -67,7 +68,7 @@ function Part({
     part.kind === "estop"
       ? state.emergencyActive || state.runtimeState === "ESTOP"
       : part.kind === "led"
-        ? !state.emergencyActive && state.runtimeState === "RUN" && bit
+        ? outputsLive(state) && bit
         : bit;
   if (part.kind === "led")
     return (

@@ -50,6 +50,11 @@ test("halts the sorting conveyor before counting a part and publishes its output
       .filter({ has: page.getByRole("rowheader", { name: "BINA.PARTS", exact: true }) });
     await expect(parts).toContainText("0");
     await expect(total).toHaveText("0");
+    await expect(panel.getByRole("status", { name: "BELT RUN", exact: true })).toHaveAttribute(
+      "data-on",
+      "true",
+    );
+
     await expect(panel.getByRole("status", { name: "DIVERT A", exact: true })).toHaveAttribute(
       "data-on",
       "false",
@@ -61,6 +66,28 @@ test("halts the sorting conveyor before counting a part and publishes its output
   }
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(total).toHaveText("1");
+  await expect(page.locator(".halt-banner")).toHaveCount(0);
+  await expect(panel.getByRole("status", { name: "DIVERT A", exact: true })).toHaveAttribute(
+    "data-on",
+    "false",
+  );
+  await panel.getByRole("button", { name: "PART A", exact: true }).focus();
+  await page.keyboard.down("Space");
+  try {
+    await expect(page.locator(".halt-banner")).toBeVisible();
+    await expect(panel.getByRole("status", { name: "BELT RUN", exact: true })).toHaveAttribute(
+      "data-on",
+      "true",
+    );
+    await expect(total).toHaveText("1");
+    const image = page.getByRole("region", { name: "I/O image", exact: true });
+    await expect(image.getByLabel("%QX0.0", { exact: true })).toHaveAttribute("data-on", "true");
+    await expect(image.getByLabel("%QW1", { exact: true }).locator("strong")).toHaveText("1");
+  } finally {
+    await page.keyboard.up("Space");
+  }
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(total).toHaveText("2");
   await expect(page.locator(".halt-banner")).toHaveCount(0);
   await expect(page.locator(".runtime-halt-statement")).toHaveCount(0);
   await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
