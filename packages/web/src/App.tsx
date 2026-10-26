@@ -5,6 +5,14 @@ import {
   sameSources,
   type EditorDiagnostic,
 } from "./pous.js";
+import { CallStack } from "./CallStack.js";
+import {
+  debugBindings,
+  stepLabels,
+  debugShortcut,
+  frameMatchesSource,
+  frameSnapshot,
+} from "./debugging.js";
 import { InstancePicker } from "./InstancePicker.js";
 import { functionCallLabel, selectedInstance } from "./instances.js";
 import { PouList } from "./PouList.js";
@@ -31,7 +39,8 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
   const halted = state.runtimeState === "HALT";
-  const frame = state.halted?.frames[0];
+  const haltedFrame = state.halted?.frames[0];
+  const frame = state.halted?.frames[state.selectedFrame];
   const banner = bannerFor(state);
   const bannerRole = banner.urgent ? "alert" : "status";
   const editor = useRef<StEditorHandle>(null);
@@ -66,17 +75,37 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
     pendingFocus.current = null;
   }, [state.editorSession]);
 
-  const haltHere =
-    frame &&
-    selected &&
-    (frame.pou.toUpperCase() === selected.name.toUpperCase() ||
-      frame.pou.toUpperCase().startsWith(`${selected.name.toUpperCase()}.`));
+  const haltHere = frameMatchesSource(
+    frame,
+    selected ? runtimeSource.pou : undefined,
+    inlineInstance?.path,
+  );
+  const editorSnapshot = haltHere ? frameSnapshot(state.snapshot, frame) : state.snapshot;
   useLayoutEffect(() => {
-    if (haltHere && online && frame) editor.current?.focusSpan(frame.span);
+    if (haltHere && online && frame) editor.current?.focusSpan(frame.span, { focus: false });
   }, [frame, haltHere, online]);
 
   return (
-    <div className="workbench" data-theme={appearance.resolved}>
+    <div
+      className="workbench"
+      data-theme={appearance.resolved}
+      onKeyDown={(event) => {
+        const editing =
+          event.target instanceof Element &&
+          Boolean(
+            event.target.closest("input, textarea, select, [contenteditable], [role=textbox]"),
+          );
+        const command = debugShortcut(
+          event.nativeEvent,
+          halted && !disconnected && document.hasFocus(),
+          editing,
+        );
+        if (command) {
+          event.preventDefault();
+          store.send(command);
+        }
+      }}
+    >
       <header className="app-header">
         <div>
           <h1>{text.title}</h1>
@@ -128,9 +157,31 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
               {text.stop}
             </button>
             {halted && (
-              <button disabled={disconnected} onClick={() => store.send({ type: "continue" })}>
-                {text.continue}
-              </button>
+              <>
+                <button
+                  disabled={disconnected}
+                  title={text.debugShortcut
+                    .replace("{action}", text.continue)
+                    .replace("{key}", debugBindings.continue)}
+                  aria-keyshortcuts={debugBindings.continue.toLowerCase()}
+                  onClick={() => store.send({ type: "continue" })}
+                >
+                  {text.continue}
+                </button>
+                {(["over", "into", "out"] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    disabled={disconnected}
+                    title={text.debugShortcut
+                      .replace("{action}", text[stepLabels[kind]])
+                      .replace("{key}", debugBindings[kind])}
+                    aria-keyshortcuts={debugBindings[kind].toLowerCase()}
+                    onClick={() => store.send({ type: "debugStep", kind })}
+                  >
+                    {text[stepLabels[kind]]}
+                  </button>
+                ))}
+              </>
             )}
             <button
               disabled={disconnected || !stopped || unapplied}
@@ -190,12 +241,12 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             {state.diagnostic && <p>{formatDiagnostic(language, state.diagnostic)}</p>}
           </div>
         )}
-        {halted && frame && state.halted && (
+        {halted && haltedFrame && state.halted && (
           <div className="banner halt-banner" role="status">
             {text.halted
-              .replace("{pou}", frame.pou)
-              .replace("{line}", String(frame.span.line))
-              .replace("{instance}", frame.instance ?? text.functionInstance)
+              .replace("{pou}", haltedFrame.pou)
+              .replace("{line}", String(haltedFrame.span.line))
+              .replace("{instance}", haltedFrame.instance ?? text.functionInstance)
               .replace("{task}", state.halted.task)}
           </div>
         )}
@@ -239,7 +290,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                 )}
                 {selected?.kind === "FUNCTION" && online && (
                   <div className="instance-picker">
-                    {functionCallLabel(state.snapshot, selected.name, text)}
+                    {functionCallLabel(editorSnapshot, selected.name, text)}
                   </div>
                 )}
                 <StEditor
@@ -268,10 +319,10 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                       state.selectedConfiguration,
                     ),
                   )}
-                  snapshot={inlineInstance || selected?.kind === "FUNCTION" ? state.snapshot : null}
+                  snapshot={inlineInstance || selected?.kind === "FUNCTION" ? editorSnapshot : null}
                   instance={inlineInstance?.path}
                   online={online}
-                  pou={selected?.name}
+                  pou={runtimeSource.pou}
                   fault={
                     state.diagnostic &&
                     diagnosticSourceMatches(
@@ -338,6 +389,14 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             </section>
           </section>
           <div className="side-panels">
+            {halted && state.halted && (
+              <CallStack
+                halted={state.halted}
+                selected={state.selectedFrame}
+                select={store.selectFrame}
+                text={text}
+              />
+            )}
             <OperatorPanel state={state} store={store} text={text} language={language} />
             <IoImage state={state} text={text} />
             <VariableMonitor

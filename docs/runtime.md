@@ -788,8 +788,8 @@ bodies name their declaring type and the actual derived instance. Functions have
 a null instance path. Returning `true` suspends the pass and returns control to
 the host. `runtime.pauseLocation` exposes a detached location, and
 `runtime.resume()` continues past that boundary without invoking the predicate
-there a second time. The next boundary can suspend again. Public breakpoints use
-this same continuation; stepping follows in #198.
+there a second time. The next boundary can suspend again. Public breakpoints and statement stepping use
+this same continuation.
 
 A suspended pass retains its ready-task list, current program instance and
 interpreter stack. A pass-level generator holds the image/write/force/publication
@@ -859,7 +859,7 @@ function caller when applicable and completed statement annotations. Empty
 collections are included for frames that have just started. Resuming uses the
 captured switch until that task completes; changing it takes effect on the next
 task run. Completing or abandoning the task discards these frame collections.
-The call-stack protocol will consume these frame annotations in #198.
+The halted call-stack protocol exposes these annotations innermost first.
 
 ## Breakpoints and HALT
 
@@ -867,10 +867,11 @@ The call-stack protocol will consume these frame annotations in #198.
 start halts before execution, in every instance and task, including base code run
 by derived instances. Block/class source breakpoints include declared methods;
 a method location reports `Type.Method`. `halted` returns the underlying RUN/STOP
-state, task and innermost frame, or null. `continue()` resumes the interrupted
+state, task and every live frame (innermost first), or null. `continue()` resumes the interrupted
 pass; over STOP it completes the single scan and stays STOP. No other task or
 scheduler pass runs meanwhile. `run`, `step`, `scanOnce` and `setCycle` reject a
-halt with `runtime.halted`; continuing outside HALT rejects with `runtime.not-halted`.
+halt with `runtime.halted`; continuing or stepping outside HALT rejects with
+`runtime.not-halted`.
 
 Stop abandons the continuation and sets STOP. Warm restart, cold reset and load
 abandon then initialize normally. Emergency stop abandons before setting its flag;
@@ -897,3 +898,42 @@ including output-mapped variables, but do not publish outputs. Writes to forced
 variables are consumed without changing the value. Force changes apply at the
 next normal force stage. The Worker sends a snapshot with every halt and suppresses
 retentive storage while halted; storing resumes on continuation or abandonment.
+
+## Statement stepping and call stack
+
+`debugStep("into" | "over" | "out")` is available only in HALT. It resumes the
+same instruction loop, retaining evaluated operands and call-local storage:
+
+- Into stops before the next statement anywhere, entering user functions, function
+  blocks and methods through ordinary, interface, reference, THIS and SUPER calls.
+  Standard functions and blocks run as one step.
+- Over stops in the same frame or a caller. A compound statement steps to the first
+  branch/loop-body statement that actually runs, or to its successor if none runs.
+  Loop conditions and FOR increments are not extra halt points.
+- Out stops in a caller after the current invocation returns. From a PROGRAM it
+  runs past that instance's body. Frame selection in the UI does not change the
+  executing invocation or the destination of a step.
+
+For `y := Scale(x) + Offset(x);`, successive steps into enter Scale and then Offset.
+Returning into the middle of the assignment is not a halt point. Over/out from
+Scale skip Offset and stop at the next caller statement. Targets use invocation
+identities so sibling calls at the same depth remain distinct.
+
+Past a PROGRAM's end, a step stops at the next statement in another instance,
+another ready task, or a later pass. Between passes it stays pending in RUN;
+continue and further debug steps reject with `runtime.not-halted`. Over STOP,
+finishing the single scan cancels any pending target. A step ends when it halts.
+Breakpoints interrupt any step and cancel its target; a statement reached by both
+halts once. Stop, warm restart, cold reset, load, emergency stop and faults cancel
+steps as well as halted continuations.
+
+`runtime.halted.frames` contains all live invocations, innermost first, with the
+running code's declaring POU, instance, statement span, call-local values and
+invocation annotations. The outermost frame names the task. PROGRAM/block frames
+include VAR_TEMP and VAR_IN_OUT; function/method frames include their whole local
+interface, locals and result. In-outs report their live value and persistent actual
+path, or the owning frame index/name (including member/index suffixes), following
+forwarded aliases. Aggregate values retain their member/element structure. Frames
+and annotations are copies and are available only while halted; snapshot storage
+and watched-body rules stay the same. See [core-contracts.md](core-contracts.md)
+for the transport layout.

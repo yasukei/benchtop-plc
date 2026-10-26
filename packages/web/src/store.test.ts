@@ -848,6 +848,8 @@ it("opens the halted method's source and instance, retains its banner through ed
     frames: [
       {
         kind: "METHOD",
+        values: [] as [],
+        annotations: {},
         pou: "Counter.Count",
         instance: "mainInstance.BinA",
         span: { line: 3, column: 1, endLine: 3, endColumn: 8 },
@@ -891,6 +893,8 @@ it("opens a renamed source when a breakpoint in its loaded code halts, keeping t
     frames: [
       {
         kind: "FUNCTION_BLOCK",
+        values: [],
+        annotations: {},
         pou: "Counter",
         instance: "mainInstance.BIN",
         span: { line: 2, column: 1, endLine: 2, endColumn: 12 },
@@ -908,5 +912,50 @@ it("opens a renamed source when a breakpoint in its loaded code halts, keeping t
   });
   store.selectInstance("mainInstance.BIN");
   expect(store.breakpointMarkers()).toEqual([{ line: 2, active: true }]);
+  store.dispose();
+});
+
+it("selects an outer call frame's source and instance without resuming execution and resets selection at the next halt", () => {
+  const worker = new FakeWorker();
+  const store = createAppStore(new RuntimeClient(worker), "PROGRAM Main END_PROGRAM");
+  store.addFunctionBlock();
+  store.setSource(
+    "FUNCTION_BLOCK Counter\nMETHOD PUBLIC Count\nRETURN;\nEND_METHOD\nEND_FUNCTION_BLOCK",
+  );
+  const span = { line: 3, column: 1, endLine: 3, endColumn: 8 };
+  const frames: import("@benchtop-plc/core").CallFrame[] = [
+    {
+      kind: "METHOD",
+      pou: "Counter.Count",
+      instance: "mainInstance.BIN",
+      span,
+      values: [],
+      annotations: {},
+    },
+    {
+      kind: "PROGRAM",
+      pou: "Main",
+      instance: "mainInstance",
+      span,
+      values: [],
+      annotations: {},
+      task: "Cyclic",
+    },
+  ];
+  worker.receive({ type: "state", state: "HALT" });
+  worker.receive({ type: "halted", task: "Cyclic", operatingState: "RUN", frames });
+  const sent = worker.sent.length;
+  store.selectFrame(1);
+  expect(store.getSnapshot()).toMatchObject({
+    selectedPou: 0,
+    selectedFrame: 1,
+    source: "PROGRAM Main END_PROGRAM",
+    instanceChoices: { MAIN: "mainInstance" },
+  });
+  expect(worker.sent.length).toBe(sent);
+  store.selectFrame(99);
+  expect(store.getSnapshot().selectedFrame).toBe(1);
+  worker.receive({ type: "halted", task: "Cyclic", operatingState: "RUN", frames });
+  expect(store.getSnapshot()).toMatchObject({ selectedFrame: 0, selectedPou: 1 });
   store.dispose();
 });

@@ -23,6 +23,7 @@ export type UiToRuntimeMessage =
   | { type: "watchBodies"; bodies: BodyWatch[] }
   | { type: "setBreakpoints"; breakpoints: Breakpoint[] }
   | { type: "continue" }
+  | { type: "debugStep"; kind: DebugStepKind }
   | { type: "run" }
   | { type: "stop" }
   | { type: "step" }
@@ -40,12 +41,30 @@ export interface Breakpoint {
   line: number;
 }
 
-/** Innermost invocation only; outer frames and call-local values follow in #198. */
+export type DebugStepKind = "over" | "into" | "out";
+
+/** JSON-safe values held only by a live invocation. Aggregate names include member/index suffixes. */
+export type CallValue =
+  InlineValue | { kind: "aggregate"; elements: { name: string; value: CallValue }[] };
+export interface CallVariable {
+  name: string;
+  value: CallValue;
+  /** In-out actual: persistent storage, or a local in another frame (innermost is 0). */
+  actual?: { path: string } | { frame: number; name: string };
+}
+
+/** One live invocation, ordered innermost first in a halted event. */
 export interface CallFrame {
   kind: "PROGRAM" | "FUNCTION_BLOCK" | "METHOD" | "FUNCTION";
   pou: string;
   instance: string | null;
   span: SourceSpan;
+  /** Present on the outermost PROGRAM invocation. */
+  task?: string;
+  values: CallVariable[];
+  /** Function invocation caller, including the call expression line. */
+  caller?: AnnotatedBody["caller"];
+  annotations: Record<number, StatementAnnotation[]>;
 }
 
 export interface HaltedMessage {
@@ -118,7 +137,7 @@ export interface RuntimeSnapshot {
 
 export interface CommandRejectionMessage {
   type: "rejected";
-  command: "force" | "write" | "setCycle" | "run" | "step" | "continue";
+  command: "force" | "write" | "setCycle" | "run" | "step" | "continue" | "debugStep";
   diagnostic: Diagnostic<CommandRejectionCode>;
 }
 

@@ -646,3 +646,29 @@ tr[data-forced="true"] {
 .state[data-state="HALT"] {
   color: #ad7500;
 }
+
+.call-stack ol {
+  margin: 0.75rem 0;
+  padding-left: 1.75rem;
+}
+.call-stack li button {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 0.25rem;
+}
+.call-stack button[aria-pressed="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.call-stack dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.call-stack dd {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.call-stack small {
+  display: block;
+}

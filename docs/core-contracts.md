@@ -303,13 +303,31 @@ start lines halt; unmatched breakpoints are ignored.
 
 `{ type: "continue" }` resumes past the current halt point. Each halt sends
 `{ type: "halted", operatingState: "RUN" | "STOP", task, frames: CallFrame[] }`
-with a snapshot of the values before the statement. This release fills only the
-innermost frame: `kind` (`PROGRAM`, `FUNCTION_BLOCK`, `METHOD`, `FUNCTION`), `pou`
-(`Type.Method` for methods), `instance` (null for functions) and `span`.
-Outer frames, call-local values and stepping follow in #198.
+with a snapshot of the values before the statement. Frames are innermost first.
+Each has `kind` (`PROGRAM`, `FUNCTION_BLOCK`, `METHOD`, `FUNCTION`), `pou`
+(`Type.Method` using the declaring type), `instance` (null for functions), `span`,
+`values` and `annotations`. The innermost span marks the statement about to run;
+outer spans mark statements making calls. The outermost frame also names `task`.
+Function frames carry `caller: { pou, instance, line }`, identifying the current call.
 
-`run`, `step` and `setCycle` in HALT produce `runtime.halted`; `continue` outside
-HALT produces `runtime.not-halted`. These are nonfatal `rejected` events with the
+`values` is a list of `{ name, value, actual? }`. Functions and methods include
+inputs, outputs, locals, interface temporaries and the result. PROGRAM and function
+block frames include temporaries and in-outs; persistent members remain in the
+snapshot. Each in-out is read through its alias and includes `actual: { path }`
+for persistent storage, or `{ frame, name }` for a caller local (frame indices start
+at 0 for the innermost; names include member/index suffixes). Values use
+`InlineValue` or recursively `{ kind: "aggregate", elements: { name, value }[] }`;
+aggregate element names are member/index suffixes. `annotations` has the same
+line-to-statement layout as an annotated body's `lines`, for this invocation,
+including unwatched bodies. Returned frames and values are detached copies.
+
+`{ type: "debugStep", kind: "over" | "into" | "out" }` resumes to the next
+matching halt point; `step` still means one single-scan pass. See
+[runtime.md](runtime.md#statement-stepping-and-call-stack) for target and cancellation rules.
+
+`run`, `step` and `setCycle` in HALT produce `runtime.halted`; `continue` and
+`debugStep` outside HALT produce `runtime.not-halted`, including while a step is
+pending between passes. These are nonfatal `rejected` events with the
 corresponding `command`. Stop, restart, reset, load and emergency stop abandon
 execution. Breakpoint edits apply at the next halt point; body watches apply at
 the next task run. Outputs follow the operating state, keeping the published
@@ -387,6 +405,8 @@ cannot be written or forced; dereferenced values retain their target's identity.
 `name`, source `span`, and `explicit`). It contains:
 
 - `programs`: shared PROGRAM names, spans and statement bodies, once per POU;
+  optional `locals: { slot, name, inOut?: true }[]` preserves temporary/in-out
+  declaration names for halted frames, including PROGRAM in-outs resolved to globals;
 - `resource`: its name, `tasks` in declaration order and
   `programs` in declaration order (`name`, zero-based `program` and `task` indexes,
   and per-instance `storage`);

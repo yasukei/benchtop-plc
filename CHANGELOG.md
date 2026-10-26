@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Statement debugging with Step over, Step into and Step out, keyboard shortcuts
+  that preserve control focus across halts, and a selectable call stack showing
+  invocation values and in-out actual locations.
+  Halted inline values now include unwatched bodies.
+
 - Editor gutter breakpoints with active/inactive markers, line tracking through
   edits and POU renames, browser autosave, halted statement highlighting and
   Continue. A halt pauses the whole resource and preserves published outputs.
@@ -37,6 +42,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   published outputs while halted over RUN, including nonzero counts.
 
 ### Changed
+
+- **Breaking core protocol change:** `halted.frames` now includes the entire call
+  stack, each frame's values and invocation annotations. `debugStep` adds statement
+  stepping and is included in command rejections; `step` remains a single scan.
+  PROGRAM IR preserves call-local declaration names for halted value reporting.
 
 - **Breaking core protocol changes:** `RuntimeState` gains `HALT`;
   `setBreakpoints` replaces source/line breakpoints and `continue` resumes execution.

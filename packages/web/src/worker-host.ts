@@ -85,6 +85,10 @@ export function createWorkerHost(
           case "setBreakpoints":
             runtime.setBreakpoints(message.breakpoints);
             break;
+          case "debugStep":
+            lastHalt = "";
+            runtime.debugStep(message.kind);
+            break;
           case "continue":
             lastHalt = "";
             runtime.continue();
@@ -142,6 +146,7 @@ export function createWorkerHost(
           message.type !== "run" &&
           message.type !== "step" &&
           message.type !== "continue" &&
+          message.type !== "debugStep" &&
           message.type !== "setCycle" &&
           message.type !== "force" &&
           message.type !== "write"
