@@ -4,7 +4,7 @@ import type { SourceSpan } from "@benchtop-plc/core";
 import { createStEditor, type EditorProps, type StEditorController } from "./controller.js";
 
 export interface StEditorHandle {
-  focusSpan(span: SourceSpan): void;
+  focusSpan(span: SourceSpan, options?: { focus?: boolean }): void;
 }
 
 export function StEditor(
@@ -33,7 +33,7 @@ export function StEditor(
   });
   useImperativeHandle(
     props.ref,
-    () => ({ focusSpan: (span) => controller.current?.focusSpan(span) }),
+    () => ({ focusSpan: (span, options) => controller.current?.focusSpan(span, options) }),
     [],
   );
   return <div className="st-editor" ref={parent} />;

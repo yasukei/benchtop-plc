@@ -46,7 +46,8 @@ test("steps into an interface call, inspects both frames, and steps out to the n
   await expect(stack.getByLabel("Frame values")).toContainText("FALSE");
 
   // The method was unwatched at task start; its frame still records the completed assignment.
-  await page.getByRole("button", { name: "Step over", exact: true }).click();
+  await expect(into).toBeFocused();
+  await page.keyboard.press("n");
   await expect(page.locator('.inline-values[data-line="9"]')).toContainText("0");
   await expect(page.locator(".runtime-halt-statement")).toHaveText("Active := SpeedPercent > 0;");
   await stack.getByRole("button").nth(1).click();
@@ -64,7 +65,8 @@ test("steps into an interface call, inspects both frames, and steps out to the n
   await expect(index).toContainText("1");
 
   // Selection is inspection only: step out still leaves the executing method.
-  await page.getByRole("button", { name: "Step out", exact: true }).click();
+  await expect(stack.getByRole("button").nth(1)).toBeFocused();
+  await page.keyboard.press("o");
   await expect(page.locator(".halt-banner")).toContainText("SortingConveyor, line 41");
   await expect(stack.getByRole("listitem")).toHaveCount(1);
   await expect(index).toContainText("2");

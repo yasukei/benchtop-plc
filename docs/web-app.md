@@ -494,6 +494,8 @@ chords in Chromium, Firefox and WebKit on Windows, macOS and Linux. They work
 only with focus inside the app while halted and connected, outside text inputs,
 selects and the source editor. Modifiers, held-key repeats and IME composition are
 ignored, preserving typing and native controls. Focus a runtime control or call
-stack button to use them. Tooltips and `aria-keyshortcuts` expose the bindings.
-The Chromium Playwright scenario exercises I; other browser projects are outside
-this issue's scope.
+stack button to use them. Halts and frame selection select and scroll to the current
+statement without moving focus into the editor, so consecutive shortcuts remain
+available. Tooltips and `aria-keyshortcuts` expose the bindings. The Chromium
+Playwright scenario exercises I followed by N without refocusing, then O from the
+selected outer frame; other browser projects are outside this issue's scope.

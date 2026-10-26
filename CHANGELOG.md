@@ -10,8 +10,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
-- Statement debugging with Step over, Step into and Step out, keyboard shortcuts,
-  and a selectable call stack showing invocation values and in-out actual locations.
+- Statement debugging with Step over, Step into and Step out, keyboard shortcuts
+  that preserve control focus across halts, and a selectable call stack showing
+  invocation values and in-out actual locations.
   Halted inline values now include unwatched bodies.
 
 - Editor gutter breakpoints with active/inactive markers, line tracking through

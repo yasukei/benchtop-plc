@@ -82,7 +82,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   );
   const editorSnapshot = haltHere ? frameSnapshot(state.snapshot, frame) : state.snapshot;
   useLayoutEffect(() => {
-    if (haltHere && online && frame) editor.current?.focusSpan(frame.span);
+    if (haltHere && online && frame) editor.current?.focusSpan(frame.span, { focus: false });
   }, [frame, haltHere, online]);
 
   return (

@@ -307,10 +307,10 @@ export function createStEditor(
       }
       previous = props;
     },
-    focusSpan(span: SourceSpan) {
+    focusSpan(span: SourceSpan, options: { focus?: boolean } = {}) {
       const range = spanRange(view.state.doc.toString(), span);
       view.dispatch({ selection: { anchor: range.from, head: range.to }, scrollIntoView: true });
-      view.focus();
+      if (options.focus !== false) view.focus();
     },
     destroy: () => view.destroy(),
   };
