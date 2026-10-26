@@ -125,7 +125,7 @@ it("lists class instances including derived classes in monitor order and watches
   expect(watchedBodies(ir, {}, "F")).toContainEqual({ pou: "F", instance: null });
 });
 
-it("localizes function callers with and without an instance, or reports a function that never ran", async () => {
+it("localizes function callers with and without an instance, or reports that no call was recorded", async () => {
   const { functionCallLabel } = await import("./instances.js");
   const { catalogs } = await import("./catalog.js");
   const snapshot: import("@benchtop-plc/core").RuntimeSnapshot = {
@@ -150,11 +150,14 @@ it("localizes function callers with and without an instance, or reports a functi
     "Called from Main (mainInstance), line 12",
   );
   expect(functionCallLabel(snapshot, "f", catalogs.ja)).toBe(
-    "呼び出し元: Main (mainInstance)、12 行",
+    "呼び出し元: Main (mainInstance)、12行目",
   );
   snapshot.annotations[0]!.caller!.instance = null;
   snapshot.annotations[0]!.caller!.pou = "Outer";
   expect(functionCallLabel(snapshot, "F", catalogs.en)).toBe("Called from Outer, line 12");
-  expect(functionCallLabel(null, "F", catalogs.en)).toBe("Function has never run");
-  expect(functionCallLabel(snapshot, "Unused", catalogs.ja)).toBe("関数はまだ実行されていません");
+  expect(functionCallLabel(snapshot, "F", catalogs.ja)).toBe("呼び出し元: Outer、12行目");
+  expect(functionCallLabel(null, "F", catalogs.en)).toBe("No call recorded yet");
+  expect(functionCallLabel(snapshot, "Unused", catalogs.ja)).toBe(
+    "まだ呼び出しが記録されていません",
+  );
 });

@@ -91,7 +91,7 @@ export function functionCallLabel(
   const caller = snapshot?.annotations.find(
     (body) => body.pou.toUpperCase() === pou.toUpperCase() && body.instance === null,
   )?.caller;
-  if (!caller) return text.inlineNeverCalled;
+  if (!caller) return text.inlineNoCallRecorded;
   return (caller.instance === null ? text.inlineCalledFrom : text.inlineCalledFromInstance)
     .replace("{pou}", caller.pou)
     .replace("{instance}", caller.instance ?? "")

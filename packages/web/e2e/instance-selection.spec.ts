@@ -98,6 +98,8 @@ test("shows selected method calls on the sorting conveyor, derived class instanc
   await page
     .getByLabel("Open project", { exact: true })
     .setInputFiles({ name: "sorting.xml", mimeType: "application/xml", buffer: Buffer.from(xml) });
+  await page.getByRole("button", { name: /^IsActuatorActive FUNCTION/ }).click();
+  await expect(page.getByText("No call recorded yet", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^PartCounter FUNCTION_BLOCK/ }).click();
   const picker = page.getByRole("combobox", { name: "Instance", exact: true });
   await expect(picker).toHaveValue("mainInstance.BINA");

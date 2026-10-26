@@ -106,7 +106,9 @@ base methods show no values for calls dispatched to the override.
 
 Function sources have no instance picker. They show their last call's immediate
 caller, for example **Called from Main (mainInstance), line 12**, or
-**Function has never run**. A caller without an instance omits the parentheses.
+**No call recorded yet**. A caller without an instance omits the parentheses.
+Only calls made while the function is watched are recorded. Opening its source
+after an earlier call can therefore show this message until the next call.
 The function's inline values and caller stay until it runs again.
 
 Browser autosave remembers choices per source; PLCopen XML does not include them.
