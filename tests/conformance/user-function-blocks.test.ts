@@ -108,7 +108,7 @@ it("applies writes and force stages to the same scalar cells used by instances",
   expect(scalar(runtime.scanOnce(), "seen")).toBe(21);
 });
 
-it("widens input/output durations, handles public input assignment and RETURN, and annotates only PROGRAM calls", () => {
+it("widens input/output durations, handles public input assignment and RETURN, and defaults to annotating PROGRAM calls", () => {
   const { runtime, scalar } = setup([
     `PROGRAM Main VAR inst : Duration; elapsed : LTIME; END_VAR
      inst.t := T#1s; inst(Q => elapsed); END_PROGRAM`,
@@ -117,9 +117,11 @@ it("widens input/output durations, handles public input assignment and RETURN, a
   ]);
   const snapshot = runtime.scanOnce();
   expect(scalar(snapshot, "elapsed")).toBe("1000000000");
-  expect(Object.values(snapshot.annotations.Main ?? {}).flat()).toHaveLength(2);
   expect(
-    Object.values(snapshot.annotations.Main ?? {})
+    Object.values(snapshot.annotations.find((body) => body.pou === "Main")?.lines ?? {}).flat(),
+  ).toHaveLength(2);
+  expect(
+    Object.values(snapshot.annotations.find((body) => body.pou === "Main")?.lines ?? {})
       .flat()
       .at(-1)?.values,
   ).toEqual([{ dataType: "TIME", value: 1000 }]);
@@ -176,9 +178,10 @@ it("widens user block input durations and transports long output annotations as 
   ]);
   const snapshot = runtime.scanOnce();
   expect(scalar(snapshot, "elapsed")).toBe("1000000000");
-  expect(Object.values(snapshot.annotations.Main ?? {}).flat()[0]?.values).toEqual([
-    { dataType: "LTIME", value: "1000000000" },
-  ]);
+  expect(
+    Object.values(snapshot.annotations.find((body) => body.pou === "Main")?.lines ?? {}).flat()[0]
+      ?.values,
+  ).toEqual([{ dataType: "LTIME", value: "1000000000" }]);
   expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
 });
 
@@ -197,7 +200,9 @@ it("annotates user block outputs in declaration order despite reversed output bi
   expect(runtime.diagnostic).toBeNull();
   expect(scalar(snapshot, "number")).toBe(42);
   expect(scalar(snapshot, "flag")).toBe(true);
-  expect(Object.values(snapshot.annotations.Main ?? {}).flat()).toEqual([
+  expect(
+    Object.values(snapshot.annotations.find((body) => body.pou === "Main")?.lines ?? {}).flat(),
+  ).toEqual([
     expect.objectContaining({
       span: expect.objectContaining({ line: 3 }),
       values: [

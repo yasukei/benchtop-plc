@@ -14,7 +14,7 @@ const snapshot: RuntimeSnapshot = {
   outputs: [0, ...Array<number>(63).fill(0)],
   variables: [],
   forced: [],
-  annotations: {},
+  annotations: [],
 };
 
 describe("annotation mapping", () => {
@@ -24,21 +24,26 @@ describe("annotation mapping", () => {
       source,
       {
         ...snapshot,
-        annotations: {
-          Main: {
-            2: [
-              {
-                ...entry(2, 1, 0),
-                span: { line: 2, column: 1, endLine: 3, endColumn: 15 },
-                values: [
-                  { dataType: "BOOL", value: true },
-                  { dataType: "TIME", value: 1500 },
-                ],
-              },
-            ],
-            1: [entry(1, 9, 2), entry(1, 1, 1)],
+        annotations: [
+          {
+            pou: "Main",
+            instance: "mainInstance",
+            scanCount: 1,
+            lines: {
+              2: [
+                {
+                  ...entry(2, 1, 0),
+                  span: { line: 2, column: 1, endLine: 3, endColumn: 15 },
+                  values: [
+                    { dataType: "BOOL", value: true },
+                    { dataType: "TIME", value: 1500 },
+                  ],
+                },
+              ],
+              1: [entry(1, 9, 2), entry(1, 1, 1)],
+            },
           },
-        },
+        ],
       },
       true,
     );
@@ -67,22 +72,27 @@ describe("annotation mapping", () => {
         "first\r\nsecond",
         {
           ...snapshot,
-          annotations: {
-            Main: {
-              1: [
-                {
-                  ...entry(1, 1, 0),
-                  values: [
-                    { dataType: "BOOL", value: false },
-                    { dataType: "REAL", value: Math.fround(0.1) },
-                    { dataType: "LREAL", value: 2 },
-                    { dataType: "UINT", value: 65535 },
-                    { dataType: "DINT", value: -2 },
-                  ],
-                },
-              ],
+          annotations: [
+            {
+              pou: "Main",
+              instance: "mainInstance",
+              scanCount: 1,
+              lines: {
+                1: [
+                  {
+                    ...entry(1, 1, 0),
+                    values: [
+                      { dataType: "BOOL", value: false },
+                      { dataType: "REAL", value: Math.fround(0.1) },
+                      { dataType: "LREAL", value: 2 },
+                      { dataType: "UINT", value: 65535 },
+                      { dataType: "DINT", value: -2 },
+                    ],
+                  },
+                ],
+              },
             },
-          },
+          ],
         },
         true,
       )[0],
@@ -101,7 +111,14 @@ describe("annotation mapping", () => {
   it("hides offline values and drops missing or invalid lines without keeping old scans", () => {
     const annotated = {
       ...snapshot,
-      annotations: { Main: { 1: [entry(1, 1, 1)], 99: [entry(99, 1, 1)] } },
+      annotations: [
+        {
+          pou: "Main",
+          instance: "mainInstance",
+          scanCount: 1,
+          lines: { 1: [entry(1, 1, 1)], 99: [entry(99, 1, 1)] },
+        },
+      ],
     };
     expect(mapAnnotations("x", annotated, false)).toEqual([]);
     expect(mapAnnotations("x", null, true)).toEqual([]);
@@ -160,4 +177,22 @@ it("selects the displayed POU and omits an uninstantiated PROGRAM", async () => 
     { text: "2", dataType: "INT" },
   ]);
   expect(mapAnnotations(source("Unused", 3), snapshot, true, ir, "Unused")).toEqual([]);
+});
+
+it("selects a block instance and marks retained values with their older scan", () => {
+  const annotated: RuntimeSnapshot = {
+    ...snapshot,
+    scanCount: 5,
+    annotations: [
+      { pou: "Counter", instance: "mainInstance.A", scanCount: 4, lines: { 1: [entry(1, 1, 7)] } },
+      { pou: "Counter", instance: "mainInstance.B", scanCount: 5, lines: { 1: [entry(1, 1, 12)] } },
+    ],
+  };
+  expect(
+    mapAnnotations("n := 7;", annotated, true, undefined, "Counter", "mainInstance.A"),
+  ).toEqual([{ line: 1, position: 7, values: [{ text: "7", dataType: "INT" }], fromScan: 4 }]);
+  expect(
+    mapAnnotations("n := 7;", annotated, true, undefined, "Counter", "mainInstance.B")[0],
+  ).not.toHaveProperty("fromScan");
+  expect(mapAnnotations("n := 7;", annotated, true, undefined, "Counter", "missing")).toEqual([]);
 });

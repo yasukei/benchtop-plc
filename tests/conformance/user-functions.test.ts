@@ -121,7 +121,7 @@ it("assigns outputs to bit and standard FB input targets", () => {
   ]);
 });
 
-it("annotates statement results only in the PROGRAM and omits no-result calls", () => {
+it("annotates statement results in the default watched PROGRAM and omits no-result calls", () => {
   const { runtime, ir } = setup([
     `PROGRAM Main
      F();
@@ -137,7 +137,7 @@ it("annotates statement results only in the PROGRAM and omits no-result calls", 
   ]);
   const snapshot = runtime.scanOnce();
   expect(snapshot.variables).toEqual([]);
-  expect(snapshot.annotations.Main).toEqual({
+  expect(snapshot.annotations.find((body) => body.pou === "Main")?.lines).toEqual({
     2: [{ span: ir.programs[0]!.body[0]!.span, values: [{ dataType: "INT", value: 42 }] }],
   });
 });

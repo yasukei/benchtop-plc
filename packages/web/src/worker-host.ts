@@ -51,7 +51,7 @@ export function createWorkerHost(
   });
   return {
     handle(message: UiToRuntimeMessage) {
-      let immediate = !["watch", "setInput", "setCycle"].includes(message.type);
+      let immediate = !["watch", "watchBodies", "setInput", "setCycle"].includes(message.type);
       switch (message.type) {
         case "load":
           runtime.load(message.ir);
@@ -66,6 +66,9 @@ export function createWorkerHost(
           break;
         case "watch":
           runtime.watch(message.variables);
+          break;
+        case "watchBodies":
+          runtime.watchBodies(message.bodies);
           break;
         case "run":
           runtime.run();

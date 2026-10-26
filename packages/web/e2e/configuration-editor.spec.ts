@@ -55,7 +55,7 @@ test("adds two live instances, collapses groups, identifies inline values and ro
   await monitor.getByRole("button", { name: "Second", exact: true }).click();
   await expect(rows).toHaveCount(2);
   await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
-  await expect(page.getByText("Instance: Second", { exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue("Second");
   await expect(page.locator(".inline-values")).toHaveCount(1);
   await page
     .getByRole("region", { name: "Runtime controls", exact: true })
@@ -157,8 +157,9 @@ test("shows no inline values for an uninstantiated PROGRAM", async ({ page }) =>
     "PROGRAM Unused",
   );
   await expect(page.locator(".inline-values")).toHaveCount(0);
-  await expect(page.getByText(/^Instance:/)).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveCount(0);
+  await expect(page.getByText("No instance to show", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^Main PROGRAM/ }).click();
-  await expect(page.getByText("Instance: Second", { exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue("Second");
   await expect(page.locator(".inline-values")).toHaveCount(1);
 });

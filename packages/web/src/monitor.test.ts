@@ -229,7 +229,7 @@ it("indexes dense and compact snapshots by variable ID and refreshes changed wat
       { kind: "scalar", dataType: "INT", value: 20 },
     ],
     forced: [],
-    annotations: {},
+    annotations: [],
   };
   expect(snapshotValues(null).size).toBe(0);
   const dense = snapshotValues(snapshot);

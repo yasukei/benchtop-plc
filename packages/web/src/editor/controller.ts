@@ -33,14 +33,21 @@ export interface EditorProps {
   dataTypes?: readonly string[];
   sourceIndex?: number;
   pou?: string;
+  instance?: string;
 }
 
 class ValuesWidget extends WidgetType {
-  constructor(private readonly annotation: InlineAnnotation) {
+  constructor(
+    private readonly annotation: InlineAnnotation,
+    private readonly staleLabel?: string,
+  ) {
     super();
   }
   override eq(other: ValuesWidget): boolean {
-    return JSON.stringify(this.annotation) === JSON.stringify(other.annotation);
+    return (
+      JSON.stringify(this.annotation) === JSON.stringify(other.annotation) &&
+      this.staleLabel === other.staleLabel
+    );
   }
   toDOM(): HTMLElement {
     const container = document.createElement("span");
@@ -53,6 +60,12 @@ class ValuesWidget extends WidgetType {
       badge.dataset.type = value.dataType;
       badge.title = value.dataType;
       container.append(badge);
+    }
+    if (this.staleLabel) {
+      const stale = document.createElement("span");
+      stale.className = "inline-stale";
+      stale.textContent = this.staleLabel;
+      container.append(stale);
     }
     return container;
   }
@@ -155,10 +168,20 @@ export function createStEditor(
         props.online,
         props.ir,
         props.pou,
+        props.instance,
       ).map((annotation) =>
-        Decoration.widget({ widget: new ValuesWidget(annotation), side: 1 }).range(
-          annotation.position,
-        ),
+        Decoration.widget({
+          widget: new ValuesWidget(
+            annotation,
+            annotation.fromScan === undefined
+              ? undefined
+              : catalogs[props.language].inlineFromScan.replace(
+                  "{scan}",
+                  String(annotation.fromScan),
+                ),
+          ),
+          side: 1,
+        }).range(annotation.position),
       );
       if (props.online && props.fault?.span) {
         const position = spanRange(props.source, props.fault.span).from;

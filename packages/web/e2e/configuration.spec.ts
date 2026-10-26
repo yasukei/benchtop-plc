@@ -12,7 +12,9 @@ test("groups implicit instance paths and names the instance supplying inline val
     "title",
     "mainInstance.Lamp",
   );
-  await expect(page.getByText("Instance: mainInstance", { exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue(
+    "mainInstance",
+  );
   await instance.click();
   await expect(monitor.getByRole("rowheader", { name: "Lamp", exact: true })).toHaveCount(0);
   await instance.click();
@@ -49,7 +51,7 @@ END_RESOURCE END_CONFIGURATION\r
     });
     const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
     await expect(diagnostics).toContainText("Output writers overlap");
-    await expect(page.getByText("Instance: A", { exact: true })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue("A");
     const monitor = page.getByRole("region", { name: "Variable monitor", exact: true });
     await expect(monitor.getByRole("button", { name: "A", exact: true })).toBeVisible();
     await expect(monitor.getByRole("button", { name: "B", exact: true })).toBeVisible();
@@ -112,7 +114,9 @@ END_RESOURCE END_CONFIGURATION\r
     const restore = page.getByRole("button", { name: "Restore example", exact: true });
     await restore.click();
     await restore.click();
-    await expect(page.getByText("Instance: mainInstance", { exact: true })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue(
+      "mainInstance",
+    );
     await expect(page.getByLabel("Cycle (ms)")).toBeEnabled();
     await expect(diagnostics).toContainText("No diagnostics");
     await expect(page.getByRole("alert")).toHaveCount(0);
@@ -304,7 +308,8 @@ END_RESOURCE END_CONFIGURATION`;
       .filter({ has: page.getByRole("rowheader", { name: "Edge", exact: true }) })
       .getByLabel("Runs", { exact: true }),
   ).toHaveText("1");
-  await expect(page.locator(".inline-values")).toHaveText("1");
+  await expect(page.locator(".inline-values .inline-number")).toHaveText("1");
+  await expect(page.locator(".inline-values .inline-stale")).toHaveText("from scan 1");
   await page.getByRole("button", { name: "Cold reset", exact: true }).click();
   await expect(page.locator(".inline-values")).toHaveCount(0);
 });

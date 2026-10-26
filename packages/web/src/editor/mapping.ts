@@ -30,6 +30,7 @@ export interface InlineAnnotation {
   line: number;
   position: number;
   values: InlineValue[];
+  fromScan?: number;
 }
 
 /** The start line is authoritative, including multiline calls and same-line statements. */
@@ -39,6 +40,7 @@ export function mapAnnotations(
   online: boolean,
   ir?: ConfigurationIR,
   pou?: string,
+  instance?: string,
 ): InlineAnnotation[] {
   if (!online || !snapshot) return [];
   const descriptors = new Map<string, TypeDescriptor>();
@@ -64,7 +66,14 @@ export function mapAnnotations(
   const program =
     ir?.programs.find((program) => program.name.toUpperCase() === pou?.toUpperCase()) ??
     (pou === undefined ? ir?.programs[0] : undefined);
-  if (program) visit(program.body);
+  const definition =
+    program ?? ir?.functionBlocks?.find((block) => block.name.toUpperCase() === pou?.toUpperCase());
+  if (definition) visit(definition.body);
+  const body = snapshot.annotations.find(
+    (body) =>
+      (pou === undefined || body.pou.toUpperCase() === pou.toUpperCase()) &&
+      (instance === undefined || body.instance === instance),
+  );
   const lines = source.split("\n");
   const positions: number[] = [];
   let offset = 0;
@@ -72,9 +81,7 @@ export function mapAnnotations(
     positions.push(offset + line.replace(/\r$/, "").length);
     offset += line.length + 1;
   }
-  return Object.entries(
-    snapshot.annotations[program?.name ?? pou ?? Object.keys(snapshot.annotations)[0] ?? ""] ?? {},
-  )
+  return Object.entries(body?.lines ?? {})
     .sort(([a], [b]) => Number(a) - Number(b))
     .flatMap(([key, entries]) => {
       const line = Number(key);
@@ -94,6 +101,15 @@ export function mapAnnotations(
             dataType: "target" in value ? ("reference" as const) : value.dataType,
           })),
         );
-      return values.length ? [{ line, position, values }] : [];
+      return values.length
+        ? [
+            {
+              line,
+              position,
+              values,
+              ...(body!.scanCount < snapshot.scanCount ? { fromScan: body!.scanCount } : {}),
+            },
+          ]
+        : [];
     });
 }

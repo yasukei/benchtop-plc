@@ -507,9 +507,9 @@ it("saves complete retained sets immediately, restores only on the first load, a
   const freshWorker = new FakeWorker();
   const fresh = createAppStore(new RuntimeClient(freshWorker), readAutosave(storage)!);
   fresh.loadEditor();
-  expect(freshWorker.sent.at(-1)).toMatchObject({ type: "load", retentive: records });
+  expect(freshWorker.sent.at(-2)).toMatchObject({ type: "load", retentive: records });
   fresh.loadEditor();
-  expect(freshWorker.sent.at(-1)).not.toHaveProperty("retentive");
+  expect(freshWorker.sent.at(-2)).not.toHaveProperty("retentive");
   worker.receive({ type: "retentiveRestored", skipped: ["mainInstance.old"] });
   expect(store.getSnapshot().retentiveSkipped).toEqual(["mainInstance.old"]);
   storage.setItem.mockImplementation(() => {
@@ -533,7 +533,7 @@ it("keeps retained records while autosaved source fails compilation and restores
   expect(freshWorker.sent).toEqual([]);
   fresh.setSource("PROGRAM P END_PROGRAM");
   expect(fresh.loadEditor()).toBe(true);
-  expect(freshWorker.sent.at(-1)).toMatchObject({ type: "load", retentive: [] });
+  expect(freshWorker.sent.at(-2)).toMatchObject({ type: "load", retentive: [] });
   autosave.dispose();
 });
 
@@ -550,4 +550,52 @@ it("autosaves class drafts and restores their source kind", () => {
     source: "CLASS Class1\nMETHOD PUBLIC Run\n",
   });
   autosave.dispose();
+});
+
+it("autosaves per-source instance choices and restores them without adding project metadata", () => {
+  vi.useFakeTimers();
+  const { store, worker, storage } = setup();
+  worker.receive({
+    type: "snapshot",
+    snapshot: {
+      scanCount: 0,
+      tasks: [],
+      lastExecutionTimeMs: 0,
+      inputs: [],
+      outputs: [],
+      variables: [],
+      forced: [],
+      annotations: [],
+    },
+  });
+  const autosave = createAutosave(store, storage);
+  store.selectInstance("mainInstance");
+  vi.advanceTimersByTime(500);
+  const saved = readAutosave(storage)!;
+  expect(saved.instanceChoices).toEqual({ MAIN: "mainInstance" });
+  expect(saved.project).not.toHaveProperty("instanceChoices");
+  const freshWorker = new FakeWorker();
+  const fresh = createAppStore(new RuntimeClient(freshWorker), saved);
+  expect(fresh.getSnapshot().instanceChoices).toEqual(saved.instanceChoices);
+  fresh.loadEditor();
+  freshWorker.receive({
+    type: "snapshot",
+    snapshot: {
+      scanCount: 0,
+      tasks: [],
+      lastExecutionTimeMs: 0,
+      inputs: [],
+      outputs: [],
+      variables: [],
+      forced: [],
+      annotations: [],
+    },
+  });
+  expect(freshWorker.sent.at(-1)).toEqual({
+    type: "watchBodies",
+    bodies: [{ pou: "Main", instance: "mainInstance" }],
+  });
+  autosave.dispose();
+  store.dispose();
+  fresh.dispose();
 });

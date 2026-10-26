@@ -90,7 +90,8 @@ describe("standard-library ST conformance", () => {
       expect(
         runtime
           .snapshot()
-          .annotations.StandardTest?.[1]?.some((annotation) => annotation.values.length === 2),
+          .annotations.find((body) => body.pou === "StandardTest")
+          ?.lines?.[1]?.some((annotation) => annotation.values.length === 2),
       ).toBe(true);
       runtime.coldReset();
       expect(runtime.snapshot().variables[0]).toMatchObject({

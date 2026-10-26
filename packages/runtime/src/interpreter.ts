@@ -69,6 +69,7 @@ export interface PauseLocation {
 export type PauseHook = (location: PauseLocation) => boolean;
 type Instruction = { statement?: Statement; run: (vm: Interpreter, frame: ExecutionFrame) => void };
 interface ExecutionFrame {
+  annotations?: Map<Statement, StatementAnnotation>;
   code: Instruction[];
   pc: number;
   statement?: Statement;
@@ -96,8 +97,15 @@ export class Interpreter {
   private get frame(): ExecutionFrame | undefined {
     return this.stack.at(-1);
   }
-  private push(body: readonly Statement[], finish?: (abandoned: boolean) => void): void {
+  private push(
+    body: readonly Statement[],
+    finish?: (abandoned: boolean) => void,
+    annotateBody = false,
+  ): void {
     this.stack.push({
+      annotations: annotateBody
+        ? this.startBody?.(this.pou, this.instancePath ?? this.programMemory.ir.name)
+        : undefined,
       code: Interpreter.lower(body),
       pc: 0,
       values: new Map(),
@@ -442,11 +450,9 @@ export class Interpreter {
   }
 
   private iterations = 0;
-  private readonly annotations = new Map<Statement, StatementAnnotation>();
   private readonly functions: readonly UserFunctionIR[];
   private pou: string;
   private task = "Cyclic";
-  private callDepth = 0;
   private instancePath?: string;
   private receiver?: {
     frame: MemoryFrame;
@@ -460,6 +466,10 @@ export class Interpreter {
     private readonly scanStart: number,
     private readonly active: () => boolean,
     private readonly library?: RuntimeLibrary,
+    private readonly startBody?: (
+      pou: string,
+      instance: string,
+    ) => Map<Statement, StatementAnnotation> | undefined,
   ) {
     this.memory = programMemory.programFrame();
     this.functions = programMemory.ir.functions ?? [];
@@ -524,18 +534,17 @@ export class Interpreter {
   executeProgram(index = 0, pause?: PauseHook): boolean {
     const ir = this.programMemory.ir;
     this.memory = this.programMemory.programFrame(index);
-    this.annotations.clear();
     if (ir.kind === "configuration") {
       const instance = ir.resource.programs[index]!;
       const definition = ir.programs[instance.program]!;
       this.task = ir.resource.tasks[instance.task]!.name;
       this.pou = definition.name;
       this.instancePath = instance.name;
-      this.push(definition.body);
+      this.push(definition.body, undefined, true);
     } else {
       this.pou = ir.name;
       this.instancePath = undefined;
-      this.push(ir.body);
+      this.push(ir.body, undefined, true);
     }
     return this.resume(pause);
   }
@@ -917,8 +926,7 @@ export class Interpreter {
   }
 
   private annotate(statement: Statement, values: InlineValue[]): void {
-    if (this.callDepth) return;
-    this.annotations.set(statement, {
+    this.frame?.annotations?.set(statement, {
       span: { ...statement.span },
       values: values.map((value) => ({ ...value })),
     });
@@ -1217,27 +1225,29 @@ export class Interpreter {
         ? definition.name
         : this.programMemory.ir.functionBlocks![definition.bodyOwner]!.name;
     this.instancePath = instance.path;
-    this.callDepth++;
-    this.push(definition.body, (abandoned) => {
-      this.receiver = callerReceiver;
-      instance.frame.unbind(definition.inOuts ?? []);
-      this.callDepth--;
-      this.memory = caller;
-      this.pou = callerPou;
-      this.instancePath = callerPath;
-      if (abandoned) return;
-      (callerFrame.completed ??= new Map()).set(call, (index: number) => {
-        const binding = call.outputs![index]!;
-        const variable = definition.variables[binding.output]!;
-        if (!("dataType" in variable)) throw new Error("Invalid output type");
-        return this.prepareOutput(
-          binding.target,
-          instance.frame,
-          binding.output,
-          variable.dataType,
-        );
-      });
-    });
+    this.push(
+      definition.body,
+      (abandoned) => {
+        this.receiver = callerReceiver;
+        instance.frame.unbind(definition.inOuts ?? []);
+        this.memory = caller;
+        this.pou = callerPou;
+        this.instancePath = callerPath;
+        if (abandoned) return;
+        (callerFrame.completed ??= new Map()).set(call, (index: number) => {
+          const binding = call.outputs![index]!;
+          const variable = definition.variables[binding.output]!;
+          if (!("dataType" in variable)) throw new Error("Invalid output type");
+          return this.prepareOutput(
+            binding.target,
+            instance.frame,
+            binding.output,
+            variable.dataType,
+          );
+        });
+      },
+      true,
+    );
   }
 
   private annotateBlock(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
@@ -1269,11 +1279,13 @@ export class Interpreter {
       definition.bodyOwner === undefined
         ? definition.name
         : this.programMemory.ir.functionBlocks![definition.bodyOwner]!.name;
-    this.callDepth++;
-    this.push(definition.body, () => {
-      this.callDepth--;
-      this.pou = callerPou;
-    });
+    this.push(
+      definition.body,
+      () => {
+        this.pou = callerPou;
+      },
+      true,
+    );
   }
 
   private captureReceiver(call: UserFunctionCall, frame: ExecutionFrame): void {
@@ -1341,7 +1353,6 @@ export class Interpreter {
       ? `${this.programMemory.ir.functionBlocks![(definition as import("@benchtop-plc/core").UserMethodIR).declaringType ?? receiver.block]!.name}.${definition.name}`
       : definition.name;
     this.instancePath = receiver?.path;
-    this.callDepth++;
     this.push(definition.body, (abandoned) => {
       let result: StoredValue = null;
       try {
@@ -1354,7 +1365,6 @@ export class Interpreter {
         }
       } finally {
         this.receiver = callerReceiver;
-        this.callDepth--;
         this.memory = caller;
         this.pou = callerPou;
         this.instancePath = callerPath;
@@ -1368,15 +1378,5 @@ export class Interpreter {
       });
     });
     return null;
-  }
-
-  annotationSnapshot(): Record<number, StatementAnnotation[]> {
-    const result: Record<number, StatementAnnotation[]> = {};
-    for (const annotation of this.annotations.values()) {
-      (result[annotation.span.line] ??= []).push(annotation);
-    }
-    for (const entries of Object.values(result))
-      entries.sort((a, b) => a.span.column - b.span.column);
-    return result;
   }
 }

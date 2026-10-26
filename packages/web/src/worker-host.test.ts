@@ -359,3 +359,21 @@ it("publishes final retained values immediately when a scheduled scan faults", (
   });
   expect(messages.filter((m) => m.type === "state").at(-1)).toMatchObject({ state: "FAULT" });
 });
+
+it("routes body watches and publishes the selected PROGRAM's next single scan", async () => {
+  const { compileProject } = await import("@benchtop-plc/compiler");
+  const ir = compileProject(
+    ["PROGRAM Main VAR n: INT; END_VAR n := n + 1; END_PROGRAM"],
+    [],
+    "CONFIGURATION C RESOURCE R ON Cpu TASK T(INTERVAL := T#10ms, PRIORITY := 0); PROGRAM A WITH T: Main; PROGRAM B WITH T: Main; END_RESOURCE END_CONFIGURATION",
+  ).ir!;
+  const { host, snapshot } = setup();
+  host.handle({ type: "load", ir });
+  host.handle({ type: "watchBodies", bodies: [{ pou: "Main", instance: "B" }] });
+  expect(snapshot()?.annotations).toEqual([]);
+  host.handle({ type: "step" });
+  expect(snapshot()?.annotations).toMatchObject([{ pou: "Main", instance: "B", scanCount: 1 }]);
+  host.handle({ type: "watchBodies", bodies: [] });
+  host.handle({ type: "step" });
+  expect(snapshot()?.annotations).toEqual([]);
+});

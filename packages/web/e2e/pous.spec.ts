@@ -172,7 +172,10 @@ END_PROGRAM`;
   await expect(member).toHaveAttribute("data-forced", "true");
   await expect(page.locator(".inline-values")).toContainText("20");
   await list.getByRole("button", { name: /^Latch FUNCTION_BLOCK/ }).click();
-  await expect(page.locator(".inline-values")).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue(
+    "mainInstance.M1",
+  );
+  await expect(page.locator(".inline-values .inline-number")).toHaveText("20");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save project", exact: true }).click();
   const xml = readFileSync((await (await download).path())!, "utf8");

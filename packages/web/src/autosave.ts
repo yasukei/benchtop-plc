@@ -17,6 +17,7 @@ export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
+  instanceChoices?: import("./instances.js").InstanceChoices;
   retentive?: import("@benchtop-plc/core").RetentiveRecord[];
   configuration: EditorConfiguration | null;
   selectedConfiguration: boolean;
@@ -183,6 +184,10 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
     const layout = readLayout(value.layout);
     if (!layout) return null;
     return {
+      ...(record(value.instanceChoices) &&
+      Object.values(value.instanceChoices).every((path) => typeof path === "string")
+        ? { instanceChoices: value.instanceChoices as Record<string, string> }
+        : {}),
       ...(Array.isArray(value.retentive)
         ? { retentive: value.retentive as import("@benchtop-plc/core").RetentiveRecord[] }
         : {}),
@@ -227,6 +232,7 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
   const unsubscribe = store.subscribe(() => {
     const next = store.getSnapshot();
     if (
+      next.instanceChoices === previous.instanceChoices &&
       next.retentive === previous.retentive &&
       next.configuration === previous.configuration &&
       next.selectedConfiguration === previous.selectedConfiguration &&
@@ -242,6 +248,7 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
     const retainedChanged = next.retentive !== previous.retentive;
     previous = next;
     pending = {
+      ...(next.instanceChoices === undefined ? {} : { instanceChoices: next.instanceChoices }),
       ...(next.retentive === undefined ? {} : { retentive: next.retentive }),
       configuration: next.configuration,
       selectedConfiguration: next.selectedConfiguration,

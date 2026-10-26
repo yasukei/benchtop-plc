@@ -32,6 +32,8 @@ import type {
 import type { ClientEvent, RuntimeClient } from "./runtime-client.js";
 import { cycleOptions, type CycleMs, type SavedWork } from "./autosave.js";
 
+import { instancesForSource, watchedBodies } from "./instances.js";
+
 export { cycleOptions } from "./autosave.js";
 export type { CycleMs } from "./autosave.js";
 
@@ -70,6 +72,9 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     : ((selectedDataType === null ? pous[selectedPou] : dataTypes[selectedDataType])?.source ?? "");
   let pendingRestore = typeof initial === "string" ? undefined : initial.retentive;
   let state: AppState = {
+    ...(typeof initial === "string" || initial.instanceChoices === undefined
+      ? {}
+      : { instanceChoices: initial.instanceChoices }),
     storageWarning: false,
     retentiveSkipped: [],
     ...(pendingRestore === undefined ? {} : { retentive: pendingRestore }),
@@ -111,9 +116,24 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     loadedIr: ConfigurationIR;
   }[] = [];
   const listeners = new Set<() => void>();
+  let lastBodyWatches = "";
+  const sendBodyWatches = (ir: ConfigurationIR) => {
+    if (state.connection !== "connected") return;
+    const openPou =
+      !state.selectedConfiguration && state.selectedDataType === null
+        ? state.pous[state.selectedPou]?.name
+        : undefined;
+    const bodies = watchedBodies(ir, state.instanceChoices ?? {}, openPou);
+    const key = JSON.stringify(bodies);
+    if (key !== lastBodyWatches) {
+      lastBodyWatches = key;
+      client.send({ type: "watchBodies", bodies });
+    }
+  };
   const update = (patch: Partial<AppState>) => {
     state = { ...state, ...patch };
     for (const listener of listeners) listener();
+    if (state.loadedIr && !pendingLoads.length) sendBodyWatches(state.loadedIr);
   };
   const unsubscribe = client.subscribe((event: ClientEvent) => {
     switch (event.type) {
@@ -166,6 +186,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     if (state.connection !== "connected") return false;
     const result = compileEditor();
     if (!result.ir) return false;
+    lastBodyWatches = "";
     pendingLoads.push({
       loadedSources: pouSources(state.pous),
       loadedDataTypes: pouSources(state.dataTypes),
@@ -176,6 +197,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     const retentive = pendingRestore;
     pendingRestore = undefined;
     client.send({ type: "load", ir: result.ir, ...(retentive === undefined ? {} : { retentive }) });
+    // Queue watches before RUN can activate an event task, without waiting for the load reply.
+    sendBodyWatches(result.ir);
     return true;
   };
   const openProject = (xml: string) => {
@@ -199,6 +222,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     const selectedPou = initialPouIndex(pous);
     const dataTypes = createDataTypes(opened.project.dataTypes);
     update({
+      instanceChoices: undefined,
       pous,
       selectedPou,
       dataTypes,
@@ -285,6 +309,16 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         : createPous([source]);
       update({ source, pous, diagnostics: [], saveDiagnostics: [] });
       compileTimer = setTimeout(compileEditor, 250);
+    },
+    selectInstance(path: string) {
+      if (!state.loadedIr || state.selectedConfiguration || state.selectedDataType !== null) return;
+      const pou = state.pous[state.selectedPou];
+      if (
+        !pou ||
+        !instancesForSource(state.loadedIr, pou.name).some((instance) => instance.path === path)
+      )
+        return;
+      update({ instanceChoices: { ...state.instanceChoices, [pou.name.toUpperCase()]: path } });
     },
     selectPou(index: number) {
       if (

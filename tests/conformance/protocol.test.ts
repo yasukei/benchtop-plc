@@ -26,20 +26,25 @@ it("transports statement identity and final loop-call outputs without positional
   };
   // Contract example: c is FALSE, and the timer call ran three times this scan.
   // Execution/aggregation is implemented in #8; this fixture pins the wire representation.
-  const annotations: RuntimeSnapshot["annotations"] = {
-    Main: {
-      1: [{ span: spanFor(1, "b := 2;"), values: [{ dataType: "INT", value: 2 }] }],
-      2: [
-        {
-          span: spanFor(2, "timer(IN := TRUE, PT := T#1s);"),
-          values: [
-            { dataType: "BOOL", value: false },
-            { dataType: "TIME", value: 20 },
-          ],
-        },
-      ],
+  const annotations: RuntimeSnapshot["annotations"] = [
+    {
+      pou: "Main",
+      instance: "mainInstance",
+      scanCount: 1,
+      lines: {
+        1: [{ span: spanFor(1, "b := 2;"), values: [{ dataType: "INT", value: 2 }] }],
+        2: [
+          {
+            span: spanFor(2, "timer(IN := TRUE, PT := T#1s);"),
+            values: [
+              { dataType: "BOOL", value: false },
+              { dataType: "TIME", value: 20 },
+            ],
+          },
+        ],
+      },
     },
-  };
+  ];
 
   for (const transported of [
     JSON.parse(JSON.stringify(annotations)),
@@ -47,13 +52,13 @@ it("transports statement identity and final loop-call outputs without positional
   ]) {
     expect(transported).toStrictEqual(annotations);
     const restored = transported as RuntimeSnapshot["annotations"];
-    expect(restored.Main![1]).toHaveLength(1);
-    const assignment = restored.Main![1]![0]!;
+    expect(restored[0]!.lines[1]).toHaveLength(1);
+    const assignment = restored[0]!.lines[1]![0]!;
     expect(lines[0]!.slice(assignment.span.column - 1, assignment.span.endColumn - 1)).toBe(
       "b := 2;",
     );
-    expect(restored.Main![2]).toHaveLength(1);
-    expect(restored.Main![2]![0]!.values).toStrictEqual([
+    expect(restored[0]!.lines[2]).toHaveLength(1);
+    expect(restored[0]!.lines[2]![0]!.values).toStrictEqual([
       { dataType: "BOOL", value: false },
       { dataType: "TIME", value: 20 },
     ]);

@@ -212,7 +212,7 @@ The function's name reads and writes its result variable. RETURN ends only that
 invocation. After execution, `=>` outputs copy back in binding order, using implicit
 assignment widening; an expression call then yields the result. A no-result function
 runs as a statement and produces no inline annotation. Function-statement results
-are annotated only in the PROGRAM, as with standard functions; outputs are not
+are annotated in watched PROGRAM and function block bodies, as with standard functions; outputs are not
 annotated, and function-body statements do not create inline values. Faults inside
 a function carry its source POU name and local span, preserved through nested calls.
 
@@ -227,8 +227,9 @@ fresh for each scan. Temporaries are absent from snapshots, writes and forces.
 
 After execution or RETURN, `=>` bindings copy outputs in binding order using
 assignment widening, including TIME-to-LTIME units. Standard FB calls support the
-same output copying. PROGRAM user FB calls annotate all outputs in declaration
-order; statements in block bodies produce no inline annotations.
+same output copying. Watched PROGRAM and function block bodies annotate user FB calls with all outputs
+in declaration order. Function block body statements are collected only for watched
+source/instance pairs.
 
 Load and cold reset recreate the entire instance tree and the private state of
 nested standard FBs. STOP → RUN, single scan and FAULT preserve persistent state.
@@ -411,16 +412,26 @@ Snapshots are detached, JSON-serializable copies with images, scalar values, FB
 inputs/outputs, the active forced IDs, count,
 and execution duration measured by the injected clock. Annotations follow the
 [core protocol](core-contracts.md): one entry per executed assignment, function statement or FB call,
-using its last execution's values, grouped by POU name and then line, sorted by
-column. Only the first instance of each PROGRAM supplies annotations; an
-uninstantiated PROGRAM supplies none. Only
-PROGRAM statements have annotations. A function statement shows its result;
-a function without a result shows nothing. Values
-reflect that statement's execution, before any later assignment or force. Each POU
-keeps its latest annotations between runs of its first instance, including passes
-where only other tasks run. Starting that instance clears only its POU's old entries;
-a run with no annotated statements removes them, and a faulting run retains only
-completed statements. Load and cold reset clear every POU's annotations. `snapshot()` does not execute the program.
+using its last execution's values. The snapshot's `annotations` is an array of
+`{ pou, instance, scanCount, lines }`. Lines are sorted by column. The runtime
+annotates only watched PROGRAM and function block bodies; methods and function
+bodies remain outside this scope. A function or method statement shows its result;
+a call without a result shows nothing. Values reflect the statement's execution,
+before any later assignment or force.
+
+`watchBodies(bodies)` replaces the watch set. Until the first call after load, the
+first instance of each PROGRAM in resource declaration order is watched. New
+watches apply at the next task-run boundary, including the next single scan in
+STOP. Removing a watch discards its entries at that boundary, while retained watches keep theirs.
+Each body/instance pair clears its values when that invocation starts and keeps
+its latest values and pass number until it runs again. A faulting invocation keeps
+completed statements. Nested block calls have separate collections, so the caller's
+values are unaffected. An inherited body or `SUPER()` collects values under the
+base source's POU and the actual derived instance's path.
+
+Load and cold reset clear annotations; warm/cold restarts retain watch selections,
+while load restores defaults. Empty bodies and lines are omitted. `snapshot()`
+returns detached copies and does not execute the program.
 
 ## In-out aliases
 

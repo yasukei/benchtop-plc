@@ -5,6 +5,8 @@ import {
   sameSources,
   type EditorDiagnostic,
 } from "./pous.js";
+import { InstancePicker } from "./InstancePicker.js";
+import { selectedInstance } from "./instances.js";
 import { PouList } from "./PouList.js";
 import { OperatorPanel } from "./panel/OperatorPanel.js";
 import { VariableMonitor } from "./VariableMonitor.js";
@@ -39,10 +41,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
     !state.selectedConfiguration && state.selectedDataType === null
       ? state.pous[state.selectedPou]
       : undefined;
-  const inlineInstance = loadedIr?.resource.programs.find(
-    (instance) =>
-      loadedIr.programs[instance.program]!.name.toUpperCase() === selected?.name.toUpperCase(),
-  );
+  const canSelectInstance = selected?.kind === "PROGRAM" || selected?.kind === "FUNCTION_BLOCK";
+  const inlineInstance =
+    loadedIr && selected && canSelectInstance
+      ? selectedInstance(loadedIr, selected.name, state.instanceChoices ?? {})
+      : undefined;
   const faultIndex = state.diagnostic
     ? (state.diagnostic.sourceIndex ?? diagnosticPouIndex(state.pous, state.diagnostic))
     : undefined;
@@ -189,52 +192,62 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
           <section className="panel editor" aria-labelledby="editor-title">
             <div className="panel-heading">
               <h2 id="editor-title">{text.editor}</h2>
-              {online && selected?.kind === "PROGRAM" && inlineInstance && (
-                <span>{text.inlineInstance.replace("{name}", inlineInstance.name)}</span>
-              )}
               <span className="apply-status" data-unapplied={unapplied}>
                 {unapplied ? text.unapplied : text.applied}
               </span>
             </div>
             <div className="pou-workspace">
               <PouList state={state} store={store} text={text} />
-              <StEditor
-                ir={loadedIr}
-                key={state.editorSession}
-                ref={editor}
-                source={state.source}
-                sources={pouSources(state.pous)}
-                dataTypes={pouSources(state.dataTypes)}
-                sourceIndex={
-                  !state.selectedConfiguration && state.selectedDataType === null
-                    ? state.selectedPou
-                    : -1
-                }
-                onChange={store.setSource}
-                diagnostics={state.diagnostics.filter((diagnostic) =>
-                  diagnosticSourceMatches(
-                    diagnostic,
-                    state.selectedPou,
-                    state.selectedDataType,
-                    state.selectedConfiguration,
-                  ),
+              <div className="editor-source">
+                {loadedIr && selected && canSelectInstance && (
+                  <InstancePicker
+                    key={selected.name}
+                    ir={loadedIr}
+                    pou={selected.name}
+                    choices={state.instanceChoices ?? {}}
+                    select={store.selectInstance}
+                    text={text}
+                  />
                 )}
-                snapshot={selected?.kind === "PROGRAM" && inlineInstance ? state.snapshot : null}
-                online={online}
-                pou={selected?.name}
-                fault={
-                  state.diagnostic &&
-                  diagnosticSourceMatches(
-                    { ...state.diagnostic, sourceIndex: faultIndex },
-                    state.selectedPou,
-                    state.selectedDataType,
-                    state.selectedConfiguration,
-                  )
-                    ? state.diagnostic
-                    : null
-                }
-                language={language}
-              />
+                <StEditor
+                  ir={loadedIr}
+                  key={state.editorSession}
+                  ref={editor}
+                  source={state.source}
+                  sources={pouSources(state.pous)}
+                  dataTypes={pouSources(state.dataTypes)}
+                  sourceIndex={
+                    !state.selectedConfiguration && state.selectedDataType === null
+                      ? state.selectedPou
+                      : -1
+                  }
+                  onChange={store.setSource}
+                  diagnostics={state.diagnostics.filter((diagnostic) =>
+                    diagnosticSourceMatches(
+                      diagnostic,
+                      state.selectedPou,
+                      state.selectedDataType,
+                      state.selectedConfiguration,
+                    ),
+                  )}
+                  snapshot={inlineInstance ? state.snapshot : null}
+                  instance={inlineInstance?.path}
+                  online={online}
+                  pou={selected?.name}
+                  fault={
+                    state.diagnostic &&
+                    diagnosticSourceMatches(
+                      { ...state.diagnostic, sourceIndex: faultIndex },
+                      state.selectedPou,
+                      state.selectedDataType,
+                      state.selectedConfiguration,
+                    )
+                      ? state.diagnostic
+                      : null
+                  }
+                  language={language}
+                />
+              </div>
             </div>
             <section className="diagnostics" aria-labelledby="diagnostics-title">
               <h3 id="diagnostics-title">{text.diagnostics}</h3>
