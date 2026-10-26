@@ -8,6 +8,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- ADR 0018 documents the accepted debugging design for Milestone 8: choosing the
+  instance whose inline values a body shows, inline values in every body,
+  breakpoints, the halted state, stepping and the call stack.
+
 ## [0.7.0] - 2026-10-26
 
 Classes, methods, interfaces and namespaces: function block methods, classes, single inheritance with dynamic binding, interfaces with assignment attempt, references to instances, namespaces and a sorting conveyor example. Contains breaking changes: 20 new reserved words; see Changed.
