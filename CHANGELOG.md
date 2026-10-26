@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Inline values inside method and function bodies, with per-instance method calls,
+  class instance selection and localized function caller labels. Runtime debugger
+  support records every active frame's invocation when debugging is enabled at
+  task-run boundaries.
+
 - Choose the instance shown by inline values in PROGRAM and function block sources,
   with a path/type filter, derived instances, autosaved choices and older-scan labels.
 - Runtime body watches collect function block statement values, including inherited
@@ -23,6 +28,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   breakpoints, the halted state, stepping and the call stack.
 
 ### Changed
+
+- Annotated function bodies now include `caller: { pou, instance, line }`; function
+  watches use a null instance, and block/class watches cover all their methods.
 
 - **Breaking core protocol change:** snapshot `annotations` is now an array of
   `{ pou, instance, scanCount, lines }` bodies instead of a record keyed by POU.

@@ -69,7 +69,10 @@ END_FUNCTION_BLOCK`,
     [{ dataType: "INT", value: 3 }],
   ]);
   expect(values(snapshot, "mainInstance.UNIT.CHILD")).toEqual([[{ dataType: "INT", value: 3 }]]);
-  expect(snapshot.annotations).toHaveLength(2);
+  expect(values(snapshot, "mainInstance.UNIT", "Outer.Get")).toEqual([
+    [{ dataType: "INT", value: 4 }],
+  ]);
+  expect(snapshot.annotations).toHaveLength(3);
 });
 
 it.each(["(* inherited body *)", "SUPER(); count := count + 10;"])(

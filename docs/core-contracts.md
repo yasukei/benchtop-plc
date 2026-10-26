@@ -241,18 +241,28 @@ issues, not in the transport types.
 Snapshots contain scan count, last execution time in milliseconds, 64-byte input
 and output arrays (values 0–255), values aligned with the variable table (including FB input and
 output arrays in descriptor order), forced variable IDs, and an `AnnotatedBody[]`
-annotation list. Each body names its `pou`, `instance` path (`null` is reserved for
+annotation list. Each body names its `pou`, `instance` path (`null` for
 functions), the `scanCount` of its latest invocation, and `lines`, keyed by one-based
-source line. Each statement annotation contains its full `span` and `values`.
+source line. A function also carries `caller: { pou, instance, line }`, naming the
+immediate caller (a method as `Type.Method`), its instance path or `null`, and the
+call expression's one-based start line. Methods use the POU `Type.Method` with
+the type that declares the running code and the actual receiver's instance path.
+Each statement annotation contains its full `span` and `values`.
 Entries are grouped by `span.line` and sorted by `span.column`. Body values persist
 until that body starts running again for that instance, even across passes where it
 does not run. Starting it clears only that body's previous entries; a faulting run
-keeps only completed statements. Empty bodies/lines are omitted. Load and cold
+keeps only completed statements. Empty bodies/lines are omitted, except functions
+retain caller metadata even when they have no completed scalar annotations. Load and cold
 reset clear all entries.
 
 `{ type: "watchBodies", bodies: { pou: string; instance: string | null }[] }`
-replaces the entire set of watched sources and instances. Only watched PROGRAM and
-function block bodies are annotated; methods and functions are not yet supported.
+replaces the entire set of watched sources and instances. A watch on a function
+block or class instance covers its body and all its methods. A function watch uses
+`instance: null` and shows its last call in the latest pass in which it ran.
+Method bodies show the last call on the watched instance, including assignments
+to method locals and results that the variable snapshot omits. Dynamic dispatch
+annotates only the method that actually ran; inherited and `SUPER.M()` calls
+use the declaring base type and the derived receiver's path.
 Until the first `watchBodies` after load, the runtime watches the first instance of
 every PROGRAM in resource declaration order. A new watch takes effect from the next
 task run, including the next single scan in STOP. Unwatched entries are discarded at that task boundary;

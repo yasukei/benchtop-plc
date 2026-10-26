@@ -66,12 +66,25 @@ export function mapAnnotations(
   const program =
     ir?.programs.find((program) => program.name.toUpperCase() === pou?.toUpperCase()) ??
     (pou === undefined ? ir?.programs[0] : undefined);
+  const blockIndex =
+    ir?.functionBlocks?.findIndex((block) => block.name.toUpperCase() === pou?.toUpperCase()) ?? -1;
+  const block = ir?.functionBlocks?.[blockIndex];
   const definition =
-    program ?? ir?.functionBlocks?.find((block) => block.name.toUpperCase() === pou?.toUpperCase());
-  if (definition) visit(definition.body);
-  const body = snapshot.annotations.find(
+    program ?? block ?? ir?.functions?.find((fn) => fn.name.toUpperCase() === pou?.toUpperCase());
+  const bodies = new Set<string>();
+  if (definition) {
+    visit(definition.body);
+    bodies.add(definition.name.toUpperCase());
+  }
+  for (const method of block?.methods ?? []) {
+    if ((method.declaringType ?? blockIndex) !== blockIndex) continue;
+    visit(method.body);
+    bodies.add(`${block!.name}.${method.name}`.toUpperCase());
+  }
+  if (pou) bodies.add(pou.toUpperCase());
+  const annotatedBodies = snapshot.annotations.filter(
     (body) =>
-      (pou === undefined || body.pou.toUpperCase() === pou.toUpperCase()) &&
+      (pou === undefined || bodies.has(body.pou.toUpperCase())) &&
       (instance === undefined || body.instance === instance),
   );
   const lines = source.split("\n");
@@ -81,35 +94,37 @@ export function mapAnnotations(
     positions.push(offset + line.replace(/\r$/, "").length);
     offset += line.length + 1;
   }
-  return Object.entries(body?.lines ?? {})
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .flatMap(([key, entries]) => {
-      const line = Number(key);
-      const position = positions[line - 1];
-      if (!Number.isInteger(line) || position === undefined) return [];
-      const values = entries
-        .filter((entry) => entry.span.line === line)
-        .toSorted((a, b) => a.span.column - b.span.column)
-        .flatMap((entry) =>
-          entry.values.map((value) => ({
-            text:
-              "target" in value
-                ? (value.target ?? "NULL")
-                : descriptors.has(spanKey(entry.span))
-                  ? formatMonitoredValue(descriptors.get(spanKey(entry.span))!, value, ir?.types)
-                  : formatValue(value.dataType, value.value),
-            dataType: "target" in value ? ("reference" as const) : value.dataType,
-          })),
-        );
-      return values.length
-        ? [
-            {
-              line,
-              position,
-              values,
-              ...(body!.scanCount < snapshot.scanCount ? { fromScan: body!.scanCount } : {}),
-            },
-          ]
-        : [];
-    });
+  return annotatedBodies.flatMap((body) =>
+    Object.entries(body.lines)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .flatMap(([key, entries]) => {
+        const line = Number(key);
+        const position = positions[line - 1];
+        if (!Number.isInteger(line) || position === undefined) return [];
+        const values = entries
+          .filter((entry) => entry.span.line === line)
+          .toSorted((a, b) => a.span.column - b.span.column)
+          .flatMap((entry) =>
+            entry.values.map((value) => ({
+              text:
+                "target" in value
+                  ? (value.target ?? "NULL")
+                  : descriptors.has(spanKey(entry.span))
+                    ? formatMonitoredValue(descriptors.get(spanKey(entry.span))!, value, ir?.types)
+                    : formatValue(value.dataType, value.value),
+              dataType: "target" in value ? ("reference" as const) : value.dataType,
+            })),
+          );
+        return values.length
+          ? [
+              {
+                line,
+                position,
+                values,
+                ...(body.scanCount < snapshot.scanCount ? { fromScan: body.scanCount } : {}),
+              },
+            ]
+          : [];
+      }),
+  );
 }

@@ -102,3 +102,62 @@ it("uses remembered choices when present and otherwise defaults to the first ins
   ]);
   expect(watchedBodies(ir, {}, "Main")).toEqual([{ pou: "Main", instance: "Second" }]);
 });
+
+it("lists class instances including derived classes in monitor order and watches functions without an instance", () => {
+  const result = compileProject([
+    `PROGRAM Main VAR a: Child; b: Parent; link: REF_TO Parent; END_VAR END_PROGRAM`,
+    `CLASS Parent END_CLASS`,
+    `CLASS Child EXTENDS Parent END_CLASS`,
+    `FUNCTION F: INT F := 1; END_FUNCTION`,
+  ]);
+  expect(result.diagnostics).toEqual([]);
+  const ir = result.ir!;
+  expect(instancesForSource(ir, "Parent")).toEqual([
+    { path: "mainInstance.A", type: "Child" },
+    { path: "mainInstance.B", type: "Parent" },
+  ]);
+  expect(selectedInstance(ir, "Parent", {})?.path).toBe("mainInstance.A");
+  expect(watchedBodies(ir, {}, "Parent")).toContainEqual({
+    pou: "Parent",
+    instance: "mainInstance.A",
+  });
+  expect(instancesForSource(ir, "F")).toEqual([]);
+  expect(watchedBodies(ir, {}, "F")).toContainEqual({ pou: "F", instance: null });
+});
+
+it("localizes function callers with and without an instance, or reports that no call was recorded", async () => {
+  const { functionCallLabel } = await import("./instances.js");
+  const { catalogs } = await import("./catalog.js");
+  const snapshot: import("@benchtop-plc/core").RuntimeSnapshot = {
+    scanCount: 1,
+    tasks: [],
+    lastExecutionTimeMs: 0,
+    inputs: [],
+    outputs: [],
+    variables: [],
+    forced: [],
+    annotations: [
+      {
+        pou: "F",
+        instance: null,
+        scanCount: 1,
+        lines: {},
+        caller: { pou: "Main", instance: "mainInstance", line: 12 },
+      },
+    ],
+  };
+  expect(functionCallLabel(snapshot, "f", catalogs.en)).toBe(
+    "Called from Main (mainInstance), line 12",
+  );
+  expect(functionCallLabel(snapshot, "f", catalogs.ja)).toBe(
+    "呼び出し元: Main (mainInstance)、12行目",
+  );
+  snapshot.annotations[0]!.caller!.instance = null;
+  snapshot.annotations[0]!.caller!.pou = "Outer";
+  expect(functionCallLabel(snapshot, "F", catalogs.en)).toBe("Called from Outer, line 12");
+  expect(functionCallLabel(snapshot, "F", catalogs.ja)).toBe("呼び出し元: Outer、12行目");
+  expect(functionCallLabel(null, "F", catalogs.en)).toBe("No call recorded yet");
+  expect(functionCallLabel(snapshot, "Unused", catalogs.ja)).toBe(
+    "まだ呼び出しが記録されていません",
+  );
+});

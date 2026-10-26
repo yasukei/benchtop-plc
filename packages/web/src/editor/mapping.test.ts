@@ -196,3 +196,39 @@ it("selects a block instance and marks retained values with their older scan", (
   ).not.toHaveProperty("fromScan");
   expect(mapAnnotations("n := 7;", annotated, true, undefined, "Counter", "missing")).toEqual([]);
 });
+
+it("maps method values only into their declaring source and formats function body values", async () => {
+  const { compileProject } = await import("@benchtop-plc/compiler");
+  const { createRuntime, VirtualClock, VirtualTicker } = await import("@benchtop-plc/runtime");
+  const sources = [
+    `PROGRAM Main VAR unit: Child; n: INT; END_VAR n := unit.Get(); n := F(); END_PROGRAM`,
+    `CLASS Parent
+METHOD PUBLIC Get: INT Get := 3; END_METHOD
+END_CLASS`,
+    `CLASS Child EXTENDS Parent END_CLASS`,
+    `FUNCTION F: INT
+F := 7;
+END_FUNCTION`,
+  ];
+  const result = compileProject(sources);
+  expect(result.diagnostics).toEqual([]);
+  const ir = result.ir!;
+  const clock = new VirtualClock();
+  const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
+  runtime.load(ir);
+  runtime.watchBodies([
+    { pou: "Parent", instance: "mainInstance.UNIT" },
+    { pou: "F", instance: null },
+  ]);
+  const snapshot = runtime.step();
+  expect(
+    mapAnnotations(sources[1]!, snapshot, true, ir, "Parent", "mainInstance.UNIT")[0]?.values,
+  ).toEqual([{ text: "3", dataType: "INT" }]);
+  expect(mapAnnotations(sources[1]!, snapshot, true, ir, "Parent", "mainInstance.OTHER")).toEqual(
+    [],
+  );
+  expect(mapAnnotations(sources[2]!, snapshot, true, ir, "Child", "mainInstance.UNIT")).toEqual([]);
+  expect(mapAnnotations(sources[3]!, snapshot, true, ir, "F")[0]?.values).toEqual([
+    { text: "7", dataType: "INT" },
+  ]);
+});

@@ -413,9 +413,14 @@ inputs/outputs, the active forced IDs, count,
 and execution duration measured by the injected clock. Annotations follow the
 [core protocol](core-contracts.md): one entry per executed assignment, function statement or FB call,
 using its last execution's values. The snapshot's `annotations` is an array of
-`{ pou, instance, scanCount, lines }`. Lines are sorted by column. The runtime
-annotates only watched PROGRAM and function block bodies; methods and function
-bodies remain outside this scope. A function or method statement shows its result;
+`{ pou, instance, scanCount, lines, caller? }`. Lines are sorted by column. The runtime
+annotates watched PROGRAM, function block, method and function bodies. A watch on
+a block or class instance includes all its methods, including inherited methods.
+Method POUs name their declaring code as `Type.Method` and use the actual
+receiver's path, including through interfaces, references, `THIS` and `SUPER.M()`.
+An override leaves the overridden base method untouched. A function watch has
+`instance: null`; its last invocation names the immediate caller with
+`caller: { pou, instance, line }`, using the call expression's start line. A function or method statement shows its result;
 a call without a result shows nothing. Values reflect the statement's execution,
 before any later assignment or force.
 
@@ -426,11 +431,13 @@ STOP. Removing a watch discards its entries at that boundary, while retained wat
 Each body/instance pair clears its values when that invocation starts and keeps
 its latest values and pass number until it runs again. A faulting invocation keeps
 completed statements. Nested block calls have separate collections, so the caller's
-values are unaffected. An inherited body or `SUPER()` collects values under the
+values are unaffected. Method locals and result assignments are recorded before
+the call frame is discarded; skipped methods retain their older pass number. An inherited body or `SUPER()` collects values under the
 base source's POU and the actual derived instance's path.
 
 Load and cold reset clear annotations; warm/cold restarts retain watch selections,
-while load restores defaults. Empty bodies and lines are omitted. `snapshot()`
+while load restores defaults. Empty bodies and lines are omitted, except that a
+function retains its caller even without scalar annotations. `snapshot()`
 returns detached copies and does not execute the program.
 
 ## In-out aliases
@@ -822,3 +829,20 @@ To repeat the baseline, check out `f0cd173` in another worktree, copy
 `runtime-benchmark.config.ts` and `tests/benchmarks/runtime.bench.ts` from this
 change, install its locked dependencies and run
 `pnpm exec vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept`.
+
+### Invocation annotations for the debugger
+
+The internal `RuntimeOptions.debuggingActive` callback represents whether any
+breakpoint is set or a step is pending. Its value is captured once at each task-run
+boundary, like the body watch set. While it is true, every frame records the
+annotations of its own invocation, including unwatched bodies. Watched snapshots
+still include only watched bodies. While it is false, unwatched frames allocate
+no annotation maps.
+
+The internal `frameAnnotations` accessor returns detached invocation collections
+for the active task, outermost first, with each frame's POU, instance, pass number,
+function caller when applicable and completed statement annotations. Empty
+collections are included for frames that have just started. Resuming uses the
+captured switch until that task completes; changing it takes effect on the next
+task run. Completing or abandoning the task discards these frame collections.
+The halt and call-stack protocol will consume this support in #197 and #198.

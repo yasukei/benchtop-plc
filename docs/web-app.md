@@ -85,9 +85,9 @@ Variable rows inside each group use relative paths such as `count` or `M1.RUNNIN
 the full path remains in the row's tooltip. Each instance has independent memory,
 writes and forces.
 
-Above PROGRAM and function block sources, the instance picker chooses whose inline
+Above PROGRAM, function block and class sources, the instance picker chooses whose inline
 values the editor shows. PROGRAM sources offer their configured instances, defaulting
-to the first in resource declaration order. Function block sources offer all instances
+to the first in resource declaration order. Function block and class sources offer all instances
 of that type and its derived types, including globals and array elements. Their default
 is the first in monitor order: each PROGRAM instance in resource declaration order,
 then globals in declaration order; within instances, base members come first and
@@ -99,7 +99,17 @@ The UI watches the selected instance of every PROGRAM and the source open in the
 editor. In STOP, newly selected instances show values after the next single scan.
 A body skipped in the latest pass keeps its values, marked **from scan N**. A base
 function block body can show a derived instance executing an inherited body or
-`SUPER()`. Method, class and function bodies do not yet show inline values.
+`SUPER()`. Method bodies follow their source's selected instance and show the last
+call on that instance, including locals and results. Base methods show derived
+instances only when their code ran (inherited calls or `SUPER.M()`); overridden
+base methods show no values for calls dispatched to the override.
+
+Function sources have no instance picker. They show their last call's immediate
+caller, for example **Called from Main (mainInstance), line 12**, or
+**No call recorded yet**. A caller without an instance omits the parentheses.
+Only calls made while the function is watched are recorded. Opening its source
+after an earlier call can therefore show this message until the next call.
+The function's inline values and caller stay until it runs again.
 
 Browser autosave remembers choices per source; PLCopen XML does not include them.
 A choice that no longer exists falls back to the default. Opening a project or
@@ -377,7 +387,7 @@ are not embedded in project XML.
 ## Function block methods and import drafts
 
 Method calls in PROGRAM bodies display inline return values like function calls.
-Method bodies do not display inline values. The monitor includes instance members
+Method bodies display inline values for the selected instance. The monitor includes instance members
 regardless of access and supports their existing writes and forces; method locals
 never appear. A method fault navigates to its owning function block's source.
 
