@@ -1,6 +1,6 @@
 {
   "name": "@benchtop-plc/core",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Data types, tree-shaped IR, UI-runtime protocol and diagnostic codes.",
   "type": "module",
