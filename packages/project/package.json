@@ -1,6 +1,6 @@
 {
   "name": "@benchtop-plc/project",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "PLCopen XML (TC6) project read/write.",
   "type": "module",

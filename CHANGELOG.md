@@ -8,6 +8,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-26
+
+Classes, methods, interfaces and namespaces: function block methods, classes, single inheritance with dynamic binding, interfaces with assignment attempt, references to instances, namespaces and a sorting conveyor example. Contains breaking changes: 20 new reserved words; see Changed.
+
 ### Added
 
 - Sorting conveyor reference project combining namespaced classes, inheritance,
@@ -58,22 +62,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
-- INTERFACE, END_INTERFACE and IMPLEMENTS are now reserved. Affected 0.6.0
-  identifier drafts still open through the legacy import path.
-
-- EXTENDS, OVERRIDE, SUPER, ABSTRACT and FINAL are now reserved. Affected 0.6.0
-  project texts open as editable drafts, preserving source extensions or generated
-  standard XML text. Rename the identifiers before running or exporting; autosave
-  keeps drafts.
-
-- CLASS and END_CLASS are now reserved. Affected 0.6.0 project texts open as
-  editable drafts, keeping preserved source or generating it from standard XML.
-  Autosave keeps drafts; rename the identifiers before running or exporting.
-
-- METHOD, END_METHOD, THIS, PUBLIC, PROTECTED, PRIVATE and INTERNAL are now reserved.
-  Affected 0.6.0 project texts open as editable drafts, preserving source extensions
-  or using generated text when absent. Autosave keeps drafts; rename the identifiers
-  before running or exporting the project.
+- INTERFACE, END_INTERFACE, IMPLEMENTS, CLASS, END_CLASS, EXTENDS, OVERRIDE, SUPER,
+  ABSTRACT, FINAL, METHOD, END_METHOD, THIS, PUBLIC, PROTECTED, PRIVATE, INTERNAL,
+  NAMESPACE, END_NAMESPACE and USING are now reserved. Texts in 0.6.0 project files
+  that use them as names open as editable drafts, from the preserved source text or,
+  when it is absent, from text generated from the standard elements. Autosave keeps
+  drafts; rename the identifiers before running or exporting the project.
 
 ## [0.6.0] - 2026-10-25
 
@@ -467,7 +461,8 @@ First release: the single-file HTML prototype rebuilt as a tested monorepo.
   setting unless you choose Light or Dark.
 - The app opens with the blink example and its panel.
 
-[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/yasukei/benchtop-plc/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/yasukei/benchtop-plc/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yasukei/benchtop-plc/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/yasukei/benchtop-plc/compare/v0.3.0...v0.4.0

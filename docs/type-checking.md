@@ -641,8 +641,8 @@ Methods see their instance's inputs, outputs, variables, constants and externals
 and their own parameters, variables and optional result. Instance `VAR_IN_OUT`
 parameters are unavailable because their caller storage may no longer exist.
 Method locals cannot shadow a member or method; method and member names are unique
-case-insensitively. Methods reject `VAR_TEMP`, `VAR_EXTERNAL`, retention qualifiers
-and local block instances, as functions do.
+case-insensitively. Methods reject `VAR_EXTERNAL`, retention qualifiers
+and local block instances, and allow `VAR_TEMP` only for interface variables, as functions do.
 
 Methods and block `VAR` sections default to `PROTECTED`. `PRIVATE` and `PROTECTED`
 allow access from the declaring type, including another instance of that type.

@@ -39,8 +39,8 @@ apply to imports. An unresolved name or declaration type does not block exchange
 value outside its declared type does. Other semantic errors, including unknown
 calls, duplicate names, name clashes, zero or several programs, and supported
 sections disallowed for a POU kind, are preserved for the compiler to report after
-opening. Run still requires error-free compilation. VAR_TEMP in a FUNCTION and
-AT in a FUNCTION_BLOCK remain exchangeable semantic errors. Variable sections
+opening. Run still requires error-free compilation. VAR_TEMP other than interface variables in a FUNCTION
+and AT in a FUNCTION_BLOCK remain exchangeable semantic errors. Variable sections
 without a mapping remain unsupported (ADR 0014).
 
 The web app retains every imported data type and POU and compiles them together.
