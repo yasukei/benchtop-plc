@@ -91,14 +91,14 @@ Input/output callbacks receive copied images.
 ESTOP and FAULT ignore scans and RUN requests. STOP scans update internal state
 and annotations while keeping output-mapped variables and output images OFF.
 `step()` executes exactly one pass only in STOP and returns the current snapshot
-without execution in every other state. It uses the same injected clock as cyclic
+without execution in other states, except HALT, which rejects it. It uses the same injected clock as cyclic
 execution; it does not advance virtual time on the caller's behalf. The Worker
 routes the core protocol's `step` command to this method.
 
 The operating state is STOP, RUN or FAULT. Emergency stop is an independent
 system-level flag over that state, as recorded in [ADR 0009](adr/0009-emergency-stop-overlay.md).
-The public `state` reports ESTOP while the flag is active, otherwise the operating
-state. A pending FAULT and its `diagnostic` remain latched beneath ESTOP.
+The public `state` reports ESTOP while the flag is active, otherwise HALT
+while halted, otherwise the operating state. A pending FAULT and its `diagnostic` remain latched beneath ESTOP.
 
 `stop()` cancels cyclic execution and de-energizes output variables and the output
 image while preserving any pending FAULT and the emergency stop flag.
@@ -122,7 +122,7 @@ instances. Both clear diagnostics, annotations and scan counters and keep output
 OFF. Loading/resetting during a scan is rejected. A stop during a host/library
 callback aborts the remaining scan stages; an emergency stop stays active even if
 the interrupted computation subsequently faults. Stale ticker callbacks cannot
-restart scans. Outputs stay OFF in every reported state except RUN, including
+restart scans. Outputs stay OFF in every operating state except RUN, including
 when output declarations have TRUE initial values.
 
 ## Debug commands
@@ -788,17 +788,16 @@ bodies name their declaring type and the actual derived instance. Functions have
 a null instance path. Returning `true` suspends the pass and returns control to
 the host. `runtime.pauseLocation` exposes a detached location, and
 `runtime.resume()` continues past that boundary without invoking the predicate
-there a second time. The next boundary can suspend again. Protocol messages,
-public HALT state, breakpoints and stepping belong to later Milestone 8 issues.
+there a second time. The next boundary can suspend again. Public breakpoints use
+this same continuation; stepping follows in #198.
 
 A suspended pass retains its ready-task list, current program instance and
 interpreter stack. A pass-level generator holds the image/write/force/publication
 stages; it yields only when the instruction loop pauses, never at an operand or
 call. Ticks and single scans cannot start another pass meanwhile. With unchanged
 clock readings and inputs, pausing and resuming preserves variables, outputs,
-annotations, write/force stages and task telemetry. The public HALT behavior for
-elapsed time, activations, inputs, writes, forces and retained values is assigned
-to #197; this internal hook does not implement that policy.
+annotations, write/force stages and task telemetry. The internal pause hook leaves
+operating state unchanged; public breakpoints additionally apply the HALT policy below.
 
 Stop, emergency stop, warm restart, cold reset and load abandon the suspended
 continuation. Abandonment restores caller contexts and releases block in-out
@@ -813,8 +812,10 @@ loop that calls a user function in each iteration. It measures the interpreter's
 task run without compilation, loading or snapshot serialization, with a fixed
 task-start timestamp and reusable persistent memory. It warms up 500 task runs,
 then reports the median of 31 batches (200 conveyor runs or 10 loop runs each),
-in microseconds per task run. #197 extends this benchmark for debugging-active
-execution once breakpoints are implemented.
+in microseconds per task run. Additional runtime cases measure task telemetry with
+no breakpoints and with an unreachable breakpoint set. They exclude snapshot
+serialization and collect invocation annotations while debugging is active; no
+debugging-active performance budget is imposed.
 
 Results for issue #194 (Node 22.22.1, Linux x86-64; same machine, sequential runs),
 using the same benchmark on base commit `f0cd173` and this implementation:
@@ -829,6 +830,19 @@ To repeat the baseline, check out `f0cd173` in another worktree, copy
 `runtime-benchmark.config.ts` and `tests/benchmarks/runtime.bench.ts` from this
 change, install its locked dependencies and run
 `pnpm exec vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept`.
+
+Results for issue #197 (Node 22.22.1, Linux x86-64, sequential runs). The
+runtime telemetry cases include normal task stages and exclude snapshot
+serialization; they run without body watches. Debugging-active cases configure
+an unreachable breakpoint and collect invocation annotations.
+
+| Program              | Runtime, no breakpoints (µs) | Runtime, debugging active (µs) |
+| -------------------- | ---------------------------: | -----------------------------: |
+| Sorting conveyor     |                      112.801 |                        149.552 |
+| Loop with user calls |                   15,008.528 |                     15,908.992 |
+
+The interpreter-only medians in this run were 102.451 µs and 13,187.847 µs,
+respectively. These timings are observations, not a debugging-active budget.
 
 ### Invocation annotations for the debugger
 
@@ -845,4 +859,41 @@ function caller when applicable and completed statement annotations. Empty
 collections are included for frames that have just started. Resuming uses the
 captured switch until that task completes; changing it takes effect on the next
 task run. Completing or abandoning the task discards these frame collections.
-The halt and call-stack protocol will consume this support in #197 and #198.
+The call-stack protocol will consume these frame annotations in #198.
+
+## Breakpoints and HALT
+
+`setBreakpoints([{ pou, line }])` replaces all breakpoints. Each matching statement
+start halts before execution, in every instance and task, including base code run
+by derived instances. Block/class source breakpoints include declared methods;
+a method location reports `Type.Method`. `halted` returns the underlying RUN/STOP
+state, task and innermost frame, or null. `continue()` resumes the interrupted
+pass; over STOP it completes the single scan and stays STOP. No other task or
+scheduler pass runs meanwhile. `run`, `step`, `scanOnce` and `setCycle` reject a
+halt with `runtime.halted`; continuing outside HALT rejects with `runtime.not-halted`.
+
+Stop abandons the continuation and sets STOP. Warm restart, cold reset and load
+abandon then initialize normally. Emergency stop abandons before setting its flag;
+release gives STOP. A resumed execution error ends the halt and latches FAULT.
+Breakpoint edits take effect at the next halt point; body watch edits wait for the
+next task run. The per-task watchdog budget survives every halt and continue.
+
+The output image keeps the last completed task's publication over RUN, and stays
+OFF over STOP. The host still accepts inputs, but the interrupted task keeps its
+sampled image until completion. Entire input pulses during the halt are not seen.
+The clock and timer timestamps keep their normal meaning. Task deadlines stay
+fixed: an overdue task runs once in the next pass, and skipped activations that
+fell within any halt are excluded from overruns, including for other tasks.
+Task and pass execution times exclude all halted intervals.
+
+An abandoned task run changes none of its run count, last/maximum time, overruns
+or next deadline; it does not set pass execution time. Its pass still increments
+`scanCount`, preserving partial annotation pass identities. Faulting runs remain
+counted. STOP → RUN restarts deadlines from the current time; resets create a new
+schedule.
+
+Snapshots show partial values immediately. Writes during a halt act immediately,
+including output-mapped variables, but do not publish outputs. Writes to forced
+variables are consumed without changing the value. Force changes apply at the
+next normal force stage. The Worker sends a snapshot with every halt and suppresses
+retentive storage while halted; storing resumes on continuation or abandonment.

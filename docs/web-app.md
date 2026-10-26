@@ -358,7 +358,8 @@ the maximum when both are present. Both bounds enable a slider. Invalid input
 is marked and rejected without changing the input image. Long integer fields
 preserve all 64 bits. Numeric inputs are disabled when the Worker connection closes.
 Displays use monitor formatting (including hex bit strings and invalid REAL/LREAL
-patterns) and show zero outside RUN or under emergency stop. Numeric parts always
+patterns) and show zero outside the RUN operating state or under emergency stop;
+a halt over RUN keeps their published image. Numeric parts always
 save in panel extension version 2; existing bit-only projects retain their previous
 version selection.
 
@@ -445,3 +446,27 @@ INTERNAL declaration qualifiers are recognized in source headers. For example,
 or declaring method source. Monitor types display qualified names; variable paths
 continue to use instance and member names. Namespace text survives autosave and
 project save/reopen unchanged.
+
+## Breakpoints
+
+Click the breakpoint gutter beside a PROGRAM, function, function block or class
+line to toggle a breakpoint. Filled circles mark loaded statement start lines;
+hollow circles mark inactive lines. Data types, interfaces and configuration
+sources have no breakpoint gutter. A source breakpoint covers all its declared
+methods and every instance and task running that code.
+
+Markers follow line insertions/deletions and survive POU renames. Deleted lines
+lose their markers. While changes are unapplied, breakpoints are mapped back to
+the loaded lines; newly inserted lines take effect after RUN loads the changes.
+The store resends breakpoints after loading and refreshes their active status.
+Autosave keeps breakpoints per source; project XML omits them. Opening a project
+or restoring the example clears them.
+
+A halt opens the source, selects its instance, highlights the statement and shows
+a banner with POU, line, instance and task. Continue resumes; Stop abandons the
+run. Single scan is disabled. RUN is available only to apply changes, abandoning
+the old continuation before loading and starting the new program. The panel stays
+operable and lamps show the last published outputs. Editing the halted source
+hides its statement highlight and inline values, while keeping the halt banner.
+Inline values still come from previously watched bodies; an unwatched body may
+show none at its first halt. Frame values and stepping follow in #198.

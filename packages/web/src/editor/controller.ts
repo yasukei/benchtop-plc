@@ -2,9 +2,17 @@ import type { Diagnostic, ConfigurationIR, RuntimeSnapshot, SourceSpan } from "@
 import { defaultKeymap, history, historyKeymap, indentLess } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { setDiagnostics } from "@codemirror/lint";
-import { Compartment, EditorState, StateEffect, StateField } from "@codemirror/state";
+import {
+  Compartment,
+  EditorState,
+  StateEffect,
+  StateField,
+  type ChangeSet,
+} from "@codemirror/state";
 import {
   Decoration,
+  GutterMarker,
+  gutter,
   EditorView,
   WidgetType,
   drawSelection,
@@ -34,6 +42,33 @@ export interface EditorProps {
   sourceIndex?: number;
   pou?: string;
   instance?: string;
+  breakpointLines?: { line: number; active: boolean }[];
+  onToggleBreakpoint?: (line: number) => void;
+  haltSpan?: SourceSpan;
+}
+
+class BreakpointMarker extends GutterMarker {
+  constructor(
+    private readonly line: number,
+    private readonly active: boolean | undefined,
+    private readonly label: string,
+  ) {
+    super();
+  }
+  override eq(other: BreakpointMarker): boolean {
+    return this.line === other.line && this.active === other.active && this.label === other.label;
+  }
+  override toDOM(): HTMLElement {
+    const marker = document.createElement("span");
+    marker.className = "breakpoint-marker";
+    marker.dataset.line = String(this.line);
+    marker.dataset.breakpoint =
+      this.active === undefined ? "none" : this.active ? "active" : "inactive";
+    marker.setAttribute("aria-label", this.label.replace("{line}", String(this.line)));
+    marker.title = marker.getAttribute("aria-label")!;
+    marker.textContent = this.active === undefined ? " " : this.active ? "●" : "○";
+    return marker;
+  }
 }
 
 class ValuesWidget extends WidgetType {
@@ -85,11 +120,12 @@ const displayField = StateField.define<DecorationSet>({
 export function createStEditor(
   parent: HTMLElement,
   source: string,
-  onChange: (source: string) => void,
+  onChange: (source: string, changes?: ChangeSet) => void,
 ) {
   const accessibility = new Compartment();
   const highlighting = new Compartment();
   let previous: EditorProps | undefined;
+  let displayProps: EditorProps | undefined;
   const view = new EditorView({
     parent,
     state: EditorState.create({
@@ -97,6 +133,31 @@ export function createStEditor(
       extensions: [
         highlighting.of(stLanguage()),
         history(),
+        gutter({
+          class: "cm-breakpoints",
+          lineMarker(view, line) {
+            if (!displayProps?.onToggleBreakpoint) return null;
+            const number = view.state.doc.lineAt(line.from).number;
+            return new BreakpointMarker(
+              number,
+              displayProps.breakpointLines?.find((marker) => marker.line === number)?.active,
+              catalogs[displayProps.language].toggleBreakpoint,
+            );
+          },
+          lineMarkerChange: (update) =>
+            update.transactions.some((transaction) =>
+              transaction.effects.some((effect) => effect.is(displayEffect)),
+            ),
+          domEventHandlers: {
+            mousedown(view, line, event) {
+              if (!displayProps?.onToggleBreakpoint || (event as MouseEvent).button !== 0)
+                return false;
+              displayProps.onToggleBreakpoint(view.state.doc.lineAt(line.from).number);
+              event.preventDefault();
+              return true;
+            },
+          },
+        }),
         lineNumbers(),
         drawSelection(),
         bracketMatching(),
@@ -129,7 +190,7 @@ export function createStEditor(
         }),
         accessibility.of([]),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) onChange(update.state.doc.toString());
+          if (update.docChanged) onChange(update.state.doc.toString(), update.changes);
         }),
         EditorView.theme({
           "&": { backgroundColor: "var(--surface)", color: "var(--text)" },
@@ -159,6 +220,7 @@ export function createStEditor(
   });
   return {
     update(props: EditorProps) {
+      displayProps = props;
       if (view.state.doc.toString() !== props.source) {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: props.source } });
       }
@@ -190,6 +252,18 @@ export function createStEditor(
             view.state.doc.lineAt(position).from,
           ),
         );
+      }
+      if (props.online && props.haltSpan) {
+        const range = spanRange(props.source, props.haltSpan);
+        decorations.push(
+          Decoration.line({ class: "runtime-halt-line" }).range(
+            view.state.doc.lineAt(range.from).from,
+          ),
+        );
+        if (range.to > range.from)
+          decorations.push(
+            Decoration.mark({ class: "runtime-halt-statement" }).range(range.from, range.to),
+          );
       }
       const effects: StateEffect<unknown>[] = [displayEffect.of(Decoration.set(decorations, true))];
       if (JSON.stringify(previous?.dataTypes) !== JSON.stringify(props.dataTypes)) {

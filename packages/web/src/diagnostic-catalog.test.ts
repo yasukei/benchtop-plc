@@ -74,6 +74,8 @@ const examples = {
   "config.connection-duplicate": { name: "Start" },
   "config.connection-target": { name: "Start" },
   "config.task-parameter": { name: "SINGLE" },
+  "runtime.halted": {},
+  "runtime.not-halted": {},
   "runtime.configured-cycle": {},
   "project.invalid-xml": {},
   "project.missing": { path: "project/types" },

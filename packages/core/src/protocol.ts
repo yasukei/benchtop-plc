@@ -15,12 +15,14 @@ export type RetentiveRecord =
       state: Record<string, boolean | null>;
     };
 
-export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT";
+export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT" | "HALT";
 
 export type UiToRuntimeMessage =
   | { type: "load"; ir: ConfigurationIR | ProgramIR; retentive?: RetentiveRecord[] }
   | { type: "watch"; variables: VariableId[] }
   | { type: "watchBodies"; bodies: BodyWatch[] }
+  | { type: "setBreakpoints"; breakpoints: Breakpoint[] }
+  | { type: "continue" }
   | { type: "run" }
   | { type: "stop" }
   | { type: "step" }
@@ -32,6 +34,26 @@ export type UiToRuntimeMessage =
   | { type: "force"; variable: VariableId; value: TypedValue | null }
   | { type: "write"; variable: VariableId; value: TypedValue }
   | { type: "estop"; active: boolean };
+
+export interface Breakpoint {
+  pou: string;
+  line: number;
+}
+
+/** Innermost invocation only; outer frames and call-local values follow in #198. */
+export interface CallFrame {
+  kind: "PROGRAM" | "FUNCTION_BLOCK" | "METHOD" | "FUNCTION";
+  pou: string;
+  instance: string | null;
+  span: SourceSpan;
+}
+
+export interface HaltedMessage {
+  type: "halted";
+  operatingState: "RUN" | "STOP";
+  task: string;
+  frames: CallFrame[];
+}
 
 /** Exactly 64 bytes (0–255), in ascending byte order. */
 export type IoImage = number[];
@@ -96,11 +118,12 @@ export interface RuntimeSnapshot {
 
 export interface CommandRejectionMessage {
   type: "rejected";
-  command: "force" | "write" | "setCycle";
+  command: "force" | "write" | "setCycle" | "run" | "step" | "continue";
   diagnostic: Diagnostic<CommandRejectionCode>;
 }
 
 export type RuntimeToUiMessage =
+  | HaltedMessage
   | { type: "retentive"; records: RetentiveRecord[] }
   | { type: "retentiveRestored"; skipped: string[] }
   | { type: "state"; state: RuntimeState }

@@ -16,6 +16,11 @@ type ImageState = Pick<
   "loadedIr" | "layout" | "snapshot" | "runtimeState" | "emergencyActive"
 >;
 
+/** HALT keeps the published image; a halt over STOP already has an empty image. */
+export function outputsLive(state: Pick<AppState, "runtimeState" | "emergencyActive">): boolean {
+  return !state.emergencyActive && (state.runtimeState === "RUN" || state.runtimeState === "HALT");
+}
+
 export interface ImageView {
   address: DirectAddress;
   text: string;
@@ -57,8 +62,7 @@ export function imageReadings(state: ImageState, text: ShellCatalog) {
   const zero = Array<number>(64).fill(0);
   return imageViews(state).map(({ address, text: label, dataType }) => {
     const bytes = address.area === "I" ? state.snapshot?.inputs : state.snapshot?.outputs;
-    const enabled =
-      address.area === "I" || (!state.emergencyActive && state.runtimeState === "RUN");
+    const enabled = address.area === "I" || outputsLive(state);
     const image = bytes && enabled ? bytes : zero;
     const value = readDirectValue(image, address, dataType);
     const invalid = typeof value === "number" && !Number.isFinite(value);

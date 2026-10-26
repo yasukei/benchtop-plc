@@ -114,6 +114,8 @@ export const diagnosticEn = {
   "config.connection-target": ({ name }) =>
     `Invalid connection target for program parameter ${name}.`,
   "config.task-parameter": ({ name }) => `Unsupported or duplicate task parameter: ${name}.`,
+  "runtime.halted": () => "Command rejected: the runtime is halted.",
+  "runtime.not-halted": () => "Command rejected: the runtime is not halted.",
   "runtime.configured-cycle": () =>
     `Command rejected: edit the configuration source to change the task interval.`,
   "runtime.null-reference": () => "Cannot dereference NULL.",
@@ -376,6 +378,8 @@ export const diagnosticJa = {
     `プログラムパラメーター ${name} が重複して接続されています。`,
   "config.connection-target": ({ name }) => `プログラムパラメーター ${name} の接続先が無効です。`,
   "config.task-parameter": ({ name }) => `未対応または重複したタスクパラメーターです: ${name}。`,
+  "runtime.halted": () => "操作を拒否しました。実行は中断中です。",
+  "runtime.not-halted": () => "操作を拒否しました。実行は中断されていません。",
   "runtime.configured-cycle": () =>
     `操作を拒否しました。タスク周期を変更するには構成ソースを編集してください。`,
   "runtime.null-reference": () => "NULLを逆参照できません。",

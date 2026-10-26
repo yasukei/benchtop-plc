@@ -599,3 +599,35 @@ it("autosaves per-source instance choices and restores them without adding proje
   store.dispose();
   fresh.dispose();
 });
+
+it("autosaves breakpoints per source and starts imported projects without them", () => {
+  vi.useFakeTimers();
+  const { store, storage, worker } = setup();
+  worker.receive({
+    type: "snapshot",
+    snapshot: {
+      scanCount: 0,
+      tasks: [],
+      lastExecutionTimeMs: 0,
+      inputs: [],
+      outputs: [],
+      variables: [],
+      forced: [],
+      annotations: [],
+    },
+  });
+  const autosave = createAutosave(store, storage);
+  store.toggleBreakpoint(1);
+  vi.advanceTimersByTime(500);
+  const saved = readAutosave(storage)!;
+  expect(saved.breakpoints).toEqual({ [store.getSnapshot().pous[0]!.name.toUpperCase()]: [1] });
+  const restored = createAppStore(new RuntimeClient(new FakeWorker()), saved);
+  expect(restored.breakpointMarkers()).toEqual([{ line: 1, active: false }]);
+  const xml = store.saveProject()!;
+  expect(xml).not.toContain("breakpoints");
+  expect(store.openProject(xml)).toBe(true);
+  expect(store.breakpointMarkers()).toEqual([]);
+  autosave.dispose();
+  restored.dispose();
+  store.dispose();
+});

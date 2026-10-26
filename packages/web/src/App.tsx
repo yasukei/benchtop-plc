@@ -30,7 +30,10 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
   const variables = loadedIr?.variables ?? [];
   const disconnected = state.connection !== "connected";
   const stopped = state.runtimeState === "STOP";
+  const halted = state.runtimeState === "HALT";
+  const frame = state.halted?.frames[0];
   const banner = bannerFor(state);
+  const bannerRole = banner.urgent ? "alert" : "status";
   const editor = useRef<StEditorHandle>(null);
   const unapplied =
     !sameSources(pouSources(state.pous), state.loadedSources) ||
@@ -41,13 +44,14 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
     !state.selectedConfiguration && state.selectedDataType === null
       ? state.pous[state.selectedPou]
       : undefined;
+  const runtimeSource = store.runtimeSource();
   const canSelectInstance =
     selected?.kind === "PROGRAM" ||
     selected?.kind === "FUNCTION_BLOCK" ||
     selected?.kind === "CLASS";
   const inlineInstance =
     loadedIr && selected && canSelectInstance
-      ? selectedInstance(loadedIr, selected.name, state.instanceChoices ?? {})
+      ? selectedInstance(loadedIr, runtimeSource.pou ?? selected.name, runtimeSource.choices)
       : undefined;
   const faultIndex = state.diagnostic
     ? (state.diagnostic.sourceIndex ?? diagnosticPouIndex(state.pous, state.diagnostic))
@@ -61,6 +65,15 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
     if (pendingFocus.current?.span) editor.current?.focusSpan(pendingFocus.current.span);
     pendingFocus.current = null;
   }, [state.editorSession]);
+
+  const haltHere =
+    frame &&
+    selected &&
+    (frame.pou.toUpperCase() === selected.name.toUpperCase() ||
+      frame.pou.toUpperCase().startsWith(`${selected.name.toUpperCase()}.`));
+  useLayoutEffect(() => {
+    if (haltHere && online && frame) editor.current?.focusSpan(frame.span);
+  }, [frame, haltHere, online]);
 
   return (
     <div className="workbench" data-theme={appearance.resolved}>
@@ -105,7 +118,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
               disabled={
                 state.emergencyActive ||
                 disconnected ||
-                (!stopped && !(state.runtimeState === "RUN" && unapplied))
+                (!stopped && !((state.runtimeState === "RUN" || halted) && unapplied))
               }
               onClick={() => store.run()}
             >
@@ -114,6 +127,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             <button disabled={disconnected} onClick={() => store.send({ type: "stop" })}>
               {text.stop}
             </button>
+            {halted && (
+              <button disabled={disconnected} onClick={() => store.send({ type: "continue" })}>
+                {text.continue}
+              </button>
+            )}
             <button
               disabled={disconnected || !stopped || unapplied}
               onClick={() => store.send({ type: "step" })}
@@ -132,7 +150,7 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
               <label>
                 {text.cycle}
                 <select
-                  disabled={disconnected}
+                  disabled={disconnected || halted}
                   value={state.cycleMs}
                   onChange={(event) =>
                     store.send({ type: "setCycle", ms: Number(event.target.value) })
@@ -166,14 +184,21 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
             </span>
           </div>
         </section>
-        <div
-          className="banner"
-          data-urgent={banner.urgent}
-          role={banner.urgent ? "alert" : "status"}
-        >
-          {text[banner.key]}
-          {state.diagnostic && <p>{formatDiagnostic(language, state.diagnostic)}</p>}
-        </div>
+        {(!halted || banner.urgent) && (
+          <div className="banner" data-urgent={banner.urgent} role={bannerRole}>
+            {text[banner.key]}
+            {state.diagnostic && <p>{formatDiagnostic(language, state.diagnostic)}</p>}
+          </div>
+        )}
+        {halted && frame && state.halted && (
+          <div className="banner halt-banner" role="status">
+            {text.halted
+              .replace("{pou}", frame.pou)
+              .replace("{line}", String(frame.span.line))
+              .replace("{instance}", frame.instance ?? text.functionInstance)
+              .replace("{task}", state.halted.task)}
+          </div>
+        )}
         {state.storageWarning && (
           <div className="banner" role="alert">
             {text.retentionStorageWarning}
@@ -206,8 +231,8 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                   <InstancePicker
                     key={selected.name}
                     ir={loadedIr}
-                    pou={selected.name}
-                    choices={state.instanceChoices ?? {}}
+                    pou={runtimeSource.pou ?? selected.name}
+                    choices={runtimeSource.choices}
                     select={store.selectInstance}
                     text={text}
                   />
@@ -230,6 +255,11 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                       : -1
                   }
                   onChange={store.setSource}
+                  breakpointLines={store.breakpointMarkers()}
+                  onToggleBreakpoint={
+                    selected && selected.kind !== "INTERFACE" ? store.toggleBreakpoint : undefined
+                  }
+                  haltSpan={haltHere ? frame?.span : undefined}
                   diagnostics={state.diagnostics.filter((diagnostic) =>
                     diagnosticSourceMatches(
                       diagnostic,

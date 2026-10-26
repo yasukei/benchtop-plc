@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Editor gutter breakpoints with active/inactive markers, line tracking through
+  edits and POU renames, browser autosave, halted statement highlighting and
+  Continue. A halt pauses the whole resource and preserves published outputs.
+
 - Inline values inside method and function bodies, with per-instance method calls,
   class instance selection and localized function caller labels. Runtime debugger
   support records every active frame's invocation when debugging is enabled at
@@ -27,7 +31,21 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   instance whose inline values a body shows, inline values in every body,
   breakpoints, the halted state, stepping and the call stack.
 
+### Fixed
+
+- Panel lamps, numeric displays and I/O image readings keep showing the last
+  published outputs while halted over RUN, including nonzero counts.
+
 ### Changed
+
+- **Breaking core protocol changes:** `RuntimeState` gains `HALT`;
+  `setBreakpoints` replaces source/line breakpoints and `continue` resumes execution.
+  The new `halted` event reports the underlying operating state, task and innermost
+  `CallFrame` (`kind`, `pou`, `instance`, `span`). Rejected commands now include
+  `run`, `step` and `continue`, with `runtime.halted` and `runtime.not-halted` codes.
+- Halted time is excluded from execution times and skipped activations during a
+  halt are not overruns. Abandoned task runs leave task telemetry and due times
+  unchanged, while their scheduler pass still increments `scanCount`.
 
 - Annotated function bodies now include `caller: { pou, instance, line }`; function
   watches use a null instance, and block/class watches cover all their methods.
