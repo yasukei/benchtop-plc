@@ -12,8 +12,10 @@ import {
   referenceLike,
   type ReferenceVariable,
   type InlineValue,
+  type CallValue,
   type ReferenceValue,
   arrayType,
+  arrayIndices,
   structureType,
   sameScalarType,
   type StructureVariable,
@@ -276,6 +278,45 @@ export class MemoryFrame implements ScanMemory {
       ? this.referenceValue(cell.target)
       : { ...this.scalar(variable) };
   }
+  /** Persistent aliases keep the actual cell's path; invocation locals have none. */
+  debugPath(variable: number): string | undefined {
+    return this.cells[variable]?.path;
+  }
+
+  private childName(cell: AggregateCell, offset: number): string {
+    const structure = structureType(cell.descriptor, this.types);
+    if (structure) return `.${structure.members[offset]!.name}`;
+    return `[${arrayIndices(arrayType(cell.descriptor, this.types)!, offset).join(",")}]`;
+  }
+
+  debugValue(variable: number): CallValue {
+    const cell = this.cells[variable]!;
+    if (cell.kind !== "aggregate") return this.inlineValue(variable);
+    return {
+      kind: "aggregate",
+      elements: cell.elements.map((_, i) => ({
+        name: this.childName(cell, i),
+        value: this.element(variable, i).debugValue(0),
+      })),
+    };
+  }
+
+  /** Locate an aliased cell inside a local, retaining aggregate members and indices. */
+  debugSuffix(variable: number, actual: ReferenceAddress): string | undefined {
+    const target = actual.frame.cells[actual.variable];
+    const visit = (cell: Cell, suffix: string): string | undefined => {
+      if (cell === target) return suffix;
+      if (cell.kind === "aggregate")
+        for (const [index, child] of cell.elements.entries()) {
+          const found = visit(child, suffix + this.childName(cell, index));
+          if (found !== undefined) return found;
+        }
+      return undefined;
+    };
+    const cell = this.cells[variable];
+    return cell ? visit(cell, "") : undefined;
+  }
+
   private static readonly ports = new WeakMap<Cell, Map<string, MemoryFrame>>();
   portFrame(variable: number, port: "input" | "output", member: number): MemoryFrame {
     const cell = this.cells[variable]!;

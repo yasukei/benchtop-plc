@@ -545,10 +545,11 @@ diagnostic POU context and name arguments.
 
 ## Halt command rejections
 
-| Code                 | Arguments | Meaning                                                         |
-| -------------------- | --------- | --------------------------------------------------------------- |
-| `runtime.halted`     | `{}`      | Nonfatal rejection of `run`, `step` or `setCycle` while halted. |
-| `runtime.not-halted` | `{}`      | Nonfatal rejection of `continue` while not halted.              |
+| Code                 | Arguments | Meaning                                                                                         |
+| -------------------- | --------- | ----------------------------------------------------------------------------------------------- |
+| `runtime.halted`     | `{}`      | Nonfatal rejection of `run`, `step` or `setCycle` while halted.                                 |
+| `runtime.not-halted` | `{}`      | Nonfatal rejection of `continue` or `debugStep` while not halted (also when a step is pending). |
 
 These codes use `rejected`, with the corresponding `command`, and never latch a
-FAULT. A breakpoint halt uses the separate `halted` event and reported HALT state.
+FAULT. Breakpoint and step halts use the separate `halted` event and reported HALT
+state; `debugStep` is a possible rejected `command`.

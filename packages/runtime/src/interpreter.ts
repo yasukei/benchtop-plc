@@ -25,6 +25,8 @@ import {
 } from "@benchtop-plc/core";
 import type {
   AnnotatedBody,
+  CallFrame,
+  CallVariable,
   Diagnostic,
   TypeDescriptor,
   Expression,
@@ -70,7 +72,13 @@ export interface PauseLocation {
 }
 export type PauseHook = (location: PauseLocation) => boolean;
 type Instruction = { statement?: Statement; run: (vm: Interpreter, frame: ExecutionFrame) => void };
+interface FrameLocal {
+  slot: number;
+  name: string;
+  inOut?: true;
+}
 interface ExecutionFrame {
+  debug?: { kind: CallFrame["kind"]; memory: MemoryFrame; locals: readonly FrameLocal[] };
   annotations?: Map<Statement, StatementAnnotation>;
   body?: Omit<AnnotatedBody, "lines" | "scanCount">;
   code: Instruction[];
@@ -105,10 +113,12 @@ export class Interpreter {
     finish?: (abandoned: boolean) => void,
     annotateBody = false,
     caller?: AnnotatedBody["caller"],
+    debug?: { kind: CallFrame["kind"]; locals: readonly FrameLocal[] },
   ): void {
     const instance = this.instancePath ?? (caller ? null : this.programMemory.ir.name);
     const annotations = annotateBody ? this.startBody?.(this.pou, instance, caller) : undefined;
     this.stack.push({
+      debug: this.recordFrames && debug ? { ...debug, memory: this.memory } : undefined,
       annotations: annotations ?? (this.recordFrames ? new Map() : undefined),
       body: this.recordFrames
         ? { pou: this.pou, instance, ...(caller ? { caller } : {}) }
@@ -135,6 +145,72 @@ export class Interpreter {
           ]
         : [],
     );
+  }
+
+  /** Frame identities survive a pause; depth alone cannot distinguish sibling calls. */
+  get frameStack(): readonly object[] {
+    return this.stack;
+  }
+
+  callFrames(): CallFrame[] {
+    const frames = [...this.stack].reverse();
+    return frames.flatMap((frame, index): CallFrame[] => {
+      if (!frame.debug || !frame.body) return [];
+      const { kind, memory, locals } = frame.debug;
+      const span = (index === 0 ? frame.code[frame.pc]?.statement : frame.statement)?.span;
+      if (!span) throw new Error("Missing call stack statement");
+      const values = locals.map((local): CallVariable => {
+        let actual: CallVariable["actual"];
+        if (local.inOut) {
+          const path = memory.debugPath(local.slot);
+          if (path !== undefined) actual = { path };
+          else {
+            // Follow shared cells through any intermediate in-out aliases to the owner.
+            for (const [callerIndex, caller] of frames.entries()) {
+              if (!caller.debug) continue;
+              for (const candidate of caller.debug.locals) {
+                if (candidate.inOut) continue;
+                const suffix = caller.debug.memory.debugSuffix(
+                  candidate.slot,
+                  memory.address(local.slot),
+                );
+                if (suffix !== undefined) {
+                  actual = { frame: callerIndex, name: candidate.name + suffix };
+                  break;
+                }
+              }
+              if (actual) break;
+            }
+            if (!actual) throw new Error("Missing in-out actual on call stack");
+          }
+        }
+        return {
+          name: local.name,
+          value: memory.debugValue(local.slot),
+          ...(actual ? { actual } : {}),
+        };
+      });
+      return [
+        {
+          kind,
+          pou: frame.body.pou,
+          instance: frame.body.instance,
+          span: { ...span },
+          ...(index === frames.length - 1 ? { task: this.task } : {}),
+          values,
+          ...(frame.body.caller ? { caller: { ...frame.body.caller } } : {}),
+          annotations: annotationLines(frame.annotations!),
+        },
+      ];
+    });
+  }
+
+  private blockLocals(definition: import("@benchtop-plc/core").UserFunctionBlockIR): FrameLocal[] {
+    return [...definition.temporaries, ...(definition.inOuts ?? [])].map((slot) => ({
+      slot,
+      name: definition.variables[slot]!.name,
+      ...(definition.inOuts?.includes(slot) ? { inOut: true as const } : {}),
+    }));
   }
 
   static prepare(ir: ProgramIR | ConfigurationIR): void {
@@ -385,6 +461,7 @@ export class Interpreter {
             const check = code.length;
             if (statement.kind === "while") {
               emit((_vm, frame) => {
+                frame.statement = statement;
                 frame.values.clear();
                 frame.locations.clear();
               });
@@ -399,6 +476,7 @@ export class Interpreter {
             list(statement.body, () => end);
             if (statement.kind === "repeat") {
               emit((_vm, frame) => {
+                frame.statement = statement;
                 frame.values.clear();
                 frame.locations.clear();
               });
@@ -564,11 +642,20 @@ export class Interpreter {
       this.task = ir.resource.tasks[instance.task]!.name;
       this.pou = definition.name;
       this.instancePath = instance.name;
-      this.push(definition.body, undefined, true);
+      this.push(definition.body, undefined, true, undefined, {
+        kind: "PROGRAM",
+        locals: definition.locals ?? [],
+      });
     } else {
       this.pou = ir.name;
       this.instancePath = undefined;
-      this.push(ir.body, undefined, true);
+      this.push(ir.body, undefined, true, undefined, {
+        kind: "PROGRAM",
+        locals:
+          ir.storage?.flatMap((storage, slot) =>
+            storage.kind === "temporary" ? [{ slot, name: storage.variable.name }] : [],
+          ) ?? [],
+      });
     }
     return this.resume(pause);
   }
@@ -1271,6 +1358,10 @@ export class Interpreter {
         });
       },
       true,
+      undefined,
+      this.recordFrames
+        ? { kind: "FUNCTION_BLOCK", locals: this.blockLocals(definition) }
+        : undefined,
     );
   }
 
@@ -1309,6 +1400,10 @@ export class Interpreter {
         this.pou = callerPou;
       },
       true,
+      undefined,
+      this.recordFrames
+        ? { kind: "FUNCTION_BLOCK", locals: this.blockLocals(definition) }
+        : undefined,
     );
   }
 
@@ -1418,6 +1513,23 @@ export class Interpreter {
                 : null),
             line: call.span.line,
           },
+      this.recordFrames
+        ? {
+            kind: call.method ? "METHOD" : "FUNCTION",
+            locals: definition.variables.map((variable, index) => {
+              const slot =
+                index +
+                (call.method
+                  ? (definition as import("@benchtop-plc/core").UserMethodIR).memberCount
+                  : 0);
+              return {
+                slot,
+                name: variable.name,
+                ...(definition.inOuts?.includes(slot) ? { inOut: true as const } : {}),
+              };
+            }),
+          }
+        : undefined,
     );
     return null;
   }

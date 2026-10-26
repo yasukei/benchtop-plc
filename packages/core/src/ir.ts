@@ -263,6 +263,8 @@ export interface ProgramIR extends SourceNode {
 /** Shared PROGRAM code, referenced by resource instances in declaration order. */
 export interface ProgramBodyIR extends SourceNode {
   name: string;
+  /** Call-local declarations, including in-outs whose storage resolves to a global alias. */
+  locals?: { slot: FrameSlot; name: string; inOut?: true }[];
   body: Statement[];
 }
 export type ProgramConnectionEndpoint =

@@ -942,11 +942,26 @@ export function lower(
       }),
       programs: programInstances,
     },
-    programs: layouts.map((layout) => ({
-      name: layout.name,
-      span: layout.span,
-      body: layout.body,
-    })),
+    programs: layouts.map((layout, index) => {
+      const parameters = sections(programs[index]!);
+      const locals = layout.variables.flatMap((variable, slot) =>
+        parameters[slot] === "VAR_TEMP" || parameters[slot] === "VAR_IN_OUT"
+          ? [
+              {
+                slot,
+                name: variable.name,
+                ...(parameters[slot] === "VAR_IN_OUT" ? { inOut: true as const } : {}),
+              },
+            ]
+          : [],
+      );
+      return {
+        name: layout.name,
+        span: layout.span,
+        body: layout.body,
+        ...(locals.length ? { locals } : {}),
+      };
+    }),
     ...(checked?.types.length
       ? { types: JSON.parse(JSON.stringify(checked.types)) as IR.TypeTable }
       : {}),

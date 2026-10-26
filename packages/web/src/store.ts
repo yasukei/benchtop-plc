@@ -57,6 +57,7 @@ export interface AppState extends SavedWork {
   diagnostics: EditorDiagnostic[];
   runtimeState: RuntimeState;
   halted: HaltedMessage | null;
+  selectedFrame: number;
   snapshot: RuntimeSnapshot | null;
   diagnostic: Diagnostic | null;
   rejection: CommandRejectionMessage | null;
@@ -81,6 +82,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       ? {}
       : { breakpoints: initial.breakpoints }),
     halted: null,
+    selectedFrame: 0,
     ...(typeof initial === "string" || initial.instanceChoices === undefined
       ? {}
       : { instanceChoices: initial.instanceChoices }),
@@ -180,6 +182,36 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       sendBreakpoints(state.loadedIr);
     }
   };
+  const frameSelection = (event: HaltedMessage, selectedFrame: number): Partial<AppState> => {
+    const frame = event.frames[selectedFrame];
+    const index = frame
+      ? diagnosticPouIndex(
+          state.pous.map((pou) => ({ ...pou, name: runtimeName(pou) })),
+          { code: "runtime.halted", severity: "error", args: {}, pou: frame.pou },
+        )
+      : undefined;
+    const pou = index === undefined ? undefined : state.pous[index];
+    return {
+      selectedFrame,
+      ...(pou
+        ? {
+            selectedPou: index!,
+            selectedConfiguration: false,
+            selectedDataType: null,
+            source: pou.source,
+            editorSession: state.editorSession + 1,
+            ...(frame?.instance
+              ? {
+                  instanceChoices: {
+                    ...state.instanceChoices,
+                    [pou.name.toUpperCase()]: frame.instance,
+                  },
+                }
+              : {}),
+          }
+        : {}),
+    };
+  };
   const unsubscribe = client.subscribe((event: ClientEvent) => {
     switch (event.type) {
       case "retentive":
@@ -189,39 +221,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         update({ retentiveSkipped: event.skipped });
         break;
       case "halted": {
-        const frame = event.frames[0];
-        const index = frame
-          ? diagnosticPouIndex(
-              state.pous.map((pou) => ({ ...pou, name: runtimeName(pou) })),
-              {
-                code: "runtime.halted",
-                severity: "error",
-                args: {},
-                pou: frame.pou,
-              },
-            )
-          : undefined;
-        const pou = index === undefined ? undefined : state.pous[index];
-        update({
-          halted: event,
-          ...(pou
-            ? {
-                selectedPou: index!,
-                selectedConfiguration: false,
-                selectedDataType: null,
-                source: pou.source,
-                editorSession: state.editorSession + 1,
-                ...(frame?.instance
-                  ? {
-                      instanceChoices: {
-                        ...state.instanceChoices,
-                        [pou.name.toUpperCase()]: frame.instance,
-                      },
-                    }
-                  : {}),
-              }
-            : {}),
-        });
+        update({ halted: event, ...frameSelection(event, 0) });
         break;
       }
       case "state":
@@ -470,6 +470,10 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
             : [...lines, line].sort((a, b) => a - b),
         },
       });
+    },
+    selectFrame(index: number) {
+      if (state.runtimeState !== "HALT" || !state.halted?.frames[index]) return;
+      update(frameSelection(state.halted, index));
     },
     selectInstance(path: string) {
       if (!state.loadedIr || state.selectedConfiguration || state.selectedDataType !== null) return;

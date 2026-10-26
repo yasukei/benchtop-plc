@@ -468,5 +468,32 @@ run. Single scan is disabled. RUN is available only to apply changes, abandoning
 the old continuation before loading and starting the new program. The panel stays
 operable and lamps show the last published outputs. Editing the halted source
 hides its statement highlight and inline values, while keeping the halt banner.
-Inline values still come from previously watched bodies; an unwatched body may
-show none at its first halt. Frame values and stepping follow in #198.
+Inline values come from the selected frame's current invocation, including bodies
+that were unwatched when the run began. They replace older values for that
+invocation. Editing source hides these values and its statement marker.
+
+### Stepping and call stack
+
+Step over, Step into and Step out appear beside Continue while halted. They act on
+the executing innermost frame. The call stack panel lists every invocation,
+innermost first, with its POU, line and instance. Selecting a frame opens its
+source, selects its instance, marks its current statement and shows its invocation's
+inline values. Its local values and in-out actual locations appear in the panel;
+PROGRAM/block persistent values remain available in the monitor. Selection only
+inspects execution. Each new halt selects the innermost frame again.
+
+| Action           | Shortcut | Why the binding reaches the app                 |
+| ---------------- | -------- | ----------------------------------------------- |
+| Continue         | C        | An unmodified letter has no browser/OS command. |
+| Step over (next) | N        | An unmodified letter has no browser/OS command. |
+| Step into        | I        | An unmodified letter has no browser/OS command. |
+| Step out         | O        | An unmodified letter has no browser/OS command. |
+
+These plain letters avoid function keys, browser modifier shortcuts and OS key
+chords in Chromium, Firefox and WebKit on Windows, macOS and Linux. They work
+only with focus inside the app while halted and connected, outside text inputs,
+selects and the source editor. Modifiers, held-key repeats and IME composition are
+ignored, preserving typing and native controls. Focus a runtime control or call
+stack button to use them. Tooltips and `aria-keyshortcuts` expose the bindings.
+The Chromium Playwright scenario exercises I; other browser projects are outside
+this issue's scope.
