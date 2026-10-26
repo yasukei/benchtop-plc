@@ -54,6 +54,6 @@ ELSE
     IF Running AND PartAEdge.Q THEN BinA.Count(); END_IF;
     IF Running AND PartBEdge.Q THEN BinB.Count(); END_IF;
 END_IF;
-BinATotal := BinA.Total();
-BinBTotal := BinB.Total();
+BinA(Value => BinATotal);
+BinB(Value => BinBTotal);
 END_PROGRAM

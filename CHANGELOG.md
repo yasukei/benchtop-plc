@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Sorting conveyor debugging guide with a Playwright acceptance walkthrough,
+  covering instance and body values, event breakpoints, halted I/O, stepping,
+  the call stack and keyboard shortcuts. The counter block body now publishes
+  its total through a `Value` output, preserving the conveyor trace.
+
 - Statement debugging with Step over, Step into and Step out, keyboard shortcuts
   that preserve control focus across halts, and a selectable call stack showing
   invocation values and in-out actual locations.

@@ -2,6 +2,9 @@ FUNCTION_BLOCK PartCounter
 VAR RETAIN
     Parts : UINT;
 END_VAR
+VAR_OUTPUT
+    Value : UINT;
+END_VAR
 
 METHOD PUBLIC Count
     (* Saturate so a full bin never wraps back to zero. *)
@@ -17,4 +20,6 @@ END_METHOD
 METHOD PUBLIC Total : UINT
     Total := Parts;
 END_METHOD
+
+Value := THIS.Total();
 END_FUNCTION_BLOCK

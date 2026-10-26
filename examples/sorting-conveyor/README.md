@@ -46,7 +46,9 @@ Seven exact ST texts accompany the XML, one declaration per source:
 - `is-actuator-active.st`: a function takes `REF_TO Actuator`, accepting the derived
   belt instance through `REF(Belt)` and reading its state through the base method.
 - `part-counter.st`: `PartCounter` is a function block with `Count()`, `Reset()`
-  and `Total()` methods and a `RETAIN` member `Parts`.
+  and `Total()` methods and a `RETAIN` member `Parts`. Its body copies
+  `Total()` into the `Value` output on each call; the PROGRAM calls both blocks
+  after handling sensor edges to publish the bin totals.
 
 One implicit 10 ms cyclic task runs `mainInstance`. The monitor shows `BinATotal`
 and `BinBTotal` directly. Expand `BinA` and `BinB` to inspect `Parts`, `Belt` for

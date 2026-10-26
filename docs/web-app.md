@@ -138,7 +138,7 @@ deleted through the list. Deleting a function or block requires confirmation.
 The compiler checks the whole project on every edit and before RUN. The problems
 list shows diagnostics from all POUs, data types and the configuration; selecting a located diagnostic
 opens its source and selects the source span. Editor squiggles belong only to the
-selected source. Inline runtime values appear only in the PROGRAM. Switching sources
+selected source. Inline runtime values follow the instance and body rules above. Switching sources
 does not reload the PLC; edits to any source become unapplied changes.
 
 **Save project** and **Open project** preserve the ordered POU list and each exact
@@ -448,6 +448,9 @@ continue to use instance and member names. Namespace text survives autosave and
 project save/reopen unchanged.
 
 ## Breakpoints
+
+For a step-by-step sorting conveyor session, see the
+[debugging walkthrough](debugging.md).
 
 Click the breakpoint gutter beside a PROGRAM, function, function block or class
 line to toggle a breakpoint. Filled circles mark loaded statement start lines;
