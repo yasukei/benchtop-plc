@@ -15,7 +15,7 @@ const snapshot: RuntimeSnapshot = {
   outputs: [0, ...Array<number>(63).fill(0)],
   variables: [{ kind: "scalar", dataType: "DINT", value: 1 }],
   forced: [],
-  annotations: {},
+  annotations: [],
 };
 const fault: Diagnostic = { code: "runtime.division-by-zero", severity: "error", args: {} };
 
@@ -155,22 +155,29 @@ describe("editor state", () => {
   it("applies changes and cold-starts on RUN, waits for a load snapshot and resumes unchanged code", () => {
     const { store, worker } = setup();
     store.run();
-    expect(worker.sent.map((message) => message.type)).toEqual(["load", "run"]);
+    expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run"]);
     expect(store.getSnapshot().loadedSources).toBeNull();
     worker.receive({ type: "snapshot", snapshot });
     expect(store.getSnapshot().snapshot).toBeNull();
     worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
     expect(store.getSnapshot().loadedSources).toEqual([store.getSnapshot().source]);
     store.run();
-    expect(worker.sent.map((message) => message.type)).toEqual(["load", "run", "run"]);
+    expect(worker.sent.map((message) => message.type)).toEqual([
+      "load",
+      "watchBodies",
+      "run",
+      "run",
+    ]);
     worker.receive({ type: "state", state: "RUN" });
     store.setSource("PROGRAM New VAR x: INT := 7; END_VAR x := x + 1; END_PROGRAM");
     store.run();
     expect(worker.sent.map((message) => message.type)).toEqual([
       "load",
+      "watchBodies",
       "run",
       "run",
       "load",
+      "watchBodies",
       "run",
     ]);
     expect(store.getSnapshot().snapshot).toBeNull();
@@ -262,6 +269,7 @@ it("round trips source and panel through the project package and rejects loading
   expect(store.getSnapshot().layout).toEqual([part]);
   expect(worker.sent).toMatchObject([
     { type: "load", ir: { resource: { tasks: [{ intervalMs: 10 }] } } },
+    { type: "watchBodies", bodies: [{ pou: "BenchDemo", instance: "mainInstance" }] },
   ]);
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
   worker.receive({ type: "state", state: "RUN" });
@@ -298,7 +306,7 @@ it("restores the bundled example's source, panel and cycle through the project l
   ]);
   expect(restored.project?.pous[0]).toBe(restored.source);
   expect(restored.cycleMs).toBe(10);
-  expect(worker.sent.slice(-2)).toMatchObject([
+  expect(worker.sent.slice(-3)).toMatchObject([
     { type: "setCycle", ms: 100 },
     {
       type: "load",
@@ -308,6 +316,7 @@ it("restores the bundled example's source, panel and cycle through the project l
         resource: { tasks: [{ intervalMs: 10 }] },
       },
     },
+    { type: "watchBodies", bodies: [{ pou: "Main", instance: "mainInstance" }] },
   ]);
   // Replacing a project cannot race an unacknowledged load.
   expect(store.restoreExample()).toBe(false);
@@ -375,15 +384,19 @@ it("switches POUs without reloading, reloads on function edits, and blocks Run a
   store.addFunction();
   store.setSource("FUNCTION F1 : INT VAR_INPUT n : INT; END_VAR F1 := n * 2; END_FUNCTION");
   store.run();
-  expect(worker.sent.map((message) => message.type)).toEqual(["load", "run"]);
+  expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run"]);
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
   store.selectPou(0);
   store.run();
-  expect(worker.sent.map((message) => message.type)).toEqual(["load", "run", "run"]);
+  expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run", "run"]);
   store.selectPou(1);
   store.setSource(store.getSnapshot().source.replace("n * 2", "n * 3"));
   store.run();
-  expect(worker.sent.slice(-2).map((message) => message.type)).toEqual(["load", "run"]);
+  expect(worker.sent.slice(-3).map((message) => message.type)).toEqual([
+    "load",
+    "watchBodies",
+    "run",
+  ]);
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
   store.deletePou(1);
   expect(store.getSnapshot().selectedPou).toBe(0);
@@ -445,7 +458,11 @@ it("keeps empty projects saveable and creates a first POU on an editor change", 
     { name: "New", kind: "PROGRAM", source: "PROGRAM New END_PROGRAM" },
   ]);
   store.run();
-  expect(worker.sent.slice(-2).map((message) => message.type)).toEqual(["load", "run"]);
+  expect(worker.sent.slice(-3).map((message) => message.type)).toEqual([
+    "load",
+    "watchBodies",
+    "run",
+  ]);
   store.dispose();
 });
 
@@ -528,7 +545,7 @@ it("reloads when only type text changes and preserves selection across list oper
   store.selectDataType(0);
   store.setSource("TYPE Type2 : (First, Second); END_TYPE");
   store.run();
-  expect(worker.sent.map((message) => message.type)).toEqual(["load", "run"]);
+  expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run"]);
   expect(store.getSnapshot().loadedDataTypes).toEqual([expect.stringContaining("Idle")]);
   worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
   expect(store.getSnapshot().loadedDataTypes).toEqual(["TYPE Type2 : (First, Second); END_TYPE"]);
@@ -584,7 +601,7 @@ it("adds one configuration, edits it independently, and applies its exact IR aft
   expect(store.getSnapshot().configuration?.name).toBe("Plant");
   expect(store.getSnapshot().loadedIr).toBe(implicitIr);
   store.run();
-  expect(worker.sent.at(-2)).toMatchObject({
+  expect(worker.sent.at(-3)).toMatchObject({
     type: "load",
     ir: { explicit: true, resource: { programs: [{ name: "Second" }] } },
   });
@@ -641,12 +658,15 @@ END_RESOURCE END_CONFIGURATION`;
   expect(store.getSnapshot().diagnostics).toEqual([]);
   store.send({ type: "setCycle", ms: 50 });
   expect(store.getSnapshot().cycleMs).toBe(50);
-  expect(worker.sent.at(-1)?.type).toBe("load");
+  expect(worker.sent.at(-1)).toEqual({
+    type: "watchBodies",
+    bodies: [{ pou: "BenchDemo", instance: "A" }],
+  });
   const saved = readProject(store.saveProject()!).value!;
   expect(saved.configurationSource).toBeUndefined();
   expect(saved.task.interval).toBe("PT0.05S");
   store.run();
-  expect(worker.sent.at(-2)).toMatchObject({
+  expect(worker.sent.at(-3)).toMatchObject({
     type: "load",
     ir: {
       explicit: false,
@@ -682,5 +702,84 @@ it.each(["warmRestart", "coldReset"] as const)("clears an old restore warning on
   store.send({ type });
   expect(store.getSnapshot().retentiveSkipped).toEqual([]);
   expect(worker.sent.at(-1)).toEqual({ type });
+  store.dispose();
+});
+
+it("watches every selected PROGRAM plus the open block and resets choices when opening a project", () => {
+  const { store, worker } = setup();
+  const original = readProject(store.saveProject()!).value!;
+  const xml = writeProject({
+    ...original,
+    pous: [
+      "PROGRAM Main VAR a, b: Counter; END_VAR a(); b(); END_PROGRAM",
+      "FUNCTION_BLOCK Counter VAR n: INT; END_VAR n := n + 1; END_FUNCTION_BLOCK",
+    ],
+    configurationSource:
+      "CONFIGURATION C RESOURCE R ON Cpu TASK T(INTERVAL := T#10ms, PRIORITY := 0); PROGRAM A WITH T: Main; PROGRAM B WITH T: Main; END_RESOURCE END_CONFIGURATION",
+  }).value!;
+  expect(store.openProject(xml)).toBe(true);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(worker.sent.at(-1)).toEqual({
+    type: "watchBodies",
+    bodies: [{ pou: "Main", instance: "A" }],
+  });
+  store.selectInstance("B");
+  store.selectPou(1);
+  store.selectInstance("B.B");
+  expect(worker.sent.at(-1)).toEqual({
+    type: "watchBodies",
+    bodies: [
+      { pou: "Main", instance: "B" },
+      { pou: "Counter", instance: "B.B" },
+    ],
+  });
+  store.selectPou(0);
+  expect(worker.sent.at(-1)).toEqual({
+    type: "watchBodies",
+    bodies: [{ pou: "Main", instance: "B" }],
+  });
+  expect(store.getSnapshot().instanceChoices).toEqual({ MAIN: "B", COUNTER: "B.B" });
+  const saved = store.saveProject()!;
+  expect(saved).not.toContain("instanceChoices");
+  expect(store.openProject(saved)).toBe(true);
+  expect(store.getSnapshot().instanceChoices).toBeUndefined();
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(worker.sent.at(-1)).toEqual({
+    type: "watchBodies",
+    bodies: [{ pou: "Main", instance: "A" }],
+  });
+  store.dispose();
+});
+
+it("queues saved body watches before RUN even when the load acknowledgement is delayed", async () => {
+  const { createPous, deriveConfiguration } = await import("./pous.js");
+  const { createWorkerHost } = await import("./worker-host.js");
+  const { VirtualClock, VirtualTicker } = await import("@benchtop-plc/runtime");
+  const worker = new FakeWorker();
+  const initial = createAppStore(new RuntimeClient(new FakeWorker())).getSnapshot();
+  const store = createAppStore(new RuntimeClient(worker), {
+    ...initial,
+    pous: createPous(["PROGRAM Counter VAR n: INT; END_VAR n := n + 1; END_PROGRAM"]),
+    configuration: deriveConfiguration(`CONFIGURATION C VAR_GLOBAL trigger: BOOL := TRUE; END_VAR
+RESOURCE R ON Cpu TASK Edge(SINGLE := trigger, PRIORITY := 0);
+PROGRAM A WITH Edge: Counter; PROGRAM B WITH Edge: Counter;
+END_RESOURCE END_CONFIGURATION`),
+    instanceChoices: { COUNTER: "B" },
+  });
+  // No Worker event is delivered to the store before RUN.
+  store.run();
+  expect(store.getSnapshot().loadedIr).toBeUndefined();
+  expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run"]);
+  const clock = new VirtualClock();
+  let latest: RuntimeSnapshot | undefined;
+  const host = createWorkerHost(clock, new VirtualTicker(clock), (event) => {
+    if (event.type === "snapshot") latest = event.snapshot;
+  });
+  for (const message of worker.sent) host.handle(message);
+  clock.advance(10);
+  expect(latest?.annotations).toMatchObject([{ pou: "Counter", instance: "B", scanCount: 1 }]);
+  clock.advance(100);
+  expect(latest?.annotations).toMatchObject([{ instance: "B", scanCount: 1 }]);
+  host.dispose();
   store.dispose();
 });

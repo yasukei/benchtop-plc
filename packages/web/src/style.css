@@ -604,3 +604,24 @@ tr[data-forced="true"] {
 .operator-surface[data-numeric="true"] {
   padding-inline: 78px;
 }
+
+.editor-source {
+  min-width: 0;
+}
+.instance-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.instance-picker select,
+.instance-picker input {
+  max-width: 100%;
+  min-width: 0;
+}
+.inline-stale {
+  color: var(--muted);
+  font-size: 0.85em;
+}

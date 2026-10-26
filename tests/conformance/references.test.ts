@@ -46,9 +46,9 @@ it("traces retargeting between structures, identity comparisons and cold reset",
   const assignment = ir.programs[0]!.body[0]!;
   expect(assignment.kind).toBe("if");
   expect(
-    Object.values(runtime.snapshot().annotations.Main ?? {}).flatMap((a) =>
-      a.flatMap((v) => v.values),
-    ),
+    Object.values(
+      runtime.snapshot().annotations.find((body) => body.pou === "Main")?.lines ?? {},
+    ).flatMap((a) => a.flatMap((v) => v.values)),
   ).toContainEqual({ kind: "reference", target: "mainInstance.P2" });
   expect(JSON.parse(JSON.stringify(runtime.snapshot()))).toEqual(runtime.snapshot());
   expect(() => runtime.write(id("r"), { dataType: "INT", value: 0 })).toThrow();
@@ -227,9 +227,9 @@ it("selects reference identities and NULL with MOVE, SEL and MUX", () => {
   expect(value("s")).toEqual({ kind: "reference", target: null });
   expect(value("same")).toMatchObject({ value: true });
   expect(value("empty")).toMatchObject({ value: true });
-  const annotations = Object.values(runtime.snapshot().annotations.Main ?? {}).flatMap((a) =>
-    a.flatMap((v) => v.values),
-  );
+  const annotations = Object.values(
+    runtime.snapshot().annotations.find((body) => body.pou === "Main")?.lines ?? {},
+  ).flatMap((a) => a.flatMap((v) => v.values));
   expect(annotations.slice(-3)).toEqual(
     Array.from({ length: 3 }, () => ({ kind: "reference", target: "mainInstance.y" })),
   );

@@ -161,7 +161,7 @@ identifiers. Expressions explicitly carry their result type; `&` lowers to AND.
 Function calls may carry `outputs`, each with a resolved descriptor output index,
 a writable assignment target and a source span. A `kind: "call"` statement wraps
 a standard or user function call and records its result for inline display when
-called in the PROGRAM. A no-result user call produces no annotation. Input expressions precede all
+called in a watched PROGRAM or function block body. A no-result user call produces no annotation. Input expressions precede all
 output assignments; output bindings retain source order, including aliases.
 The compiler checks operand types, index validity, writable inputs, integer CASE
 labels/ranges, integer FOR bounds/step and BOOL conditions. An omitted FOR step
@@ -240,17 +240,26 @@ issues, not in the transport types.
 
 Snapshots contain scan count, last execution time in milliseconds, 64-byte input
 and output arrays (values 0–255), values aligned with the variable table (including FB input and
-output arrays in descriptor order), forced variable IDs, and annotations keyed by
-POU name and then one-based source line. Each annotation contains the full `span` of its assignment,
-function statement or FB call, so consumers identify statements by source location
-rather than array position. Entries are grouped by `span.line` and sorted by `span.column` on each
-line. Each POU retains the annotations from its first instance's latest run across
-passes where that instance does not run. Starting that instance clears its POU's
-previous entries, so skipped statements do not retain old values and a faulting run
-contains only completed statements. Empty POUs/lines are omitted. Load and cold
+output arrays in descriptor order), forced variable IDs, and an `AnnotatedBody[]`
+annotation list. Each body names its `pou`, `instance` path (`null` is reserved for
+functions), the `scanCount` of its latest invocation, and `lines`, keyed by one-based
+source line. Each statement annotation contains its full `span` and `values`.
+Entries are grouped by `span.line` and sorted by `span.column`. Body values persist
+until that body starts running again for that instance, even across passes where it
+does not run. Starting it clears only that body's previous entries; a faulting run
+keeps only completed statements. Empty bodies/lines are omitted. Load and cold
 reset clear all entries.
 
-Only PROGRAM statements are annotated. A function without a result has no
+`{ type: "watchBodies", bodies: { pou: string; instance: string | null }[] }`
+replaces the entire set of watched sources and instances. Only watched PROGRAM and
+function block bodies are annotated; methods and functions are not yet supported.
+Until the first `watchBodies` after load, the runtime watches the first instance of
+every PROGRAM in resource declaration order. A new watch takes effect from the next
+task run, including the next single scan in STOP. Unwatched entries are discarded at that task boundary;
+retained watches keep their latest values. Load restores the default watches;
+restarts keep the requested set.
+
+A function without a result has no
 annotation, and function outputs are not included. A snapshot is delivered after
 the scan, with one annotation per executed
 assignment, function statement or FB call. Its `values` are captured at that
@@ -359,10 +368,11 @@ Only array descendants have `watched: true`; adding an instance path never makes
 an ordinary scalar disappear from snapshots. Writes and forces still address a
 unique `VariableId`. References publish the qualified target path.
 
-Annotations have shape `Record<POUName, Record<Line, StatementAnnotation[]>>`.
-Each PROGRAM uses its first instance in resource declaration order. Uninstantiated
-PROGRAMs have no entries; an earlier instance's values cannot be overwritten by
-another instance of the same body. Runtime faults carry `task` and a qualified
+Annotations distinguish both source and instance in each `AnnotatedBody`.
+Uninstantiated PROGRAMs have no entries. Two watched instances of the same body
+have independent values. A watched base function block source shows a derived
+instance when it executes the inherited base body or calls `SUPER()`.
+Runtime faults carry `task` and a qualified
 `instance` path as well as the executing `pou`.
 
 ## Task IR and telemetry

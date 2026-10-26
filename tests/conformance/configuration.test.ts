@@ -54,12 +54,16 @@ it("targets writes and forces by the instance's unique leaf ID and annotates onl
   expect(value("A.n")).toMatchObject({ value: 9 });
   expect(value("B.n")).toMatchObject({ value: 42 });
   expect(
-    Object.values(snapshot.annotations.Counter!)
+    Object.values(snapshot.annotations.find((body) => body.pou === "Counter")!.lines)
       .flat()
       .flatMap((entry) => entry.values),
   ).toEqual([{ dataType: "INT", value: 9 }]);
-  snapshot.annotations.Counter![1]![0]!.values.length = 0;
-  expect(Object.values(runtime.snapshot().annotations.Counter!).flat()[0]!.values).toHaveLength(1);
+  snapshot.annotations.find((body) => body.pou === "Counter")!.lines[1]![0]!.values.length = 0;
+  expect(
+    Object.values(
+      runtime.snapshot().annotations.find((body) => body.pou === "Counter")!.lines,
+    ).flat()[0]!.values,
+  ).toHaveLength(1);
 });
 
 it("shares the task loop budget and stops later instances after a fault", () => {
@@ -92,8 +96,12 @@ it("keeps PROGRAM annotations separate when two bodies execute on the same line"
     configuration("PROGRAM A WITH T : Counter; PROGRAM B WITH T : Other;"),
   );
   const annotations = runtime.step().annotations;
-  expect(annotations.Counter![1]![0]!.values).toEqual([{ dataType: "INT", value: 1 }]);
-  expect(annotations.Other![1]![0]!.values).toEqual([{ dataType: "INT", value: 2 }]);
+  expect(annotations.find((body) => body.pou === "Counter")!.lines[1]![0]!.values).toEqual([
+    { dataType: "INT", value: 1 },
+  ]);
+  expect(annotations.find((body) => body.pou === "Other")!.lines[1]![0]!.values).toEqual([
+    { dataType: "INT", value: 2 },
+  ]);
 });
 
 it("isolates nested blocks, arrays, references and temporaries in repeated program instances", () => {
@@ -172,10 +180,10 @@ it("transports annotations for a POU whose name is also an Object prototype prop
     ["PROGRAM __proto__ VAR n : INT; END_VAR n := 1; END_PROGRAM"],
     configuration("PROGRAM A WITH T : __proto__;"),
   );
-  expect(Object.keys(runtime.step().annotations)).toEqual(["__proto__"]);
-  expect(JSON.parse(JSON.stringify(runtime.snapshot())).annotations.__proto__[1][0].values).toEqual(
-    [{ dataType: "INT", value: 1 }],
-  );
+  expect(runtime.step().annotations.map((body) => body.pou)).toEqual(["__proto__"]);
+  expect(JSON.parse(JSON.stringify(runtime.snapshot())).annotations[0].lines[1][0].values).toEqual([
+    { dataType: "INT", value: 1 },
+  ]);
 });
 
 it("restores the construction cycle when legacy IR replaces an explicit configuration", () => {

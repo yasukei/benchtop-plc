@@ -10,12 +10,24 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Choose the instance shown by inline values in PROGRAM and function block sources,
+  with a path/type filter, derived instances, autosaved choices and older-scan labels.
+- Runtime body watches collect function block statement values, including inherited
+  bodies and `SUPER()`, independently for each selected instance.
+
 - Runtime documentation for internal resumable execution and its repeatable
   scan-time benchmark.
 
 - ADR 0018 documents the accepted debugging design for Milestone 8: choosing the
   instance whose inline values a body shows, inline values in every body,
   breakpoints, the halted state, stepping and the call stack.
+
+### Changed
+
+- **Breaking core protocol change:** snapshot `annotations` is now an array of
+  `{ pou, instance, scanCount, lines }` bodies instead of a record keyed by POU.
+  The new `watchBodies` command replaces the watched source/instance set. Before
+  the first command after load, the first instance of every PROGRAM remains watched.
 
 ## [0.7.0] - 2026-10-26
 

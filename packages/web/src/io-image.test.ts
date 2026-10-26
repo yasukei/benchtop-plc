@@ -28,7 +28,7 @@ function state() {
       variables: [],
       tasks: [],
       forced: [],
-      annotations: {},
+      annotations: [],
       scanCount: 0,
       lastExecutionTimeMs: 0,
     },

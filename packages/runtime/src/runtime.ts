@@ -1,4 +1,8 @@
 import type {
+  BodyWatch,
+  AnnotatedBody,
+  Statement,
+  StatementAnnotation,
   RetentiveRecord,
   CommandRejectionCode,
   Diagnostic,
@@ -59,6 +63,7 @@ export interface Runtime {
   retentiveRecords(): RetentiveRecord[];
   restoreRetentive(records: readonly RetentiveRecord[]): string[];
   watch(variables: readonly VariableId[]): void;
+  watchBodies(bodies: readonly BodyWatch[]): void;
   force(variable: VariableId, value: TypedValue | null): void;
   write(variable: VariableId, value: TypedValue): void;
   step(): RuntimeSnapshot;
@@ -97,7 +102,11 @@ class PlcRuntime implements Runtime {
   private duration = 0;
   private inputs = emptyImage();
   private outputs = emptyImage();
-  private annotations: RuntimeSnapshot["annotations"] = {};
+  private readonly annotations = new Map<
+    string,
+    { body: Omit<AnnotatedBody, "lines">; entries: Map<Statement, StatementAnnotation> }
+  >();
+  private bodyWatches: readonly BodyWatch[] = [];
   private readonly forces = new Map<VariableId, TypedValue>();
   private watched = new Set<VariableId>();
   private pendingWrites = new Map<VariableId, TypedValue>();
@@ -153,6 +162,13 @@ class PlcRuntime implements Runtime {
         ? implicitTask.intervalMs
         : (this.options.intervalMs ?? 10);
     this.watched.clear();
+    this.bodyWatches =
+      ir.kind === "configuration"
+        ? ir.programs.flatMap((program, index) => {
+            const instance = ir.resource.programs.find((instance) => instance.program === index);
+            return instance ? [{ pou: program.name, instance: instance.name }] : [];
+          })
+        : [{ pou: ir.name, instance: ir.name }];
     this.initialize();
   }
 
@@ -175,7 +191,7 @@ class PlcRuntime implements Runtime {
     this.count = 0;
     this.duration = 0;
     this.fault = null;
-    this.annotations = {};
+    this.annotations.clear();
     this.inputs = emptyImage();
     this.memory?.clearOutputs();
   }
@@ -309,6 +325,10 @@ class PlcRuntime implements Runtime {
     );
   }
 
+  watchBodies(bodies: readonly BodyWatch[]): void {
+    this.bodyWatches = bodies.map((body) => ({ ...body }));
+  }
+
   force(variable: VariableId, value: TypedValue | null): void {
     this.debugVariable(variable);
     if (value === null) this.forces.delete(variable);
@@ -405,7 +425,30 @@ class PlcRuntime implements Runtime {
         executingTask = scheduler.tasks[taskIndex]!.name;
         executingInstance = undefined;
         const taskStart = this.options.clock.now();
-        const interpreter = new Interpreter(memory, taskStart, active, this.library);
+        // Capture the watch set at the task boundary, including for resumable runs.
+        const watches = new Set(
+          this.bodyWatches.map((body) =>
+            JSON.stringify([body.pou.toUpperCase(), body.instance?.toUpperCase()]),
+          ),
+        );
+        for (const key of this.annotations.keys())
+          if (!watches.has(key)) this.annotations.delete(key);
+        const interpreter = new Interpreter(
+          memory,
+          taskStart,
+          active,
+          this.library,
+          (pou, instance) => {
+            const key = JSON.stringify([pou.toUpperCase(), instance.toUpperCase()]);
+            if (!watches.has(key)) return undefined;
+            const entries = new Map<Statement, StatementAnnotation>();
+            this.annotations.set(key, {
+              body: { pou, instance, scanCount: this.count + 1 },
+              entries,
+            });
+            return entries;
+          },
+        );
         try {
           this.inputs = [...(this.options.stages?.readInputs?.() ?? this.inputs)];
           if (active()) memory.readInputs(this.inputs);
@@ -423,13 +466,6 @@ class PlcRuntime implements Runtime {
             if (instance.task !== taskIndex) continue;
             executingInstance =
               ir.kind === "configuration" ? ir.resource.programs[index]!.name : undefined;
-            // Refresh only this POU's annotating instance; other tasks keep their latest values.
-            const annotates =
-              instances.findIndex((other) => other.program === instance.program) === index;
-            const name =
-              ir.kind === "configuration" ? ir.programs[instance.program]!.name : ir.name;
-            if (annotates) delete this.annotations[name];
-            let executed = false;
             interpreter.transfer(index, false);
             if (active()) this.applyForces(memory);
             if (
@@ -438,33 +474,18 @@ class PlcRuntime implements Runtime {
                 (ir.kind === "configuration" && ir.resource.programs[index]!.inputs?.length))
             )
               this.options.stages?.applyForces?.(memory);
-            try {
-              if (active()) {
-                executed = true;
-                const pause: PauseHook | undefined = this.options.pause
-                  ? (location) => {
-                      if (!this.options.pause!(location)) return false;
-                      this.location = location;
-                      return true;
-                    }
-                  : undefined;
-                let completed = interpreter.executeProgram(index, pause);
-                while (!completed && active()) {
-                  yield;
-                  if (active()) completed = interpreter.resume(pause);
-                }
-              }
-            } finally {
-              // Only the first instance in resource declaration order supplies editor annotations.
-              if (annotates && executed) {
-                const lines = interpreter.annotationSnapshot();
-                if (Object.keys(lines).length)
-                  Object.defineProperty(this.annotations, name, {
-                    value: lines,
-                    enumerable: true,
-                    configurable: true,
-                    writable: true,
-                  });
+            if (active()) {
+              const pause: PauseHook | undefined = this.options.pause
+                ? (location) => {
+                    if (!this.options.pause!(location)) return false;
+                    this.location = location;
+                    return true;
+                  }
+                : undefined;
+              let completed = interpreter.executeProgram(index, pause);
+              while (!completed && active()) {
+                yield;
+                if (active()) completed = interpreter.resume(pause);
               }
             }
             if (active()) this.options.stages?.applyForces?.(memory);
@@ -518,20 +539,18 @@ class PlcRuntime implements Runtime {
   }
 
   snapshot(): RuntimeSnapshot {
-    const annotations = Object.fromEntries(
-      Object.entries(this.annotations).map(([pou, lines]) => [
-        pou,
-        Object.fromEntries(
-          Object.entries(lines).map(([line, entries]) => [
-            line,
-            entries.map((entry) => ({
-              span: { ...entry.span },
-              values: entry.values.map((value) => ({ ...value })),
-            })),
-          ]),
-        ),
-      ]),
-    );
+    const annotations: AnnotatedBody[] = [];
+    for (const { body, entries } of this.annotations.values()) {
+      if (!entries.size) continue;
+      const lines: AnnotatedBody["lines"] = {};
+      for (const entry of entries.values())
+        (lines[entry.span.line] ??= []).push({
+          span: { ...entry.span },
+          values: entry.values.map((value) => ({ ...value })),
+        });
+      for (const line of Object.values(lines)) line.sort((a, b) => a.span.column - b.span.column);
+      annotations.push({ ...body, lines });
+    }
     const compact = this.memory?.ir.variables.some((variable) => variable.watched);
     const ids = compact
       ? this.memory!.ir.variables.flatMap((variable, id) =>

@@ -20,6 +20,7 @@ export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT";
 export type UiToRuntimeMessage =
   | { type: "load"; ir: ConfigurationIR | ProgramIR; retentive?: RetentiveRecord[] }
   | { type: "watch"; variables: VariableId[] }
+  | { type: "watchBodies"; bodies: BodyWatch[] }
   | { type: "run" }
   | { type: "stop" }
   | { type: "step" }
@@ -53,6 +54,19 @@ export interface StatementAnnotation {
   values: InlineValue[];
 }
 
+/** A source body and the persistent instance whose invocation supplies its values. */
+export interface BodyWatch {
+  pou: string;
+  instance: string | null;
+}
+
+export interface AnnotatedBody extends BodyWatch {
+  /** Scheduler pass in which this body last started running. */
+  scanCount: number;
+  /** One entry per executed statement, sorted by column within each line. */
+  lines: Record<number, StatementAnnotation[]>;
+}
+
 export interface TaskTelemetry {
   name: string;
   runCount: number;
@@ -74,12 +88,8 @@ export interface RuntimeSnapshot {
   variableIds?: VariableId[];
   /** Variable IDs, encoded as an array rather than a Set for JSON transport. */
   forced: VariableId[];
-  /**
-   * Keyed by POU name, then span.line, sorted by span.column within each line. One entry per executed
-   * assignment/FB call from the first instance of each PROGRAM's latest run.
-   * Entries persist until that instance runs again; empty POUs/lines are omitted.
-   */
-  annotations: Record<string, Record<number, StatementAnnotation[]>>;
+  /** Watched bodies' latest invocations; empty bodies/lines are omitted. */
+  annotations: AnnotatedBody[];
 }
 
 export interface CommandRejectionMessage {

@@ -377,28 +377,37 @@ it("retains slow and event PROGRAM annotations between runs of their first insta
   );
   runtime.run();
   clock.advance(10);
-  expect(runtime.snapshot().annotations).toEqual({});
+  expect(runtime.snapshot().annotations).toEqual([]);
   clock.advance(20);
-  const slow = runtime.snapshot().annotations.Counter;
+  const slow = runtime.snapshot().annotations.find((body) => body.pou === "Counter")?.lines;
   expect(Object.values(slow!).flat()[0]!.values).toEqual([{ dataType: "DINT", value: 1 }]);
   inputs[0] = 1;
   clock.advance(10);
-  const edge = runtime.snapshot().annotations.EventProgram;
+  const edge = runtime.snapshot().annotations.find((body) => body.pou === "EventProgram")?.lines;
   expect(Object.values(edge!).flat()[0]!.values).toEqual([{ dataType: "DINT", value: 1 }]);
-  expect(runtime.snapshot().annotations.Counter).toEqual(slow);
+  expect(runtime.snapshot().annotations.find((body) => body.pou === "Counter")?.lines).toEqual(
+    slow,
+  );
   clock.advance(10);
-  expect(runtime.snapshot().annotations).toEqual({ Counter: slow, EventProgram: edge });
+  expect(runtime.snapshot().annotations.map((body) => body.lines)).toEqual([slow, edge]);
   clock.advance(10);
-  expect(Object.values(runtime.snapshot().annotations.Counter!).flat()[0]!.values).toEqual([
-    { dataType: "DINT", value: 2 },
-  ]);
-  expect(runtime.snapshot().annotations.EventProgram).toEqual(edge);
+  expect(
+    Object.values(
+      runtime.snapshot().annotations.find((body) => body.pou === "Counter")!.lines,
+    ).flat()[0]!.values,
+  ).toEqual([{ dataType: "DINT", value: 2 }]);
+  expect(runtime.snapshot().annotations.find((body) => body.pou === "EventProgram")?.lines).toEqual(
+    edge,
+  );
   runtime.coldReset();
-  expect(runtime.snapshot().annotations).toEqual({});
+  expect(runtime.snapshot().annotations).toEqual([]);
   runtime.step();
-  expect(Object.keys(runtime.snapshot().annotations)).toEqual(["EventProgram", "Counter"]);
+  expect(runtime.snapshot().annotations.map((body) => body.pou)).toEqual([
+    "EventProgram",
+    "Counter",
+  ]);
   runtime.load(ir);
-  expect(runtime.snapshot().annotations).toEqual({});
+  expect(runtime.snapshot().annotations).toEqual([]);
 });
 
 it("removes a POU's old annotations when its annotating instance runs no statements", () => {
@@ -414,14 +423,22 @@ it("removes a POU's old annotations when its annotating instance runs no stateme
   );
   runtime.run();
   clock.advance(30);
-  expect(runtime.snapshot().annotations.Conditional).toBeDefined();
+  expect(
+    runtime.snapshot().annotations.find((body) => body.pou === "Conditional")?.lines,
+  ).toBeDefined();
   clock.advance(20);
-  expect(runtime.snapshot().annotations.Conditional).toBeDefined();
+  expect(
+    runtime.snapshot().annotations.find((body) => body.pou === "Conditional")?.lines,
+  ).toBeDefined();
   clock.advance(10);
-  expect(runtime.snapshot().annotations.Conditional).toBeUndefined();
-  expect(Object.values(runtime.snapshot().annotations.Counter!).flat()[0]!.values).toEqual([
-    { dataType: "DINT", value: 6 },
-  ]);
+  expect(
+    runtime.snapshot().annotations.find((body) => body.pou === "Conditional")?.lines,
+  ).toBeUndefined();
+  expect(
+    Object.values(
+      runtime.snapshot().annotations.find((body) => body.pou === "Counter")!.lines,
+    ).flat()[0]!.values,
+  ).toEqual([{ dataType: "DINT", value: 6 }]);
 });
 
 it("replaces a faulting POU's prior annotations with only its completed statements", () => {
@@ -442,16 +459,22 @@ END_PROGRAM`,
   );
   runtime.run();
   clock.advance(30);
-  expect(Object.values(runtime.snapshot().annotations.FaultProgram!).flat()).toHaveLength(2);
+  expect(
+    Object.values(
+      runtime.snapshot().annotations.find((body) => body.pou === "FaultProgram")!.lines,
+    ).flat(),
+  ).toHaveLength(2);
   runtime.write(id("crash"), { dataType: "BOOL", value: true });
   clock.advance(30);
   expect(runtime.state).toBe("FAULT");
   expect(
-    Object.values(runtime.snapshot().annotations.FaultProgram!)
+    Object.values(runtime.snapshot().annotations.find((body) => body.pou === "FaultProgram")!.lines)
       .flat()
       .map((entry) => entry.values),
   ).toEqual([[{ dataType: "DINT", value: 2 }]]);
-  expect(Object.values(runtime.snapshot().annotations.Counter!).flat()[0]!.values).toEqual([
-    { dataType: "DINT", value: 6 },
-  ]);
+  expect(
+    Object.values(
+      runtime.snapshot().annotations.find((body) => body.pou === "Counter")!.lines,
+    ).flat()[0]!.values,
+  ).toEqual([{ dataType: "DINT", value: 6 }]);
 });

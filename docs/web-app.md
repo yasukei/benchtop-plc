@@ -83,9 +83,27 @@ autosaved drafts that cannot yet be parsed.
 The monitor shows one collapsible group per program instance, initially expanded.
 Variable rows inside each group use relative paths such as `count` or `M1.RUNNING`;
 the full path remains in the row's tooltip. Each instance has independent memory,
-writes and forces. Inline values in a `PROGRAM` editor show its first instance in
-resource declaration order, identified above the editor. A `PROGRAM` with no
-instance shows no inline values. Instance selection is not yet available.
+writes and forces.
+
+Above PROGRAM and function block sources, the instance picker chooses whose inline
+values the editor shows. PROGRAM sources offer their configured instances, defaulting
+to the first in resource declaration order. Function block sources offer all instances
+of that type and its derived types, including globals and array elements. Their default
+is the first in monitor order: each PROGRAM instance in resource declaration order,
+then globals in declaration order; within instances, base members come first and
+array elements follow index order. Each option names the path and, for derived types,
+the actual type. A text filter matches paths and types. Sources without instances
+show **No instance to show**.
+
+The UI watches the selected instance of every PROGRAM and the source open in the
+editor. In STOP, newly selected instances show values after the next single scan.
+A body skipped in the latest pass keeps its values, marked **from scan N**. A base
+function block body can show a derived instance executing an inherited body or
+`SUPER()`. Method, class and function bodies do not yet show inline values.
+
+Browser autosave remembers choices per source; PLCopen XML does not include them.
+A choice that no longer exists falls back to the default. Opening a project or
+restoring the example clears the choices.
 
 ## POUs
 

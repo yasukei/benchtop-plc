@@ -43,7 +43,7 @@ it("traces string assignment, runtime truncation and code-unit comparisons", () 
     });
   expect(runtime.diagnostic).toBeNull();
   expect(
-    Object.values(runtime.snapshot().annotations.Main ?? {})
+    Object.values(runtime.snapshot().annotations.find((body) => body.pou === "Main")?.lines ?? {})
       .flat()
       .flatMap((a) => a.values),
   ).toContainEqual({ dataType: "STRING", value: "Hello" });
