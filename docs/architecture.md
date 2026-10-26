@@ -50,6 +50,11 @@ recorded in [ADR 0017](adr/0017-classes-methods-interfaces-and-namespaces.md). I
 implementation is tracked by the sub-issues of
 [#173](https://github.com/yasukei/benchtop-plc/issues/173).
 
+Milestone 8's accepted model for debugging, covering instance selection, inline values
+in every body, breakpoints, the halted state, stepping, the call stack and resumable
+execution, is recorded in [ADR 0018](adr/0018-debugging.md). Its implementation is
+tracked by the sub-issues of [#192](https://github.com/yasukei/benchtop-plc/issues/192).
+
 ## Data flow
 
 ```
