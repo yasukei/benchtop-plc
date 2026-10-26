@@ -196,8 +196,10 @@ the features change the runtime, the core protocol and the web app together.
     so `Slow` runs once in the pass at 5,020 ms and finishes at 5,021 ms. Its due time
     then moves from 100 ms to 5,100 ms, skipping the activations from 200 ms to
     5,000 ms; they came due while halted, so it counts no overruns.
-- **Task telemetry**: a halted run's execution time excludes the time it was halted,
-  so a halt does not change the last or maximum execution time.
+- **Execution times**: a halted run's execution time, and the execution time of the
+  scheduler pass that contains it (the snapshot's scan time shown in the toolbar),
+  exclude the time it was halted, so a halt changes neither a task's last or maximum
+  execution time nor the scan time.
 - **Loop limit**: ADR 0010's 200,000 loop iterations still count per task run,
   including iterations before and after a halt.
 - **Retentive values** are not stored during a halt; a page reload during a halt
@@ -293,15 +295,22 @@ the whole resource halts and the next statement that executes may belong to it.
 - Each frame carries the values that snapshots omit (ADR 0014, ADR 0017), and only
   while halted:
   - A function or method frame: its inputs, outputs, `VAR`, `VAR_TEMP` (interface
-    variables only, ADR 0017), the result, and each `VAR_IN_OUT` as the path or
-    reference it aliases.
-  - A `PROGRAM` or function block frame: its `VAR_TEMP` and each `VAR_IN_OUT` as the
-    path or reference it aliases. Its other variables have paths and come from the
-    snapshot.
+    variables only, ADR 0017), the result, and each `VAR_IN_OUT`.
+  - A `PROGRAM` or function block frame: its `VAR_TEMP` and each `VAR_IN_OUT`. Its
+    other variables have paths and come from the snapshot.
+- A `VAR_IN_OUT` always reports its current value, read through the alias, and where
+  its actual lives. An actual with a variable path (ADR 0016) reports that path. An
+  actual without one (a caller's `VAR_TEMP`, a function or method local, or a member
+  or element of one, which the runtime contract allows) reports the index of the frame
+  that holds it, counted from 0 for the innermost frame, and its name there, with
+  members and indices.
 
-  Example: halted inside `FOR i := 1 TO 4 DO` in a `PROGRAM` that declares `i` in
+  Examples: halted inside `FOR i := 1 TO 4 DO` in a `PROGRAM` that declares `i` in
   `VAR_TEMP`, the `PROGRAM` frame reports `i`; halted in a function `Scale(v := x)`, the
-  function frame reports `v` and `Scale`.
+  function frame reports `v` and `Scale`. Halted in `F`, called by the function `G` as
+  `F(x := tmp)` with `tmp` a local of `G`, the frame of `F` reports `x` as `7` held by
+  `tmp` in frame 1 (`G`); called as `F(x := Line1.Level)`, it reports `x` as `7` held
+  by `Line1.Level`.
 
 - Each frame also carries the annotations of its current invocation, from the
   statements it completed so far (see Watching bodies).
@@ -317,8 +326,12 @@ the whole resource halts and the next statement that executes may belong to it.
   variable but reaches the output image only when a run publishes it in `RUN`.
 - Forces set or cleared while halted take effect at the next force stage of the run
   (runtime contract), as during `RUN`.
+- A force keeps priority over a write while halted, as in `RUN` (runtime contract): a
+  write to a forced variable is consumed and changes nothing, so the halted run keeps
+  seeing the forced value.
 - Example: halted before `IF Level > 80 THEN`, writing `Level := 90` makes the halted
-  run take the `THEN` branch; the snapshot sent after the write shows 90.
+  run take the `THEN` branch; the snapshot sent after the write shows 90. With `Level`
+  forced to 50, the same write changes nothing and the run skips the branch.
 
 ### Resumable execution
 
@@ -374,7 +387,8 @@ These changes to the core protocol are breaking, and the changelog lists them
 - Runtime to UI:
   - `{ type: "halted"; operatingState: "RUN" | "STOP"; task: string; frames: CallFrame[] }`,
     where a `CallFrame` holds the kind, POU, instance path, span, call-local values
-    and annotations described in Call stack.
+    (for a `VAR_IN_OUT`, its value and its actual's path or frame index and name) and
+    annotations described in Call stack.
   - Snapshot annotations become a list of annotated bodies. Each names its POU, its
     instance path (`null` for a function), the pass it comes from, the caller for a
     function, and its annotations by line, sorted by column as today.
