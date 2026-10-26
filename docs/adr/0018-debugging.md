@@ -182,19 +182,20 @@ the features change the runtime, the core protocol and the web app together.
   next runs see the time that passed: a `TON` whose `PT` elapsed during the halt
   reports `Q` in the next run. This matches vendor PLCs, whose system time continues
   at a breakpoint.
-- **Activations**: an activation of a cyclic task that comes due while the resource is
-  halted is skipped without counting an overrun, and without catch-up execution. Every
-  other skipped activation counts as ADR 0016 describes: after a run, activations at
-  or before its finish time are skipped and counted, except those that came due while
-  halted. Next due times advance from prior due times as ADR 0016 describes. Examples
-  for one halt from 12 ms to 5,012 ms, in a resource with a 10 ms task `Fast` and a
-  100 ms task `Slow`:
+- **Activations**: no scheduler pass runs while halted, and each cyclic task keeps its
+  due time. A task whose due time has passed when the halt ends runs once, in the next
+  pass, as after a late tick (ADR 0016); one overdue activation is kept, not one per
+  missed interval. After every run the due time moves forward by whole intervals as
+  ADR 0016 describes, and the activations it skips are not caught up. A skipped
+  activation that came due while halted is not counted as an overrun; any other
+  skipped activation is. Examples for one halt from 12 ms to 5,012 ms, in a resource
+  with a 10 ms task `Fast` and a 100 ms task `Slow`:
   - `Fast` halted in its run that started at 10 ms; the run finishes at 5,013 ms. It
     counts no overruns and is next due at 5,020 ms.
-  - `Slow` was first due at 100 ms, during the halt. It runs once in the pass at
-    5,020 ms and finishes at 5,021 ms. Its activations from 200 ms to 5,000 ms came due
-    while halted and are not counted, so it counts no overruns and is next due at
-    5,100 ms.
+  - `Slow` was first due at 100 ms, during the halt. That overdue activation is kept,
+    so `Slow` runs once in the pass at 5,020 ms and finishes at 5,021 ms. Its due time
+    then moves from 100 ms to 5,100 ms, skipping the activations from 200 ms to
+    5,000 ms; they came due while halted, so it counts no overruns.
 - **Task telemetry**: a halted run's execution time excludes the time it was halted,
   so a halt does not change the last or maximum execution time.
 - **Loop limit**: ADR 0010's 200,000 loop iterations still count per task run,
@@ -447,8 +448,9 @@ These choices differ from vendor tools on purpose:
   task and instance. CODESYS can limit a breakpoint to one task or instance.
 - A step past the end of a `PROGRAM` instance can halt in another task (CODESYS steps
   within the halted task).
-- Activations missed while halted are not counted as overruns. They are skipped
-  without catch-up execution, as ADR 0016 does for real overruns.
+- Activations missed while halted are not counted as overruns. As after a late tick
+  (ADR 0016), a task that came due runs once after the halt and the rest are skipped
+  without catch-up execution.
 
 ### Deferred scope
 
