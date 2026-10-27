@@ -8,6 +8,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-27
+
+Debugging: inline values in every POU body for a chosen instance, breakpoints with a halted state, stepping, the call stack and a sorting conveyor debugging guide. Project files are unchanged; the core protocol between the UI and the runtime changes in breaking ways; see Changed.
+
 ### Added
 
 - Sorting conveyor debugging guide with a Playwright acceptance walkthrough,
@@ -22,7 +26,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - Editor gutter breakpoints with active/inactive markers, line tracking through
   edits and POU renames, browser autosave, halted statement highlighting and
-  Continue. A halt pauses the whole resource and preserves published outputs.
+  Continue. A halt pauses the whole resource and preserves published outputs,
+  which panel lamps, numeric displays and I/O image readings keep showing.
 
 - Inline values inside method and function bodies, with per-instance method calls,
   class instance selection and localized function caller labels. Runtime debugger
@@ -41,34 +46,26 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   instance whose inline values a body shows, inline values in every body,
   breakpoints, the halted state, stepping and the call stack.
 
-### Fixed
-
-- Panel lamps, numeric displays and I/O image readings keep showing the last
-  published outputs while halted over RUN, including nonzero counts.
-
 ### Changed
 
-- **Breaking core protocol change:** `halted.frames` now includes the entire call
-  stack, each frame's values and invocation annotations. `debugStep` adds statement
-  stepping and is included in command rejections; `step` remains a single scan.
-  PROGRAM IR preserves call-local declaration names for halted value reporting.
-
-- **Breaking core protocol changes:** `RuntimeState` gains `HALT`;
-  `setBreakpoints` replaces source/line breakpoints and `continue` resumes execution.
-  The new `halted` event reports the underlying operating state, task and innermost
-  `CallFrame` (`kind`, `pou`, `instance`, `span`). Rejected commands now include
-  `run`, `step` and `continue`, with `runtime.halted` and `runtime.not-halted` codes.
+- **Breaking core protocol changes:**
+  - Snapshot `annotations` is an array of `{ pou, instance, scanCount, lines }`
+    bodies instead of a record keyed by POU. Annotated function bodies add
+    `caller: { pou, instance, line }`.
+  - `watchBodies` replaces the watched set. Function watches use a null
+    instance, and function block and class watches cover all their methods.
+    Until the first `watchBodies` after load, the first instance of every
+    PROGRAM is watched.
+  - `RuntimeState` gains `HALT`. `setBreakpoints`, `continue` and `debugStep`
+    are new commands; `step` remains a single scan.
+  - The new `halted` event reports the underlying operating state, the task and
+    the whole call stack, with each frame's values and invocation annotations.
+  - Rejected commands include `run`, `step`, `continue` and `debugStep`, with
+    the `runtime.halted` and `runtime.not-halted` codes.
+  - PROGRAM IR keeps call-local declaration names for halted value reporting.
 - Halted time is excluded from execution times and skipped activations during a
   halt are not overruns. Abandoned task runs leave task telemetry and due times
   unchanged, while their scheduler pass still increments `scanCount`.
-
-- Annotated function bodies now include `caller: { pou, instance, line }`; function
-  watches use a null instance, and block/class watches cover all their methods.
-
-- **Breaking core protocol change:** snapshot `annotations` is now an array of
-  `{ pou, instance, scanCount, lines }` bodies instead of a record keyed by POU.
-  The new `watchBodies` command replaces the watched source/instance set. Before
-  the first command after load, the first instance of every PROGRAM remains watched.
 
 ## [0.7.0] - 2026-10-26
 
@@ -523,7 +520,8 @@ First release: the single-file HTML prototype rebuilt as a tested monorepo.
   setting unless you choose Light or Dark.
 - The app opens with the blink example and its panel.
 
-[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/yasukei/benchtop-plc/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/yasukei/benchtop-plc/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/yasukei/benchtop-plc/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/yasukei/benchtop-plc/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yasukei/benchtop-plc/compare/v0.4.0...v0.5.0
