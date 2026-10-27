@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# pnpm store created in the repo when the checkout is on its own filesystem (e.g. sbx sandboxes)
+.pnpm-store/
+
 # Build output
 dist/
 *.tsbuildinfo
