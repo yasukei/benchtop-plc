@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Fixed
+
+- Restore autosaved work containing interfaces after a page reload instead of
+  falling back to the blink example and overwriting the saved project.
+
 ## [0.8.0] - 2026-10-27
 
 Debugging: inline values in every POU body for a chosen instance, breakpoints with a halted state, stepping, the call stack and a sorting conveyor debugging guide. Project files are unchanged; the core protocol between the UI and the runtime changes in breaking ways; see Changed.

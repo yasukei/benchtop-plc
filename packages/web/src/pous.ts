@@ -3,7 +3,12 @@ import { compileProject, lex, type CompileDiagnostic } from "@benchtop-plc/compi
 import { spanRange } from "./editor/mapping.js";
 import type { Diagnostic } from "@benchtop-plc/core";
 
-export type PouKind = "PROGRAM" | "FUNCTION" | "FUNCTION_BLOCK" | "CLASS" | "INTERFACE";
+export const pouKinds = ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS", "INTERFACE"] as const;
+export type PouKind = (typeof pouKinds)[number];
+
+export function isPouKind(value: unknown): value is PouKind {
+  return pouKinds.some((kind) => kind === value);
+}
 export interface EditorPou {
   source: string;
   name: string;
@@ -134,14 +139,7 @@ export function derivePou(source: string, previous?: EditorPou): EditorPou {
   const name = tokens
     ?.slice(1)
     .find((token) => !["INTERNAL", "ABSTRACT", "FINAL"].includes(token.key));
-  if (
-    (kind === "PROGRAM" ||
-      kind === "FUNCTION" ||
-      kind === "FUNCTION_BLOCK" ||
-      kind === "CLASS" ||
-      kind === "INTERFACE") &&
-    name?.kind === "identifier"
-  )
+  if (isPouKind(kind) && name?.kind === "identifier")
     return { source, name: `${namespace ? `${namespace}.` : ""}${name.text}`, kind };
   return { source, name: previous?.name ?? "Main", kind: previous?.kind ?? "PROGRAM" };
 }
