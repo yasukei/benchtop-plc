@@ -241,8 +241,9 @@ The UI matches completions by identity, rather than by scan count or queue order
 While a load is pending it suppresses ordinary snapshots. On failure it discards
 that pending IR and clears the loaded-source/IR metadata and monitor snapshot;
 ordinary snapshots remain suppressed until a later successful load. This keeps
-values paired with their own program and lets the user load another project or
-retry with RUN without leaving a pending attempt behind. Retained records carried
+values paired with their own program without leaving a pending attempt behind.
+After acknowledging or resetting the fault, the user can load another project or
+retry with RUN. Retained records carried
 by a failed attempt are restored to the pending restoration when no newer attempt
 is pending, so retrying does not lose autosaved retained values. Acknowledge fault
 or Cold reset clears the failed-load diagnostic without accepting old snapshots.
