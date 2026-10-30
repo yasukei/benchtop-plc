@@ -43,6 +43,7 @@ export function exactNumber(text: string): Exact {
 
 /** This syntactic class alone defers typing; typed literals and calls end it. */
 export function isUntyped(node: Expression): boolean {
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Other expressions end the untyped syntactic class and return false.
   switch (node.kind) {
     case "literal":
       return !node.dataType && (node.literalKind === "integer" || node.literalKind === "real");
@@ -62,6 +63,7 @@ export function isUntyped(node: Expression): boolean {
   }
 }
 function hasReal(node: Expression): boolean {
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Only literal arithmetic participates in untyped constant evaluation.
   switch (node.kind) {
     case "literal":
       return node.literalKind === "real";
@@ -76,6 +78,7 @@ function hasReal(node: Expression): boolean {
   }
 }
 export function exactConstant(node: Expression, real = hasReal(node)): Exact {
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Nonconstant expressions reach the rejection below.
   switch (node.kind) {
     case "literal":
       return { ...exactNumber(node.text), real };
@@ -91,6 +94,7 @@ export function exactConstant(node: Expression, real = hasReal(node)): Exact {
       const operandReal = node.operator === "MOD" ? false : real;
       const a = exactConstant(node.left, operandReal),
         b = exactConstant(node.right, operandReal);
+      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Exponentiation, comparison and logical operators reach the rejection below.
       switch (node.operator) {
         case "+":
           return fraction(a.n * b.d + b.n * a.d, a.d * b.d, real);

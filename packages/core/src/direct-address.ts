@@ -66,6 +66,7 @@ export function readDirectValue(
   type: DataType,
 ): ScalarValue {
   const data = view(bytes, address, type);
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Direct addresses support only the numeric and bit types; the default rejects others.
   switch (type) {
     case "BOOL":
       return (data.getUint8(0) & (1 << (address as DirectAddress & { bit: IoBit }).bit)) !== 0;
@@ -105,6 +106,7 @@ export function writeDirectValue(bytes: number[], address: DirectAddress, value:
   const data = view(bytes, address, value.dataType);
   validateValue(value.dataType, value.value);
   const n = Number(value.value);
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Direct addresses support only the numeric and bit types; the default rejects others.
   switch (value.dataType) {
     case "BOOL": {
       if (address.size !== "X") throw new RangeError("Expected bit address");
