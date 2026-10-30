@@ -233,6 +233,19 @@ applied separately from ST dollar escapes. The compiler validates width, charact
 count and capacity on save and open. Source extensions preserve exact declarations;
 imports without extensions reconstruct equivalent types, capacities and defaults.
 
+## Long time and date types
+
+TC6 v2.01 has no LTIME, LDATE, LTOD or LDT elements. These types use
+`<derived name="LTIME"/>`, `<derived name="LDATE"/>`, `<derived name="LTOD"/>` and
+`<derived name="LDT"/>`, following the CHAR/WCHAR convention above. This mapping
+applies wherever a type occurs, including variables, parameters, function results,
+aliases, structure members and array elements. Other tools may not recognize these
+names as elementary types.
+
+Imports also accept the legacy `<LTIME/>`, `<LDATE/>`, `<LTOD/>` and `<LDT/>` elements
+written by earlier benchtop-plc versions. Saving an imported file writes the
+schema-valid `derived` form; initializers and preserved ST source keep their precision.
+
 ## Arrays
 
 Anonymous and named arrays use TC6 `array`, one `dimension` with folded `lower`

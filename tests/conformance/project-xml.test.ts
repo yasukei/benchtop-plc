@@ -265,6 +265,62 @@ it.each(["FUNCTION", "FUNCTION_BLOCK"])(
   },
 );
 
+it("validates long time/date types as derived names against TC6 v2.01", () => {
+  const types = ["LTIME", "LDATE", "LTOD", "LDT"];
+  const value: Project = {
+    ...project,
+    dataTypes: [
+      ...types.flatMap((type) => [
+        `TYPE Alias${type} : ${type}; END_TYPE`,
+        `TYPE Array${type} : ARRAY[1..2] OF ${type}; END_TYPE`,
+      ]),
+      `TYPE Times : STRUCT ${types.map((type) => `member${type} : ${type};`).join(" ")} END_STRUCT; END_TYPE`,
+    ],
+    pous: [
+      `PROGRAM Main VAR recordValue : Times; ${types
+        .map(
+          (type) =>
+            `scalar${type} : ${type}; aliasValue${type} : Alias${type}; namedArray${type} : Array${type}; inlineArray${type} : ARRAY[1..2] OF ${type};`,
+        )
+        .join(" ")} END_VAR END_PROGRAM`,
+      ...types.map(
+        (type) =>
+          `FUNCTION Echo${type} : ${type} VAR_INPUT inputValue : ${type}; END_VAR VAR_OUTPUT outputValue : ${type}; END_VAR VAR_IN_OUT inOutValue : ${type}; END_VAR Echo${type} := inputValue; END_FUNCTION`,
+      ),
+    ],
+  };
+  expect(compileProject(value.pous, value.dataTypes).diagnostics).toEqual([]);
+  const written = writeProject(value);
+  expect(written.diagnostics).toEqual([]);
+  for (const type of types) {
+    expect(written.value).toContain(`<type><derived name="${type}"/></type>`);
+    expect(written.value).toContain(`<baseType><derived name="${type}"/></baseType>`);
+    expect(written.value).toContain(`<returnType><derived name="${type}"/></returnType>`);
+    expect(written.value).not.toContain(`<${type}/>`);
+  }
+  const schema = XmlDocument.fromString(loadSchema());
+  const validator = XsdValidator.fromDoc(schema);
+  const document = XmlDocument.fromString(written.value!);
+  try {
+    expect(() => validator.validate(document)).not.toThrow();
+    expect(readProject(written.value!)).toEqual({ value, diagnostics: [] });
+    const canonical = readProject(
+      written.value!.replace(
+        new RegExp(`<data name="${SOURCE_NAMESPACE}"[^>]*>[\\s\\S]*?</data>`, "g"),
+        "",
+      ),
+    );
+    expect(canonical.diagnostics).toEqual([]);
+    expect(compileProject(canonical.value!.pous, canonical.value!.dataTypes).diagnostics).toEqual(
+      [],
+    );
+  } finally {
+    document.dispose();
+    validator.dispose();
+    schema.dispose();
+  }
+});
+
 it("validates array dimensions and repeated initial values against TC6 v2.01", () => {
   const arrays: Project = {
     ...project,

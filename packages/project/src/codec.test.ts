@@ -394,7 +394,8 @@ END_VAR
 w.63 := TRUE;
 END_PROGRAM`);
   const saved = xml(project);
-  for (const type of ["LINT", "ULINT", "LWORD", "LTIME"]) expect(saved).toContain(`<${type}/>`);
+  for (const type of ["LINT", "ULINT", "LWORD"]) expect(saved).toContain(`<${type}/>`);
+  expect(saved).toContain('<derived name="LTIME"/>');
   expect(readProject(saved).value).toEqual(project);
   const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
   expect(canonical.diagnostics).toEqual([]);
@@ -424,13 +425,35 @@ VAR a: DATE := D#2024-02-29; b: TIME_OF_DAY := TOD#12:30:15.5;
 END_VAR
 END_PROGRAM`);
   const saved = xml(project);
-  for (const type of ["DATE", "TOD", "DT", "LDATE", "LTOD", "LDT"])
-    expect(saved).toContain(`<${type}/>`);
+  for (const type of ["DATE", "TOD", "DT"]) expect(saved).toContain(`<${type}/>`);
+  for (const type of ["LDATE", "LTOD", "LDT"]) expect(saved).toContain(`<derived name="${type}"/>`);
   expect(readProject(saved).value).toEqual(project);
   const canonical = readProject(stripExtension(saved, SOURCE_NAMESPACE));
   expect(canonical.diagnostics).toEqual([]);
   expect(canonical.value?.pous[0]).toContain("b : TOD := TOD#12:30:15.5");
   expect(canonical.value?.pous[0]).toContain("e : LTOD := LTOD#23:59:59.999999999");
+});
+it.each([
+  ["LTIME", "LT#1ms500us7ns"],
+  ["LDATE", "LD#1677-09-22"],
+  ["LTOD", "LTOD#23:59:59.999999999"],
+  ["LDT", "LDT#1677-09-21-00:12:43.145224192"],
+])("opens legacy %s elements with and without preserved source", (type, initial) => {
+  const project = sampleProject(
+    `PROGRAM Main VAR value : ${type} := ${initial}; END_VAR END_PROGRAM`,
+  );
+  const saved = xml(project);
+  expect(saved).toContain(`<derived name="${type}"/>`);
+  const legacy = saved.replaceAll(`<derived name="${type}"/>`, `<${type}/>`);
+  expect(readProject(legacy)).toEqual({ value: project, diagnostics: [] });
+  const canonical = readProject(stripExtension(legacy, SOURCE_NAMESPACE));
+  expect(canonical.diagnostics).toEqual([]);
+  expect(splitProgram(canonical.value!.pous[0]!).value!.variables).toEqual(
+    splitProgram(project.pous[0]!).value!.variables,
+  );
+  const resaved = xml(canonical.value!);
+  expect(resaved).toContain(`<derived name="${type}"/>`);
+  expect(resaved).not.toContain(`<${type}/>`);
 });
 it.each([
   ["DATE", "D#1970-01-01", "D#2026-02-30"],

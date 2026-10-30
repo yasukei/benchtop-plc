@@ -202,7 +202,7 @@ External IR initial values, writes, forces and project initializer ranges are
 validated; wrapping applies only to computed program results and conversions.
 
 64-bit values remain exact across JSON IR, Worker messages, snapshots, monitor writes/forces
-and PLCopen XML (`<LINT/>`, `<ULINT/>`, `<LWORD/>`, `<LTIME/>`). LTIME scales by real
+and PLCopen XML (`<LINT/>`, `<ULINT/>`, `<LWORD/>`, `<derived name="LTIME"/>`). LTIME scales by real
 operands using exact bigint fractions with one nearest-even rounding. LTIME_TO_TIME
 truncates toward zero, then wraps. Integer-to-real and real-to-integer conversions
 round nearest, ties to even; 64-bit integers require an explicit conversion to reals.
@@ -216,7 +216,9 @@ pre-epoch conversions to DATE or DT fault. DATE → LDATE, LDATE → DATE and
 LDT → LDATE are extensions. Calendar values carry no time zone. Named calendar
 functions support arithmetic, component construction/extraction and weekdays (#73).
 A wall-clock function remains unsupported (ADR 0003).
-PLCopen XML exchanges DATE/TOD/DT/LDATE/LTOD/LDT elementary elements; the monitor
+PLCopen XML exchanges DATE/TOD/DT as elementary elements and LDATE/LTOD/LDT as
+`derived` names, since TC6 v2.01 has no long time/date elements. Legacy long
+time/date elements still open (see [project-format.md](project-format.md#long-time-and-date-types)). The monitor
 reads, writes and forces their IEC literals with full stored precision.
 
 Time/date component functions use YEAR/MONTH/DAY/HOUR/MINUTE/SECOND/MILLISECOND;
