@@ -6,6 +6,7 @@ import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
 import { demoSource } from "./demo.js";
 import { createAppStore } from "./store.js";
+import { createAutosave, readAutosave, type SavedWork } from "./autosave.js";
 import { createPous } from "./pous.js";
 
 const snapshot: RuntimeSnapshot = {
@@ -699,6 +700,90 @@ END_RESOURCE END_CONFIGURATION`;
   expect(worker.sent.at(-1)).toEqual({ type: "setCycle", ms: 20 });
   store.dispose();
 });
+
+it("starts an opened project at its initial value after invalid source is reloaded and fixed", async () => {
+  const { createWorkerHost } = await import("./worker-host.js");
+  const { VirtualClock, VirtualTicker } = await import("@benchtop-plc/runtime");
+  const connect = (initial: string | SavedWork) => {
+    const worker = new FakeWorker();
+    const clock = new VirtualClock();
+    const host = createWorkerHost(clock, new VirtualTicker(clock), (event) =>
+      worker.receive(event),
+    );
+    worker.postMessage = (message) => host.handle(message);
+    return { store: createAppStore(new RuntimeClient(worker), initial), host, clock };
+  };
+  const first = connect("PROGRAM Main VAR RETAIN n : INT := 0; END_VAR n := n + 1; END_PROGRAM");
+  let value: string | null = null;
+  const storage = {
+    getItem: () => value,
+    setItem: (_: string, next: string) => {
+      value = next;
+    },
+  };
+  const autosave = createAutosave(first.store, storage);
+  expect(first.store.loadEditor()).toBe(true);
+  for (let scan = 0; scan < 9; scan++) first.store.send({ type: "step" });
+  expect(first.store.getSnapshot().retentive).toMatchObject([
+    { path: "mainInstance.n", value: { value: 9 } },
+  ]);
+  const source = "PROGRAM Main VAR RETAIN n : INT := 100; END_VAR END_PROGRAM";
+  const invalid = source.replace("END_PROGRAM", "Missing(); END_PROGRAM");
+  const project = readProject(first.store.saveProject()!).value!;
+  first.store.setSource(invalid);
+  expect(first.store.loadEditor()).toBe(false);
+  expect(first.store.getSnapshot().retentive?.[0]).toMatchObject({ value: { value: 9 } });
+  expect(first.store.openProject(writeProject({ ...project, pous: [invalid] }).value!)).toBe(true);
+  // Replacement must reach autosave before any successful load or Worker reply.
+  const saved = readAutosave(storage)!;
+  expect(saved.pous[0]?.source).toBe(invalid);
+  expect(saved.retentive).toBeUndefined();
+  autosave.dispose();
+  first.store.dispose();
+  first.host.dispose();
+
+  const fresh = connect(saved);
+  expect(fresh.store.loadEditor()).toBe(false);
+  fresh.store.setSource(source);
+  fresh.store.run();
+  fresh.clock.advance(10);
+  expect(fresh.store.getSnapshot()).toMatchObject({
+    runtimeState: "RUN",
+    snapshot: { variables: [{ dataType: "INT", value: 100 }] },
+  });
+  fresh.store.dispose();
+  fresh.host.dispose();
+});
+
+it.each(["openProject", "restoreExample"] as const)(
+  "%s clears stored and pending retained values without waiting for the Worker",
+  (action) => {
+    const { store: initial } = setup();
+    const xml = initial.saveProject()!;
+    const worker = new FakeWorker();
+    const store = createAppStore(new RuntimeClient(worker), {
+      ...initial.getSnapshot(),
+      retentive: [
+        {
+          kind: "leaf",
+          path: "mainInstance.n",
+          dataType: '"INT"',
+          value: { dataType: "INT", value: 9 },
+        },
+      ],
+    });
+    worker.receive({ type: "retentiveRestored", skipped: ["mainInstance.old"] });
+    expect(store.openProject("invalid")).toBe(false);
+    expect(store.getSnapshot().retentive).toHaveLength(1);
+    if (action === "openProject") expect(store.openProject(xml)).toBe(true);
+    else expect(store.restoreExample()).toBe(true);
+    expect(store.getSnapshot().retentive).toBeUndefined();
+    expect(store.getSnapshot().retentiveSkipped).toEqual([]);
+    expect(worker.sent.find((message) => message.type === "load")).not.toHaveProperty("retentive");
+    store.dispose();
+    initial.dispose();
+  },
+);
 
 it("clears an old restore warning on a successful load and accepts fresh restore results", () => {
   const { store, worker } = setup();

@@ -339,7 +339,10 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     const pous = createPous(opened.project.pous);
     const selectedPou = initialPouIndex(pous);
     const dataTypes = createDataTypes(opened.project.dataTypes);
+    pendingRestore = undefined;
     update({
+      retentive: undefined,
+      retentiveSkipped: [],
       instanceChoices: undefined,
       breakpoints: undefined,
       halted: null,
@@ -368,8 +371,6 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       diagnostic: null,
       rejection: null,
     });
-    pendingRestore = undefined;
-    update({ retentiveSkipped: [] });
     // The loaded configuration IR supplies its cycle, including implicit projects.
     loadEditor();
     return true;

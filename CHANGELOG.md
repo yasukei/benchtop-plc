@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Clear the previous project's retained values when opening a project or restoring
+  the example, even if the opened source cannot compile before a page reload.
 - Preserve each POU's breakpoints, instance choice and loaded-line mapping when an
   edited header temporarily uses another POU's name. Deleting a POU also removes
   its saved instance choice.
