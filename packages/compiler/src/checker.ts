@@ -1848,7 +1848,12 @@ class Checker {
       defaultExpected && enumerationType(defaultExpected, this.types)
         ? defaultExpected
         : nodes.map(hint).find((type) => type && enumerationType(type, this.types));
-    const infos = nodes.map((node) => (deferred(node) ? null : this.expression(node, context)));
+    // A failed expression is null too; keep deferred operands separate so a
+    // failed subtree is never checked again while selecting an enum context.
+    const pending = new Set(nodes.flatMap((node, index) => (deferred(node) ? [index] : [])));
+    const infos = nodes.map((node, index) =>
+      pending.has(index) ? null : this.expression(node, context),
+    );
     const enumeration = infos.find((info) => info && this.enum(info));
     const enumExpected =
       enumeration?.descriptor ??
@@ -1867,9 +1872,8 @@ class Checker {
           this.report("type.ambiguous-enumeration", { name: node.name.name }, node.span);
           return null;
         }
-        return infos[index] ?? this.expression(node, enumExpected);
+        return pending.has(index) ? this.expression(node, enumExpected) : infos[index]!;
       });
-    const pending = new Set(nodes.flatMap((node, index) => (deferred(node) ? [index] : [])));
     independent = independent && (infos[0]?.dataType === "TIME" || infos[0]?.dataType === "LTIME");
     const common = commonType(infos.filter((info) => info !== null).map((info) => info.dataType));
     for (const index of pending) {

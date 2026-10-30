@@ -7,7 +7,28 @@ import {
 } from "@benchtop-plc/compiler";
 import { readProject, writeProject } from "@benchtop-plc/project";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
-import { nestingCases, nestingProject, nestingSource } from "./source-nesting.test-support.js";
+import {
+  failedOperandsProject,
+  nestingCases,
+  nestingProject,
+  nestingSource,
+} from "./source-nesting.test-support.js";
+
+it.each(["calls", "comparisons"] as const)("checks failed nested %s only once", (kind) => {
+  const depth = kind === "calls" ? MAX_SOURCE_NESTING : MAX_SOURCE_NESTING / 2;
+  const project = failedOperandsProject(kind, depth);
+  const result = compileProject(project.pous, project.dataTypes);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics.length).toBeGreaterThan(0);
+  expect(result.diagnostics.length).toBeLessThanOrEqual(2 * depth + 1);
+  expect(result.diagnostics.some((diagnostic) => diagnostic.code === "syntax.nesting-limit")).toBe(
+    false,
+  );
+  if (kind === "comparisons")
+    expect(
+      result.diagnostics.filter((diagnostic) => diagnostic.code === "name.undeclared"),
+    ).toHaveLength(1);
+});
 
 describe.each(nestingCases)("source nesting: %s", (kind) => {
   it("compiles, executes and round-trips the deepest accepted source", () => {

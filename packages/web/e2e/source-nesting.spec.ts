@@ -2,10 +2,12 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { build } from "vite";
 import { MAX_SOURCE_NESTING } from "@benchtop-plc/compiler";
+import { writeProject } from "@benchtop-plc/project";
 import { autosaveStorageKey } from "../src/autosave.js";
 import {
   nestingCases,
   nestingSource,
+  failedOperandsProject,
 } from "../../../tests/conformance/source-nesting.test-support.js";
 
 test("the deepest accepted source compiles, runs and round-trips in a browser Worker", async ({
@@ -49,6 +51,10 @@ test("the deepest accepted source compiles, runs and round-trips in a browser Wo
     output.code,
   );
   expect(result).toEqual({
+    failedOperands: [
+      { kind: "calls", bounded: true },
+      { kind: "comparisons", bounded: true },
+    ],
     results: nestingCases.map((kind) => ({
       kind,
       preserved: true,
@@ -59,6 +65,35 @@ test("the deepest accepted source compiles, runs and round-trips in a browser Wo
     })),
   });
 });
+
+for (const kind of ["calls", "comparisons"] as const) {
+  test(`restores accepted-depth ${kind} with type errors without repeating failed checks`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const depth = kind === "calls" ? MAX_SOURCE_NESTING : MAX_SOURCE_NESTING / 2;
+    const project = failedOperandsProject(kind, depth);
+    const written = writeProject(project);
+    expect(written.diagnostics).toEqual([]);
+    await page.goto("/");
+    await page.getByLabel("Open project", { exact: true }).setInputFiles({
+      name: "failed-operands.xml",
+      mimeType: "application/xml",
+      buffer: Buffer.from(written.value!),
+    });
+    const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+    await expect(diagnostics).toContainText(kind === "calls" ? "MAX" : "zz");
+    await page.reload();
+    await expect(diagnostics).toContainText(kind === "calls" ? "MAX" : "zz");
+    await page
+      .getByRole("textbox", { name: "Structured Text", exact: true })
+      .fill("PROGRAM Main VAR c : Color; END_VAR c := Color#Red; END_PROGRAM");
+    await page.getByRole("button", { name: "RUN", exact: true }).click();
+    await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+    expect(errors).toEqual([]);
+  });
+}
 
 test("deep autosaved text returns a localized diagnostic and the editor stays usable", async ({
   page,

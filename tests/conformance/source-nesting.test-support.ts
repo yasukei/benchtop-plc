@@ -90,3 +90,12 @@ export function nestingProject(source: string, dataTypes: string[] = []): Projec
     panel: { width: 800, height: 600, widgets: [] },
   };
 }
+
+export function failedOperandsProject(kind: "calls" | "comparisons", depth: number): Project {
+  let expression = kind === "calls" ? "c" : "zz";
+  for (let level = 0; level < depth; level++)
+    expression = kind === "calls" ? `MAX(Color#Red, ${expression})` : `c = (${expression})`;
+  return nestingProject(`PROGRAM Main VAR c : Color; END_VAR c := ${expression}; END_PROGRAM`, [
+    "TYPE Color : (Red, Green); END_TYPE",
+  ]);
+}

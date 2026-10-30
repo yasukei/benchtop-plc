@@ -25,6 +25,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Check failed nested enumeration operands once, keeping diagnostics proportional
+  to the source size and autosave restoration responsive.
 - Return a localized diagnostic for source nested beyond 32 syntax levels instead
   of overflowing the stack, including during autosave restoration. The limit
   protects compilation, execution and project exchange; function block instance

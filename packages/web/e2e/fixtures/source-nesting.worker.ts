@@ -5,6 +5,7 @@ import {
   nestingCases,
   nestingProject,
   nestingSource,
+  failedOperandsProject,
 } from "../../../../tests/conformance/source-nesting.test-support.js";
 
 // This harness deliberately runs all packages in Chromium's Worker, where stacks
@@ -35,7 +36,16 @@ self.onmessage = () => {
         ),
       };
     });
-    self.postMessage({ results });
+    const failedOperands = (["calls", "comparisons"] as const).map((kind) => {
+      const depth = kind === "calls" ? MAX_SOURCE_NESTING : MAX_SOURCE_NESTING / 2;
+      const project = failedOperandsProject(kind, depth);
+      const result = compileProject(project.pous, project.dataTypes);
+      return {
+        kind,
+        bounded: result.diagnostics.length > 0 && result.diagnostics.length <= 2 * depth + 1,
+      };
+    });
+    self.postMessage({ results, failedOperands });
   } catch (error) {
     self.postMessage({ error: String(error) });
   }
