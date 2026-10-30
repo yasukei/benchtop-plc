@@ -26,10 +26,54 @@ Dependabot opens grouped npm and GitHub Actions update PRs monthly; major update
 Other scripts:
 
 - `pnpm dev` – start the web app
-- `pnpm build` – build every package
+- `pnpm build` – build every package; run before submitting a PR
+- `pnpm --filter @benchtop-plc/web build:pages` – generate the GitHub Pages deployment artifact
 - `pnpm format` – format all files with Prettier
-- `pnpm test:e2e` – end-to-end tests (Playwright)
-- `pnpm test:e2e:pages` – smoke tests against the GitHub Pages build under `/benchtop-plc/`
+- `pnpm test:e2e` – end-to-end tests (Playwright); run for UI changes
+- `pnpm test:e2e:pages` – smoke tests against the GitHub Pages build under `/benchtop-plc/`;
+  run for build or base-path changes (builds the Pages artifact itself)
+- `pnpm bench:runtime` – run for runtime execution changes; compare ordinary benchmark
+  medians with the pre-resumable-execution baseline on the same machine and Node version.
+  [ADR 0018](docs/adr/0018-debugging.md) permits at most 2× the baseline with no
+  breakpoint set and no step pending. See [the benchmark procedure](docs/runtime.md#scan-time-benchmark)
+  to reproduce the baseline; the command reports timings rather than enforcing the budget.
+
+Before finishing any change, run `pnpm typecheck && pnpm lint && pnpm test`.
+CI also runs `pnpm build` and both Playwright suites on every PR; run all of them
+locally to reproduce CI. For workflow changes, also run the zizmor check above.
+
+### Playwright browser setup
+
+After `pnpm install` on a fresh clone, install the browser version matching the
+locked Playwright dependency, then run the suites:
+
+```sh
+pnpm exec playwright install chromium
+pnpm test:e2e
+pnpm test:e2e:pages
+```
+
+Use `pnpm install --frozen-lockfile` to match CI's dependency installation.
+On Linux, if browser system libraries are missing, use
+`pnpm exec playwright install --with-deps chromium`. CI installs only the headless
+shell with `pnpm exec playwright install --with-deps --only-shell chromium`.
+For local runs without `CI` set, both suites build the app and start their own
+preview server; CI builds before running `test:e2e`.
+
+A container's preinstalled Chromium may differ from Playwright's expected version,
+causing "Executable doesn't exist". Install the matching browser as above or point
+both suites at the preinstalled browser's executable using an absolute path:
+
+```sh
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/absolute/path/to/chromium
+pnpm test:e2e
+pnpm test:e2e:pages
+```
+
+The override takes an executable file, not a directory. Unset it to use the
+Playwright-managed browser again.
+
+### Workspace
 
 The repository is a pnpm workspace. Packages live in `packages/` (`core`, `compiler`,
 `runtime`, `project`, `web`); language conformance tests live in `tests/conformance/`.

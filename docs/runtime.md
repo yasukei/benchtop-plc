@@ -833,8 +833,14 @@ using the same benchmark on base commit `f0cd173` and this implementation:
 ADR 0018 permits at most 2× the baseline median for each ordinary benchmark.
 To repeat the baseline, check out `f0cd173` in another worktree, copy
 `runtime-benchmark.config.ts` and `tests/benchmarks/runtime.bench.ts` from this
-change, install its locked dependencies and run
-`pnpm exec vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept`.
+change, install its locked dependencies and run:
+
+```sh
+pnpm exec vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept -t '^(sorting conveyor|loop with user calls)$'
+```
+
+The filter selects the two ordinary benchmarks; the later runtime telemetry cases
+use debugger APIs that do not exist at the baseline commit.
 
 Results for issue #197 (Node 22.22.1, Linux x86-64, sequential runs). The
 runtime telemetry cases include normal task stages and exclude snapshot
