@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Document verification commands, when to run them, and Playwright browser setup
+  for fresh clones and containers in the contributor guides.
 - Development now requires Node.js 26 or later; CI uses the major pinned in
   `.node-version`.
 - The public GitHub Pages site now follows published releases instead of every
