@@ -535,6 +535,42 @@ it("clears an earlier save failure when an open attempt fails", () => {
   store.dispose();
 });
 
+it("keeps import warnings until dismissed or replaced by a successful open", () => {
+  const { store, worker } = setup();
+  const xml = store.saveProject()!;
+  const withVendorData = xml.replace(
+    "</addData></project>",
+    '<data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data></addData></project>',
+  );
+  const warnings = readProject(withVendorData).diagnostics;
+  expect(warnings).toMatchObject([{ code: "project.dropped-data", severity: "warning" }]);
+  expect(store.getSnapshot().openDiagnostics).toEqual([]);
+  expect(store.openProject(withVendorData)).toBe(true);
+  acknowledgeLoad(worker);
+  expect(store.getSnapshot().openDiagnostics).toEqual(warnings);
+  store.setSource(store.getSnapshot().source + "\n");
+  store.setLayout([]);
+  store.send({ type: "coldReset" });
+  expect(store.saveProject()).not.toBeNull();
+  expect(store.getSnapshot().saveDiagnostics).toEqual([]);
+  expect(store.getSnapshot().openDiagnostics).toEqual(warnings);
+  expect(store.openProject("invalid XML")).toBe(false);
+  expect(store.getSnapshot().openDiagnostics).toEqual(warnings);
+  store.dismissOpenDiagnostics();
+  expect(store.getSnapshot().openDiagnostics).toEqual([]);
+  expect(store.openProject(withVendorData)).toBe(true);
+  acknowledgeLoad(worker);
+  expect(store.getSnapshot().openDiagnostics).toEqual(warnings);
+  expect(store.openProject(xml)).toBe(true);
+  acknowledgeLoad(worker);
+  expect(store.getSnapshot().openDiagnostics).toEqual([]);
+  expect(store.openProject(withVendorData)).toBe(true);
+  acknowledgeLoad(worker);
+  expect(store.restoreExample()).toBe(true);
+  expect(store.getSnapshot().openDiagnostics).toEqual([]);
+  store.dispose();
+});
+
 it("keeps empty projects saveable and creates a first POU on an editor change", () => {
   const { store, worker } = setup();
   const metadata = readProject(store.saveProject()!).value!;

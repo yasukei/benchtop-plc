@@ -170,6 +170,13 @@ persistent user FB scalar members under dotted paths such as `M1.RUNNING`; write
 and forces address them normally. Nested standard FBs retain their port summary.
 PROGRAM user FB calls show outputs in declaration order as inline values.
 
+Opening a project that drops unknown vendor data or replaces stale preserved
+source shows the codec's warnings in English or Japanese beside the project
+controls, in the same area as save diagnostics. Saving keeps the imported content
+with those changes. The warnings remain through edits, runtime commands and saves
+until **Dismiss project warnings** is selected or another project opens
+successfully (including **Restore example**). A failed open leaves them visible.
+
 Try the [motor starters example](../examples/motor-starters/) by selecting
 `examples/motor-starters/project.xml` with **Open project**. Its POU list contains
 `Main`, `MotorStarter` and `CanStart`: a program, a reusable function block with a

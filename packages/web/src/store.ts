@@ -51,6 +51,7 @@ export interface AppState extends SavedWork {
   source: string;
   editorSession: number;
   saveDiagnostics: Diagnostic[];
+  openDiagnostics: Diagnostic[];
   openProjectError: "unsupported-cycle" | null;
   layout: PanelLayout;
   emergencyActive: boolean;
@@ -102,6 +103,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     selectedDataType,
     editorSession: 0,
     saveDiagnostics: [],
+    openDiagnostics: [],
     openProjectError: null,
     pous,
     selectedPou,
@@ -411,6 +413,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
           : deriveConfiguration(opened.project.configurationSource),
       editorSession: state.editorSession + 1,
       saveDiagnostics: [],
+      openDiagnostics: opened.diagnostics,
       source: pous[selectedPou]?.source ?? "",
       layout: opened.layout,
       project: opened.project,
@@ -431,6 +434,9 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   };
   return {
     getSnapshot: () => state,
+    dismissOpenDiagnostics() {
+      update({ openDiagnostics: [] });
+    },
     storageFailed() {
       if (!state.storageWarning) update({ storageWarning: true });
     },

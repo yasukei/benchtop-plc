@@ -7,6 +7,27 @@ import { openPanelProject, savePanelProject } from "./project.js";
 import { demoSource } from "../demo.js";
 
 describe("panel project persistence", () => {
+  // The codec's vendor-data and stale-source warning fixtures, applied to the example.
+  it.each([
+    [
+      sampleXml.replace(
+        "</addData></project>",
+        '<data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data></addData></project>',
+      ),
+      "project.dropped-data",
+    ],
+    [sampleXml.replace('value="T#500ms"', 'value="T#250ms"'), "project.stale-source"],
+  ])("carries successful read warnings through the adapter (fixture %#)", (xml, code) => {
+    const decoded = readProject(xml);
+    expect(decoded.value).not.toBeNull();
+    expect(decoded.diagnostics).toContainEqual(
+      expect.objectContaining({ code, severity: "warning" }),
+    );
+    const opened = openPanelProject(xml)!;
+    expect(opened.project).toEqual(decoded.value);
+    expect(opened.diagnostics).toEqual(decoded.diagnostics);
+  });
+
   it("stamps new projects with the app package version", () => {
     const project = readProject(savePanelProject([demoSource], [], 10, null, [])!).value!;
     expect(project.fileHeader).toMatchObject({

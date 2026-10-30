@@ -198,3 +198,44 @@ test("preserves an unresolved enum type default without routing its diagnostic i
   const saved = readProject(readFileSync((await (await downloadPromise).path())!, "utf8"));
   expect(saved.value!.dataTypes).toEqual(dataTypes);
 });
+
+test("shows import warnings in both languages until dismissed or another project opens", async ({
+  page,
+}) => {
+  const xml = sampleXml.replace(
+    "</addData></project>",
+    '<data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data></addData></project>',
+  );
+  await page.goto("/");
+  const open = (buffer: string, label = "Open project") =>
+    page.getByLabel(label, { exact: true }).setInputFiles({
+      name: "imported.xml",
+      mimeType: "application/xml",
+      buffer: Buffer.from(buffer),
+    });
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await open(xml);
+  const warning = page.getByRole("alert").filter({ hasText: "https://vendor.example/1" });
+  await expect(warning).toContainText("Unknown vendor data was dropped: https://vendor.example/1.");
+  await expect(warning).toContainText("Saving will keep these changes.");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Single scan", exact: true }).click();
+  await expect(page.getByLabel("Scans", { exact: true })).toHaveText("1");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  await downloadPromise;
+  await expect(warning).toBeVisible();
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(warning).toContainText(
+    "不明なベンダーデータを破棄しました: https://vendor.example/1。",
+  );
+  await expect(warning).not.toContainText("Unknown vendor data");
+  await warning.getByRole("button", { name: "プロジェクトの警告を閉じる", exact: true }).click();
+  await expect(warning).toHaveCount(0);
+  await open(xml, "プロジェクトを開く");
+  await expect(warning).toBeVisible();
+  await expect(page.getByText("プログラム適用済み", { exact: true })).toBeVisible();
+  await open(sampleXml, "プロジェクトを開く");
+  await expect(warning).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});

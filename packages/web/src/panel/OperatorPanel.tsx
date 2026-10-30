@@ -245,6 +245,19 @@ export function OperatorPanel({
           ))}
         </div>
       )}
+      {state.openDiagnostics.length > 0 && (
+        <div role="alert">
+          <p>{text.projectWarnings}</p>
+          {state.openDiagnostics.map((diagnostic, index) => (
+            <p key={index}>
+              {diagnostic.pou} {formatDiagnostic(language, diagnostic)}
+            </p>
+          ))}
+          <button onClick={() => store.dismissOpenDiagnostics()}>
+            {text.dismissProjectWarnings}
+          </button>
+        </div>
+      )}
       {editing && (
         <>
           <p>{text.panelEditHint}</p>
