@@ -71,6 +71,7 @@ export interface DiagnosticArgs {
   "syntax.assignment-operator": NoArguments;
   "syntax.unexpected-eof": NoArguments;
   "syntax.missing-end": { expected: `END_${string}` };
+  "syntax.nesting-limit": { limit: number };
 
   "decl.retention-conflict": NoArguments;
   "decl.retention-section": NoArguments;
