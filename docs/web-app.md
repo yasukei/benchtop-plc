@@ -258,8 +258,11 @@ to use it instead of Playwright's downloaded browser.
 
 The public demo on GitHub Pages is served from `/benchtop-plc/`. The `Pages`
 workflow builds it with `pnpm --filter @benchtop-plc/web build:pages` (Vite's
-`base` set to the sub-path, output in `packages/web/dist/pages`) on every push to
-`main` and deploys it. `pnpm dev`, `pnpm build` and `pnpm test:e2e` keep using `/`.
+`base` set to the sub-path, output in `packages/web/dist/pages`) when a GitHub
+Release is published, checking out that release's tag. Manual dispatch requires
+the ref to deploy, for re-deployments or hotfix tags. See
+[ADR 0019](adr/0019-static-hosting-and-release-deployments.md) for the release
+procedure. `pnpm dev`, `pnpm build` and `pnpm test:e2e` keep using `/`.
 `pnpm test:e2e:pages` builds the Pages bundle, serves it with `vite preview` at
 `http://127.0.0.1:4174/benchtop-plc/` and runs `smoke.spec.ts` against it, so a
 URL that ignores the sub-path fails CI.

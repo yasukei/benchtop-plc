@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- The public GitHub Pages site now follows published releases instead of every
+  push to `main`; manual deployments take an explicit ref.
 - **Breaking core protocol change:** `load` requires a per-attempt `loadId`.
   The Worker echoes it only on the initial snapshot or the failed-load fault;
   ordinary command replies omit it.
