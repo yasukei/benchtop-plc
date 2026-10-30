@@ -58,40 +58,48 @@ test("retained scalar and counter survive page reload in STOP; warm restart and 
   await expect(row(page, "kept").locator("td").nth(2)).toHaveText("0");
 });
 
-test("opening a project with a compile error clears old retained values before reload", async ({
-  page,
-}) => {
-  await apply(page);
-  await page.getByRole("button", { name: "Single scan", exact: true }).click();
-  await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
-  const text = "PROGRAM Retained VAR RETAIN kept : INT := 100; END_VAR END_PROGRAM";
-  const invalid = text.replace("END_PROGRAM", "Missing(); END_PROGRAM");
-  const project = readProject(
-    readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url), "utf8"),
-  ).value!;
-  const xml = writeProject({ ...project, pous: [invalid], panel: [] }).value!;
-  await page.getByLabel("Open project", { exact: true }).setInputFiles({
-    name: "retained.xml",
-    mimeType: "application/xml",
-    buffer: Buffer.from(xml),
+for (const command of ["none", "STOP", "Warm restart", "Cold reset"] as const) {
+  test(`opening invalid source keeps old retained values cleared after ${command} and reload`, async ({
+    page,
+  }) => {
+    await apply(page);
+    await page.getByRole("button", { name: "Single scan", exact: true }).click();
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
+    const text = "PROGRAM Retained VAR RETAIN kept : INT := 100; END_VAR END_PROGRAM";
+    const invalid = text.replace("END_PROGRAM", "Missing(); END_PROGRAM");
+    const project = readProject(
+      readFileSync(new URL("../../../examples/blink/project.xml", import.meta.url), "utf8"),
+    ).value!;
+    const xml = writeProject({ ...project, pous: [invalid], panel: [] }).value!;
+    await page.getByLabel("Open project", { exact: true }).setInputFiles({
+      name: "retained.xml",
+      mimeType: "application/xml",
+      buffer: Buffer.from(xml),
+    });
+    const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+    await expect(diagnostics).toContainText("Undeclared identifier: Missing.");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key)!).pous[0].source,
+          autosaveStorageKey,
+        ),
+      )
+      .toBe(invalid);
+    if (command !== "none") {
+      await page.locator(".toolbar").getByRole("button", { name: command, exact: true }).click();
+      await expect(page.getByLabel("Scans", { exact: true })).toHaveText(
+        command === "STOP" ? "1" : "0",
+      );
+    }
+    await page.reload();
+    await expect(diagnostics).toContainText("Undeclared identifier: Missing.");
+    await page.getByRole("textbox", { name: "Structured Text", exact: true }).fill(text);
+    await page.getByRole("button", { name: "RUN", exact: true }).click();
+    await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("100");
   });
-  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
-  await expect(diagnostics).toContainText("Undeclared identifier: Missing.");
-  await expect
-    .poll(() =>
-      page.evaluate(
-        (key) => JSON.parse(localStorage.getItem(key)!).pous[0].source,
-        autosaveStorageKey,
-      ),
-    )
-    .toBe(invalid);
-  await page.reload();
-  await expect(diagnostics).toContainText("Undeclared identifier: Missing.");
-  await page.getByRole("textbox", { name: "Structured Text", exact: true }).fill(text);
-  await page.getByRole("button", { name: "RUN", exact: true }).click();
-  await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
-  await expect(row(page, "kept").locator("td").nth(2)).toHaveText("100");
-});
+}
 
 test("acknowledging a division-by-zero fault performs a warm restart into STOP", async ({
   page,

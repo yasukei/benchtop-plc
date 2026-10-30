@@ -79,6 +79,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     ? configuration!.source
     : ((selectedDataType === null ? pous[selectedPou] : dataTypes[selectedDataType])?.source ?? "");
   let pendingRestore = typeof initial === "string" ? undefined : initial.retentive;
+  let awaitingProjectLoad = false;
   let state: AppState = {
     ...(typeof initial === "string" || initial.breakpoints === undefined
       ? {}
@@ -244,6 +245,8 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   const unsubscribe = client.subscribe((event: ClientEvent) => {
     switch (event.type) {
       case "retentive":
+        // An uncompilable import leaves the previous project's runtime in the Worker.
+        if (awaitingProjectLoad) break;
         update({ retentive: event.records });
         break;
       case "retentiveRestored":
@@ -313,6 +316,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     update({ snapshot: null, diagnostic: null, rejection: null, retentiveSkipped: [] });
     const retentive = pendingRestore;
     pendingRestore = undefined;
+    awaitingProjectLoad = false;
     client.send({ type: "load", ir: result.ir, ...(retentive === undefined ? {} : { retentive }) });
     // Queue watches before RUN can activate an event task, without waiting for the load reply.
     sendBodyWatches(result.ir);
@@ -340,6 +344,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     const selectedPou = initialPouIndex(pous);
     const dataTypes = createDataTypes(opened.project.dataTypes);
     pendingRestore = undefined;
+    awaitingProjectLoad = true;
     update({
       retentive: undefined,
       retentiveSkipped: [],
