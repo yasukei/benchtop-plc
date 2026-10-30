@@ -74,3 +74,47 @@ test("applies a type change while an old zero-scan Worker reply is delayed", asy
   await expect(row.locator("td").nth(2)).toHaveText("Done");
   expect(errors).toEqual([]);
 });
+
+for (const action of ["Acknowledge fault", "Cold reset"]) {
+  test(action + " clears a failed-load diagnostic and allows retry", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.addInitScript(() => {
+      const OriginalWorker = window.Worker;
+      window.Worker = class extends OriginalWorker {
+        override postMessage(message: UiToRuntimeMessage) {
+          if (message.type === "load" && document.documentElement.dataset.failLoad === "true") {
+            document.documentElement.dataset.failLoad = "false";
+            const command = structuredClone(message);
+            const variable = command.ir.variables[0]!;
+            if (variable.kind !== "scalar") throw new Error("Expected scalar fixture");
+            variable.initialValue = "invalid integer";
+            super.postMessage(command);
+          } else super.postMessage(message);
+        }
+      };
+    });
+    await page.goto("/");
+    await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+    await page
+      .getByRole("textbox", { name: "Structured Text", exact: true })
+      .fill("PROGRAM Main VAR x : INT := 7; END_VAR END_PROGRAM");
+    await page.evaluate(() => {
+      document.documentElement.dataset.failLoad = "true";
+    });
+    await page.getByRole("button", { name: "RUN", exact: true }).click();
+    const alert = page.getByRole("alert").filter({ hasText: "The program could not be loaded." });
+    await expect(alert).toBeVisible();
+    await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+    await page.getByRole("button", { name: action, exact: true }).click();
+    await expect(alert).toHaveCount(0);
+    await expect(page.getByRole("rowheader", { name: "x", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "RUN", exact: true }).click();
+    await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
+    const row = page.getByRole("row").filter({
+      has: page.getByRole("rowheader", { name: "x", exact: true }),
+    });
+    await expect(row.locator("td").nth(2)).toHaveText("7");
+    expect(errors).toEqual([]);
+  });
+}

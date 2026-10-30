@@ -33,6 +33,7 @@ import type {
   HaltedMessage,
   RuntimeSnapshot,
   RuntimeState,
+  RetentiveRecord,
   UiToRuntimeMessage,
 } from "@benchtop-plc/core";
 import type { ClientEvent, RuntimeClient } from "./runtime-client.js";
@@ -127,6 +128,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   let loadFailed = false;
   const pendingLoads: {
     loadId: number;
+    retentive?: RetentiveRecord[];
     loaded: {
       loadedSources: string[];
       loadedDataTypes: string[];
@@ -287,8 +289,9 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         if (event.loadId !== undefined) {
           const index = pendingLoads.findIndex((load) => load.loadId === event.loadId);
           if (index === -1) break;
-          pendingLoads.splice(index, 1);
+          const failed = pendingLoads.splice(index, 1)[0]!;
           if (pendingLoads.length) break;
+          pendingRestore = failed.retentive;
           loadFailed = true;
           update({
             loadedSources: null,
@@ -336,8 +339,11 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         lines: pou.source.split("\n").map((_, index) => index + 1),
       });
     const loadId = nextLoadId++;
+    const retentive = pendingRestore;
+    pendingRestore = undefined;
     pendingLoads.push({
       loadId,
+      ...(retentive === undefined ? {} : { retentive }),
       loaded: {
         loadedSources: pouSources(state.pous),
         loadedDataTypes: pouSources(state.dataTypes),
@@ -346,8 +352,6 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       },
     });
     update({ snapshot: null, diagnostic: null, rejection: null, retentiveSkipped: [] });
-    const retentive = pendingRestore;
-    pendingRestore = undefined;
     awaitingProjectLoad = false;
     client.send({
       type: "load",
@@ -826,7 +830,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       if (state.connection !== "connected") return;
       if (state.rejection) update({ rejection: null });
       if (message.type === "warmRestart" || message.type === "coldReset")
-        update({ retentiveSkipped: [] });
+        update({ retentiveSkipped: [], ...(loadFailed ? { diagnostic: null } : {}) });
       if (message.type === "setCycle") {
         if (state.configuration) return;
         if (!cycleOptions.includes(message.ms as CycleMs))
