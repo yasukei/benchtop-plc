@@ -17,10 +17,12 @@ import {
   createPous,
   deletePou,
   derivePou,
+  reconcilePouNames,
   initialPouIndex,
   pouSources,
   sameSources,
   type EditorDiagnostic,
+  type EditorPou,
 } from "./pous.js";
 import type { PanelLayout } from "./panel/layout.js";
 import blinkProjectXml from "../../../examples/blink/project.xml?raw";
@@ -130,6 +132,33 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
   let lastBodyWatches = "";
   let lastBreakpoints = "";
   const lineOrigins = new Map<string, { name: string; lines: (number | null)[] }>();
+  const reconcileDebugNames = (
+    pous: EditorPou[],
+    breakpoints: AppState["breakpoints"],
+    instanceChoices = state.instanceChoices,
+  ) => {
+    const reconciled = reconcilePouNames(pous);
+    const renames = new Map(
+      pous.flatMap((pou, index) => {
+        const oldKey = pou.name.toUpperCase(),
+          newKey = reconciled[index]!.name.toUpperCase();
+        return oldKey === newKey ? [] : [[oldKey, newKey] as const];
+      }),
+    );
+    if (!renames.size) return { pous: reconciled, breakpoints, instanceChoices };
+    // Read all old entries before writing any destinations, so swaps cannot overwrite them.
+    const rekey = <T>(entries: Iterable<readonly [string, T]>) =>
+      Array.from(entries, ([key, value]) => [renames.get(key) ?? key, value] as const);
+    const origins = rekey(lineOrigins);
+    lineOrigins.clear();
+    for (const [key, mapping] of origins) lineOrigins.set(key, mapping);
+    return {
+      pous: reconciled,
+      breakpoints: breakpoints && Object.fromEntries(rekey(Object.entries(breakpoints))),
+      instanceChoices:
+        instanceChoices && Object.fromEntries(rekey(Object.entries(instanceChoices))),
+    };
+  };
   const runtimeName = (pou: { name: string }) =>
     lineOrigins.get(pou.name.toUpperCase())?.name ?? pou.name;
   const runtimeChoices = () => {
@@ -394,41 +423,35 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         return;
       }
       const pous = state.pous.length
-        ? state.pous.map((pou, index) =>
-            index === state.selectedPou ? derivePou(source, pou) : pou,
-          )
+        ? state.pous.map((pou, index) => {
+            if (index !== state.selectedPou) return pou;
+            return { ...derivePou(source, pou), name: pou.name };
+          })
         : createPous([source]);
       const previous = state.pous[state.selectedPou];
       const next = pous[state.selectedPou];
       let breakpoints = state.breakpoints;
-      let instanceChoices = state.instanceChoices;
       if (previous && next) {
-        const oldKey = previous.name.toUpperCase(),
-          newKey = next.name.toUpperCase();
-        if (oldKey !== newKey && instanceChoices?.[oldKey]) {
-          instanceChoices = { ...instanceChoices, [newKey]: instanceChoices[oldKey] };
-          delete instanceChoices[oldKey];
-        }
+        const key = previous.name.toUpperCase();
         breakpoints = { ...breakpoints };
-        const lines = mapBreakpointLines(
-          previous.source,
-          source,
-          breakpoints[oldKey] ?? [],
-          changes,
-        );
-        delete breakpoints[oldKey];
-        if (lines.length) breakpoints[newKey] = lines;
+        const lines = mapBreakpointLines(previous.source, source, breakpoints[key] ?? [], changes);
+        delete breakpoints[key];
+        if (lines.length) breakpoints[key] = lines;
         if (!Object.keys(breakpoints).length) breakpoints = undefined;
-        const mapping = lineOrigins.get(oldKey);
+        const mapping = lineOrigins.get(key);
         if (mapping) {
-          lineOrigins.delete(oldKey);
-          lineOrigins.set(newKey, {
+          lineOrigins.set(key, {
             ...mapping,
             lines: mapSourceLines(previous.source, source, mapping.lines, changes),
           });
         }
       }
-      update({ source, pous, breakpoints, instanceChoices, diagnostics: [], saveDiagnostics: [] });
+      update({
+        source,
+        ...reconcileDebugNames(pous, breakpoints),
+        diagnostics: [],
+        saveDiagnostics: [],
+      });
       compileTimer = setTimeout(compileEditor, 250);
     },
     runtimeSource() {
@@ -687,19 +710,23 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       });
     },
     deletePou(index: number) {
-      const pous = deletePou(state.pous, index);
-      if (pous === state.pous) return;
+      const remaining = deletePou(state.pous, index);
+      if (remaining === state.pous) return;
       clearTimeout(compileTimer);
+      const key = state.pous[index]!.name.toUpperCase();
       const breakpoints = { ...state.breakpoints };
-      delete breakpoints[state.pous[index]!.name.toUpperCase()];
-      lineOrigins.delete(state.pous[index]!.name.toUpperCase());
+      delete breakpoints[key];
+      const instanceChoices = { ...state.instanceChoices };
+      delete instanceChoices[key];
+      lineOrigins.delete(key);
+      const debugState = reconcileDebugNames(remaining, breakpoints, instanceChoices);
+      const pous = debugState.pous;
       const selectedPou =
         state.selectedPou > index
           ? state.selectedPou - 1
           : Math.max(0, Math.min(state.selectedPou, pous.length - 1));
       update({
-        pous,
-        breakpoints,
+        ...debugState,
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou,

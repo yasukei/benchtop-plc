@@ -146,6 +146,38 @@ export function derivePou(source: string, previous?: EditorPou): EditorPou {
 
 export const createPous = (sources: readonly string[]): EditorPou[] =>
   sources.map((source) => derivePou(source));
+
+/** Keep colliding headers on their old workspace keys, then release them together. */
+export function reconcilePouNames(pous: readonly EditorPou[]): EditorPou[] {
+  const headers = pous.map((pou) => derivePou(pou.source, pou));
+  const counts = new Map<string, number>();
+  for (const { name } of headers) {
+    const key = name.toUpperCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const blocked = new Set<number>();
+  headers.forEach((pou, index) => {
+    if (counts.get(pou.name.toUpperCase())! > 1) blocked.add(index);
+  });
+  // A parked POU also reserves its old key; propagate reservations along rename chains.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const reserved = new Set([...blocked].map((index) => pous[index]!.name.toUpperCase()));
+    headers.forEach((pou, index) => {
+      if (!blocked.has(index) && reserved.has(pou.name.toUpperCase())) {
+        blocked.add(index);
+        changed = true;
+      }
+    });
+  }
+  return pous.map((pou, index) =>
+    blocked.has(index) || headers[index]!.name === pou.name
+      ? pou
+      : { ...pou, name: headers[index]!.name },
+  );
+}
+
 export const pouSources = (pous: readonly { source: string }[]): string[] =>
   pous.map((pou) => pou.source);
 export const initialPouIndex = (pous: readonly EditorPou[]): number =>
