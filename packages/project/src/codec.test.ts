@@ -218,7 +218,7 @@ it("preserves date/time aliases, elementary and derived declarations", () => {
   expect(written).toContain('<derived name="MYFB"/>');
   expect(readProject(written).value).toEqual(project);
 });
-it.each([NaN, Infinity, -Infinity, [undefined], new Date(), { x: undefined }])(
+it.each([NaN, Infinity, -Infinity, [undefined], new Date(0), { x: undefined }])(
   "rejects panel data that cannot round trip as JSON %#",
   (panel) => {
     const project = sampleProject();

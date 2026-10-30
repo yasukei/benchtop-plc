@@ -1,8 +1,10 @@
 import { ESLint } from "eslint";
+import tseslint from "typescript-eslint";
 import { expect, it } from "vitest";
 
 it("rejects hard-coded JSX text, expressions and accessible labels", async () => {
-  const eslint = new ESLint();
+  // JSX message restrictions are syntax-only; virtual probes need no TypeScript project.
+  const eslint = new ESLint({ overrideConfig: tseslint.configs.disableTypeChecked });
   for (const source of [
     "const view = <button>Save</button>;",
     'const view = <button>{"Save"}</button>;',

@@ -278,6 +278,7 @@ export class Interpreter {
       // Call-free expressions stay tree operations; only paths that can enter a body
       // need operand slots and continuations.
       if (!Interpreter.hasCall(expr)) return;
+      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- hasCall excludes literals, variables, bits and null before continuation compilation.
       switch (expr.kind) {
         case "userFunctionCall":
           if (expr.method?.receiver) address(expr.method.receiver);
@@ -378,6 +379,7 @@ export class Interpreter {
     const list = (statements: readonly Statement[], exit?: () => number): void => {
       for (const statement of statements) {
         code.push({ statement, run: () => {} });
+        // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Assignments and calls are compiled by the shared path after this control-flow switch.
         switch (statement.kind) {
           case "if": {
             const ends: { destination: number }[] = [];

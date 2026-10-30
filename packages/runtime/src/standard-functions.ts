@@ -115,6 +115,7 @@ export function callStandardFunction(
     }
     return coerceValue(signature.result!, result);
   }
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Conversions, strings and calendar functions are dispatched outside this numeric switch.
   switch (name) {
     case "ABS":
       return quantize(

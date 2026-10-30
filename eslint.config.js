@@ -23,12 +23,55 @@ export default defineConfig(
   js.configs.recommended,
   tseslint.configs.recommended,
   {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: {
+          // The service discovers tsconfig.json, not this standalone tools config.
+          allowDefaultProject: ["packages/web/vite.config.ts"],
+          defaultProject: "packages/web/tsconfig.tools.json",
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/switch-exhaustiveness-check": "error",
+    },
+  },
+  {
     files: ["*.{js,ts}"],
     languageOptions: { globals: globals.node },
   },
   {
     files: ["packages/web/**/*.{ts,tsx}"],
     languageOptions: { globals: globals.browser },
+  },
+  {
+    files: ["packages/{core,compiler,runtime,project}/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[object.name=/^(Date|performance)$/][property.name=now], " +
+            "MemberExpression[object.name=/^(Date|performance)$/][computed=true][property.value=now]",
+          message: "Use the injected Clock instead of reading the host clock (ADR 0003).",
+        },
+        {
+          selector: "NewExpression[callee.name=Date][arguments.length=0]",
+          message: "Use the injected Clock; only construct Date with a given instant (ADR 0003).",
+        },
+        {
+          selector:
+            "CallExpression[callee.name=/^(setTimeout|setInterval)$/], " +
+            "MemberExpression[property.name=/^(setTimeout|setInterval)$/], " +
+            "MemberExpression[computed=true][property.value=/^(setTimeout|setInterval)$/]",
+          message: "Use the injected Ticker instead of host timers (ADR 0003).",
+        },
+      ],
+    },
   },
   {
     files: ["packages/web/src/**/*.tsx"],

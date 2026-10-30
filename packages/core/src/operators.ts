@@ -62,6 +62,7 @@ export function binaryValue(
     }
   }
   if (typeof left === "string" && typeof right === "string") {
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Strings support comparisons only; the default rejects arithmetic and bit operations.
     switch (operator) {
       case "=":
         return left === right;
