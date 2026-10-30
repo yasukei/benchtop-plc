@@ -247,8 +247,11 @@ pnpm exec playwright install --with-deps chromium
 pnpm test:e2e
 ```
 
-Playwright builds all packages and serves the production bundle on port 4173. The
-tests exercise the actual bundled Worker: RUN/STOP, scans, reset, theme, narrow
+Locally, Playwright builds all packages first; when `CI` is set, it reuses the
+bundle from an earlier `pnpm build`. The CI workflow runs that build before e2e;
+do the same when running with `CI` set locally. In both cases, Playwright serves
+the production bundle on port 4173. The tests exercise the actual bundled Worker:
+RUN/STOP, scans, reset, theme, narrow
 layout, a Worker startup failure, non-fatal rejected debug commands, localized
 editor diagnostics, indentation, source application, changing reference-program
 values and runtime fault lines. CI installs Chromium and runs these tests; on
