@@ -12,6 +12,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - Keep debugger halts and snapshots serializable after 64-bit call results, and show
   invalid REAL/LREAL in-out storage in the call stack without disconnecting the Worker.
+- Clear the previous project's retained values when opening a project or restoring
+  the example, even if the opened source cannot compile before a page reload or a
+  runtime command republishes the previous project's values.
 - Preserve each POU's breakpoints, instance choice and loaded-line mapping when an
   edited header temporarily uses another POU's name. Deleting a POU also removes
   its saved instance choice.
