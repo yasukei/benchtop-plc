@@ -8,10 +8,20 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking core protocol change:** `load` requires a per-attempt `loadId`.
+  The Worker echoes it only on the initial snapshot or the failed-load fault;
+  ordinary command replies omit it.
+
 ### Fixed
 
 - End FOR loops when their next increment would exceed the control variable's type
   range, preserving the last body value instead of wrapping and reaching the watchdog.
+- Pair monitor values with the load that produced them, ignoring delayed
+  zero-scan replies from previous programs. Failed loads clear their pending
+  state so another project can be opened and loaded. Saved retained values survive
+  a failed-load retry, and Acknowledge fault or Cold reset clears its diagnostic.
 - Keep debugger halts and snapshots serializable after 64-bit call results, and show
   invalid REAL/LREAL in-out storage in the call stack without disconnecting the Worker.
 - Clear the previous project's retained values when opening a project or restoring

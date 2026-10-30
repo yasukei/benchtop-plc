@@ -14,7 +14,10 @@ store, then restores saved work or opens the bundled blink example. React subscr
 `useSyncExternalStore`. Runtime state and scan telemetry come from Worker
 messages; the UI does not optimistically claim that RUN succeeded. Worker errors
 terminate the connection, show a banner and disable runtime controls. Reload the
-page to create a fresh connection.
+page to create a fresh connection. A failed program load is handled separately:
+it reports `runtime.load-failed` without closing the connection, clears the
+monitor and loaded-program metadata, and leaves the Worker available for retry.
+RUN retries the load; Open project can load a replacement project.
 
 `runtime.worker.ts` supplies `performance.now()` and `setInterval` as the runtime's
 injected clock and ticker. `worker-host.ts` adapts the core protocol to the headless
@@ -34,6 +37,8 @@ counts continue through rejected commands.
 The core protocol has no nullable fault message, so the store clears an old
 diagnostic when it receives the zero-scan snapshot from load, cold reset or warm restart. It
 retains a latched diagnostic through STOP requests and emergency-stop transitions.
+After a failed load, Acknowledge fault or Cold reset clears its diagnostic directly;
+snapshots from the previous program remain hidden until a successful load.
 
 ## Browser autosave
 
@@ -227,8 +232,9 @@ the new IR and cold-starts it, including when replacing a running program. RUN
 without changes resumes existing memory. Single scan is disabled until changes
 are applied. E-STOP and FAULT still require their existing recovery operations.
 
-A load clears the displayed snapshot; queued nonzero-scan snapshots from the old
-program are ignored until the Worker's zero-scan load snapshot arrives. Online
+A load clears the displayed snapshot; ordinary snapshots from the old program,
+including zero-scan command replies, are ignored until the Worker's initial
+snapshot acknowledges that attempt's `loadId`. Online
 annotations are placed at the end of the statement's start line, including
 multiline FB calls, in source-column order. BOOL values are badges, and other
 values use core's IEC formatter. Runtime faults highlight their source line and
@@ -379,7 +385,8 @@ values, and stays in STOP. A normal Apply, RUN with unapplied edits, Open projec
 or Restore example initializes all values as a program load.
 
 When autosaved text does not compile, retained records remain in storage until
-the first successful load. Missing or mismatched records leave defaults; an alert
+the first successful load. A failed load also preserves the saved records for
+its next retry; opening a replacement project discards them. Missing or mismatched records leave defaults; an alert
 lists the count and every affected path; the alert clears on the next successful
 program load, warm restart or cold reset. Storage being unavailable or full raises
 a warning without stopping the PLC. Retained values are local browser state and

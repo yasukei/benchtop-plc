@@ -12,7 +12,7 @@ function setup() {
   );
   const snapshot = () => messages.filter((message) => message.type === "snapshot").at(-1)?.snapshot;
   const state = () => messages.filter((message) => message.type === "state").at(-1)?.state;
-  host.handle({ type: "load", ir: demoProgram });
+  host.handle({ type: "load", loadId: 1, ir: demoProgram });
   return { clock, messages, host, snapshot, state };
 }
 
@@ -60,7 +60,7 @@ describe("Worker host", () => {
       address: { area: "I", size: "X", byte: 0, bit: 0 },
       span: ir.span,
     });
-    host.handle({ type: "load", ir });
+    host.handle({ type: "load", loadId: 1, ir });
     host.handle({ type: "setInput", address: "%IX0.0", value: { dataType: "BOOL", value: true } });
     host.handle({ type: "force", variable: 0, value: { dataType: "DINT", value: 50 } });
     host.handle({ type: "run" });
@@ -169,7 +169,7 @@ describe("Worker host", () => {
       throw new Error("Bad fixture");
     statement.value.operator = "/";
     statement.value.right.value = 0;
-    host.handle({ type: "load", ir: faulty });
+    host.handle({ type: "load", loadId: 1, ir: faulty });
     host.handle({ type: "step" });
     expect(state()).toBe("FAULT");
     expect(messages.at(-1)).toMatchObject({
@@ -205,7 +205,7 @@ it("uses a configured interval and reports setCycle rejection without stopping e
     [],
     "CONFIGURATION Plant RESOURCE Station ON Cpu TASK T (INTERVAL := T#30ms, PRIORITY := 1); PROGRAM A WITH T : P; PROGRAM B WITH T : P; END_RESOURCE END_CONFIGURATION",
   ).ir!;
-  host.handle({ type: "load", ir });
+  host.handle({ type: "load", loadId: 1, ir });
   host.handle({ type: "run" });
   clock.advance(29);
   expect(snapshot()?.scanCount).toBe(0);
@@ -237,7 +237,7 @@ it("forwards per-task telemetry in declaration order on every Worker snapshot", 
 TASK Fast (INTERVAL := T#10ms, PRIORITY := 0); TASK Slow (INTERVAL := T#30ms, PRIORITY := 1);
 PROGRAM A WITH Fast : P; PROGRAM B WITH Slow : P; END_RESOURCE END_CONFIGURATION`,
   ).ir!;
-  host.handle({ type: "load", ir });
+  host.handle({ type: "load", loadId: 1, ir });
   expect(snapshot()?.tasks.map((task) => task.runCount)).toEqual([0, 0]);
   host.handle({ type: "run" });
   clock.advance(90);
@@ -278,7 +278,7 @@ it("publishes complete retained sets at most once a second while running and imm
   const { host, clock, messages } = setup();
   const ir = structuredClone(demoProgram);
   ir.variables[0]!.retain = true;
-  host.handle({ type: "load", ir });
+  host.handle({ type: "load", loadId: 1, ir });
   const retained = () => messages.filter((m) => m.type === "retentive");
   expect(retained().at(-1)).toMatchObject({ records: [{ kind: "leaf", value: { value: 0 } }] });
   host.handle({ type: "run" });
@@ -302,11 +302,16 @@ it("restores retained values during load and reports mismatched paths in STOP", 
   const { host, messages, snapshot, state } = setup();
   const ir = structuredClone(demoProgram);
   ir.variables[0]!.retain = true;
-  host.handle({ type: "load", ir });
+  host.handle({ type: "load", loadId: 1, ir });
   const records = messages.filter((m) => m.type === "retentive").at(-1)!.records;
   if (records[0]?.kind !== "leaf") throw new Error("Expected leaf");
   records[0].value = { dataType: "DINT", value: 42 };
-  host.handle({ type: "load", ir, retentive: [...records, { ...records[0], path: "removed" }] });
+  host.handle({
+    type: "load",
+    loadId: 1,
+    ir,
+    retentive: [...records, { ...records[0], path: "removed" }],
+  });
   expect(state()).toBe("STOP");
   expect(snapshot()?.variables[0]).toMatchObject({ value: 42 });
   expect(messages).toContainEqual({ type: "retentiveRestored", skipped: ["removed"] });
@@ -322,7 +327,7 @@ it("does not replace saved retained data with an empty set before a program load
   host.handle({ type: "warmRestart" });
   host.handle({ type: "stop" });
   expect(messages.filter((message) => message.type === "retentive")).toEqual([]);
-  host.handle({ type: "load", ir: demoProgram });
+  host.handle({ type: "load", loadId: 1, ir: demoProgram });
   expect(messages.filter((message) => message.type === "retentive")).toEqual([
     { type: "retentive", records: [] },
   ]);
@@ -351,7 +356,7 @@ it("publishes final retained values immediately when a scheduled scan faults", (
       right: { kind: "literal", dataType: "DINT", value: 0, span: ir.span },
     },
   });
-  host.handle({ type: "load", ir });
+  host.handle({ type: "load", loadId: 1, ir });
   host.handle({ type: "run" });
   clock.advance(10);
   expect(messages.filter((m) => m.type === "retentive").at(-1)).toMatchObject({
@@ -368,7 +373,7 @@ it("routes body watches and publishes the selected PROGRAM's next single scan", 
     "CONFIGURATION C RESOURCE R ON Cpu TASK T(INTERVAL := T#10ms, PRIORITY := 0); PROGRAM A WITH T: Main; PROGRAM B WITH T: Main; END_RESOURCE END_CONFIGURATION",
   ).ir!;
   const { host, snapshot } = setup();
-  host.handle({ type: "load", ir });
+  host.handle({ type: "load", loadId: 1, ir });
   host.handle({ type: "watchBodies", bodies: [{ pou: "Main", instance: "B" }] });
   expect(snapshot()?.annotations).toEqual([]);
   host.handle({ type: "step" });
@@ -412,5 +417,65 @@ it("publishes a halt with a snapshot, rejects controls non-fatally and stores no
     command: "continue",
     diagnostic: { code: "runtime.not-halted", severity: "error", args: {} },
   });
+  host.dispose();
+});
+
+it("echoes a load identity only on its initial snapshot, never on other command replies", () => {
+  const { host, messages, clock } = setup();
+  host.handle({ type: "load", loadId: 42, ir: demoProgram });
+  expect(messages.at(-1)).toMatchObject({
+    type: "snapshot",
+    loadId: 42,
+    snapshot: { scanCount: 0 },
+  });
+  expect(messages.filter((message) => "loadId" in message && message.loadId === 42)).toHaveLength(
+    1,
+  );
+  messages.length = 0;
+  host.handle({ type: "watchBodies", bodies: [] });
+  host.handle({ type: "setBreakpoints", breakpoints: [] });
+  host.handle({ type: "watch", variables: [] });
+  expect(messages.filter((message) => message.type === "snapshot")).toHaveLength(3);
+  expect(messages.every((message) => !("loadId" in message))).toBe(true);
+  host.handle({ type: "run" });
+  clock.advance(10);
+  expect(messages.every((message) => !("loadId" in message))).toBe(true);
+});
+
+it("completes a failed load with its identity and accepts the next load and run", () => {
+  const { host, messages, clock, snapshot, state } = setup();
+  const invalid = structuredClone(demoProgram);
+  const variable = invalid.variables[0]!;
+  if (variable.kind !== "scalar") throw new Error("Expected a scalar fixture");
+  variable.initialValue = "invalid integer";
+  messages.length = 0;
+  expect(() => host.handle({ type: "load", loadId: 2, ir: invalid })).not.toThrow();
+  expect(messages).toEqual([
+    { type: "state", state: "STOP" },
+    {
+      type: "fault",
+      loadId: 2,
+      diagnostic: { code: "runtime.load-failed", severity: "error", args: {} },
+    },
+  ]);
+  // RUN is queued immediately after load by the store, before its failure is known.
+  host.handle({ type: "watchBodies", bodies: [] });
+  host.handle({ type: "setBreakpoints", breakpoints: [] });
+  host.handle({ type: "run" });
+  host.handle({ type: "step" });
+  clock.advance(20);
+  expect(state()).toBe("STOP");
+  expect(snapshot()?.scanCount).toBe(0);
+  expect(messages.filter((message) => "loadId" in message && message.loadId === 2)).toHaveLength(1);
+  host.handle({ type: "load", loadId: 3, ir: demoProgram });
+  expect(messages.at(-1)).toMatchObject({
+    type: "snapshot",
+    loadId: 3,
+    snapshot: { scanCount: 0 },
+  });
+  host.handle({ type: "run" });
+  clock.advance(10);
+  expect(state()).toBe("RUN");
+  expect(snapshot()).toMatchObject({ scanCount: 1, variables: [{ value: 1 }] });
   host.dispose();
 });
