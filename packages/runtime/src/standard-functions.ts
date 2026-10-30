@@ -115,6 +115,7 @@ export function callStandardFunction(
     }
     return coerceValue(signature.result!, result);
   }
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Strings and calendar functions return before this switch; the default treats remaining names as conversions.
   switch (name) {
     case "ABS":
       return quantize(
