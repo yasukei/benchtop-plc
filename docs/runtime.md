@@ -180,8 +180,13 @@ once, nearest with ties to even, before wrapping. Integer scaling truncates
 division toward zero. TIME widens to LTIME by multiplying by 1,000,000.
 
 FOR evaluates its bounds and step once on entry, assigns its control variable,
-and compares its current value inclusively on each iteration. Its increment is
-coerced like an assignment; an overflowing control variable can reach the watchdog.
+and compares its current value inclusively on each iteration. After the body, it
+increments the control variable before checking the final bound, so `1 TO 3` leaves
+the control variable at 4. If the next value would exceed the control variable's
+type range, the loop ends without storing it. The control variable keeps the last
+value used by the body: the type's limit, or the last value before it when the step
+skips over the limit. For example, a USINT loop `250 TO 255` leaves 255, and
+`250 TO 255 BY 2` leaves 254.
 EXIT leaves the innermost loop; RETURN leaves the current POU. In a function it
 returns to the caller; in the PROGRAM it ends execution for that scan.
 

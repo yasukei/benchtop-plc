@@ -16,6 +16,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- End FOR loops when their next increment would exceed the control variable's type
+  range, preserving the last body value instead of wrapping and reaching the watchdog.
 - Pair monitor values with the load that produced them, ignoring delayed
   zero-scan replies from previous programs. Failed loads clear their pending
   state so another project can be opened and loaded. Saved retained values survive

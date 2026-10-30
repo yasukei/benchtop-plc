@@ -16,6 +16,7 @@ import {
   isCalendarType,
   calendarBinary,
   isIntegerType,
+  integerRanges,
   isLongType,
   timeBinary,
   ltimeBinary,
@@ -28,6 +29,7 @@ import type {
   CallFrame,
   CallVariable,
   Diagnostic,
+  IntegerType,
   TypeDescriptor,
   Expression,
   ScalarValue,
@@ -445,11 +447,13 @@ export class Interpreter {
             });
             list(statement.body, () => end);
             emit((vm, frame) => {
-              vm.assign(
-                statement.variable,
+              const next =
                 BigInt(vm.memory.read(statement.variable.variable)) +
-                  frame.loops.get(statement)!.step,
-              );
+                frame.loops.get(statement)!.step;
+              const [min, max] = integerRanges[statement.variable.dataType as IntegerType];
+              // End before assignment can wrap the control variable back into the loop.
+              if (next < BigInt(min) || next > BigInt(max)) frame.pc = end;
+              else vm.assign(statement.variable, next);
             });
             jump(() => check);
             end = code.length;
