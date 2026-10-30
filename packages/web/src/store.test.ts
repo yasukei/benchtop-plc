@@ -6,6 +6,7 @@ import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
 import { demoSource } from "./demo.js";
 import { createAppStore } from "./store.js";
+import { createPous } from "./pous.js";
 
 const snapshot: RuntimeSnapshot = {
   scanCount: 1,
@@ -873,6 +874,108 @@ it.each(["FB1", "fb1"])(
     store.dispose();
   },
 );
+
+it("removes the final breakpoint when its statement line is deleted", () => {
+  const source = "PROGRAM Main\nVAR n: INT; END_VAR\nn := n + 1;\nEND_PROGRAM";
+  const store = createAppStore(new RuntimeClient(new FakeWorker()), source);
+  store.toggleBreakpoint(3);
+  store.setSource(source.replace("n := n + 1;\n", ""));
+  expect(store.getSnapshot().breakpoints).toBeUndefined();
+  expect(store.breakpointMarkers()).toEqual([]);
+  store.dispose();
+});
+
+describe("POU debug name reconciliation", () => {
+  const motor = "FUNCTION_BLOCK Motor\nVAR n: INT; END_VAR\n\nn := n + 1;\nEND_FUNCTION_BLOCK";
+  const motor2 = "FUNCTION_BLOCK Motor2\nVAR n: INT; END_VAR\nn := n + 1;\nEND_FUNCTION_BLOCK";
+
+  function setupDebugNames() {
+    const worker = new FakeWorker();
+    const initial = createAppStore(new RuntimeClient(new FakeWorker()));
+    const store = createAppStore(new RuntimeClient(worker), {
+      ...initial.getSnapshot(),
+      pous: createPous(["PROGRAM Main END_PROGRAM", motor, motor2]),
+      instanceChoices: { MOTOR: "first", MOTOR2: "second" },
+    });
+    initial.dispose();
+    expect(store.loadEditor()).toBe(true);
+    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    store.selectPou(1);
+    store.toggleBreakpoint(4);
+    store.selectPou(2);
+    store.toggleBreakpoint(3);
+    return { store, worker };
+  }
+
+  it.each(["delete", "rename"])(
+    "reconciles a colliding header when the other POU is resolved by %s",
+    (action) => {
+      const { store, worker } = setupDebugNames();
+      store.setSource(motor2.replace("Motor2", "Motor"));
+      if (action === "delete") store.deletePou(1);
+      else {
+        store.selectPou(1);
+        store.setSource(motor.replace("Motor", "Other"));
+        store.selectPou(2);
+      }
+      expect(store.getSnapshot().pous.map((pou) => pou.name)).toEqual(
+        action === "delete" ? ["Main", "Motor"] : ["Main", "Other", "Motor"],
+      );
+      expect(store.getSnapshot().breakpoints).toEqual(
+        action === "delete" ? { MOTOR: [3] } : { OTHER: [4], MOTOR: [3] },
+      );
+      expect(store.getSnapshot().instanceChoices).toEqual(
+        action === "delete" ? { MOTOR: "second" } : { OTHER: "first", MOTOR: "second" },
+      );
+      expect(store.breakpointMarkers()).toEqual([{ line: 3, active: true }]);
+      expect(store.runtimeSource().pou).toBe("Motor2");
+      expect(store.loadEditor()).toBe(true);
+      worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+      expect(store.breakpointMarkers()).toEqual([{ line: 3, active: true }]);
+      expect(store.runtimeSource().pou).toBe("Motor");
+      expect(worker.sent.filter((message) => message.type === "setBreakpoints").at(-1)).toEqual({
+        type: "setBreakpoints",
+        breakpoints:
+          action === "delete"
+            ? [{ pou: "Motor", line: 3 }]
+            : [
+                { pou: "Other", line: 4 },
+                { pou: "Motor", line: 3 },
+              ],
+      });
+      store.dispose();
+    },
+  );
+
+  it("moves both POUs' debug maps together when their headers swap names", () => {
+    const { store, worker } = setupDebugNames();
+    store.setSource(motor2.replace("Motor2", "Motor"));
+    store.selectPou(1);
+    store.setSource(motor.replace("Motor", "Motor2"));
+    expect(store.getSnapshot().pous.map((pou) => pou.name)).toEqual(["Main", "Motor2", "Motor"]);
+    expect(store.getSnapshot().breakpoints).toEqual({ MOTOR2: [4], MOTOR: [3] });
+    expect(store.getSnapshot().instanceChoices).toEqual({ MOTOR2: "first", MOTOR: "second" });
+    expect(store.breakpointMarkers()).toEqual([{ line: 4, active: true }]);
+    expect(store.runtimeSource().pou).toBe("Motor");
+    store.selectPou(2);
+    expect(store.breakpointMarkers()).toEqual([{ line: 3, active: true }]);
+    expect(store.runtimeSource().pou).toBe("Motor2");
+    expect(store.loadEditor()).toBe(true);
+    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    expect(worker.sent.filter((message) => message.type === "setBreakpoints").at(-1)).toEqual({
+      type: "setBreakpoints",
+      breakpoints: [
+        { pou: "Motor2", line: 4 },
+        { pou: "Motor", line: 3 },
+      ],
+    });
+    const restored = createAppStore(new RuntimeClient(new FakeWorker()), store.getSnapshot());
+    expect(restored.getSnapshot().pous.map((pou) => pou.name)).toEqual(["Main", "Motor2", "Motor"]);
+    expect(restored.getSnapshot().breakpoints).toEqual({ MOTOR2: [4], MOTOR: [3] });
+    restored.dispose();
+    store.dispose();
+  });
+});
 
 it("removes a deleted POU's instance choice and breakpoint without changing the remaining POU's", () => {
   const worker = new FakeWorker();

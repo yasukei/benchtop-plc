@@ -13,6 +13,7 @@ import {
   createPous,
   deletePou,
   derivePou,
+  reconcilePouNames,
   diagnosticPouSourceIndex,
   initialPouIndex,
   pouSources,
@@ -22,6 +23,24 @@ import {
 
 const main = "PROGRAM Main END_PROGRAM";
 const fn = "FUNCTION F1 : INT F1 := 1; END_FUNCTION";
+
+it("reserves parked POU names throughout a rename chain until the header collision is freed", () => {
+  const pous = createPous(
+    ["A", "B", "C", "D"].map((name) => `FUNCTION_BLOCK ${name} END_FUNCTION_BLOCK`),
+  );
+  const headers = ["B", "B", "A", "C"];
+  const edited = pous.map((pou, index) => ({
+    ...pou,
+    source: `FUNCTION_BLOCK ${headers[index]} END_FUNCTION_BLOCK`,
+  }));
+  const parked = reconcilePouNames(edited);
+  expect(parked.map((pou) => pou.name)).toEqual(["A", "B", "C", "D"]);
+  expect(pouSources(parked)).toEqual(pouSources(edited));
+  const freed = parked.map((pou, index) =>
+    index === 1 ? { ...pou, source: "FUNCTION_BLOCK Z END_FUNCTION_BLOCK" } : pou,
+  );
+  expect(reconcilePouNames(freed).map((pou) => pou.name)).toEqual(["B", "Z", "A", "C"]);
+});
 
 it("keeps data type and project diagnostics out of POU source locations", () => {
   const types = ["TYPE State : (Idle, Running) := State#Missing; END_TYPE"];
