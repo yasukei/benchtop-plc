@@ -99,6 +99,8 @@ const examples = {
   "syntax.assignment-operator": {},
   "syntax.unexpected-eof": {},
   "syntax.missing-end": { expected: "END_IF" },
+  "syntax.nesting-limit": { limit: 32 },
+  "syntax.tree-depth-limit": { limit: 256 },
   "decl.unknown-type": { name: "STRING" },
   "decl.type-cycle": { name: "Node" },
   "decl.structure-member-type": { name: "TON" },

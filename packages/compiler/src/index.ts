@@ -3,6 +3,7 @@ export { isElementaryTypeName, isKeyword, lex } from "./lexer.js";
 export type { LexResult, Token, TokenKind } from "./lexer.js";
 export { parse, parsePou, parseDataType } from "./parser.js";
 export type { ParseResult } from "./parser.js";
+export { MAX_SOURCE_NESTING, MAX_SOURCE_TREE_DEPTH } from "./nesting.js";
 
 export const packageName = "@benchtop-plc/compiler";
 

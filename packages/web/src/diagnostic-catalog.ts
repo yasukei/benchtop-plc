@@ -144,6 +144,9 @@ export const diagnosticEn = {
   "syntax.assignment-operator": () => "Assignment requires := instead of =.",
   "syntax.unexpected-eof": () => "Unexpected end of input.",
   "syntax.missing-end": ({ expected }) => `Missing ${expected}.`,
+  "syntax.nesting-limit": ({ limit }) => `Source nesting exceeds the limit of ${limit} levels.`,
+  "syntax.tree-depth-limit": ({ limit }) =>
+    `Source syntax tree exceeds the depth limit of ${limit} levels.`,
   "decl.unknown-type": ({ name }) => `Unknown type: ${name}.`,
   "decl.type-cycle": ({ name }) =>
     `Type ${name} has a containment or alias cycle; use REF_TO for recursive links.`,
@@ -415,6 +418,8 @@ export const diagnosticJa = {
   "syntax.assignment-operator": () => "代入には=ではなく:=が必要です。",
   "syntax.unexpected-eof": () => "入力が途中で終了しています。",
   "syntax.missing-end": ({ expected }) => `${expected}がありません。`,
+  "syntax.nesting-limit": ({ limit }) => `ソースの入れ子が上限の${limit}段を超えています。`,
+  "syntax.tree-depth-limit": ({ limit }) => `ソース構文木の深さが上限の${limit}段を超えています。`,
   "decl.unknown-type": ({ name }) => `不明な型です: ${name}。`,
   "decl.type-cycle": ({ name }) =>
     `型${name}の包含関係または別名定義が循環しています。再帰的なリンクにはREF_TOを使用してください。`,

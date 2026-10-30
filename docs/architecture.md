@@ -23,6 +23,9 @@ expressions against their declared types, as required by
 
 The compiler semantic-checking API is documented in [type-checking.md](type-checking.md).
 The complete source-to-IR API is documented in [compiler.md](compiler.md).
+Syntactic source nesting is limited to 32 levels, with a separate 256-level tree-depth
+budget for flat operator/access chains, to protect recursive compilation, execution
+and project exchange; see [ADR 0021](adr/0021-source-nesting-limit.md).
 Current language support and implementation-dependent choices are documented in
 [compliance.md](compliance.md).
 

@@ -86,6 +86,14 @@ function fail(
   throw new ProjectError({ code, severity: "error", args: { path } });
 }
 
+/** Preserve actionable source-limit errors when reconstructing standard XML. */
+function failSourceLimit(diagnostics: readonly Diagnostic[]): void {
+  const diagnostic = diagnostics.find(
+    (item) => item.code === "syntax.nesting-limit" || item.code === "syntax.tree-depth-limit",
+  );
+  if (diagnostic) throw new ProjectError(diagnostic);
+}
+
 function shape(node: XmlNode, attributes: string[], children: string[], text = false): void {
   if (node.uri !== TC6_NAMESPACE) fail("project.unsupported", `{${node.uri}}${node.name}`);
   for (const key of Object.keys(node.attributes)) {
@@ -213,8 +221,12 @@ function validateInitializers(
   types: TypeTable,
   globals?: GlobalScope,
 ): void {
-  const ast = parsePou(joinProgram(program), true).ast;
-  if (!ast) fail("project.invalid", "pou/interface");
+  const parsed = parsePou(joinProgram(program), true);
+  if (!parsed.ast) {
+    failSourceLimit(parsed.diagnostics);
+    fail("project.invalid", "pou/interface");
+  }
+  const ast = parsed.ast;
   // Check declarations together in their POU context; body/name/section errors do not block exchange.
   const result = check(
     { ...ast, body: [] },
@@ -893,7 +905,10 @@ export function readProject(xml: string): ProjectResult<Project> {
       validateInitializers(split, resolved.types, globals);
       const program = joinProgram(split);
       const parsed = splitProgram(program, resolved.types, globals, true);
-      if (!parsed.value) fail("project.invalid", "pou/interface");
+      if (!parsed.value) {
+        failSourceLimit(parsed.diagnostics);
+        fail("project.invalid", "pou/interface");
+      }
       if (
         JSON.stringify(parsed.value) !==
         JSON.stringify({ ...split, body: canonicalBody(split.body) })

@@ -21,6 +21,7 @@ import { rootName } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
 import { isElementaryTypeName, lex } from "./lexer.js";
 import type { Token } from "./lexer.js";
+import { checkNesting, MAX_SOURCE_NESTING, nestingError } from "./nesting.js";
 
 export type ParseResult =
   { ast: Program; diagnostics: [] } | { ast: null; diagnostics: [Diagnostic] };
@@ -49,6 +50,19 @@ const isFunction = (name: string): boolean =>
 
 export class Parser {
   private cursor = 0;
+  private nesting = 0;
+
+  /** Guard recursive descent before constructing an AST that can be inspected. */
+  private nested<T>(parse: () => T): T {
+    if (this.nesting >= MAX_SOURCE_NESTING) nestingError(this.current.span);
+    this.nesting++;
+    try {
+      return parse();
+    } finally {
+      this.nesting--;
+    }
+  }
+
   diagnosticName?: string;
   get position(): number {
     return this.cursor;
@@ -177,7 +191,7 @@ export class Parser {
     }
     if (using.length) ast.using = using;
     if (this.current.kind !== "eof") this.expected("eof");
-    return ast;
+    return checkNesting(ast);
   }
 
   private assignmentOperator(): void {
@@ -378,14 +392,15 @@ export class Parser {
 
   private typeSyntax(): import("./ast.js").TypeSyntax {
     const start = this.current.span;
-    if (this.accept("REF_TO")) {
-      const token = this.previous;
-      return {
-        typeName: { name: token.text, key: token.key, span: token.span },
-        reference: this.typeSyntax(),
-        span: this.spanFrom(start),
-      };
-    }
+    if (this.at("REF_TO"))
+      return this.nested(() => {
+        const token = this.take();
+        return {
+          typeName: { name: token.text, key: token.key, span: token.span },
+          reference: this.typeSyntax(),
+          span: this.spanFrom(start),
+        };
+      });
     const array = this.at("ARRAY") ? this.arrayDeclaration() : undefined;
     const typeName = array
       ? { name: "ARRAY", key: "ARRAY", span: array.span }
@@ -480,6 +495,10 @@ export class Parser {
   }
 
   declaration(): Declaration {
+    return checkNesting(this.parseDeclaration());
+  }
+
+  private parseDeclaration(): Declaration {
     const names: [Identifier, ...Identifier[]] = [this.identifier()];
     while (this.accept(",")) names.push(this.identifier());
     let address: Address | undefined;
@@ -516,6 +535,10 @@ export class Parser {
   }
 
   private arrayDeclaration(): ArrayDeclaration {
+    return this.nested(() => this.parseArrayDeclaration());
+  }
+
+  private parseArrayDeclaration(): ArrayDeclaration {
     const start = this.expect("ARRAY").span;
     this.expect("[");
     const dimensions: (Subrange | "*")[] = [];
@@ -544,6 +567,16 @@ export class Parser {
   }
 
   private initialValue(): Expression {
+    const aggregate =
+      this.at("[") ||
+      (this.at("(") &&
+        (this.tokens[this.cursor + 1]?.key === ")" ||
+          (this.tokens[this.cursor + 1]?.kind === "identifier" &&
+            this.tokens[this.cursor + 2]?.key === ":=")));
+    return aggregate ? this.nested(() => this.parseInitialValue()) : this.expression();
+  }
+
+  private parseInitialValue(): Expression {
     if (
       this.at("(") &&
       (this.tokens[this.cursor + 1]?.key === ")" ||
@@ -615,6 +648,12 @@ export class Parser {
   }
 
   private statement(): Statement {
+    return ["IF", "CASE", "FOR", "WHILE", "REPEAT"].includes(this.current.key)
+      ? this.nested(() => this.parseStatement())
+      : this.parseStatement();
+  }
+
+  private parseStatement(): Statement {
     const start = this.current.span;
     if (this.accept("IF")) {
       const first = this.conditionalBranch(start);
@@ -782,6 +821,11 @@ export class Parser {
       return this.at(":");
     } catch (error) {
       if (!(error instanceof FrontendError)) throw error;
+      if (
+        error.diagnostic.code === "syntax.nesting-limit" ||
+        error.diagnostic.code === "syntax.tree-depth-limit"
+      )
+        throw error;
       return false;
     } finally {
       this.cursor = saved;
@@ -796,9 +840,12 @@ export class Parser {
         continue;
       }
       if (this.accept("[")) {
-        const indices = [this.expression()];
-        while (this.accept(",")) indices.push(this.expression());
-        this.expect("]");
+        const indices = this.nested(() => {
+          const indices = [this.expression()];
+          while (this.accept(",")) indices.push(this.expression());
+          this.expect("]");
+          return indices;
+        });
         result = { kind: "index", array: result, indices, span: this.spanFrom(name.span) };
       } else {
         this.expect(".");
@@ -813,7 +860,7 @@ export class Parser {
             : { kind: "field", object: result, member, span: this.spanFrom(name.span) };
       }
     }
-    return result;
+    return checkNesting(result);
   }
 
   expression(minimum = 1): Expression {
@@ -831,10 +878,16 @@ export class Parser {
         span: joinedSpan(left.span, right.span),
       };
     }
-    return left;
+    return checkNesting(left);
   }
 
   private primary(): Expression {
+    return ["-", "+", "NOT", "("].includes(this.current.key)
+      ? this.nested(() => this.parsePrimary())
+      : this.parsePrimary();
+  }
+
+  private parsePrimary(): Expression {
     const token = this.current;
     // NOT(expr) is also the existing unary operator with a grouped operand.
     if (this.at("-") || this.at("+") || this.at("NOT")) {
@@ -942,6 +995,10 @@ export class Parser {
     return call;
   }
   private functionArguments(name: Identifier, blockSyntax = false): FunctionCall {
+    return this.nested(() => this.parseFunctionArguments(name, blockSyntax));
+  }
+
+  private parseFunctionArguments(name: Identifier, blockSyntax: boolean): FunctionCall {
     const args: Expression[] = [];
     const names: Identifier[] = [];
     const outputs: NamedOutput[] = [];
