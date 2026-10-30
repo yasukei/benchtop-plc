@@ -16,22 +16,36 @@ it.each(["core", "compiler", "runtime", "project"])(
         'Date["now"]();',
         "performance.now();",
         'performance["now"]();',
+        "globalThis.Date.now();",
+        'globalThis["Date"]["now"]();',
+        "globalThis.performance.now();",
+        'globalThis["performance"]["now"]();',
         "new Date();",
+        "new globalThis.Date();",
+        'new globalThis["Date"]();',
+        "Date();",
+        "Date(0);",
+        "globalThis.Date();",
+        'globalThis["Date"]();',
         "setTimeout(() => {}, 1);",
         "setInterval(() => {}, 1);",
         "globalThis.setTimeout(() => {}, 1);",
         'globalThis["setInterval"](() => {}, 1);',
+        "export const timer = setTimeout;",
+        "export const timer = setInterval;",
+        "[1].map(setTimeout);",
       ]) {
         const [result] = await syntaxLint.lintText(source, { filePath });
         expect(result?.messages).toEqual([
           expect.objectContaining({
-            ruleId: "no-restricted-syntax",
+            ruleId: expect.stringMatching(/^no-restricted-(syntax|globals)$/),
             message: expect.stringMatching(/injected (Clock|Ticker)/),
           }),
         ]);
       }
       const [result] = await syntaxLint.lintText(
-        "export const stamp = new Date(0); export const year = stamp.getUTCFullYear();",
+        "export const stamp = new Date(0); export const qualified = new globalThis.Date(0); " +
+          'export const computed = new globalThis["Date"](0); export const year = stamp.getUTCFullYear();',
         { filePath },
       );
       expect(result?.messages).toEqual([]);

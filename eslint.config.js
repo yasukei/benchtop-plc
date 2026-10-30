@@ -10,6 +10,11 @@ const jsxMessageExpression =
   ":matches(JSXElement > JSXExpressionContainer, JSXFragment > JSXExpressionContainer, " +
   "JSXAttribute[name.name=/^(title|placeholder|alt|label|aria-label|aria-description|aria-valuetext)$/] > JSXExpressionContainer)";
 
+const dateCallee =
+  ":matches([callee.name=Date], [callee.property.name=Date], " +
+  "[callee.computed=true][callee.property.value=Date])";
+const tickerMessage = "Use the injected Ticker instead of host timers (ADR 0003).";
+
 export default defineConfig(
   {
     ignores: [
@@ -51,24 +56,35 @@ export default defineConfig(
   {
     files: ["packages/{core,compiler,runtime,project}/src/**/*.{ts,tsx}"],
     rules: {
+      "no-restricted-globals": [
+        "error",
+        { name: "setTimeout", message: tickerMessage },
+        { name: "setInterval", message: tickerMessage },
+      ],
       "no-restricted-syntax": [
         "error",
         {
           selector:
-            "MemberExpression[object.name=/^(Date|performance)$/][property.name=now], " +
-            "MemberExpression[object.name=/^(Date|performance)$/][computed=true][property.value=now]",
+            "MemberExpression:matches([object.name=/^(Date|performance)$/], " +
+            "[object.property.name=/^(Date|performance)$/], " +
+            "[object.computed=true][object.property.value=/^(Date|performance)$/])" +
+            ":matches([property.name=now], [computed=true][property.value=now])",
           message: "Use the injected Clock instead of reading the host clock (ADR 0003).",
         },
         {
-          selector: "NewExpression[callee.name=Date][arguments.length=0]",
+          selector: `NewExpression${dateCallee}[arguments.length=0]`,
           message: "Use the injected Clock; only construct Date with a given instant (ADR 0003).",
         },
         {
+          // Date called without new reads the host clock even when given arguments.
+          selector: `CallExpression${dateCallee}`,
+          message: "Use the injected Clock instead of calling Date as a function (ADR 0003).",
+        },
+        {
           selector:
-            "CallExpression[callee.name=/^(setTimeout|setInterval)$/], " +
             "MemberExpression[property.name=/^(setTimeout|setInterval)$/], " +
             "MemberExpression[computed=true][property.value=/^(setTimeout|setInterval)$/]",
-          message: "Use the injected Ticker instead of host timers (ADR 0003).",
+          message: tickerMessage,
         },
       ],
     },
