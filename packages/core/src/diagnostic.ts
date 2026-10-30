@@ -191,6 +191,10 @@ export interface DiagnosticArgs {
     upper: number | string;
   };
   "runtime.load-failed": NoArguments;
+  "runtime.internal-error": NoArguments;
+  "runtime.input-address": NoArguments;
+  "runtime.input-value": NoArguments;
+  "runtime.unsupported-cycle": NoArguments;
   "runtime.invalid-value": NoArguments;
   "runtime.division-by-zero": NoArguments;
   "runtime.watchdog": { limit: number };
@@ -202,11 +206,14 @@ export interface DiagnosticArgs {
   "runtime.write-connected-input": { name: string };
 }
 
-/** Expected debug command rejections; these never latch a PLC execution fault. */
+/** Expected external command rejections; these never latch a PLC execution fault. */
 export type CommandRejectionCode =
   | "runtime.halted"
   | "runtime.not-halted"
   | "runtime.configured-cycle"
+  | "runtime.input-address"
+  | "runtime.input-value"
+  | "runtime.unsupported-cycle"
   | "runtime.debug-target"
   | "runtime.debug-type-mismatch"
   | "runtime.debug-value"

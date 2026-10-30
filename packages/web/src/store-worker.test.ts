@@ -33,7 +33,24 @@ function setup(retentive?: RetentiveRecord[]) {
   };
   const worker = new FakeWorker();
   const clock = new VirtualClock();
-  const host = createWorkerHost(clock, new VirtualTicker(clock), (event) => worker.receive(event));
+  const ticker = new VirtualTicker(clock);
+  let failCancellation = false;
+  const host = createWorkerHost(
+    clock,
+    {
+      start(ms, tick) {
+        const cancel = ticker.start(ms, tick);
+        return () => {
+          cancel();
+          if (failCancellation) {
+            failCancellation = false;
+            throw new Error("Injected ticker cancellation error");
+          }
+        };
+      },
+    },
+    (event) => worker.receive(event),
+  );
   const store = createAppStore(new RuntimeClient(worker), initial);
   let handled = 0;
   // Drain commands after the UI finishes queuing them, as a real Worker would.
@@ -54,6 +71,10 @@ function setup(retentive?: RetentiveRecord[]) {
     worker,
     flush,
     initial,
+    clock,
+    failNextCancellation: () => {
+      failCancellation = true;
+    },
     dispose: () => {
       store.dispose();
       host.dispose();
@@ -80,12 +101,15 @@ it("preserves autosaved retained values across failed loads and restores them on
       flush(true);
       expect(store.getSnapshot()).toMatchObject({
         connection: "connected",
-        runtimeState: "STOP",
-        diagnostic: { code: "runtime.load-failed" },
+        runtimeState: "FAULT",
+        diagnostic: { code: "runtime.internal-error" },
         snapshot: null,
         retentive: records,
       });
       expect(readAutosave(storage)?.retentive).toEqual(records);
+      store.send({ type: "warmRestart" });
+      flush();
+      expect(store.getSnapshot()).toMatchObject({ runtimeState: "STOP", diagnostic: null });
     }
     store.run();
     expect(worker.sent.findLast((command) => command.type === "load")?.retentive).toEqual(records);
@@ -119,7 +143,7 @@ it.each(["warmRestart", "coldReset"] as const)(
       store.setSource(source.replace(":= 1", ":= 10"));
       store.run();
       flush(true);
-      expect(store.getSnapshot().diagnostic?.code).toBe("runtime.load-failed");
+      expect(store.getSnapshot().diagnostic?.code).toBe("runtime.internal-error");
       store.send({ type: command });
       flush();
       expect(store.getSnapshot()).toMatchObject({
@@ -147,6 +171,8 @@ it("does not carry a failed autosave restoration into a replacement project", ()
   try {
     store.run();
     flush(true);
+    store.send({ type: "coldReset" });
+    flush();
     const xml = store.saveProject()!;
     expect(store.openProject(xml)).toBe(true);
     expect(worker.sent.findLast((command) => command.type === "load")).not.toHaveProperty(
@@ -154,6 +180,47 @@ it("does not carry a failed autosave restoration into a replacement project", ()
     );
     flush();
     expect(store.getSnapshot().snapshot?.variables[0]).toMatchObject({ value: 1 });
+  } finally {
+    dispose();
+  }
+});
+
+it("completes an internally failed load, clears its fault and runs a replacement without disconnecting", () => {
+  const { store, worker, flush, clock, failNextCancellation, dispose } = setup();
+  try {
+    store.run();
+    flush();
+    expect(store.getSnapshot().runtimeState).toBe("RUN");
+    failNextCancellation();
+    store.setSource(source.replace(":= 1", ":= 10"));
+    store.loadEditor();
+    flush();
+    expect(store.getSnapshot()).toMatchObject({
+      connection: "connected",
+      runtimeState: "FAULT",
+      diagnostic: { code: "runtime.internal-error" },
+      snapshot: null,
+      loadedIr: undefined,
+    });
+    expect(worker.terminated).toBe(false);
+    store.send({ type: "warmRestart" });
+    flush();
+    expect(store.getSnapshot()).toMatchObject({
+      runtimeState: "STOP",
+      diagnostic: null,
+      snapshot: null,
+    });
+    store.setSource("PROGRAM Replacement VAR n : INT := 42; END_VAR n := n + 1; END_PROGRAM");
+    store.run();
+    flush();
+    clock.advance(10);
+    expect(store.getSnapshot()).toMatchObject({
+      connection: "connected",
+      runtimeState: "RUN",
+      diagnostic: null,
+      snapshot: { scanCount: 1, variables: [{ value: 43 }] },
+    });
+    expect(worker.terminated).toBe(false);
   } finally {
     dispose();
   }

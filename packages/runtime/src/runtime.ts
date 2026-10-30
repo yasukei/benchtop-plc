@@ -70,6 +70,8 @@ export interface Runtime {
   setCycle(ms: number): void;
   run(): void;
   stop(): void;
+  /** Host failure boundary: abandon execution and latch an internal-error FAULT. */
+  fail(): void;
   setEmergencyStop(active: boolean): void;
   coldReset(): void;
   warmRestart(): void;
@@ -319,6 +321,11 @@ class PlcRuntime implements Runtime {
 
   stop(): void {
     this.halt(this.operatingState === "RUN" ? "STOP" : this.operatingState);
+  }
+
+  fail(): void {
+    this.fault = { code: "runtime.internal-error", severity: "error", args: {} };
+    this.halt("FAULT");
   }
 
   setEmergencyStop(active: boolean): void {

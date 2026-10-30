@@ -1,5 +1,7 @@
 import {
+  addressBinds,
   parseDirectAddress,
+  validateValue,
   validDirectAddress,
   writeDirectValue,
   type IoImage,
@@ -36,37 +38,71 @@ export function createWorkerHost(
         lastRetentiveTime = clock.now();
       }
     }
-    post({ type: "state", state: runtime.state });
-    // The panel input image is live even while STOP prevents scan sampling.
-    post({
-      type: "snapshot",
-      snapshot: { ...runtime.snapshot(), inputs: [...inputs] },
-      ...(loadId === undefined ? {} : { loadId }),
-    });
+    // Compute publication data before acknowledging a successful load.
+    const state = runtime.state;
     const halted = runtime.halted;
     const haltKey = JSON.stringify(halted);
+    const diagnostic = runtime.diagnostic;
+    // The panel input image is live even while STOP prevents scan sampling.
+    const snapshot = {
+      type: "snapshot" as const,
+      snapshot: { ...runtime.snapshot(), inputs: [...inputs] },
+      ...(loadId === undefined ? {} : { loadId }),
+    };
+    post({ type: "state", state });
+    if (loadId === undefined) post(snapshot);
     if (halted && haltKey !== lastHalt) post(halted);
     lastHalt = haltKey;
-    if (runtime.diagnostic) post({ type: "fault", diagnostic: runtime.diagnostic });
+    if (diagnostic) post({ type: "fault", diagnostic });
+    // The load completion must be last: no subsequent error can complete it twice.
+    if (loadId !== undefined) post(snapshot);
   };
   const runtime = createRuntime({
     clock,
     ticker: {
       start(interval, onTick) {
         return scheduler.start(interval, () => {
-          const previousState = runtime.state;
-          onTick();
-          publish(runtime.state !== previousState);
+          try {
+            const previousState = runtime.state;
+            onTick();
+            publish(runtime.state !== previousState);
+          } catch {
+            recover();
+          }
         });
       },
     },
     stages: { readInputs: () => inputs },
   });
+  // Recovery deliberately avoids retention/debugger publishing, which may be the defect.
+  // If stopping execution or posting the fault fails, let the Worker error remain fatal.
+  const recover = (loadId?: number) => {
+    runtime.fail();
+    lastHalt = "";
+    if (loadId !== undefined) loaded = false;
+    post({ type: "state", state: runtime.state });
+    if (loadId === undefined) {
+      try {
+        post({ type: "snapshot", snapshot: { ...runtime.snapshot(), inputs: [...inputs] } });
+      } catch {
+        // A broken or unserializable snapshot must not prevent fault delivery.
+      }
+    }
+    post({
+      type: "fault",
+      diagnostic: { code: "runtime.internal-error", severity: "error", args: {} },
+      ...(loadId === undefined ? {} : { loadId }),
+    });
+  };
   return {
     handle(message: UiToRuntimeMessage) {
-      let immediate = !["watch", "watchBodies", "setBreakpoints", "setInput", "setCycle"].includes(
-        message.type,
-      );
+      const immediate = ![
+        "watch",
+        "watchBodies",
+        "setBreakpoints",
+        "setInput",
+        "setCycle",
+      ].includes(message.type);
       try {
         switch (message.type) {
           case "load":
@@ -124,7 +160,27 @@ export function createWorkerHost(
           case "setInput": {
             const address = parseDirectAddress(message.address);
             if (!address || address.area !== "I" || !validDirectAddress(address))
-              throw new RangeError("Invalid input address");
+              throw new RuntimeCommandRejected({
+                code: "runtime.input-address",
+                severity: "error",
+                args: {},
+              });
+            if (!addressBinds(address, message.value.dataType))
+              throw new RuntimeCommandRejected({
+                code: "runtime.input-value",
+                severity: "error",
+                args: {},
+              });
+            try {
+              validateValue(message.value.dataType, message.value.value);
+            } catch (error) {
+              if (!(error instanceof RangeError)) throw error;
+              throw new RuntimeCommandRejected({
+                code: "runtime.input-value",
+                severity: "error",
+                args: {},
+              });
+            }
             writeDirectValue(inputs, address, message.value);
             break;
           }
@@ -134,7 +190,11 @@ export function createWorkerHost(
               !configured &&
               !cycleOptions.includes(message.ms as CycleMs)
             )
-              throw new RangeError("Unsupported cycle");
+              throw new RuntimeCommandRejected({
+                code: "runtime.unsupported-cycle",
+                severity: "error",
+                args: {},
+              });
             runtime.setCycle(message.ms);
             break;
           case "force":
@@ -144,34 +204,32 @@ export function createWorkerHost(
             runtime.write(message.variable, message.value);
             break;
         }
+        publish(immediate, message.type === "load" ? message.loadId : undefined);
       } catch (error) {
-        if (message.type === "load") {
-          // Complete failed attempts without publishing values as the new program.
-          runtime.stop();
-          loaded = false;
-          post({ type: "state", state: runtime.state });
-          post({
-            type: "fault",
-            loadId: message.loadId,
-            diagnostic: { code: "runtime.load-failed", severity: "error", args: {} },
-          });
+        if (!(error instanceof RuntimeCommandRejected)) {
+          recover(message.type === "load" ? message.loadId : undefined);
           return;
         }
-        if (!(error instanceof RuntimeCommandRejected)) throw error;
         if (
           message.type !== "run" &&
           message.type !== "step" &&
           message.type !== "continue" &&
           message.type !== "debugStep" &&
           message.type !== "setCycle" &&
+          message.type !== "setInput" &&
           message.type !== "force" &&
           message.type !== "write"
-        )
-          throw error;
-        immediate = false;
-        post({ type: "rejected", command: message.type, diagnostic: error.diagnostic });
+        ) {
+          recover(message.type === "load" ? message.loadId : undefined);
+          return;
+        }
+        try {
+          post({ type: "rejected", command: message.type, diagnostic: error.diagnostic });
+          publish(false);
+        } catch {
+          recover();
+        }
       }
-      publish(immediate, message.type === "load" ? message.loadId : undefined);
     },
     dispose() {
       runtime.stop();

@@ -229,8 +229,9 @@ are covered by later milestone issues.
 Every `load` command carries a numeric `loadId`, unique per attempt within the
 client session. Exactly one completion echoes that identity: a successful load
 publishes its initial `snapshot` with `loadId`; a failed load publishes a `fault`
-with `loadId` and diagnostic `runtime.load-failed`, without a load snapshot.
-The host stops execution on failure and remains available for another load.
+with `loadId` and diagnostic `runtime.internal-error`, without a load snapshot.
+The host latches FAULT on failure and remains available for reset and another load.
+The successful load snapshot is the last message of its publication.
 Queued RUN and single-scan commands cannot execute the previous program after a
 failed load; execution stays disabled until a successful load.
 Ordinary snapshots and run-time faults omit `loadId`. In particular, zero-scan
@@ -250,10 +251,25 @@ or Cold reset clears the failed-load diagnostic without accepting old snapshots.
 ID always refers to the currently loaded program. `force` takes a typed value or
 null to clear the force; `write` takes a typed value. Hosts validate that the
 value matches the loaded declaration. `setCycle.ms` is a positive finite interval, rejected with
-`runtime.configured-cycle` when the loaded configuration is explicit.
+`runtime.configured-cycle` when the loaded configuration is explicit. The web host
+accepts only its cycle options (10, 20, 50, 100 ms) for implicit configurations;
+other values produce `runtime.unsupported-cycle`. A halted runtime retains
+`runtime.halted` precedence.
 `setInput` carries an input address string and a `TypedValue`, for example
 `{ type: "setInput", address: "%IW0", value: { dataType: "INT", value: -5 } }`.
 The host validates the address, binding and value before storing its bit pattern.
+Invalid input addresses produce `runtime.input-address`; incompatible bindings or
+invalid values produce `runtime.input-value`. Both `setInput` and `setCycle` can
+appear in `CommandRejectionMessage.command`. Rejections preserve runtime state,
+input storage and a latched fault.
+
+Unexpected host command/tick errors latch `runtime.internal-error`, cancel scans
+and debugger halts, and turn outputs OFF. E-STOP remains active over FAULT.
+Successful load, warm restart or cold reset clears it; Stop and E-STOP release
+preserve it. Recovery posts state and fault even if snapshot construction or serialization is
+broken, without retrying retention/debugger publication. Only failures that
+prevent safe continuation or recovery-message delivery reach the fatal Worker
+boundary. See [ADR 0020](adr/0020-worker-error-recovery.md).
 `step` requests one complete scheduler pass.
 Emergency-stop state and single-scan behavior are implemented in the runtime
 issues, not in the transport types.

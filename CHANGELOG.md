@@ -20,6 +20,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Recover unexpected Worker errors as an internal-error FAULT that can be
+  acknowledged or reset without reloading the page. Failed loads complete with
+  the same recoverable fault; invalid input values/addresses and unsupported
+  cycle settings now produce nonfatal command rejections.
+
 - End FOR loops when their next increment would exceed the control variable's type
   range, preserving the last body value instead of wrapping and reaching the watchdog.
 - Pair monitor values with the load that produced them, ignoring delayed
