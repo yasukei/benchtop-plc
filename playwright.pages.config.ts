@@ -9,6 +9,7 @@ export default defineConfig(base, {
     command:
       "pnpm --filter @benchtop-plc/web build:pages && pnpm --filter @benchtop-plc/web preview:pages --host 127.0.0.1 --port 4174 --strictPort",
     url: "http://127.0.0.1:4174/benchtop-plc/",
+    stdout: "pipe",
     reuseExistingServer: !process.env.CI,
   },
 });

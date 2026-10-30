@@ -9,8 +9,9 @@ See the [architecture overview](docs/architecture.md) for the package structure 
 
 ## Development
 
-Requirements: Node.js LTS (22 or later) and pnpm (the version is pinned in `package.json`;
-run `corepack enable` to use it).
+Requirements: Node.js 26 or later (the CI major is pinned in `.node-version`) and
+pnpm (the version is pinned in `package.json`). If using Corepack, install it
+separately and run `corepack enable`; Node.js 26 does not bundle it.
 
 ```sh
 pnpm install

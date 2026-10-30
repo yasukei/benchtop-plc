@@ -13,8 +13,10 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
+    // CI builds in an earlier step; local runs build before starting preview.
     command:
-      "pnpm build && pnpm --filter @benchtop-plc/web preview --host 127.0.0.1 --port 4173 --strictPort",
+      (process.env.CI ? "" : "pnpm build && ") +
+      "pnpm --filter @benchtop-plc/web preview --host 127.0.0.1 --port 4173 --strictPort",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env.CI,
   },
