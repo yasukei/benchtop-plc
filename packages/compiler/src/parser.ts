@@ -821,7 +821,11 @@ export class Parser {
       return this.at(":");
     } catch (error) {
       if (!(error instanceof FrontendError)) throw error;
-      if (error.diagnostic.code === "syntax.nesting-limit") throw error;
+      if (
+        error.diagnostic.code === "syntax.nesting-limit" ||
+        error.diagnostic.code === "syntax.tree-depth-limit"
+      )
+        throw error;
       return false;
     } finally {
       this.cursor = saved;

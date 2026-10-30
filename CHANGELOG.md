@@ -30,7 +30,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 - Return a localized diagnostic for source nested beyond 32 syntax levels instead
   of overflowing the stack, including during autosave restoration. The limit
   protects compilation, execution and project exchange; function block instance
-  hierarchies have no new language depth limit.
+  hierarchies have no new language depth limit. Flat operator/access chains use
+  a separate 256-level tree-depth budget, so ordinary expressions with dozens of
+  terms remain accepted. Project import preserves either source-limit diagnostic
+  instead of reporting an invalid POU interface.
 - Recover unexpected Worker errors as an internal-error FAULT that can be
   acknowledged or reset without reloading the page. Failed loads complete with
   the same recoverable fault; invalid input values/addresses and unsupported

@@ -1,4 +1,5 @@
 import type { Project } from "@benchtop-plc/project";
+import { MAX_SOURCE_NESTING, MAX_SOURCE_TREE_DEPTH } from "@benchtop-plc/compiler";
 
 export const nestingCases = [
   "parentheses",
@@ -15,6 +16,37 @@ export const nestingCases = [
   "indices",
   "mixed",
 ] as const;
+
+export function nestingBoundary(kind: (typeof nestingCases)[number]) {
+  return kind === "binary"
+    ? { limit: MAX_SOURCE_TREE_DEPTH, code: "syntax.tree-depth-limit" as const }
+    : { limit: MAX_SOURCE_NESTING, code: "syntax.nesting-limit" as const };
+}
+
+export const chainCases = ["sum", "or", "indices", "fields"] as const;
+
+export function chainProject(kind: (typeof chainCases)[number], depth: number): Project {
+  if (kind === "sum") return nestingProject(nestingSource("binary", depth));
+  if (kind === "or")
+    return nestingProject(
+      `PROGRAM Main VAR b : BOOL; END_VAR b := FALSE${" OR FALSE".repeat(depth)}; END_PROGRAM`,
+    );
+  // A reference cycle keeps the type declaration shallow while exercising a
+  // long access path, without making the fixture a large type-dependency graph.
+  const step = kind === "indices" ? ".children[0]^" : ".next^";
+  const width = kind === "indices" ? 3 : 2;
+  const steps = Math.floor((depth - 2) / width);
+  const padding = depth - 2 - steps * width;
+  const expression = "+ ".repeat(padding) + "r^" + step.repeat(steps) + ".value";
+  return nestingProject(
+    `PROGRAM Main VAR x : INT; n : Node; r : REF_TO Node; END_VAR
+      n.value := 1; n.next := REF(n); n.children[0] := REF(n); r := REF(n);
+      x := ${expression}; END_PROGRAM`,
+    [
+      "TYPE Node : STRUCT next : REF_TO Node; children : ARRAY[0..0] OF REF_TO Node; value : INT; END_STRUCT; END_TYPE",
+    ],
+  );
+}
 
 export function nestingSource(kind: (typeof nestingCases)[number], depth: number): string {
   let declarations = "x, i : DINT;";

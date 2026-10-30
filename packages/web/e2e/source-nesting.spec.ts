@@ -7,6 +7,8 @@ import { autosaveStorageKey } from "../src/autosave.js";
 import {
   nestingCases,
   nestingSource,
+  nestingBoundary,
+  chainCases,
   failedOperandsProject,
 } from "../../../tests/conformance/source-nesting.test-support.js";
 
@@ -51,6 +53,14 @@ test("the deepest accepted source compiles, runs and round-trips in a browser Wo
     output.code,
   );
   expect(result).toEqual({
+    chains: chainCases.map((kind) => ({
+      kind,
+      preserved: true,
+      diagnostics: [],
+      fault: null,
+      value: expect.objectContaining({ kind: "scalar", value: kind === "or" ? false : 1 }),
+      rejected: ["syntax.tree-depth-limit"],
+    })),
     failedOperands: [
       { kind: "calls", bounded: true },
       { kind: "comparisons", bounded: true },
@@ -61,7 +71,7 @@ test("the deepest accepted source compiles, runs and round-trips in a browser Wo
       diagnostics: [],
       fault: null,
       value: expect.objectContaining({ kind: "scalar", value: 1 }),
-      rejected: ["syntax.nesting-limit"],
+      rejected: [nestingBoundary(kind).code],
     })),
   });
 });
@@ -74,14 +84,19 @@ for (const kind of ["calls", "comparisons"] as const) {
     page.on("pageerror", (error) => errors.push(error.message));
     const depth = kind === "calls" ? MAX_SOURCE_NESTING : MAX_SOURCE_NESTING / 2;
     const project = failedOperandsProject(kind, depth);
-    const written = writeProject(project);
+    const written = writeProject({ ...project, panel: [] });
     expect(written.diagnostics).toEqual([]);
     await page.goto("/");
+    await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
     await page.getByLabel("Open project", { exact: true }).setInputFiles({
       name: "failed-operands.xml",
       mimeType: "application/xml",
       buffer: Buffer.from(written.value!),
     });
+    await page
+      .getByRole("region", { name: "POUs", exact: true })
+      .getByRole("button", { name: /^Main PROGRAM/ })
+      .click();
     const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
     await expect(diagnostics).toContainText(kind === "calls" ? "MAX" : "zz");
     await page.reload();
