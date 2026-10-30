@@ -46,6 +46,20 @@ Before finishing any change, run `pnpm typecheck && pnpm lint && pnpm test`.
 CI uses `pnpm test:coverage` and also runs `pnpm build` and both Playwright suites on every PR; run all of them
 locally to reproduce CI. For workflow changes, also run the zizmor check above.
 
+### Preparing a release
+
+On a release branch, run `pnpm release:prepare <version>` (for example,
+`pnpm release:prepare 0.9.0`). It updates the root and all workspace package
+versions and every example's `productVersion`, moves the unreleased changelog
+entries into a dated release section using today's UTC date, leaves an empty
+`[Unreleased]` section and updates the comparison links.
+
+Write the release summary in `CHANGELOG.md` manually, review the diff and date,
+then run the verification commands above and open a release PR. The version
+consistency test checks every package and example against the root version.
+After merge, the maintainer creates the annotated tag and GitHub Release as
+described in [ADR 0011](docs/adr/0011-versioning-changelog-and-releases.md).
+
 ### Playwright browser setup
 
 After `pnpm install` on a fresh clone, install the browser version matching the

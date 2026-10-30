@@ -10,6 +10,7 @@
     "node": ">=26"
   },
   "scripts": {
+    "release:prepare": "node scripts/release-prepare.ts",
     "dev": "pnpm --filter @benchtop-plc/web dev",
     "build": "pnpm -r build",
     "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",

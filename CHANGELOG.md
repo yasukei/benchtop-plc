@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Document `pnpm release:prepare <version>` to update package and example versions
+  and prepare the dated changelog section and comparison links for a release.
 - Document `pnpm test:coverage` for finding untested package source paths, with
   per-package CI totals and a downloadable HTML coverage report.
 - Document verification commands, when to run them, and Playwright browser setup
