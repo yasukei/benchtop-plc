@@ -1,4 +1,5 @@
 import type { ChangeSet } from "@codemirror/state";
+import { durationNanoseconds } from "@benchtop-plc/project";
 import { haltPoints, mapBreakpointLines, mapSourceLines } from "./breakpoints.js";
 import { openPanelProject, serializePanelProject } from "./panel/project.js";
 import {
@@ -50,6 +51,7 @@ export interface AppState extends SavedWork {
   source: string;
   editorSession: number;
   saveDiagnostics: Diagnostic[];
+  openProjectError: "unsupported-cycle" | null;
   layout: PanelLayout;
   emergencyActive: boolean;
   emergencyReleased: boolean;
@@ -100,6 +102,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     selectedDataType,
     editorSession: 0,
     saveDiagnostics: [],
+    openProjectError: null,
     pous,
     selectedPou,
     layout: typeof initial === "string" ? [] : initial.layout,
@@ -365,6 +368,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     return true;
   };
   const openProject = (xml: string) => {
+    if (state.openProjectError !== null) update({ openProjectError: null });
     if (state.saveDiagnostics.length) update({ saveDiagnostics: [] });
     if (
       pendingLoads.length > 0 ||
@@ -375,11 +379,15 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       return false;
     const opened = openPanelProject(xml);
     if (!opened) return false;
-    const ms =
-      opened.project.configurationSource === undefined
-        ? Number(/^PT([0-9.]+)S$/.exec(opened.project.task.interval)?.[1]) * 1000
-        : state.cycleMs;
-    if (!cycleOptions.includes(ms as CycleMs)) return false;
+    let ms: CycleMs | undefined = state.cycleMs;
+    if (opened.project.configurationSource === undefined) {
+      const nanoseconds = durationNanoseconds(opened.project.task.interval);
+      ms = cycleOptions.find((cycle) => BigInt(cycle) * 1000000n === nanoseconds);
+      if (ms === undefined) {
+        update({ openProjectError: "unsupported-cycle" });
+        return false;
+      }
+    }
     clearTimeout(compileTimer);
     const pous = createPous(opened.project.pous);
     const selectedPou = initialPouIndex(pous);
@@ -407,7 +415,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       layout: opened.layout,
       project: opened.project,
       diagnostics: compilePous(pous, opened.project.dataTypes, opened.project, ms).diagnostics,
-      cycleMs: ms as CycleMs,
+      cycleMs: ms,
       // Identical editor text can belong to a different project-wide compilation.
       loadedSources: null,
       loadedDataTypes: null,

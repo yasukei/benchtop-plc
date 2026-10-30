@@ -10,6 +10,7 @@ export type {
 } from "./model.js";
 export { splitProgram, joinProgram } from "./text.js";
 export { readProject, writeProject } from "./codec.js";
+export { durationNanoseconds } from "./configuration.js";
 export {
   TC6_NAMESPACE,
   XHTML_NAMESPACE,

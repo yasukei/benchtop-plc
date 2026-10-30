@@ -5,7 +5,7 @@ import { en, ja } from "./catalog.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
 import { demoSource } from "./demo.js";
-import { createAppStore } from "./store.js";
+import { createAppStore, cycleOptions } from "./store.js";
 import { createAutosave, readAutosave, type SavedWork } from "./autosave.js";
 import { createPous } from "./pous.js";
 
@@ -298,6 +298,62 @@ it("round trips source and panel through the project package and rejects loading
   expect(store.getSnapshot()).toBe(stopped);
   store.dispose();
 });
+
+it.each(
+  cycleOptions.flatMap((ms) =>
+    [
+      `PT${ms / 1000}S`,
+      `PT0H0M${ms / 1000}S`,
+      `P0DT0H0M${ms / 1000}000000000S`,
+      `PT000${ms / 1000}S`,
+    ].map((interval) => ({ ms, interval })),
+  ),
+)("opens the equivalent interval $interval with a $ms ms cycle", ({ ms, interval }) => {
+  const { store, worker } = setup();
+  const project = readProject(store.saveProject()!).value!;
+  project.task.interval = interval;
+  const xml = writeProject(project).value!;
+  expect(xml).toContain(`interval="${interval}"`);
+  expect(store.openProject(xml)).toBe(true);
+  expect(store.getSnapshot()).toMatchObject({
+    cycleMs: ms,
+    configuration: null,
+    diagnostics: [],
+    openProjectError: null,
+  });
+  expect(worker.sent).toContainEqual(
+    expect.objectContaining({
+      type: "load",
+      ir: expect.objectContaining({
+        resource: expect.objectContaining({
+          tasks: [expect.objectContaining({ intervalMs: ms })],
+        }),
+      }),
+    }),
+  );
+  store.dispose();
+});
+
+it.each(["PT1S", "PT0.005S", "PT0.010000001S", "P1D"])(
+  "explains unsupported implicit interval %s without replacing the current project",
+  (interval) => {
+    const { store, worker } = setup();
+    const project = readProject(store.saveProject()!).value!;
+    project.task.interval = interval;
+    const xml = writeProject(project).value!;
+    expect(xml).toContain(`interval="${interval}"`);
+    const before = store.getSnapshot();
+    expect(store.openProject(xml)).toBe(false);
+    expect(store.getSnapshot()).toEqual({ ...before, openProjectError: "unsupported-cycle" });
+    expect(worker.sent).toEqual([]);
+    expect(store.openProject("invalid XML")).toBe(false);
+    expect(store.getSnapshot().openProjectError).toBeNull();
+    expect(store.openProject(xml)).toBe(false);
+    expect(store.restoreExample()).toBe(true);
+    expect(store.getSnapshot().openProjectError).toBeNull();
+    store.dispose();
+  },
+);
 
 it("restores the bundled example's source, panel and cycle through the project loader", () => {
   const { store, worker } = setup();

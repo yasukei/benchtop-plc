@@ -129,6 +129,8 @@ export const en = {
   confirmRestoreExample: "Click again to replace your program, panel layout and cycle.",
   cancel: "Cancel",
   projectError: "Unable to open or save this project. Check the program and panel layout.",
+  unsupportedProjectCycle:
+    "Unable to open this project: the task interval is not a supported cycle. Supported cycles: 10, 20, 50 and 100 ms.",
   operatorHint: "Operator controls will appear here.",
   io: "I/O image",
   ioHint: "Input and output indicators will appear here.",
@@ -282,6 +284,8 @@ export const ja: Record<keyof typeof en, string> = {
   confirmRestoreExample: "もう一度クリックするとプログラム・パネル配置・周期を置き換えます。",
   cancel: "キャンセル",
   projectError: "プロジェクトを開くか保存できません。プログラムとパネル配置を確認してください。",
+  unsupportedProjectCycle:
+    "タスクの実行間隔が対応する周期ではないため、このプロジェクトを開けません。対応する周期: 10、20、50、100 ms。",
   operatorHint: "操作部品はここに表示されます。",
   io: "I/Oイメージ",
   ioHint: "入力と出力の表示はここに追加されます。",
