@@ -379,7 +379,7 @@ export class Interpreter {
     const list = (statements: readonly Statement[], exit?: () => number): void => {
       for (const statement of statements) {
         code.push({ statement, run: () => {} });
-        // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Assignments and calls are compiled by the shared path after this control-flow switch.
+        // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Assignments and calls are compiled by this control-flow switch's default branch.
         switch (statement.kind) {
           case "if": {
             const ends: { destination: number }[] = [];
