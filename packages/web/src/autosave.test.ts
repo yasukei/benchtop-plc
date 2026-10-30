@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { autosaveStorageKey, createAutosave, readAutosave, type SavedWork } from "./autosave.js";
-import { createPous } from "./pous.js";
+import { createPous, pouKinds } from "./pous.js";
 import { browserStorage } from "./browser-storage.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
@@ -550,6 +550,32 @@ it("autosaves class drafts and restores their source kind", () => {
     source: "CLASS Class1\nMETHOD PUBLIC Run\n",
   });
   autosave.dispose();
+});
+
+it("round trips a workspace containing every POU kind, including a selected interface", () => {
+  vi.useFakeTimers();
+  const { store, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  store.addFunction();
+  store.addFunctionBlock();
+  store.addClass();
+  store.addInterface();
+  const source = "INTERFACE IActuator\nMETHOD Start\nEND_METHOD\nEND_INTERFACE\n";
+  store.setSource(source);
+  vi.advanceTimersByTime(500);
+  const state = store.getSnapshot();
+  expect(new Set(state.pous.map((pou) => pou.kind))).toEqual(new Set(pouKinds));
+  const saved = readAutosave(storage);
+  expect(saved).toMatchObject({ pous: state.pous, selectedPou: state.selectedPou });
+  const restored = createAppStore(new RuntimeClient(new FakeWorker()), saved!);
+  expect(restored.getSnapshot()).toMatchObject({
+    pous: state.pous,
+    selectedPou: state.selectedPou,
+    source,
+  });
+  autosave.dispose();
+  restored.dispose();
+  store.dispose();
 });
 
 it("autosaves per-source instance choices and restores them without adding project metadata", () => {

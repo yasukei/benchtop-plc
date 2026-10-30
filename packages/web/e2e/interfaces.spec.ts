@@ -1,6 +1,34 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { readProject } from "@benchtop-plc/project";
+import { autosaveStorageKey } from "../src/autosave.js";
+
+test("restores an autosaved interface and the edited program after reload", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  const main = "PROGRAM Saved\nEND_PROGRAM";
+  await editor.fill(main);
+  await list.getByRole("button", { name: "Add interface", exact: true }).click();
+  const source = "INTERFACE IActuator\nMETHOD Start\nEND_METHOD\nEND_INTERFACE";
+  await editor.fill(source);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.pous?.[0]?.source,
+        autosaveStorageKey,
+      ),
+    )
+    .toBe(source);
+
+  await page.reload();
+  await expect(list.getByRole("button", { name: /^IActuator INTERFACE/ })).toBeVisible();
+  await expect(editor.locator(".cm-line")).toHaveText(source.split("\n"));
+  await list.getByRole("button", { name: /^Saved PROGRAM/ }).click();
+  await expect(editor.locator(".cm-line")).toHaveText(main.split("\n"));
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+});
 
 test("adds an interface, monitors its target and preserves save/reopen", async ({ page }) => {
   const face = "INTERFACE IActuator\nMETHOD Start END_METHOD\nEND_INTERFACE";

@@ -7,6 +7,7 @@ import {
   type EditorConfiguration,
   type EditorDataType,
   initialPouIndex,
+  isPouKind,
   type EditorPou,
 } from "./pous.js";
 import type { BrowserStorage } from "./browser-storage.js";
@@ -114,7 +115,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
             record(pou) &&
             typeof pou.source === "string" &&
             typeof pou.name === "string" &&
-            ["PROGRAM", "FUNCTION", "FUNCTION_BLOCK", "CLASS"].includes(pou.kind as string),
+            isPouKind(pou.kind),
         )
       )
         return null;
