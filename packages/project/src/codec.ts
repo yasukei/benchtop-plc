@@ -58,10 +58,12 @@ import {
 } from "./configuration.js";
 
 const elementaryTypes = new Set(
-  "BOOL SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME LTIME DATE DT TOD LDATE LTOD LDT BYTE WORD DWORD LWORD".split(
+  "BOOL SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME DATE DT TOD BYTE WORD DWORD LWORD".split(
     " ",
   ),
 );
+// Older project files used these element names, absent from TC6 v2.01. Read only.
+const legacyTimeTypes = ["LTIME", "LDATE", "LTOD", "LDT"];
 const xmlTypes: Record<string, string> = {
   STRING: "string",
   WSTRING: "wstring",
@@ -475,6 +477,7 @@ function readType(type: XmlNode, enumeration = false): string {
     [],
     [
       ...elementaryTypes,
+      ...legacyTimeTypes,
       "string",
       "wstring",
       "derived",

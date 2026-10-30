@@ -27,6 +27,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Save LTIME, LDATE, LTOD and LDT as `derived` names so project XML validates
+  against TC6 v2.01. Files saved with the old type elements still open.
 - Check failed nested enumeration operands once, keeping diagnostics proportional
   to the source size and autosave restoration responsive.
 - Return a localized diagnostic for source nested beyond 32 syntax levels instead
