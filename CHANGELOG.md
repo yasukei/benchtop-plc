@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Document `pnpm test:coverage` for finding untested package source paths, with
+  per-package CI totals and a downloadable HTML coverage report.
 - Document verification commands, when to run them, and Playwright browser setup
   for fresh clones and containers in the contributor guides. Limit the documented
   runtime baseline command to the benchmarks supported by the baseline commit.

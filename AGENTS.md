@@ -23,6 +23,7 @@ Design decisions are recorded in `docs/adr/` (overview: `docs/architecture.md`).
 - `pnpm typecheck` – check TypeScript in strict mode
 - `pnpm lint` – ESLint, dependency direction (dependency-cruiser), Prettier check
 - `pnpm test` – unit and conformance tests (Vitest)
+- `pnpm test:coverage` – unit and conformance tests with V8 coverage; run to find untested package source paths before and during refactoring
 - `pnpm test:e2e` – end-to-end tests (Playwright)
 - `pnpm test:e2e:pages` – smoke tests against the GitHub Pages build under `/benchtop-plc/`
 - `pnpm bench:runtime` – task-run timing benchmark for the ADR 0018 budget
@@ -53,7 +54,7 @@ Before finishing, `pnpm typecheck && pnpm lint && pnpm test` must pass.
   reproduction; the benchmark reports timings rather than enforcing the budget.
 - Workflow changes: run `uvx zizmor==1.31.1 .github/`, matching CI's workflow check.
 
-CI runs typecheck, lint, unit/conformance tests, build and both Playwright suites
+CI runs typecheck, lint, unit/conformance tests with coverage, build and both Playwright suites
 on every PR. Run that full set locally to reproduce CI.
 
 ### Playwright browser setup
