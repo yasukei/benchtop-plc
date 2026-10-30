@@ -146,7 +146,7 @@ as syntax errors.
 | `call.argument-count`             | Function call supplies the wrong number of arguments                                     | `{ name: string; min: number; max: number \| null; found: number }`                                                |
 | `call.argument-type`              | Function argument has an unsupported type                                                | `{ name: string; index: number; expected: readonly [TypeDescriptor, ...TypeDescriptor[]]; found: TypeDescriptor }` |
 | `runtime.subrange-violation`      | Dynamic value stored outside the declared limits                                         | `{ value: number \| string; lower: number \| string; upper: number \| string }`                                    |
-| `runtime.load-failed`             | Worker could not load the program; connection remains available for retry                | `{}`                                                                                                               |
+| `runtime.load-failed`             | Legacy failed-load diagnostic; current Worker failures use `runtime.internal-error`      | `{}`                                                                                                               |
 | `runtime.invalid-value`           | Non-finite result/view read, REAL overflow, invalid string position/length or conversion | `{}`                                                                                                               |
 | `runtime.division-by-zero`        | Division has a zero divisor                                                              | `{}`                                                                                                               |
 | `runtime.watchdog`                | Loop iteration limit exceeded                                                            | `{ limit: number }`                                                                                                |
@@ -375,6 +375,23 @@ program and nested block storage.
 `pou.program-count` still reports `found` when no configuration source is supplied.
 Its localized message explains that a configuration source is needed to run several
 PROGRAMs. `setCycle` joins `force` and `write` in rejection messages' `command` field.
+
+## Worker failure and external-command diagnostics
+
+| Code                        | Arguments | Meaning                                                                                                                                               |
+| --------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runtime.internal-error`    | `{}`      | Unexpected Worker command/tick or publication error: FAULT, scans cancelled, outputs OFF; connection stays available for reset/reload of the program. |
+| `runtime.input-address`     | `{}`      | Nonfatal `setInput` rejection for a malformed, non-input or out-of-bounds address.                                                                    |
+| `runtime.input-value`       | `{}`      | Nonfatal `setInput` rejection for an incompatible address/type binding or an invalid external value.                                                  |
+| `runtime.unsupported-cycle` | `{}`      | Nonfatal `setCycle` rejection for an unsupported implicit cycle option.                                                                               |
+
+All four codes have English and Japanese catalog entries. Internal faults have no
+raw exception details or source attribution. They replace any previous fault,
+abandon HALT and preserve E-STOP. Successful load, warm restart or cold reset
+clears them. A failed load echoes its `loadId` on the internal-error fault and
+publishes no load snapshot. The three command rejections leave memory and state
+unchanged and use the separate rejection alert. See
+[ADR 0020](adr/0020-worker-error-recovery.md) for recovery and fatal-error policy.
 
 ## Global binding diagnostics
 

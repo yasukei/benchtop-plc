@@ -279,6 +279,13 @@ export const diagnosticEn = {
   "type.ambiguous-enumeration": ({ name }) =>
     `Enumeration value ${name} must be qualified because a variable has the same name.`,
   "runtime.load-failed": () => "The program could not be loaded. Apply it again to retry.",
+  "runtime.internal-error": () =>
+    "An internal error stopped the runtime. Acknowledge the fault or reset, then load the program again.",
+  "runtime.input-address": () =>
+    "Command rejected: the input address is invalid or outside the input image.",
+  "runtime.input-value": () =>
+    "Command rejected: the input value does not match the address or its type's range.",
+  "runtime.unsupported-cycle": () => "Command rejected: the cycle interval is not supported.",
   "runtime.invalid-value": () => "Non-finite result or REAL overflow.",
   "runtime.division-by-zero": () => "Division by zero.",
   "runtime.watchdog": ({ limit }) => `Loop iteration limit (${limit}) exceeded.`,
@@ -546,6 +553,13 @@ export const diagnosticJa = {
   "type.ambiguous-enumeration": ({ name }) =>
     `同名の変数があるため、列挙値 ${name} には型名の修飾が必要です。`,
   "runtime.load-failed": () => "プログラムを読み込めませんでした。再度適用してやり直してください。",
+  "runtime.internal-error": () =>
+    "内部エラーでランタイムが停止しました。異常確認またはリセット後、プログラムを再度読み込んでください。",
+  "runtime.input-address": () =>
+    "コマンドを拒否しました。入力アドレスが無効か、入力イメージの範囲外です。",
+  "runtime.input-value": () =>
+    "コマンドを拒否しました。入力値がアドレスまたは型の範囲に適合しません。",
+  "runtime.unsupported-cycle": () => "コマンドを拒否しました。この周期はサポートされていません。",
   "runtime.invalid-value": () => "非有限の計算結果、またはREALのオーバーフローが発生しました。",
   "runtime.division-by-zero": () => "ゼロによる除算が発生しました。",
   "runtime.watchdog": ({ limit }) => `ループの反復回数の上限（${limit}回）を超えました。`,

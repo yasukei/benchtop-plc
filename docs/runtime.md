@@ -156,11 +156,15 @@ reject writes because the next input image would overwrite them; they accept
 forces. Commands cannot energize output variables/images outside RUN, including
 immediate writes in STOP, FAULT or ESTOP. The Worker host routes the existing core
 `force` and `write` messages and publishes updated snapshots after accepted
-commands. The Worker host catches only `RuntimeCommandRejected` and sends a
-non-fatal core `rejected` event with the command type and diagnostic. The existing
-state, memory, forces, pending writes, ticker and connection remain intact; this
-does not latch a PLC fault or replace a pending fault diagnostic. Unexpected
-programming errors still propagate to the host.
+commands. For `RuntimeCommandRejected`, the Worker host sends a non-fatal core
+`rejected` event with the command type and diagnostic. The existing state, memory,
+forces, pending writes, ticker and connection remain intact; this does not latch a
+PLC fault or replace a pending fault diagnostic. Unexpected programming errors
+propagate to the host, which calls the runtime's `fail()` method to latch
+`runtime.internal-error`, cancel scans, abandon HALT and turn outputs OFF while
+preserving E-STOP. The connection remains available for reset and another load;
+error details go to the developer console. See
+[ADR 0020](adr/0020-worker-error-recovery.md) for recovery and fatal-error policy.
 
 ## Execution and diagnostics
 

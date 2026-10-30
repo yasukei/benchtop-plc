@@ -76,7 +76,7 @@ test("applies a type change while an old zero-scan Worker reply is delayed", asy
 });
 
 for (const action of ["Acknowledge fault", "Cold reset"]) {
-  test(action + " clears a failed-load diagnostic and allows retry", async ({ page }) => {
+  test(action + " clears a failed-load internal fault and allows retry", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.addInitScript(() => {
@@ -103,10 +103,14 @@ for (const action of ["Acknowledge fault", "Cold reset"]) {
       document.documentElement.dataset.failLoad = "true";
     });
     await page.getByRole("button", { name: "RUN", exact: true }).click();
-    const alert = page.getByRole("alert").filter({ hasText: "The program could not be loaded." });
+    const alert = page
+      .getByRole("alert")
+      .filter({ hasText: "An internal error stopped the runtime." });
     await expect(alert).toBeVisible();
-    await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+    await expect(page.getByLabel("Runtime state")).toHaveText("FAULT");
+    await expect(page.getByRole("button", { name: "RUN", exact: true })).toBeDisabled();
     await page.getByRole("button", { name: action, exact: true }).click();
+    await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
     await expect(alert).toHaveCount(0);
     await expect(page.getByRole("rowheader", { name: "x", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "RUN", exact: true }).click();

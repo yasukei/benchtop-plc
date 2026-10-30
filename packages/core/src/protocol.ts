@@ -150,7 +150,7 @@ export interface RuntimeSnapshot {
 
 export interface CommandRejectionMessage {
   type: "rejected";
-  command: "force" | "write" | "setCycle" | "run" | "step" | "continue" | "debugStep";
+  command: "force" | "write" | "setInput" | "setCycle" | "run" | "step" | "continue" | "debugStep";
   diagnostic: Diagnostic<CommandRejectionCode>;
 }
 

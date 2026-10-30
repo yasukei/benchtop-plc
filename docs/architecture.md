@@ -55,6 +55,10 @@ in every body, breakpoints, the halted state, stepping, the call stack and resum
 execution, is recorded in [ADR 0018](adr/0018-debugging.md). Its implementation is
 tracked by the sub-issues of [#192](https://github.com/yasukei/benchtop-plc/issues/192).
 
+Worker command/tick errors become recoverable internal-error faults, with fatal
+connection errors reserved for cases where the Worker cannot continue. See
+[ADR 0020](adr/0020-worker-error-recovery.md).
+
 ## Data flow
 
 ```

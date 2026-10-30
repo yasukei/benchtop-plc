@@ -118,7 +118,7 @@ describe("Worker host", () => {
   });
 
   it("changes the interval without resetting memory, adding duplicate ticks or restarting STOP", () => {
-    const { host, clock, snapshot, state } = setup();
+    const { host, clock, messages, snapshot, state } = setup();
     host.handle({ type: "setCycle", ms: 20 });
     clock.advance(100);
     expect(snapshot()?.scanCount).toBe(0);
@@ -130,7 +130,11 @@ describe("Worker host", () => {
     clock.advance(1);
     expect(snapshot()).toMatchObject({ scanCount: 2, variables: [{ value: 2 }] });
     expect(state()).toBe("RUN");
-    expect(() => host.handle({ type: "setCycle", ms: 15 })).toThrow("cycle");
+    expect(() => host.handle({ type: "setCycle", ms: 15 })).not.toThrow();
+    expect(messages.filter((message) => message.type === "rejected").at(-1)).toMatchObject({
+      command: "setCycle",
+      diagnostic: { code: "runtime.unsupported-cycle" },
+    });
     host.dispose();
     clock.advance(500);
     expect(snapshot()?.scanCount).toBe(2);
@@ -268,10 +272,15 @@ it("stores typed input values at any input address without decoding invalid real
   for (const address of ["%MW0", "%QX0.0", "%IW32", "%I*"])
     expect(() =>
       host.handle({ type: "setInput", address, value: { dataType: "INT", value: 1 } }),
-    ).toThrow(RangeError);
+    ).not.toThrow();
+  expect(messages.filter((message) => message.type === "rejected")).toHaveLength(4);
   expect(() =>
     host.handle({ type: "setInput", address: "%IW0", value: { dataType: "INT", value: 99999 } }),
-  ).toThrow(RangeError);
+  ).not.toThrow();
+  expect(messages.filter((message) => message.type === "rejected").at(-1)).toMatchObject({
+    command: "setInput",
+    diagnostic: { code: "runtime.input-value" },
+  });
 });
 
 it("publishes complete retained sets at most once a second while running and immediately after commands", () => {
@@ -451,11 +460,11 @@ it("completes a failed load with its identity and accepts the next load and run"
   messages.length = 0;
   expect(() => host.handle({ type: "load", loadId: 2, ir: invalid })).not.toThrow();
   expect(messages).toEqual([
-    { type: "state", state: "STOP" },
+    { type: "state", state: "FAULT" },
     {
       type: "fault",
       loadId: 2,
-      diagnostic: { code: "runtime.load-failed", severity: "error", args: {} },
+      diagnostic: { code: "runtime.internal-error", severity: "error", args: {} },
     },
   ]);
   // RUN is queued immediately after load by the store, before its failure is known.
@@ -464,7 +473,7 @@ it("completes a failed load with its identity and accepts the next load and run"
   host.handle({ type: "run" });
   host.handle({ type: "step" });
   clock.advance(20);
-  expect(state()).toBe("STOP");
+  expect(state()).toBe("FAULT");
   expect(snapshot()?.scanCount).toBe(0);
   expect(messages.filter((message) => "loadId" in message && message.loadId === 2)).toHaveLength(1);
   host.handle({ type: "load", loadId: 3, ir: demoProgram });

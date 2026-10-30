@@ -12,12 +12,24 @@ shell and diagnostics support English and Japanese as required by ADR 0008; see
 `main.tsx` creates a module Worker, a `RuntimeClient` and a plain TypeScript app
 store, then restores saved work or opens the bundled blink example. React subscribes with
 `useSyncExternalStore`. Runtime state and scan telemetry come from Worker
-messages; the UI does not optimistically claim that RUN succeeded. Worker errors
-terminate the connection, show a banner and disable runtime controls. Reload the
-page to create a fresh connection. A failed program load is handled separately:
-it reports `runtime.load-failed` without closing the connection, clears the
-monitor and loaded-program metadata, and leaves the Worker available for retry.
-RUN retries the load; Open project can load a replacement project.
+messages; the UI does not optimistically claim that RUN succeeded. Unexpected
+command or tick errors latch FAULT with `runtime.internal-error`, stop scanning
+and turn outputs OFF, while keeping the connection available (ADR 0020). A HALT
+is abandoned; an active E-STOP stays active over the fault. The localized fault
+alert offers the usual Acknowledge fault (warm restart) and Cold reset controls.
+A successful restart or load clears the fault; Stop and E-STOP release do not.
+
+A failed program load completes with its `loadId` and internal-error diagnostic,
+clears the monitor and loaded-program metadata, and leaves the Worker available.
+Acknowledge or reset first, then RUN retries the load; Open project can load a
+replacement project. Recovery does not publish retained data or debugger frames;
+if snapshot construction or serialization failed, the fault still appears and later
+successful snapshots refresh the monitor. Recovered error details and stacks go
+to the developer console through an injected reporter; the UI and protocol keep
+only the localized diagnostic code. Only unrecoverable failures (startup,
+failure to stop execution or post recovery messages, or transport errors)
+terminate the connection, show the connection-error banner and disable runtime
+controls. Reload the page to create a fresh connection in that case.
 
 `runtime.worker.ts` supplies `performance.now()` and `setInterval` as the runtime's
 injected clock and ticker. `worker-host.ts` adapts the core protocol to the headless
@@ -26,13 +38,16 @@ Changing the cycle reschedules the ticker without clearing memory or changing
 operating state. Single scan is accepted only in STOP. Cold reset and load clear
 the program's memory and input image; the runtime preserves an active emergency stop.
 The host accepts emergency-stop messages from the operator panel and routes
-scalar force/write commands to the debug API. Expected debug validation errors
+scalar force/write commands to the debug API. Expected command validation errors
 produce a non-fatal `rejected` event instead of escaping the Worker listener.
 The client forwards this event without terminating the connection. The store
 keeps the latest rejection separately from PLC faults; the UI renders its reason
 from the English/Japanese catalogs in a separate alert. Scan snapshots preserve
 the alert until the next user command clears it. RUN, memory, forces and scan
-counts continue through rejected commands.
+counts continue through rejected commands. Invalid `setInput` addresses and values
+produce `runtime.input-address` and `runtime.input-value`; unsupported implicit
+cycles produce `runtime.unsupported-cycle`, with no input or cycle change. HALT
+and explicit configurations retain their existing cycle rejection reasons.
 
 The core protocol has no nullable fault message, so the store clears an old
 diagnostic when it receives the zero-scan snapshot from load, cold reset or warm restart. It

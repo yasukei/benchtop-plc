@@ -93,19 +93,23 @@ describe("app store", () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
-  it("preserves a latched fault through emergency stop and clears it on a reset snapshot", () => {
-    const { worker, store } = setup();
-    worker.receive({ type: "state", state: "FAULT" });
-    worker.receive({ type: "snapshot", snapshot });
-    worker.receive({ type: "fault", diagnostic: fault });
-    worker.receive({ type: "state", state: "ESTOP" });
-    store.send({ type: "stop" });
-    expect(store.getSnapshot().diagnostic).toEqual(fault);
-    store.send({ type: "coldReset" });
-    expect(store.getSnapshot().diagnostic).toEqual(fault);
-    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
-    expect(store.getSnapshot()).toMatchObject({ runtimeState: "ESTOP", diagnostic: null });
-  });
+  it.each(["runtime.division-by-zero", "runtime.internal-error"] as const)(
+    "preserves %s through emergency stop and clears it on a reset snapshot",
+    (code) => {
+      const fault: Diagnostic = { code, severity: "error", args: {} };
+      const { worker, store } = setup();
+      worker.receive({ type: "state", state: "FAULT" });
+      worker.receive({ type: "snapshot", snapshot });
+      worker.receive({ type: "fault", diagnostic: fault });
+      worker.receive({ type: "state", state: "ESTOP" });
+      store.send({ type: "stop" });
+      expect(store.getSnapshot().diagnostic).toEqual(fault);
+      store.send({ type: "coldReset" });
+      expect(store.getSnapshot().diagnostic).toEqual(fault);
+      worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+      expect(store.getSnapshot()).toMatchObject({ runtimeState: "ESTOP", diagnostic: null });
+    },
+  );
 
   it("validates cycle options and sends the selected cycle", () => {
     const { worker, store } = setup();
