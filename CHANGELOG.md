@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- End FOR loops when their next increment would exceed the control variable's type
+  range, preserving the last body value instead of wrapping and reaching the watchdog.
 - Keep debugger halts and snapshots serializable after 64-bit call results, and show
   invalid REAL/LREAL in-out storage in the call stack without disconnecting the Worker.
 - Clear the previous project's retained values when opening a project or restoring
