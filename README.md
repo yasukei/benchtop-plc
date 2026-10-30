@@ -29,6 +29,10 @@ Other scripts:
 - `pnpm build` – build every package; run before submitting a PR
 - `pnpm --filter @benchtop-plc/web build:pages` – generate the GitHub Pages deployment artifact
 - `pnpm format` – format all files with Prettier
+- `pnpm test:coverage` – unit and conformance tests with V8 coverage for `packages/*/src`;
+  run before and during refactoring to find untested paths. Open `coverage/index.html`
+  for the HTML report. CI runs this in place of `pnpm test`, shows per-package totals
+  in the job summary and keeps the `unit-test-coverage` artifact for seven days.
 - `pnpm test:e2e` – end-to-end tests (Playwright); run for UI changes
 - `pnpm test:e2e:pages` – smoke tests against the GitHub Pages build under `/benchtop-plc/`;
   run for build or base-path changes (builds the Pages artifact itself)
@@ -39,7 +43,7 @@ Other scripts:
   to reproduce the baseline; the command reports timings rather than enforcing the budget.
 
 Before finishing any change, run `pnpm typecheck && pnpm lint && pnpm test`.
-CI also runs `pnpm build` and both Playwright suites on every PR; run all of them
+CI uses `pnpm test:coverage` and also runs `pnpm build` and both Playwright suites on every PR; run all of them
 locally to reproduce CI. For workflow changes, also run the zizmor check above.
 
 ### Playwright browser setup

@@ -8,7 +8,15 @@ const conditions = ["@benchtop-plc/source", "module", "node", "development|produ
 export default defineConfig({
   ssr: { resolve: { conditions } },
   test: {
-    include: ["packages/*/src/**/*.test.{ts,tsx}", "tests/conformance/**/*.test.ts"],
+    include: ["packages/*/src/**/*.test.{ts,tsx}", "tests/**/*.test.ts"],
     environment: "node",
+    coverage: {
+      provider: "v8",
+      include: ["packages/*/src/**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}", "**/*.test-support.ts", "**/*.d.ts"],
+      reportsDirectory: "coverage",
+      reporter: ["text-summary", "html", "json-summary"],
+      reportOnFailure: true,
+    },
   },
 });
