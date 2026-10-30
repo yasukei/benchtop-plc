@@ -35,7 +35,7 @@ export function CallStack({
             <div key={variable.name}>
               <dt>{variable.name}</dt>
               <dd>
-                {formatCallValue(variable.value)}
+                {formatCallValue(variable.value, text.invalidReal)}
                 {variable.actual && (
                   <small>
                     {"path" in variable.actual

@@ -5,6 +5,7 @@ import {
   type RuntimeSnapshot,
   type UiToRuntimeMessage,
 } from "@benchtop-plc/core";
+import { en } from "./catalog.js";
 
 export const stepLabels = { over: "stepOver", into: "stepInto", out: "stepOut" } as const;
 export const debugBindings = { continue: "C", over: "N", into: "I", out: "O" } as const;
@@ -80,10 +81,11 @@ export function frameSnapshot(
   };
 }
 
-export function formatCallValue(value: CallValue): string {
+export function formatCallValue(value: CallValue, invalidReal: string = en.invalidReal): string {
+  if ("kind" in value && value.kind === "invalidReal") return `${invalidReal} (${value.bits})`;
   if ("kind" in value && value.kind === "aggregate")
     return value.elements
-      .map((element) => `${element.name}: ${formatCallValue(element.value)}`)
+      .map((element) => `${element.name}: ${formatCallValue(element.value, invalidReal)}`)
       .join(", ");
   return "target" in value ? (value.target ?? "NULL") : formatValue(value.dataType, value.value);
 }

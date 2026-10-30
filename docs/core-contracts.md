@@ -330,10 +330,11 @@ Function frames carry `caller: { pou, instance, line }`, identifying the current
 `values` is a list of `{ name, value, actual? }`. Functions and methods include
 inputs, outputs, locals, interface temporaries and the result. PROGRAM and function
 block frames include temporaries and in-outs; persistent members remain in the
-snapshot. Each in-out is read through its alias and includes `actual: { path }`
+snapshot. Each in-out is inspected through its alias and includes `actual: { path }`
 for persistent storage, or `{ frame, name }` for a caller local (frame indices start
 at 0 for the innermost; names include member/index suffixes). Values use
-`InlineValue` or recursively `{ kind: "aggregate", elements: { name, value }[] }`;
+`InlineValue`, `{ kind: "invalidReal", bits }` for non-finite floating-point storage,
+or recursively `{ kind: "aggregate", elements: { name, value }[] }`;
 aggregate element names are member/index suffixes. `annotations` has the same
 line-to-statement layout as an annotated body's `lines`, for this invocation,
 including unwatched bodies. Returned frames and values are detached copies.
