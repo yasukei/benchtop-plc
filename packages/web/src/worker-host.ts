@@ -17,6 +17,7 @@ export function createWorkerHost(
   clock: Clock,
   scheduler: Ticker,
   post: (message: RuntimeToUiMessage) => void,
+  report: (error: unknown) => void = () => {},
 ) {
   let configured = false;
   let lastHalt = "";
@@ -66,8 +67,8 @@ export function createWorkerHost(
             const previousState = runtime.state;
             onTick();
             publish(runtime.state !== previousState);
-          } catch {
-            recover();
+          } catch (error) {
+            recover(error);
           }
         });
       },
@@ -76,7 +77,15 @@ export function createWorkerHost(
   });
   // Recovery deliberately avoids retention/debugger publishing, which may be the defect.
   // If stopping execution or posting the fault fails, let the Worker error remain fatal.
-  const recover = (loadId?: number) => {
+  const reportError = (error: unknown) => {
+    try {
+      report(error);
+    } catch {
+      // Developer reporting must not prevent stopping execution or fault delivery.
+    }
+  };
+  const recover = (error: unknown, loadId?: number) => {
+    reportError(error);
     runtime.fail();
     lastHalt = "";
     if (loadId !== undefined) loaded = false;
@@ -84,7 +93,8 @@ export function createWorkerHost(
     if (loadId === undefined) {
       try {
         post({ type: "snapshot", snapshot: { ...runtime.snapshot(), inputs: [...inputs] } });
-      } catch {
+      } catch (snapshotError) {
+        reportError(snapshotError);
         // A broken or unserializable snapshot must not prevent fault delivery.
       }
     }
@@ -207,7 +217,7 @@ export function createWorkerHost(
         publish(immediate, message.type === "load" ? message.loadId : undefined);
       } catch (error) {
         if (!(error instanceof RuntimeCommandRejected)) {
-          recover(message.type === "load" ? message.loadId : undefined);
+          recover(error, message.type === "load" ? message.loadId : undefined);
           return;
         }
         if (
@@ -220,14 +230,14 @@ export function createWorkerHost(
           message.type !== "force" &&
           message.type !== "write"
         ) {
-          recover(message.type === "load" ? message.loadId : undefined);
+          recover(error, message.type === "load" ? message.loadId : undefined);
           return;
         }
         try {
           post({ type: "rejected", command: message.type, diagnostic: error.diagnostic });
           publish(false);
-        } catch {
-          recover();
+        } catch (publicationError) {
+          recover(publicationError);
         }
       }
     },

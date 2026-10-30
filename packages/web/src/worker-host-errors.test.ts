@@ -9,6 +9,9 @@ const diagnostic = { code: "runtime.internal-error", severity: "error", args: {}
 function setup() {
   const clock = new VirtualClock();
   const messages: RuntimeToUiMessage[] = [];
+  const reports: unknown[] = [];
+  const clockError = new Error("Injected clock error");
+  const publishingError = new Error("Injected publishing error");
   let failClock = false;
   let failPost = false;
   const host = createWorkerHost(
@@ -16,7 +19,7 @@ function setup() {
       now() {
         if (failClock) {
           failClock = false;
-          throw new Error("Injected clock error");
+          throw clockError;
         }
         return clock.now();
       },
@@ -25,10 +28,11 @@ function setup() {
     (message) => {
       if (failPost) {
         failPost = false;
-        throw new Error("Injected publishing error");
+        throw publishingError;
       }
       messages.push(message);
     },
+    (error) => reports.push(error),
   );
   host.handle({ type: "load", loadId: 1, ir: demoProgram });
   const state = () => messages.filter((event) => event.type === "state").at(-1)?.state;
@@ -37,6 +41,9 @@ function setup() {
     host,
     clock,
     messages,
+    reports,
+    clockError,
+    publishingError,
     state,
     snapshot,
     failClock: () => {
@@ -51,7 +58,7 @@ function setup() {
 it.each(["STOP", "RUN", "FAULT", "HALT", "ESTOP"] as const)(
   "recovers a command publishing error in %s and latches a fault without losing the host",
   (initial) => {
-    const { host, clock, messages, state, snapshot, failPost } = setup();
+    const { host, clock, messages, reports, publishingError, state, snapshot, failPost } = setup();
     if (initial === "RUN" || initial === "HALT") {
       if (initial === "HALT")
         host.handle({
@@ -70,6 +77,7 @@ it.each(["STOP", "RUN", "FAULT", "HALT", "ESTOP"] as const)(
     expect(() => host.handle({ type: "watch", variables: [] })).not.toThrow();
     expect(state()).toBe(initial === "ESTOP" ? "ESTOP" : "FAULT");
     expect(messages.at(-1)).toEqual({ type: "fault", diagnostic });
+    expect(reports.at(-1)).toBe(publishingError);
     expect(snapshot()?.outputs.every((byte) => byte === 0)).toBe(true);
     const count = snapshot()!.scanCount;
     for (const command of [{ type: "run" }, { type: "step" }, { type: "stop" }] as const)
@@ -90,13 +98,14 @@ it.each(["STOP", "RUN", "FAULT", "HALT", "ESTOP"] as const)(
 );
 
 it("recovers an unexpected tick error, cancels scanning and permits a warm restart", () => {
-  const { host, clock, messages, state, snapshot, failClock } = setup();
+  const { host, clock, messages, reports, clockError, state, snapshot, failClock } = setup();
   host.handle({ type: "run" });
   clock.advance(10);
   failClock();
   expect(() => clock.advance(10)).not.toThrow();
   expect(state()).toBe("FAULT");
   expect(messages.at(-1)).toEqual({ type: "fault", diagnostic });
+  expect(reports).toEqual([clockError]);
   const count = snapshot()!.scanCount;
   clock.advance(100);
   expect(snapshot()?.scanCount).toBe(count);
@@ -198,16 +207,71 @@ it("still posts the fault when snapshots cannot be serialized", () => {
   const clock = new VirtualClock();
   const messages: RuntimeToUiMessage[] = [];
   let rejectSnapshots = false;
-  const host = createWorkerHost(clock, new VirtualTicker(clock), (message) => {
-    if (rejectSnapshots && message.type === "snapshot")
-      throw new DOMException("Invalid snapshot", "DataCloneError");
-    messages.push(message);
-  });
+  const reports: unknown[] = [];
+  const snapshotError = new DOMException("Invalid snapshot", "DataCloneError");
+  const host = createWorkerHost(
+    clock,
+    new VirtualTicker(clock),
+    (message) => {
+      if (rejectSnapshots && message.type === "snapshot") throw snapshotError;
+      messages.push(message);
+    },
+    (error) => reports.push(error),
+  );
   host.handle({ type: "load", loadId: 1, ir: demoProgram });
   rejectSnapshots = true;
   expect(() => host.handle({ type: "watch", variables: [] })).not.toThrow();
   expect(messages.at(-1)).toEqual({ type: "fault", diagnostic });
+  expect(reports).toHaveLength(2);
+  expect(reports[0]).toBe(snapshotError);
+  expect(reports[1]).toBe(snapshotError);
   rejectSnapshots = false;
+  host.handle({ type: "coldReset" });
+  expect(messages.at(-1)?.type).toBe("snapshot");
+  host.dispose();
+});
+
+it("reports a failed load's original error while keeping its completion free of exception details", () => {
+  const { host, messages, reports, publishingError, failPost } = setup();
+  failPost();
+  expect(() => host.handle({ type: "load", loadId: 2, ir: demoProgram })).not.toThrow();
+  expect(reports).toHaveLength(1);
+  expect(reports[0]).toBe(publishingError);
+  expect(messages.at(-1)).toEqual({ type: "fault", loadId: 2, diagnostic });
+  host.dispose();
+});
+
+it("reports rejection-publication errors without reporting expected command rejections", () => {
+  const { host, messages, reports, publishingError, failPost } = setup();
+  host.handle({ type: "setCycle", ms: 11 });
+  expect(messages.some((message) => message.type === "rejected")).toBe(true);
+  expect(reports).toEqual([]);
+  failPost();
+  host.handle({ type: "setCycle", ms: 11 });
+  expect(reports).toHaveLength(1);
+  expect(reports[0]).toBe(publishingError);
+  expect(messages.at(-1)).toEqual({ type: "fault", diagnostic });
+  host.dispose();
+});
+
+it("delivers the fault even if developer reporting fails", () => {
+  const clock = new VirtualClock();
+  const messages: RuntimeToUiMessage[] = [];
+  const host = createWorkerHost(
+    clock,
+    {
+      start() {
+        throw new Error("Injected ticker error");
+      },
+    },
+    (message) => messages.push(message),
+    () => {
+      throw new Error("Reporter unavailable");
+    },
+  );
+  host.handle({ type: "load", loadId: 1, ir: demoProgram });
+  expect(() => host.handle({ type: "run" })).not.toThrow();
+  expect(messages.at(-1)).toEqual({ type: "fault", diagnostic });
   host.handle({ type: "coldReset" });
   expect(messages.at(-1)?.type).toBe("snapshot");
   host.dispose();

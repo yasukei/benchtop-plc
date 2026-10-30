@@ -10,6 +10,7 @@ const host = createWorkerHost(
     },
   },
   (message) => postMessage(message),
+  (error) => console.error(error),
 );
 
 addEventListener("message", (event: MessageEvent<UiToRuntimeMessage>) => host.handle(event.data));

@@ -22,7 +22,12 @@ including their normal publication. It calls the runtime's host-facing `fail()`
 method to latch `runtime.internal-error`, cancel ticks, abandon the suspended pass
 and debugger halt, and turn outputs OFF. It publishes the resulting state and a
 `fault` containing this code with no exception text, stack or source attribution.
-This is an application error, not an IEC program error.
+This is an application error, not an IEC program error. The caught error, including
+its stack when available, goes to an injected developer reporter wired to
+`console.error` by `runtime.worker.ts`; it is not included in protocol messages or
+the localized UI. A failure while constructing or posting the recovery snapshot
+is reported there as well. Reporting is best effort: a reporter failure cannot
+prevent stopping execution or delivering the fault.
 
 | Before the error               | After the error  | What the user sees                                                                                   |
 | ------------------------------ | ---------------- | ---------------------------------------------------------------------------------------------------- |

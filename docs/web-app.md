@@ -24,7 +24,9 @@ clears the monitor and loaded-program metadata, and leaves the Worker available.
 Acknowledge or reset first, then RUN retries the load; Open project can load a
 replacement project. Recovery does not publish retained data or debugger frames;
 if snapshot construction or serialization failed, the fault still appears and later
-successful snapshots refresh the monitor. Only unrecoverable failures (startup,
+successful snapshots refresh the monitor. Recovered error details and stacks go
+to the developer console through an injected reporter; the UI and protocol keep
+only the localized diagnostic code. Only unrecoverable failures (startup,
 failure to stop execution or post recovery messages, or transport errors)
 terminate the connection, show the connection-error banner and disable runtime
 controls. Reload the page to create a fresh connection in that case.
