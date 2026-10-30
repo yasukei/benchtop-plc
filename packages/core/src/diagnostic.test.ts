@@ -170,6 +170,7 @@ const examples = {
   "runtime.index-out-of-range": { index: 6, lower: 1, upper: 5 },
   "runtime.subrange-violation": { value: 120, lower: 0, upper: 100 },
   "type.ambiguous-enumeration": { name: "Red" },
+  "runtime.load-failed": {},
   "runtime.invalid-value": {},
   "runtime.division-by-zero": {},
   "runtime.watchdog": { limit: 10000 },

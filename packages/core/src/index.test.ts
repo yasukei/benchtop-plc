@@ -78,7 +78,7 @@ it("describes every protocol command and event as plain data", () => {
     span: { line: 1, column: 1, endLine: 2, endColumn: 12 },
   };
   const commands: UiToRuntimeMessage[] = [
-    { type: "load", ir },
+    { type: "load", loadId: 1, ir },
     { type: "run" },
     { type: "stop" },
     { type: "step" },
@@ -102,6 +102,11 @@ it("describes every protocol command and event as plain data", () => {
     })),
     { type: "fault", diagnostic },
     {
+      type: "fault",
+      loadId: 2,
+      diagnostic: { code: "runtime.load-failed", severity: "error", args: {} },
+    },
+    {
       type: "rejected",
       command: "write",
       diagnostic: {
@@ -112,6 +117,7 @@ it("describes every protocol command and event as plain data", () => {
     },
     {
       type: "snapshot",
+      loadId: 1,
       snapshot: {
         scanCount: 1,
         tasks: [],

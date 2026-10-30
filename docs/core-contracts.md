@@ -226,6 +226,23 @@ are covered by later milestone issues.
 
 ## Protocol
 
+Every `load` command carries a numeric `loadId`, unique per attempt within the
+client session. Exactly one completion echoes that identity: a successful load
+publishes its initial `snapshot` with `loadId`; a failed load publishes a `fault`
+with `loadId` and diagnostic `runtime.load-failed`, without a load snapshot.
+The host stops execution on failure and remains available for another load.
+Queued RUN and single-scan commands cannot execute the previous program after a
+failed load; execution stays disabled until a successful load.
+Ordinary snapshots and run-time faults omit `loadId`. In particular, zero-scan
+replies to `watchBodies`, `setBreakpoints` or other commands never complete a load.
+
+The UI matches completions by identity, rather than by scan count or queue order.
+While a load is pending it suppresses ordinary snapshots. On failure it discards
+that pending IR and clears the loaded-source/IR metadata and monitor snapshot;
+ordinary snapshots remain suppressed until a later successful load. This keeps
+values paired with their own program and lets the user load another project or
+retry with RUN without leaving a pending attempt behind.
+
 `UiToRuntimeMessage` and `RuntimeToUiMessage` are discriminated by `type`. A variable
 ID always refers to the currently loaded program. `force` takes a typed value or
 null to clear the force; `write` takes a typed value. Hosts validate that the

@@ -18,7 +18,13 @@ export type RetentiveRecord =
 export type RuntimeState = "STOP" | "RUN" | "ESTOP" | "FAULT" | "HALT";
 
 export type UiToRuntimeMessage =
-  | { type: "load"; ir: ConfigurationIR | ProgramIR; retentive?: RetentiveRecord[] }
+  | {
+      type: "load";
+      /** Unique per attempt within this client session; echoed only by its completion. */
+      loadId: number;
+      ir: ConfigurationIR | ProgramIR;
+      retentive?: RetentiveRecord[];
+    }
   | { type: "watch"; variables: VariableId[] }
   | { type: "watchBodies"; bodies: BodyWatch[] }
   | { type: "setBreakpoints"; breakpoints: Breakpoint[] }
@@ -146,8 +152,8 @@ export type RuntimeToUiMessage =
   | { type: "retentive"; records: RetentiveRecord[] }
   | { type: "retentiveRestored"; skipped: string[] }
   | { type: "state"; state: RuntimeState }
-  | { type: "snapshot"; snapshot: RuntimeSnapshot }
-  | { type: "fault"; diagnostic: Diagnostic }
+  | { type: "snapshot"; snapshot: RuntimeSnapshot; loadId?: number }
+  | { type: "fault"; diagnostic: Diagnostic; loadId?: number }
   | CommandRejectionMessage;
 
 /** Scalar-only snapshots keep their original layout; composites use compact ID/value pairs. */

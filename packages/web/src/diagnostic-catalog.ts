@@ -278,6 +278,7 @@ export const diagnosticEn = {
     `Value ${value} is outside subrange ${lower}..${upper}.`,
   "type.ambiguous-enumeration": ({ name }) =>
     `Enumeration value ${name} must be qualified because a variable has the same name.`,
+  "runtime.load-failed": () => "The program could not be loaded. Apply it again to retry.",
   "runtime.invalid-value": () => "Non-finite result or REAL overflow.",
   "runtime.division-by-zero": () => "Division by zero.",
   "runtime.watchdog": ({ limit }) => `Loop iteration limit (${limit}) exceeded.`,
@@ -544,6 +545,7 @@ export const diagnosticJa = {
     `値 ${value} は部分範囲 ${lower}..${upper} の範囲外です。`,
   "type.ambiguous-enumeration": ({ name }) =>
     `同名の変数があるため、列挙値 ${name} には型名の修飾が必要です。`,
+  "runtime.load-failed": () => "プログラムを読み込めませんでした。再度適用してやり直してください。",
   "runtime.invalid-value": () => "非有限の計算結果、またはREALのオーバーフローが発生しました。",
   "runtime.division-by-zero": () => "ゼロによる除算が発生しました。",
   "runtime.watchdog": ({ limit }) => `ループの反復回数の上限（${limit}回）を超えました。`,

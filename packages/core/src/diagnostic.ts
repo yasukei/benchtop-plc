@@ -190,6 +190,7 @@ export interface DiagnosticArgs {
     lower: number | string;
     upper: number | string;
   };
+  "runtime.load-failed": NoArguments;
   "runtime.invalid-value": NoArguments;
   "runtime.division-by-zero": NoArguments;
   "runtime.watchdog": { limit: number };

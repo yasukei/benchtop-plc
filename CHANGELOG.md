@@ -8,7 +8,17 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking core protocol change:** `load` requires a per-attempt `loadId`.
+  The Worker echoes it only on the initial snapshot or the failed-load fault;
+  ordinary command replies omit it.
+
 ### Fixed
+
+- Pair monitor values with the load that produced them, ignoring delayed
+  zero-scan replies from previous programs. Failed loads clear their pending
+  state so another project can be opened and loaded.
 
 - Clear the previous project's retained values when opening a project or restoring
   the example, even if the opened source cannot compile before a page reload or a
