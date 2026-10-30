@@ -13,6 +13,7 @@ import {
   type ReferenceVariable,
   type InlineValue,
   type CallValue,
+  type InvalidRealValue,
   type ReferenceValue,
   arrayType,
   arrayIndices,
@@ -291,7 +292,8 @@ export class MemoryFrame implements ScanMemory {
 
   debugValue(variable: number): CallValue {
     const cell = this.cells[variable]!;
-    if (cell.kind !== "aggregate") return this.inlineValue(variable);
+    if (cell.kind === "reference") return this.referenceValue(cell.target);
+    if (cell.kind !== "aggregate") return { ...this.inspectScalar(variable) };
     return {
       kind: "aggregate",
       elements: cell.elements.map((_, i) => ({
@@ -362,6 +364,19 @@ export class MemoryFrame implements ScanMemory {
     if (cell?.kind === "long") return typed(cell.dataType, cell.value);
     if (!cell || cell.kind !== "scalar") throw new Error("Expected scalar variable");
     return cell.value;
+  }
+
+  /** Debugger inspection reports invalid storage without validating a program read. */
+  protected inspectScalar(variable: number): TypedValue | InvalidRealValue {
+    const cell = this.cells[variable];
+    if ((cell?.kind === "scalar" || cell?.kind === "long") && cell.location) {
+      const { bytes, address, dataType } = cell.location;
+      const value = readDirectValue(bytes, address, dataType);
+      if (typeof value === "number" && !Number.isFinite(value))
+        return { kind: "invalidReal", bits: directBits(bytes, address) };
+      return typed(dataType, value);
+    }
+    return this.scalar(variable);
   }
 
   block(variable: number): FunctionBlockInstance {
@@ -777,15 +792,10 @@ export class Memory extends MemoryFrame {
     return ids.map((id): VariableSnapshot => {
       const cell = this.cells[id]!;
       if (cell.kind === "reference") return this.referenceValue(cell.target);
-      if ((cell.kind === "scalar" || cell.kind === "long") && cell.location) {
-        const { bytes, address, dataType } = cell.location;
-        const value = readDirectValue(bytes, address, dataType);
-        if (typeof value === "number" && !Number.isFinite(value))
-          return { kind: "invalidReal", bits: directBits(bytes, address) };
-        return { kind: "scalar", ...typed(dataType, value) };
+      if (cell.kind === "scalar" || cell.kind === "long") {
+        const value = this.inspectScalar(id);
+        return "kind" in value ? value : { kind: "scalar", ...value };
       }
-      if (cell.kind === "long") return { kind: "scalar", ...typed(cell.dataType, cell.value) };
-      if (cell.kind === "scalar") return { kind: "scalar", ...cell.value };
       if (cell.kind !== "functionBlock") throw new Error("User instance in monitored storage");
       return {
         kind: "functionBlock",

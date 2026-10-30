@@ -65,3 +65,12 @@ it("formats scalar, reference and aggregate invocation values", () => {
     }),
   ).toBe("[2]: 7");
 });
+
+it("formats invalid floating-point call values with localized labels, including aggregate leaves", () => {
+  const invalid = { kind: "invalidReal", bits: "16#7FC00000" } as const;
+  expect(formatCallValue(invalid)).toBe("Invalid (16#7FC00000)");
+  expect(formatCallValue(invalid, "無効")).toBe("無効 (16#7FC00000)");
+  expect(
+    formatCallValue({ kind: "aggregate", elements: [{ name: ".sample", value: invalid }] }, "無効"),
+  ).toBe(".sample: 無効 (16#7FC00000)");
+});

@@ -937,3 +937,8 @@ forwarded aliases. Aggregate values retain their member/element structure. Frame
 and annotations are copies and are available only while halted; snapshot storage
 and watched-body rules stay the same. See [core-contracts.md](core-contracts.md)
 for the transport layout.
+
+Inspection of non-finite REAL/LREAL storage through an in-out alias reports
+`{ kind: "invalidReal", bits }`, just like a snapshot, without performing a program
+read. A program read still faults. Completed call annotations encode 64-bit results
+as canonical decimal strings, like snapshot scalar values.
