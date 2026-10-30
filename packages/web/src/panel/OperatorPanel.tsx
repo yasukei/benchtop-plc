@@ -142,7 +142,9 @@ export function OperatorPanel({
   const [editing, setEditing] = useState(false);
   const [kind, setKind] = useState<PartKind>("led");
   const [selected, setSelected] = useState<string | null>(null);
-  const [projectError, setProjectError] = useState(false);
+  const [projectError, setProjectError] = useState<
+    "projectError" | "unsupportedProjectCycle" | null
+  >(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const canOpenProject =
     state.runtimeState === "STOP" && !state.emergencyActive && state.connection === "connected";
@@ -165,7 +167,7 @@ export function OperatorPanel({
     store.setLayout(state.layout.map((p) => (p.id === next.id ? next : p)));
   const save = () => {
     const xml = store.saveProject();
-    setProjectError(!xml);
+    setProjectError(xml ? null : "projectError");
     if (!xml) return;
     const url = URL.createObjectURL(new Blob([xml], { type: "application/xml" }));
     const link = document.createElement("a");
@@ -196,8 +198,16 @@ export function OperatorPanel({
               if (file)
                 void file
                   .text()
-                  .then((xml) => setProjectError(!store.openProject(xml)))
-                  .catch(() => setProjectError(true));
+                  .then((xml) =>
+                    setProjectError(
+                      store.openProject(xml)
+                        ? null
+                        : store.getSnapshot().openProjectError === "unsupported-cycle"
+                          ? "unsupportedProjectCycle"
+                          : "projectError",
+                    ),
+                  )
+                  .catch(() => setProjectError("projectError"));
             }}
           />
         </label>
@@ -211,7 +221,7 @@ export function OperatorPanel({
               setConfirmRestore(true);
               return;
             }
-            setProjectError(!store.restoreExample());
+            setProjectError(store.restoreExample() ? null : "projectError");
             setConfirmRestore(false);
             setSelected(null);
           }}
@@ -227,7 +237,7 @@ export function OperatorPanel({
       )}
       {projectError && (
         <div role="alert">
-          <p>{text.projectError}</p>
+          <p>{text[projectError]}</p>
           {state.saveDiagnostics.map((diagnostic, index) => (
             <p key={index}>
               {diagnostic.pou} {formatDiagnostic(language, diagnostic)}

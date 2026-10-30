@@ -278,7 +278,7 @@ function intervalNanoseconds(token: Token): bigint {
   return text.startsWith("-") ? -total : total;
 }
 
-function durationNanoseconds(value: string): bigint {
+export function durationNanoseconds(value: string): bigint {
   const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)(?:\.(\d+))?S)?)?$/.exec(value);
   if (!match || /[1-9]/.test((match[5] ?? "").slice(9)))
     throw new ConfigurationError({

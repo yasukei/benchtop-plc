@@ -27,6 +27,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Open projects with equivalent ISO 8601 spellings of supported task intervals,
+  and explain that implicit configurations support only 10, 20, 50 and 100 ms cycles
+  when an imported interval is unsupported.
 - Save LTIME, LDATE, LTOD and LDT as `derived` names so project XML validates
   against TC6 v2.01. Files saved with the old type elements still open.
 - Check failed nested enumeration operands once, keeping diagnostics proportional
