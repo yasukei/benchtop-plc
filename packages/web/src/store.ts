@@ -394,9 +394,19 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         return;
       }
       const pous = state.pous.length
-        ? state.pous.map((pou, index) =>
-            index === state.selectedPou ? derivePou(source, pou) : pou,
-          )
+        ? state.pous.map((pou, index) => {
+            if (index !== state.selectedPou) return pou;
+            const next = derivePou(source, pou);
+            // Keep the last unique workspace key while the typed header collides.
+            if (
+              state.pous.some(
+                (other, otherIndex) =>
+                  otherIndex !== index && other.name.toUpperCase() === next.name.toUpperCase(),
+              )
+            )
+              return { ...next, name: pou.name };
+            return next;
+          })
         : createPous([source]);
       const previous = state.pous[state.selectedPou];
       const next = pous[state.selectedPou];
@@ -690,9 +700,12 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       const pous = deletePou(state.pous, index);
       if (pous === state.pous) return;
       clearTimeout(compileTimer);
+      const key = state.pous[index]!.name.toUpperCase();
       const breakpoints = { ...state.breakpoints };
-      delete breakpoints[state.pous[index]!.name.toUpperCase()];
-      lineOrigins.delete(state.pous[index]!.name.toUpperCase());
+      delete breakpoints[key];
+      const instanceChoices = { ...state.instanceChoices };
+      delete instanceChoices[key];
+      lineOrigins.delete(key);
       const selectedPou =
         state.selectedPou > index
           ? state.selectedPou - 1
@@ -700,6 +713,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       update({
         pous,
         breakpoints,
+        instanceChoices,
         editorSession: state.editorSession + 1,
         saveDiagnostics: [],
         selectedPou,

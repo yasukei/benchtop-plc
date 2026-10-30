@@ -833,6 +833,67 @@ it("maps breakpoints to loaded text through edits and renames, then resends them
   store.dispose();
 });
 
+it.each(["FB1", "fb1"])(
+  "preserves both POUs' debug state through a rename to %s and back",
+  (name) => {
+    const worker = new FakeWorker();
+    const source = "PROGRAM Main\nVAR a, b: FB1; END_VAR\na();\nb();\nEND_PROGRAM";
+    const store = createAppStore(new RuntimeClient(worker), source);
+    store.addFunctionBlock();
+    const block =
+      "FUNCTION_BLOCK FB1\nVAR n: INT; END_VAR\n\n\n\n\n\n\nn := n + 1;\nEND_FUNCTION_BLOCK";
+    store.setSource(block);
+    expect(store.loadEditor()).toBe(true);
+    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    store.toggleBreakpoint(9);
+    store.selectInstance("mainInstance.B");
+    store.selectPou(0);
+    store.toggleBreakpoint(3);
+    store.selectInstance("mainInstance");
+    const breakpoints = { MAIN: [3], FB1: [9] };
+    const instanceChoices = { MAIN: "mainInstance", FB1: "mainInstance.B" };
+
+    store.setSource(source.replace("PROGRAM Main", `PROGRAM ${name}`));
+    expect(store.getSnapshot()).toMatchObject({ breakpoints, instanceChoices });
+    expect(store.loadEditor()).toBe(false);
+    store.setSource(source);
+    expect(store.getSnapshot()).toMatchObject({ breakpoints, instanceChoices });
+    expect(store.breakpointMarkers()).toEqual([{ line: 3, active: true }]);
+    expect(store.runtimeSource()).toEqual({ pou: "Main", choices: instanceChoices });
+    store.selectPou(1);
+    expect(store.breakpointMarkers()).toEqual([{ line: 9, active: true }]);
+    expect(store.runtimeSource()).toEqual({ pou: "FB1", choices: instanceChoices });
+    expect(worker.sent.filter((message) => message.type === "setBreakpoints").at(-1)).toEqual({
+      type: "setBreakpoints",
+      breakpoints: [
+        { pou: "Main", line: 3 },
+        { pou: "FB1", line: 9 },
+      ],
+    });
+    store.dispose();
+  },
+);
+
+it("removes a deleted POU's instance choice and breakpoint without changing the remaining POU's", () => {
+  const worker = new FakeWorker();
+  const source = "PROGRAM Main\nVAR a, b: FB1; END_VAR\na(); b();\nEND_PROGRAM";
+  const store = createAppStore(new RuntimeClient(worker), source);
+  store.addFunctionBlock();
+  store.setSource("FUNCTION_BLOCK FB1\nVAR n: INT; END_VAR\nn := n + 1;\nEND_FUNCTION_BLOCK");
+  expect(store.loadEditor()).toBe(true);
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  store.toggleBreakpoint(3);
+  store.selectInstance("mainInstance.B");
+  store.selectPou(0);
+  store.toggleBreakpoint(3);
+  store.selectInstance("mainInstance");
+
+  store.deletePou(1);
+  expect(store.getSnapshot().instanceChoices).toEqual({ MAIN: "mainInstance" });
+  expect(store.getSnapshot().breakpoints).toEqual({ MAIN: [3] });
+  store.dispose();
+});
+
 it("opens the halted method's source and instance, retains its banner through edits, and clears it on Stop", () => {
   const worker = new FakeWorker();
   const store = createAppStore(new RuntimeClient(worker), "PROGRAM Main END_PROGRAM");

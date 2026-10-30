@@ -93,6 +93,53 @@ test("halts the sorting conveyor before counting a part and publishes its output
   await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
 });
 
+test("keeps both POUs' breakpoints when a header is renamed to a taken name and back", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  await editor.fill("PROGRAM Main\nVAR a: FB1; END_VAR\na();\nEND_PROGRAM");
+  await list.getByRole("button", { name: "Add function block", exact: true }).click();
+  await editor.fill(
+    "FUNCTION_BLOCK FB1\nVAR n: INT; END_VAR\n\n\n\n\n\n\nn := n + 1;\nEND_FUNCTION_BLOCK",
+  );
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByLabel("Runtime state", { exact: true })).toHaveText("RUN");
+  await page.locator(".toolbar").getByRole("button", { name: "STOP", exact: true }).click();
+  const blockMarker = page.locator('.breakpoint-marker[data-line="9"]');
+  await blockMarker.click();
+  await expect(blockMarker).toHaveAttribute("data-breakpoint", "active");
+  await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
+  const mainMarker = page.locator('.breakpoint-marker[data-line="3"]');
+  await mainMarker.click();
+  await expect(mainMarker).toHaveAttribute("data-breakpoint", "active");
+
+  // Edit only the header, as ordinary typing does, preserving statement lines.
+  await editor.press("Control+Home");
+  await editor.press("Shift+End");
+  await editor.pressSequentially("PROGRAM FB1");
+  await expect(editor).toContainText("PROGRAM FB1");
+  await editor.press("Control+Home");
+  await editor.press("Shift+End");
+  await editor.pressSequentially("PROGRAM Main");
+  await expect(mainMarker).toHaveAttribute("data-breakpoint", "active");
+  await list.getByRole("button", { name: /^FB1 FUNCTION_BLOCK/ }).click();
+  await expect(blockMarker).toHaveAttribute("data-breakpoint", "active");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem("benchtop-plc.work") ?? "{}").breakpoints,
+      ),
+    )
+    .toEqual({ MAIN: [3], FB1: [9] });
+  await page.reload();
+  await expect(blockMarker).toHaveAttribute("data-breakpoint", "active");
+  await list.getByRole("button", { name: /^Main PROGRAM/ }).click();
+  await expect(mainMarker).toHaveAttribute("data-breakpoint", "active");
+});
+
 test("maps gutter markers through edits, restores them from autosave and hides a halt location in changed text", async ({
   page,
 }) => {

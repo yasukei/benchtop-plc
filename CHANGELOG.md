@@ -10,6 +10,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Preserve each POU's breakpoints, instance choice and loaded-line mapping when an
+  edited header temporarily uses another POU's name. Deleting a POU also removes
+  its saved instance choice.
 - Restore autosaved work containing interfaces after a page reload instead of
   falling back to the blink example and overwriting the saved project.
 
