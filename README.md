@@ -3,7 +3,7 @@
 A browser-based software PLC that aims at IEC 61131-3 compliance.
 
 **Try it:** [yasukei.github.io/benchtop-plc](https://yasukei.github.io/benchtop-plc/) runs the latest
-`main` in your browser, no installation needed.
+release in your browser, no installation needed.
 
 See the [architecture overview](docs/architecture.md) for the package structure and design decisions.
 

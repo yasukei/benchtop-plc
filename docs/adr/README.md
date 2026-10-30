@@ -28,3 +28,4 @@ An ADR records one design decision: its context, the decision, and its consequen
 - [0016. Configurations, tasks, global variables and retentive variables](0016-configurations-tasks-and-global-variables.md)
 - [0017. Classes, methods, interfaces and namespaces](0017-classes-methods-interfaces-and-namespaces.md)
 - [0018. Debugging: instance selection, breakpoints and stepping](0018-debugging.md)
+- [0019. Static hosting and release deployments](0019-static-hosting-and-release-deployments.md)
