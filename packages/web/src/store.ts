@@ -33,6 +33,7 @@ import type {
   HaltedMessage,
   RuntimeSnapshot,
   RuntimeState,
+  RetentiveRecord,
   UiToRuntimeMessage,
 } from "@benchtop-plc/core";
 import type { ClientEvent, RuntimeClient } from "./runtime-client.js";
@@ -123,11 +124,17 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
     connection: "connected",
   };
   let compileTimer: ReturnType<typeof setTimeout> | undefined;
+  let nextLoadId = 1;
+  let loadFailed = false;
   const pendingLoads: {
-    loadedSources: string[];
-    loadedDataTypes: string[];
-    loadedConfigurationSource: string | null;
-    loadedIr: ConfigurationIR;
+    loadId: number;
+    retentive?: RetentiveRecord[];
+    loaded: {
+      loadedSources: string[];
+      loadedDataTypes: string[];
+      loadedConfigurationSource: string | null;
+      loadedIr: ConfigurationIR;
+    };
   }[] = [];
   const listeners = new Set<() => void>();
   let lastBodyWatches = "";
@@ -259,18 +266,42 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       case "state":
         update({ runtimeState: event.state, ...(event.state !== "HALT" ? { halted: null } : {}) });
         break;
-      case "snapshot":
-        // A load publishes an empty, zero-scan snapshot before execution can resume.
-        // Ignore scans already queued by the previously loaded program.
-        if (pendingLoads.length && event.snapshot.scanCount !== 0) break;
-        update({
-          ...(pendingLoads.length ? pendingLoads.shift()! : {}),
-          snapshot: event.snapshot,
-          ...(event.snapshot.scanCount === 0 ? { diagnostic: null } : {}),
-        });
+      case "snapshot": {
+        if (event.loadId !== undefined) {
+          const index = pendingLoads.findIndex((load) => load.loadId === event.loadId);
+          if (index === -1) break;
+          const { loaded } = pendingLoads.splice(index, 1)[0]!;
+          // Keep the monitor empty while a newer attempt is still in flight.
+          if (pendingLoads.length) break;
+          loadFailed = false;
+          update({ ...loaded, snapshot: event.snapshot, diagnostic: null });
+        } else {
+          // Ordinary commands can also reply at scan zero; they never acknowledge a load.
+          if (pendingLoads.length || loadFailed) break;
+          update({
+            snapshot: event.snapshot,
+            ...(event.snapshot.scanCount === 0 ? { diagnostic: null } : {}),
+          });
+        }
         break;
+      }
       case "fault":
-        update({ diagnostic: event.diagnostic });
+        if (event.loadId !== undefined) {
+          const index = pendingLoads.findIndex((load) => load.loadId === event.loadId);
+          if (index === -1) break;
+          const failed = pendingLoads.splice(index, 1)[0]!;
+          if (pendingLoads.length) break;
+          pendingRestore = failed.retentive;
+          loadFailed = true;
+          update({
+            loadedSources: null,
+            loadedDataTypes: null,
+            loadedConfigurationSource: null,
+            loadedIr: undefined,
+            snapshot: null,
+            diagnostic: event.diagnostic,
+          });
+        } else update({ diagnostic: event.diagnostic });
         break;
       case "rejected":
         update({ rejection: event });
@@ -307,17 +338,27 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
         name: pou.name,
         lines: pou.source.split("\n").map((_, index) => index + 1),
       });
-    pendingLoads.push({
-      loadedSources: pouSources(state.pous),
-      loadedDataTypes: pouSources(state.dataTypes),
-      loadedConfigurationSource: state.configuration?.source ?? null,
-      loadedIr: result.ir,
-    });
-    update({ snapshot: null, diagnostic: null, rejection: null, retentiveSkipped: [] });
+    const loadId = nextLoadId++;
     const retentive = pendingRestore;
     pendingRestore = undefined;
+    pendingLoads.push({
+      loadId,
+      ...(retentive === undefined ? {} : { retentive }),
+      loaded: {
+        loadedSources: pouSources(state.pous),
+        loadedDataTypes: pouSources(state.dataTypes),
+        loadedConfigurationSource: state.configuration?.source ?? null,
+        loadedIr: result.ir,
+      },
+    });
+    update({ snapshot: null, diagnostic: null, rejection: null, retentiveSkipped: [] });
     awaitingProjectLoad = false;
-    client.send({ type: "load", ir: result.ir, ...(retentive === undefined ? {} : { retentive }) });
+    client.send({
+      type: "load",
+      loadId,
+      ir: result.ir,
+      ...(retentive === undefined ? {} : { retentive }),
+    });
     // Queue watches before RUN can activate an event task, without waiting for the load reply.
     sendBodyWatches(result.ir);
     sendBreakpoints(result.ir);
@@ -789,7 +830,7 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       if (state.connection !== "connected") return;
       if (state.rejection) update({ rejection: null });
       if (message.type === "warmRestart" || message.type === "coldReset")
-        update({ retentiveSkipped: [] });
+        update({ retentiveSkipped: [], ...(loadFailed ? { diagnostic: null } : {}) });
       if (message.type === "setCycle") {
         if (state.configuration) return;
         if (!cycleOptions.includes(message.ms as CycleMs))

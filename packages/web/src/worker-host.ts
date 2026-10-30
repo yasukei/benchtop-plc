@@ -22,7 +22,7 @@ export function createWorkerHost(
   const inputs: IoImage = Array<number>(64).fill(0);
   let lastRetentiveTime = -Infinity;
   let lastRetentiveJson: string | undefined;
-  const publish = (immediate = false) => {
+  const publish = (immediate = false, loadId?: number) => {
     if (
       runtime.state !== "HALT" &&
       loaded &&
@@ -38,7 +38,11 @@ export function createWorkerHost(
     }
     post({ type: "state", state: runtime.state });
     // The panel input image is live even while STOP prevents scan sampling.
-    post({ type: "snapshot", snapshot: { ...runtime.snapshot(), inputs: [...inputs] } });
+    post({
+      type: "snapshot",
+      snapshot: { ...runtime.snapshot(), inputs: [...inputs] },
+      ...(loadId === undefined ? {} : { loadId }),
+    });
     const halted = runtime.halted;
     const haltKey = JSON.stringify(halted);
     if (halted && haltKey !== lastHalt) post(halted);
@@ -94,13 +98,13 @@ export function createWorkerHost(
             runtime.continue();
             break;
           case "run":
-            runtime.run();
+            if (loaded) runtime.run();
             break;
           case "stop":
             runtime.stop();
             break;
           case "step":
-            runtime.step();
+            if (loaded) runtime.step();
             break;
           case "restoreRetentive":
             post({ type: "retentiveRestored", skipped: runtime.restoreRetentive(message.records) });
@@ -141,6 +145,18 @@ export function createWorkerHost(
             break;
         }
       } catch (error) {
+        if (message.type === "load") {
+          // Complete failed attempts without publishing values as the new program.
+          runtime.stop();
+          loaded = false;
+          post({ type: "state", state: runtime.state });
+          post({
+            type: "fault",
+            loadId: message.loadId,
+            diagnostic: { code: "runtime.load-failed", severity: "error", args: {} },
+          });
+          return;
+        }
         if (!(error instanceof RuntimeCommandRejected)) throw error;
         if (
           message.type !== "run" &&
@@ -155,7 +171,7 @@ export function createWorkerHost(
         immediate = false;
         post({ type: "rejected", command: message.type, diagnostic: error.diagnostic });
       }
-      publish(immediate);
+      publish(immediate, message.type === "load" ? message.loadId : undefined);
     },
     dispose() {
       runtime.stop();

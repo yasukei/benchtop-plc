@@ -30,9 +30,9 @@ describe("RuntimeClient", () => {
     const client = new RuntimeClient(worker);
     const listener = vi.fn();
     const unsubscribe = client.subscribe(listener);
-    client.send({ type: "load", ir: demoProgram });
+    client.send({ type: "load", loadId: 1, ir: demoProgram });
     client.send({ type: "run" });
-    expect(worker.sent).toEqual([{ type: "load", ir: demoProgram }, { type: "run" }]);
+    expect(worker.sent).toEqual([{ type: "load", loadId: 1, ir: demoProgram }, { type: "run" }]);
     worker.receive({ type: "state", state: "RUN" });
     expect(listener).toHaveBeenCalledWith({ type: "state", state: "RUN" });
     unsubscribe();
@@ -75,7 +75,7 @@ describe("RuntimeClient", () => {
     const client = new RuntimeClient(worker);
     const listener = vi.fn();
     client.subscribe(listener);
-    client.send({ type: "load", ir: demoProgram });
+    client.send({ type: "load", loadId: 1, ir: demoProgram });
     expect(listener).toHaveBeenCalledWith({ type: "connectionError" });
     expect(worker.terminated).toBe(true);
   });

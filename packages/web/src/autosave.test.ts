@@ -583,6 +583,7 @@ it("autosaves per-source instance choices and restores them without adding proje
   const { store, worker, storage } = setup();
   worker.receive({
     type: "snapshot",
+    loadId: 1,
     snapshot: {
       scanCount: 0,
       tasks: [],
@@ -606,6 +607,7 @@ it("autosaves per-source instance choices and restores them without adding proje
   fresh.loadEditor();
   freshWorker.receive({
     type: "snapshot",
+    loadId: 1,
     snapshot: {
       scanCount: 0,
       tasks: [],
@@ -631,6 +633,7 @@ it("autosaves breakpoints per source and starts imported projects without them",
   const { store, storage, worker } = setup();
   worker.receive({
     type: "snapshot",
+    loadId: 1,
     snapshot: {
       scanCount: 0,
       tasks: [],

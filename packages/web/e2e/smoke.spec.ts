@@ -66,7 +66,7 @@ test("keeps the real Worker and RUN session alive after rejected debug commands"
     const ir: unknown = JSON.parse(encodedIr);
     const worker = (window as Window & { testWorker?: Worker }).testWorker;
     if (!worker) throw new Error("Expected runtime Worker");
-    worker.postMessage({ type: "load", ir });
+    worker.postMessage({ type: "load", loadId: 1, ir });
     worker.postMessage({ type: "force", variable: 0, value: { dataType: "DINT", value: 50 } });
   }, JSON.stringify(ir));
   await page.getByRole("button", { name: "RUN", exact: true }).click();

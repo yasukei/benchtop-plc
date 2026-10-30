@@ -21,6 +21,16 @@ const snapshot: RuntimeSnapshot = {
 };
 const fault: Diagnostic = { code: "runtime.division-by-zero", severity: "error", args: {} };
 
+function acknowledgeLoad(worker: FakeWorker) {
+  const load = worker.sent.findLast((message) => message.type === "load");
+  if (!load) throw new Error("Expected a load command");
+  worker.receive({
+    type: "snapshot",
+    loadId: load.loadId,
+    snapshot: { ...snapshot, scanCount: 0 },
+  });
+}
+
 function setup() {
   const worker = new FakeWorker();
   const client = new RuntimeClient(worker);
@@ -161,7 +171,7 @@ describe("editor state", () => {
     expect(store.getSnapshot().loadedSources).toBeNull();
     worker.receive({ type: "snapshot", snapshot });
     expect(store.getSnapshot().snapshot).toBeNull();
-    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    acknowledgeLoad(worker);
     expect(store.getSnapshot().loadedSources).toEqual([store.getSnapshot().source]);
     store.run();
     expect(worker.sent.map((message) => message.type)).toEqual([
@@ -183,7 +193,7 @@ describe("editor state", () => {
       "run",
     ]);
     expect(store.getSnapshot().snapshot).toBeNull();
-    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    acknowledgeLoad(worker);
     expect(store.getSnapshot().loadedSources).toEqual([store.getSnapshot().source]);
     store.dispose();
   });
@@ -201,7 +211,7 @@ describe("editor state", () => {
     worker.receive(rejection);
     store.run();
     expect(store.getSnapshot().rejection).toBeNull();
-    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    acknowledgeLoad(worker);
     worker.receive(rejection);
     store.run();
     expect(store.getSnapshot().rejection).toBeNull();
@@ -273,7 +283,7 @@ it("round trips source and panel through the project package and rejects loading
     { type: "load", ir: { resource: { tasks: [{ intervalMs: 10 }] } } },
     { type: "watchBodies", bodies: [{ pou: "BenchDemo", instance: "mainInstance" }] },
   ]);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   worker.receive({ type: "state", state: "RUN" });
   const before = store.getSnapshot();
   expect(store.openProject(xml)).toBe(false);
@@ -322,7 +332,7 @@ it("restores the bundled example's source, panel and cycle through the project l
   ]);
   // Replacing a project cannot race an unacknowledged load.
   expect(store.restoreExample()).toBe(false);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(store.getSnapshot().loadedSources).toEqual([restored.source]);
   store.dispose();
 });
@@ -367,7 +377,7 @@ it("invalidates applied code when opening unchanged main text with a removed fun
   const metadata = readProject(store.saveProject()!).value!;
   const xml = (pous: string[]) => writeProject({ ...metadata, pous }).value!;
   expect(store.openProject(xml([main, fn]))).toBe(true);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(store.getSnapshot().loadedSources).toEqual([main, fn]);
   expect(store.openProject(xml([main]))).toBe(true);
   expect(store.getSnapshot()).toMatchObject({ source: main, loadedSources: null, snapshot: null });
@@ -387,7 +397,7 @@ it("switches POUs without reloading, reloads on function edits, and blocks Run a
   store.setSource("FUNCTION F1 : INT VAR_INPUT n : INT; END_VAR F1 := n * 2; END_FUNCTION");
   store.run();
   expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run"]);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   store.selectPou(0);
   store.run();
   expect(worker.sent.map((message) => message.type)).toEqual([
@@ -416,7 +426,7 @@ it("switches POUs without reloading, reloads on function edits, and blocks Run a
     "watchBodies",
     "run",
   ]);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   store.deletePou(1);
   expect(store.getSnapshot().selectedPou).toBe(0);
   const count = worker.sent.length;
@@ -442,7 +452,7 @@ it("saves and reopens all three POU texts in order, and explains unparseable dra
   const xml = store.saveProject()!;
   expect(readProject(xml).value!.pous).toEqual(sources);
   expect(store.openProject(xml)).toBe(true);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(store.getSnapshot().pous.map((pou) => pou.source)).toEqual(sources);
   store.selectPou(2);
   store.setSource("FUNCTION");
@@ -502,7 +512,7 @@ it("edits and renames types, blocks run after deleting a used type, and still sa
   expect(store.getSnapshot().diagnostics).toEqual([]);
   const load = worker.sent.find((message) => message.type === "load");
   expect(load?.type === "load" && load.ir.types?.[0]?.name).toBe("State");
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(store.getSnapshot().loadedDataTypes).toEqual([type]);
   const loadedSources = store.getSnapshot().loadedSources;
   store.selectDataType(0);
@@ -559,14 +569,14 @@ it("reloads when only type text changes and preserves selection across list oper
   store.deleteDataType(99);
   expect(store.getSnapshot().selectedDataType).toBeNull();
   store.loadEditor();
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   worker.sent.length = 0;
   store.selectDataType(0);
   store.setSource("TYPE Type2 : (First, Second); END_TYPE");
   store.run();
   expect(worker.sent.map((message) => message.type)).toEqual(["load", "watchBodies", "run"]);
   expect(store.getSnapshot().loadedDataTypes).toEqual([expect.stringContaining("Idle")]);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(store.getSnapshot().loadedDataTypes).toEqual(["TYPE Type2 : (First, Second); END_TYPE"]);
   store.dispose();
 });
@@ -609,7 +619,7 @@ it("adds one configuration, edits it independently, and applies its exact IR aft
   vi.useFakeTimers();
   const { store, worker } = setup();
   store.run();
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   const implicitIr = store.getSnapshot().loadedIr;
   store.addConfiguration();
   const template = store.getSnapshot().configuration!;
@@ -626,7 +636,7 @@ it("adds one configuration, edits it independently, and applies its exact IR aft
   });
   // Editing again before acknowledgment must not change what the monitor receives.
   store.setSource("CONFIGURATION");
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(store.getSnapshot().loadedIr?.resource.programs[0]?.name).toBe("Second");
   expect(store.getSnapshot().loadedConfigurationSource).toContain("CONFIGURATION Plant");
   vi.advanceTimersByTime(250);
@@ -666,7 +676,7 @@ PROGRAM A WITH Fast : BenchDemo;
 PROGRAM B WITH Fast : BenchDemo;
 END_RESOURCE END_CONFIGURATION`;
   expect(store.openProject(writeProject({ ...original, configurationSource }).value!)).toBe(true);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   store.selectConfiguration();
   store.deleteConfiguration();
   expect(store.getSnapshot()).toMatchObject({
@@ -695,7 +705,7 @@ END_RESOURCE END_CONFIGURATION`;
       },
     },
   });
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   store.send({ type: "setCycle", ms: 20 });
   expect(worker.sent.at(-1)).toEqual({ type: "setCycle", ms: 20 });
   store.dispose();
@@ -835,7 +845,7 @@ it("watches every selected PROGRAM plus the open block and resets choices when o
       "CONFIGURATION C RESOURCE R ON Cpu TASK T(INTERVAL := T#10ms, PRIORITY := 0); PROGRAM A WITH T: Main; PROGRAM B WITH T: Main; END_RESOURCE END_CONFIGURATION",
   }).value!;
   expect(store.openProject(xml)).toBe(true);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(worker.sent.at(-1)).toEqual({
     type: "watchBodies",
     bodies: [{ pou: "Main", instance: "A" }],
@@ -860,7 +870,7 @@ it("watches every selected PROGRAM plus the open block and resets choices when o
   expect(saved).not.toContain("instanceChoices");
   expect(store.openProject(saved)).toBe(true);
   expect(store.getSnapshot().instanceChoices).toBeUndefined();
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   expect(worker.sent.at(-1)).toEqual({
     type: "watchBodies",
     bodies: [{ pou: "Main", instance: "A" }],
@@ -906,7 +916,7 @@ it("maps breakpoints to loaded text through edits and renames, then resends them
   const source = "PROGRAM Main\nVAR n: INT; END_VAR\nn := n + 1;\nEND_PROGRAM";
   const store = createAppStore(new RuntimeClient(worker), source);
   store.loadEditor();
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   store.toggleBreakpoint(3);
   expect(worker.sent.at(-1)).toEqual({
     type: "setBreakpoints",
@@ -944,7 +954,7 @@ it.each(["FB1", "fb1"])(
       "FUNCTION_BLOCK FB1\nVAR n: INT; END_VAR\n\n\n\n\n\n\nn := n + 1;\nEND_FUNCTION_BLOCK";
     store.setSource(block);
     expect(store.loadEditor()).toBe(true);
-    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    acknowledgeLoad(worker);
     store.toggleBreakpoint(9);
     store.selectInstance("mainInstance.B");
     store.selectPou(0);
@@ -998,7 +1008,7 @@ describe("POU debug name reconciliation", () => {
     });
     initial.dispose();
     expect(store.loadEditor()).toBe(true);
-    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    acknowledgeLoad(worker);
     store.selectPou(1);
     store.toggleBreakpoint(4);
     store.selectPou(2);
@@ -1029,7 +1039,7 @@ describe("POU debug name reconciliation", () => {
       expect(store.breakpointMarkers()).toEqual([{ line: 3, active: true }]);
       expect(store.runtimeSource().pou).toBe("Motor2");
       expect(store.loadEditor()).toBe(true);
-      worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+      acknowledgeLoad(worker);
       expect(store.breakpointMarkers()).toEqual([{ line: 3, active: true }]);
       expect(store.runtimeSource().pou).toBe("Motor");
       expect(worker.sent.filter((message) => message.type === "setBreakpoints").at(-1)).toEqual({
@@ -1060,7 +1070,7 @@ describe("POU debug name reconciliation", () => {
     expect(store.breakpointMarkers()).toEqual([{ line: 3, active: true }]);
     expect(store.runtimeSource().pou).toBe("Motor2");
     expect(store.loadEditor()).toBe(true);
-    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    acknowledgeLoad(worker);
     expect(worker.sent.filter((message) => message.type === "setBreakpoints").at(-1)).toEqual({
       type: "setBreakpoints",
       breakpoints: [
@@ -1083,7 +1093,7 @@ it("removes a deleted POU's instance choice and breakpoint without changing the 
   store.addFunctionBlock();
   store.setSource("FUNCTION_BLOCK FB1\nVAR n: INT; END_VAR\nn := n + 1;\nEND_FUNCTION_BLOCK");
   expect(store.loadEditor()).toBe(true);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   store.toggleBreakpoint(3);
   store.selectInstance("mainInstance.B");
   store.selectPou(0);
@@ -1144,7 +1154,7 @@ it("opens a renamed source when a breakpoint in its loaded code halts, keeping t
   const source = "FUNCTION_BLOCK Counter VAR n: INT; END_VAR\nn := n + 1;\nEND_FUNCTION_BLOCK";
   store.setSource(source);
   expect(store.loadEditor()).toBe(true);
-  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  acknowledgeLoad(worker);
   store.toggleBreakpoint(2);
   store.setSource(source.replace("Counter", "Renamed"));
   store.selectPou(0);
@@ -1222,3 +1232,93 @@ it("selects an outer call frame's source and instance without resuming execution
   expect(store.getSnapshot()).toMatchObject({ selectedFrame: 0, selectedPou: 1 });
   store.dispose();
 });
+
+it("ignores delayed zero-scan command replies and acknowledges only the matching load", () => {
+  const { store, worker } = setup();
+  store.setSource("PROGRAM Main VAR x : STRING := 'abc'; END_VAR END_PROGRAM");
+  store.loadEditor();
+  acknowledgeLoad(worker);
+  const previousIr = store.getSnapshot().loadedIr;
+  store.setSource("PROGRAM Main VAR x : INT := 42; END_VAR END_PROGRAM");
+  store.loadEditor();
+  const load = worker.sent.findLast((message) => message.type === "load")!;
+  expect(load.loadId).toBe(2);
+  const delayed: RuntimeSnapshot = {
+    ...snapshot,
+    scanCount: 0,
+    variables: [{ kind: "scalar", dataType: "STRING", value: "abc" }],
+  };
+  worker.receive({ type: "snapshot", snapshot: delayed });
+  worker.receive({ type: "snapshot", loadId: 1, snapshot: delayed });
+  worker.receive({ type: "snapshot", loadId: 999, snapshot: delayed });
+  expect(store.getSnapshot().loadedIr).toBe(previousIr);
+  expect(store.getSnapshot().snapshot).toBeNull();
+  const sent = worker.sent.length;
+  store.run();
+  expect(worker.sent).toHaveLength(sent);
+  const current: RuntimeSnapshot = {
+    ...snapshot,
+    scanCount: 0,
+    variables: [{ kind: "scalar", dataType: "INT", value: 42 }],
+  };
+  worker.receive({ type: "snapshot", loadId: load.loadId, snapshot: current });
+  expect(store.getSnapshot().snapshot).toEqual(current);
+  expect(store.getSnapshot().loadedSources).toEqual([store.getSnapshot().source]);
+  expect(store.getSnapshot().loadedIr).toBe(load.ir);
+  store.run();
+  expect(worker.sent.at(-1)).toEqual({ type: "run" });
+  store.dispose();
+});
+
+it("discards a failed load and allows the next project load and run", () => {
+  const { store, worker } = setup();
+  store.loadEditor();
+  acknowledgeLoad(worker);
+  store.setSource("PROGRAM Failed VAR x : INT := 42; END_VAR END_PROGRAM");
+  store.loadEditor();
+  const load = worker.sent.findLast((message) => message.type === "load")!;
+  const diagnostic: Diagnostic = { code: "runtime.load-failed", severity: "error", args: {} };
+  // Unrelated faults do not complete the pending attempt.
+  worker.receive({ type: "fault", diagnostic });
+  worker.receive({ type: "fault", loadId: load.loadId + 1, diagnostic });
+  expect(store.openProject(store.saveProject()!)).toBe(false);
+  worker.receive({ type: "fault", loadId: load.loadId, diagnostic });
+  worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+  expect(store.getSnapshot()).toMatchObject({
+    loadedSources: null,
+    loadedDataTypes: null,
+    loadedIr: undefined,
+    snapshot: null,
+    diagnostic,
+    connection: "connected",
+  });
+  expect(store.openProject(store.saveProject()!)).toBe(true);
+  const next = worker.sent.findLast((message) => message.type === "load")!;
+  expect(next.loadId).toBe(load.loadId + 1);
+  acknowledgeLoad(worker);
+  store.run();
+  expect(worker.sent.at(-1)).toEqual({ type: "run" });
+  expect(store.getSnapshot().loadedIr).toBe(next.ir);
+  expect(store.getSnapshot().diagnostic).toBeNull();
+  store.dispose();
+});
+
+it.each(["snapshot", "fault"] as const)(
+  "keeps the monitor empty when an earlier load completes with %s",
+  (completion) => {
+    const { store, worker } = setup();
+    store.loadEditor();
+    store.setSource("PROGRAM Latest END_PROGRAM");
+    store.loadEditor();
+    if (completion === "snapshot") worker.receive({ type: "snapshot", loadId: 1, snapshot });
+    else worker.receive({ type: "fault", loadId: 1, diagnostic: fault });
+    expect(store.getSnapshot().snapshot).toBeNull();
+    expect(store.getSnapshot().loadedIr).toBeUndefined();
+    worker.receive({ type: "snapshot", snapshot: { ...snapshot, scanCount: 0 } });
+    expect(store.getSnapshot().snapshot).toBeNull();
+    acknowledgeLoad(worker);
+    expect(store.getSnapshot().loadedSources).toEqual(["PROGRAM Latest END_PROGRAM"]);
+    expect(store.getSnapshot().snapshot).not.toBeNull();
+    store.dispose();
+  },
+);
