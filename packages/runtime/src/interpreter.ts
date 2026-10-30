@@ -1158,9 +1158,7 @@ export class Interpreter {
             !isAggregateValue(result) &&
             !isReferenceAddress(result)
           )
-            this.annotate(statement, [
-              { dataType: this.base(statement.call.dataType), value: result } as TypedValue,
-            ]);
+            this.annotate(statement, [typed(this.base(statement.call.dataType), result)]);
           break;
         }
         if (referenceLike(statement.call.dataType, this.programMemory.ir.types)) {
@@ -1174,10 +1172,7 @@ export class Interpreter {
           break;
         }
         this.annotate(statement, [
-          {
-            dataType: this.base(statement.call.dataType),
-            value: this.expression(statement.call),
-          } as TypedValue,
+          typed(this.base(statement.call.dataType), this.expression(statement.call)),
         ]);
         break;
       }

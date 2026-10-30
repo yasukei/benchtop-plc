@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Keep debugger halts and snapshots serializable after 64-bit call results, and show
+  invalid REAL/LREAL in-out storage in the call stack without disconnecting the Worker.
 - Preserve each POU's breakpoints, instance choice and loaded-line mapping when an
   edited header temporarily uses another POU's name. Deleting a POU also removes
   its saved instance choice.

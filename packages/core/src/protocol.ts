@@ -45,7 +45,9 @@ export type DebugStepKind = "over" | "into" | "out";
 
 /** JSON-safe values held only by a live invocation. Aggregate names include member/index suffixes. */
 export type CallValue =
-  InlineValue | { kind: "aggregate"; elements: { name: string; value: CallValue }[] };
+  | InlineValue
+  | InvalidRealValue
+  | { kind: "aggregate"; elements: { name: string; value: CallValue }[] };
 export interface CallVariable {
   name: string;
   value: CallValue;
@@ -82,9 +84,14 @@ export interface ReferenceValue {
   target: string | null;
 }
 export type InlineValue = TypedValue | ReferenceValue;
+/** Non-finite floating-point storage inspected without a program read. */
+export interface InvalidRealValue {
+  kind: "invalidReal";
+  bits: string;
+}
 export type VariableSnapshot =
   | ReferenceValue
-  | { kind: "invalidReal"; bits: string }
+  | InvalidRealValue
   | (TypedValue & { kind: "scalar" })
   | { kind: "functionBlock"; inputs: TypedValue[]; outputs: TypedValue[] };
 
