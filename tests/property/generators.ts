@@ -110,16 +110,31 @@ function mutate(
 const mutatedSource = fc
   .tuple(fc.constantFrom(...sourceCorpus), edits)
   .map(([source, changes]) => mutate(source, changes));
-const tokens = [
-  ...new Set(
-    sourceCorpus.flatMap(
-      (source) =>
-        lex(source)
-          .tokens?.map((t) => t.text)
-          .filter(Boolean) ?? [],
-    ),
-  ),
-];
+const corpusTokens = sourceCorpus.flatMap((source) => lex(source).tokens ?? []);
+const tokens = [...new Set(corpusTokens.map((token) => token.text).filter(Boolean))];
+const tokenVocabulary = new Map<string, string[]>(
+  ["identifier", "integer", "real", "boolean", "string"].map((kind) => [
+    kind,
+    [...new Set(corpusTokens.filter((token) => token.kind === kind).map((token) => token.text))],
+  ]),
+);
+
+function mutateToken(source: string, position: number, replacement: number): string {
+  const lexed = lex(source).tokens;
+  if (!lexed) return source;
+  const candidates = lexed.filter((token) => tokenVocabulary.has(token.kind));
+  if (!candidates.length) return source;
+  const selected = candidates[position % candidates.length]!;
+  const vocabulary = tokenVocabulary.get(selected.kind)!.filter((text) => text !== selected.text);
+  if (!vocabulary.length) return source;
+  // Re-joining token spellings preserves token boundaries and drops only comments/whitespace.
+  return lexed
+    .filter((token) => token.kind !== "eof")
+    .map((token) =>
+      token === selected ? vocabulary[replacement % vocabulary.length]! : token.text,
+    )
+    .join(" ");
+}
 const generatedTokens = fc
   .array(fc.constantFrom(...tokens), { maxLength: 64 })
   .map((items) => items.join(" "));
@@ -129,24 +144,35 @@ export const sourceAtDepth = (depth: number) =>
   `PROGRAM Main VAR x : INT; END_VAR x := ${"(".repeat(depth)}1${")".repeat(depth)}; END_PROGRAM`;
 const nestedSource = nestingDepth.map(sourceAtDepth);
 export const stSource = fc.oneof(text, generatedTokens, mutatedSource, nestedSource);
+function mutateProject(
+  project: Sources,
+  index: number,
+  transform: (source: string) => string,
+): Sources {
+  const copy: Sources = { ...project, pous: [...project.pous], dataTypes: [...project.dataTypes] };
+  const size =
+    copy.pous.length + copy.dataTypes.length + Number(copy.configurationSource !== undefined);
+  const selected = index % size;
+  if (selected < copy.pous.length) copy.pous[selected] = transform(copy.pous[selected]!);
+  else if (selected < copy.pous.length + copy.dataTypes.length) {
+    const typeIndex = selected - copy.pous.length;
+    copy.dataTypes[typeIndex] = transform(copy.dataTypes[typeIndex]!);
+  } else copy.configurationSource = transform(copy.configurationSource!);
+  return copy;
+}
+
 export const projectSources = fc.oneof(
   stSource.map((source): Sources => ({ pous: [source], dataTypes: [] })),
-  fc.tuple(fc.constantFrom(...projectCorpus), fc.nat(), edits).map(([project, index, changes]) => {
-    const copy: Sources = {
-      ...project,
-      pous: [...project.pous],
-      dataTypes: [...project.dataTypes],
-    };
-    const size =
-      copy.pous.length + copy.dataTypes.length + Number(copy.configurationSource !== undefined);
-    const selected = index % size;
-    if (selected < copy.pous.length) copy.pous[selected] = mutate(copy.pous[selected]!, changes);
-    else if (selected < copy.pous.length + copy.dataTypes.length) {
-      const typeIndex = selected - copy.pous.length;
-      copy.dataTypes[typeIndex] = mutate(copy.dataTypes[typeIndex]!, changes);
-    } else copy.configurationSource = mutate(copy.configurationSource!, changes);
-    return copy;
-  }),
+  fc
+    .tuple(fc.constantFrom(...projectCorpus), fc.nat(), edits)
+    .map(([project, index, changes]) =>
+      mutateProject(project, index, (source) => mutate(source, changes)),
+    ),
+  fc
+    .tuple(fc.constantFrom(...projectCorpus), fc.nat(), fc.nat(), fc.nat())
+    .map(([project, index, position, replacement]) =>
+      mutateProject(project, index, (source) => mutateToken(source, position, replacement)),
+    ),
 );
 export const mutatedXml = fc
   .tuple(fc.constantFrom(...xmlCorpus), edits)

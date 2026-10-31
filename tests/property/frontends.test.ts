@@ -95,7 +95,7 @@ describe("bounded frontend properties", () => {
   );
 
   it(
-    "readProject returns a project or diagnostics for mutated XML",
+    "readProject contains exceptions and returns a project or diagnostics for mutated XML",
     () => {
       fc.assert(
         fc.property(mutatedXml, (xml) => {

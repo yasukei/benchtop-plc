@@ -17,12 +17,27 @@ cases and shrinking steps; it cannot preempt a frontend call that hangs.
 The corpus discovers sorted ST files under `tests/conformance/` and `examples/`,
 plus all bundled example XML files and XML serialized from the reference ST
 fixture. ST project mutations keep the other POUs, data types and configuration
-in place so the compiler can reach project-wide checks. Mutations insert, delete,
-replace or duplicate spans; generated token streams use the corpus vocabulary.
+in place. Character mutations insert, delete, replace or duplicate spans;
+generated token streams use the corpus vocabulary. A separate mutation branch
+replaces one identifier or literal token with another of the same lexical kind
+from the corpus, keeping keywords and punctuation intact so more inputs reach
+semantic checks. The compiler property mixes arbitrary ST, character-mutated
+projects and token-mutated projects with equal weights; syntax errors are still
+expected, and preserving companion sources does not guarantee valid syntax.
 Separate generated projects exercise aliases, arrays, functions, conditionals,
 implicit/explicit configurations, LF/CRLF source, XML escaping, Unicode and panel
 JSON. They must compile before serialization; the tests compare all project fields
 and recompiled IR after reopening, without filtering out rejected projects.
+
+The mutated XML property checks the public `readProject` contract: every call
+returns a project or diagnostics without an exception escaping. The reader catches
+unexpected internal errors, including `TypeError` and `RangeError`, and converts
+them to `project.invalid-xml`. This property cannot distinguish those errors from
+ordinary XML rejection, so a passing run is not evidence that the reader's
+internals never crash. The generated-project round-trip property additionally
+requires successful imports and detects errors that reject its valid projects.
+Detecting unexpected errors on rejected XML would require separate internal error
+observability, beyond the public-contract tests in #246.
 
 For a longer local run, increase both the case count and the per-property budget.
 Choose another seed to explore different inputs:

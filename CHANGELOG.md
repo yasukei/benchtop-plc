@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- Add bounded compiler and PLCopen XML property tests with reproducible seeds,
+  shrinking and generated project round trips; document replay and longer runs.
+
 ### Changed
 
 - Define overlapping-force precedence in ADR 0025: the most recently set force
@@ -136,9 +141,6 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 Debugging: inline values in every POU body for a chosen instance, breakpoints with a halted state, stepping, the call stack and a sorting conveyor debugging guide. Project files are unchanged; the core protocol between the UI and the runtime changes in breaking ways; see Changed.
 
 ### Added
-
-- Add bounded compiler and PLCopen XML property tests with reproducible seeds,
-  shrinking and generated project round trips; document replay and longer runs.
 
 - Sorting conveyor debugging guide with a Playwright acceptance walkthrough,
   covering instance and body values, event breakpoints, halted I/O, stepping,
