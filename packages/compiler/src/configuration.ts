@@ -1,6 +1,6 @@
 import { parseDirectAddress, isStandardFunction, isFunctionBlockType } from "@benchtop-plc/core";
 import type { CyclicTaskIR, Diagnostic, SourceSpan } from "@benchtop-plc/core";
-import { Parser } from "./parser.js";
+import { Parser, startsDeclaration } from "./parser.js";
 import type { Address, Declaration, Expression, Identifier, Program } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
 import { exactNumber } from "./exact.js";
@@ -245,22 +245,18 @@ class ConfigurationParser {
           args: {},
           span: this.current.span,
         });
-      while (
-        !this.at("END_VAR") ||
-        [":", ",", "AT"].includes(this.tokens[this.cursor + 1]?.key ?? "")
-      ) {
+      while (!this.at("END_VAR") || startsDeclaration(this.tokens[this.cursor + 1])) {
         if (
           this.atEof() ||
           (["END_RESOURCE", "END_CONFIGURATION"].includes(this.current.key) &&
-            ![":", ",", "AT"].includes(this.tokens[this.cursor + 1]?.key ?? ""))
+            !startsDeclaration(this.tokens[this.cursor + 1]))
         )
           this.missingEnd("END_VAR");
         const start = this.cursor;
         while (
           !this.at(";") &&
           !this.atEof() &&
-          (!this.at("END_VAR") ||
-            [":", ",", "AT"].includes(this.tokens[this.cursor + 1]?.key ?? ""))
+          (!this.at("END_VAR") || startsDeclaration(this.tokens[this.cursor + 1]))
         )
           this.take();
         const tokens = this.tokens.slice(start, this.cursor);
