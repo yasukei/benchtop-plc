@@ -7,6 +7,73 @@ import { openPanelProject, savePanelProject } from "./project.js";
 import { demoSource } from "../demo.js";
 
 describe("panel project persistence", () => {
+  // The codec's vendor-data and stale-source warning fixtures, applied to the example.
+  it.each([
+    [
+      sampleXml.replace(
+        "</addData></project>",
+        '<data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data></addData></project>',
+      ),
+      "project.dropped-data",
+    ],
+    [sampleXml.replace('value="T#500ms"', 'value="T#250ms"'), "project.stale-source"],
+  ])("carries successful read warnings through the adapter (fixture %#)", (xml, code) => {
+    const decoded = readProject(xml);
+    expect(decoded.value).not.toBeNull();
+    expect(decoded.diagnostics).toContainEqual(
+      expect.objectContaining({ code, severity: "warning" }),
+    );
+    const opened = openPanelProject(xml)!;
+    expect(opened.project).toEqual(decoded.value);
+    expect(opened.diagnostics).toEqual(decoded.diagnostics);
+  });
+
+  it("collapses repeated vendor and stale-source warnings while keeping distinct vendors", () => {
+    const source = "PROGRAM Main VAR x : INT := 1; END_VAR END_PROGRAM";
+    const project = {
+      ...readProject(sampleXml).value!,
+      pous: [source, source.replace("Main", "Other")],
+    };
+    const vendor =
+      '<data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data>';
+    const xml = writeProject(project)
+      .value!.replaceAll('value="1"', 'value="2"')
+      .replaceAll("</addData>", `${vendor}</addData>`)
+      .replace(
+        "</addData></project>",
+        `${vendor.replaceAll("example/1", "example/2")}</addData></project>`,
+      );
+    const decoded = readProject(xml);
+    expect(decoded.value).not.toBeNull();
+    expect(decoded.diagnostics.filter((item) => item.code === "project.stale-source")).toHaveLength(
+      2,
+    );
+    expect(
+      decoded.diagnostics.filter(
+        (item) =>
+          item.code === "project.dropped-data" && item.args.name === "https://vendor.example/1",
+      ).length,
+    ).toBeGreaterThan(1);
+    const opened = openPanelProject(xml)!;
+    expect(opened.project).toEqual(decoded.value);
+    expect(opened.diagnostics).toHaveLength(3);
+    expect(opened.diagnostics).toEqual(
+      expect.arrayContaining([
+        {
+          code: "project.dropped-data",
+          severity: "warning",
+          args: { name: "https://vendor.example/1" },
+        },
+        {
+          code: "project.dropped-data",
+          severity: "warning",
+          args: { name: "https://vendor.example/2" },
+        },
+        { code: "project.stale-source", severity: "warning", args: {} },
+      ]),
+    );
+  });
+
   it("stamps new projects with the app package version", () => {
     const project = readProject(savePanelProject([demoSource], [], 10, null, [])!).value!;
     expect(project.fileHeader).toMatchObject({

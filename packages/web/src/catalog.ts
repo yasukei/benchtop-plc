@@ -125,6 +125,9 @@ export const en = {
   panelEditHint: "Select a part to edit. Drag to move, or use the arrow keys.",
   saveProject: "Save project",
   openProject: "Open project",
+  projectWarnings:
+    "Opening this project dropped or replaced content. Saving will keep these changes.",
+  dismissProjectWarnings: "Dismiss project warnings",
   restoreExample: "Restore example",
   confirmRestoreExample: "Click again to replace your program, panel layout and cycle.",
   cancel: "Cancel",
@@ -280,6 +283,9 @@ export const ja: Record<keyof typeof en, string> = {
   panelEditHint: "部品を選択して編集します。ドラッグまたは矢印キーで移動できます。",
   saveProject: "プロジェクトを保存",
   openProject: "プロジェクトを開く",
+  projectWarnings:
+    "プロジェクトを開く際に一部の内容を破棄または置き換えました。保存するとこれらの変更が反映されます。",
+  dismissProjectWarnings: "プロジェクトの警告を閉じる",
   restoreExample: "サンプルを復元",
   confirmRestoreExample: "もう一度クリックするとプログラム・パネル配置・周期を置き換えます。",
   cancel: "キャンセル",

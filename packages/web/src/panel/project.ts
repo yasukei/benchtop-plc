@@ -1,4 +1,5 @@
 import { readProject, splitProgram, writeProject, type Project } from "@benchtop-plc/project";
+import type { Diagnostic } from "@benchtop-plc/core";
 import packageJson from "../../package.json" with { type: "json" };
 import { isNumericPart, readLayout, type PanelLayout } from "./layout.js";
 
@@ -54,9 +55,19 @@ export function serializePanelProject(
 export function savePanelProject(...args: Parameters<typeof serializePanelProject>): string | null {
   return serializePanelProject(...args).value;
 }
-export function openPanelProject(xml: string): { project: Project; layout: PanelLayout } | null {
+export function openPanelProject(
+  xml: string,
+): { project: Project; layout: PanelLayout; diagnostics: Diagnostic[] } | null {
   const result = readProject(xml);
   if (!result.value) return null;
   const layout = result.value.panel === null ? [] : readLayout(result.value.panel);
-  return layout ? { project: result.value, layout } : null;
+  if (!layout) return null;
+  const seen = new Set<string>();
+  const diagnostics = result.diagnostics.filter((diagnostic) => {
+    const key = JSON.stringify(diagnostic);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { project: result.value, layout, diagnostics };
 }
