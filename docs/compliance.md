@@ -302,7 +302,7 @@ Partial support of the standard's non-formal parameter list.
 Project restrictions: functions cannot declare FB instances, and VAR_TEMP in
 functions is limited to interface variables or arrays of them
 ([ADR 0023](adr/0023-interface-in-outs-and-temporaries.md)). PROGRAM allows VAR_INPUT/VAR_OUTPUT;
-VAR_IN_OUT is limited to interface variables, with required configuration bindings
+VAR_IN_OUT is limited to interface variables or arrays of them, with required configuration bindings
 to mutable globals of exactly the same type. As recorded in
 [ADR 0023](adr/0023-interface-in-outs-and-temporaries.md), these connections alias
 global storage without copying; missing bindings report `call.missing-in-out`,
