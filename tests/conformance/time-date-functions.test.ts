@@ -202,7 +202,7 @@ it.each([
   "ADD_TIME(LT#1ns, T#1ms);",
   "ADD_DT_TIME(D#2024-01-01, T#1s);",
   "MUL_TIME(T#1ms, TRUE);",
-  "ABS(IN := 1);",
+  "ABS(Unknown := 1);",
 ])("rejects invalid function arguments and output targets: %s", (body) => {
   const result = program(
     "x: INT; small: SINT; unsigned: UINT; timer: TON; bits: WORD; yes: BOOL;",

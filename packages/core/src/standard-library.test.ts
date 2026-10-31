@@ -125,6 +125,7 @@ describe("shared standard-library descriptors", () => {
       max: 1,
       arguments: [["REAL"]],
       result: "INT",
+      inputNames: ["IN"],
     });
     expect(getStandardFunctionSignature("SEL").arguments).toEqual([
       ["BOOL"],
@@ -296,4 +297,42 @@ it("registers the complete truncation and BCD families", () => {
     result: "BOOL",
     max: null,
   });
+});
+
+it("declares a unique formal input name for every required standard function input", () => {
+  for (const name of Object.keys(standardFunctions)) {
+    const signature = getStandardFunctionSignature(name as keyof typeof standardFunctions);
+    expect(signature.inputNames, name).toHaveLength(signature.min);
+    expect(new Set(signature.inputNames).size, name).toBe(signature.min);
+  }
+  for (const family of [conversionFunctions, truncationFunctions, bcdFunctions])
+    for (const signature of Object.values(family)) expect(signature.inputNames).toEqual(["IN"]);
+});
+
+it.each([
+  ["ABS", ["IN"]],
+  ["ATAN2", ["Y", "X"]],
+  ["EXPT", ["IN1", "IN2"]],
+  ["SUB", ["IN1", "IN2"]],
+  ["ADD", ["IN1", "IN2"]],
+  ["SHL", ["IN", "N"]],
+  ["AND", ["IN1", "IN2"]],
+  ["NOT", ["IN"]],
+  ["SEL", ["G", "IN0", "IN1"]],
+  ["MUX", ["K", "IN0", "IN1"]],
+  ["MAX", ["IN1", "IN2"]],
+  ["LIMIT", ["MN", "IN", "MX"]],
+  ["GT", ["IN1", "IN2"]],
+  ["NE", ["IN1", "IN2"]],
+  ["LEN", ["IN"]],
+  ["LEFT", ["IN", "L"]],
+  ["RIGHT", ["IN", "L"]],
+  ["MID", ["IN", "L", "P"]],
+  ["CONCAT", ["IN1", "IN2"]],
+  ["INSERT", ["IN1", "IN2", "P"]],
+  ["DELETE", ["IN", "L", "P"]],
+  ["REPLACE", ["IN1", "IN2", "L", "P"]],
+  ["FIND", ["IN1", "IN2"]],
+] as const)("exposes the published formal input names of %s", (name, names) => {
+  expect(getStandardFunctionSignature(name).inputNames).toEqual(names);
 });
