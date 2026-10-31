@@ -31,3 +31,4 @@ An ADR records one design decision: its context, the decision, and its consequen
 - [0019. Static hosting and release deployments](0019-static-hosting-and-release-deployments.md)
 - [0020. Recover unexpected Worker errors as internal faults](0020-worker-error-recovery.md)
 - [0021. Limit syntactic source nesting](0021-source-nesting-limit.md)
+- [0022. Operating states, overlays and command outcomes](0022-operating-state-command-matrix.md)
