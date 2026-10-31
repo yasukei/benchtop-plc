@@ -59,6 +59,44 @@ test("retained scalar and counter survive page reload in STOP; warm restart and 
 });
 
 for (const format of ["embedded", "separate"] as const) {
+  test(`restores valid records and warns about a corrupt block in ${format} autosaves`, async ({
+    page,
+  }) => {
+    await apply(page);
+    await page.getByRole("button", { name: "Single scan", exact: true }).click();
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key)!)?.pous[0].source,
+          autosaveStorageKey,
+        ),
+      )
+      .toBe(source);
+    await page.evaluate(
+      ({ workKey, retainedKey, format }) => {
+        const records = JSON.parse(localStorage.getItem(retainedKey)!);
+        const block = records.find((record: { kind: string }) => record.kind === "block");
+        block.outputs[1].value = 99999;
+        if (format === "embedded") {
+          const work = JSON.parse(localStorage.getItem(workKey)!);
+          work.retentive = records;
+          localStorage.setItem(workKey, JSON.stringify(work));
+          localStorage.removeItem(retainedKey);
+        } else localStorage.setItem(retainedKey, JSON.stringify(records));
+      },
+      { workKey: autosaveStorageKey, retainedKey: retentiveStorageKey, format },
+    );
+    await page.reload();
+    await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
+    await expect(row(page, "ctr")).toContainText("CV=0");
+    const warning = page.getByRole("alert").filter({ hasText: "Retained values not restored (1)" });
+    await expect(warning).toContainText("mainInstance.ctr");
+    await page.reload();
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
+  });
+
   test(`restores retained scalar and block values from ${format} autosaves`, async ({ page }) => {
     await apply(page);
     await page.getByRole("button", { name: "Single scan", exact: true }).click();

@@ -83,16 +83,17 @@ function readRetentive(storage: BrowserStorage | undefined, legacy: unknown) {
   try {
     const raw = storage?.getItem(retentiveStorageKey);
     const value: unknown = raw == null ? legacy : JSON.parse(raw);
-    if (!Array.isArray(value) || !value.every(isRetentiveRecord)) return undefined;
+    if (!Array.isArray(value)) return undefined;
+    const records = value.filter(isRetentiveRecord);
     if (raw == null) {
       try {
         // Keep the legacy workspace intact if migration cannot be persisted.
-        storage?.setItem(retentiveStorageKey, JSON.stringify(value));
+        storage?.setItem(retentiveStorageKey, JSON.stringify(records));
       } catch {
         // A full or blocked store must not prevent restoring the legacy values.
       }
     }
-    return value;
+    return records;
   } catch {
     // Retention corruption must not discard otherwise valid editable work.
     return undefined;

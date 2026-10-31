@@ -132,18 +132,39 @@ describe.each(["embedded", "separate"])("validates %s retained data", (location)
     [{ ...retained[1], state: { previous: 1 } }],
   ])("ignores malformed retained data %j while preserving editable work", (invalid) => {
     const { store, storage } = setup();
+    const stored = Array.isArray(invalid) ? [...retained, ...invalid] : invalid;
     storage.setItem(
       autosaveStorageKey,
       JSON.stringify({
         version: 4,
         ...store.getSnapshot(),
-        retentive: location === "embedded" ? invalid : retained,
+        retentive: location === "embedded" ? stored : retained,
       }),
     );
-    if (location === "separate") storage.setItem(retentiveStorageKey, JSON.stringify(invalid));
+    if (location === "separate") storage.setItem(retentiveStorageKey, JSON.stringify(stored));
     const restored = readAutosave(storage);
     expect(restored?.pous).toEqual(store.getSnapshot().pous);
-    expect(restored).not.toHaveProperty("retentive");
+    if (Array.isArray(invalid)) {
+      expect(restored?.retentive).toEqual(retained);
+      expect(JSON.parse(storage.getItem(retentiveStorageKey)!)).toEqual(
+        location === "embedded" ? retained : stored,
+      );
+    } else expect(restored).not.toHaveProperty("retentive");
+    store.dispose();
+  });
+
+  it("returns an empty restore set when every record is malformed", () => {
+    const { store, storage } = setup();
+    storage.setItem(
+      autosaveStorageKey,
+      JSON.stringify({
+        version: 4,
+        ...store.getSnapshot(),
+        ...(location === "embedded" ? { retentive: [null, {}] } : {}),
+      }),
+    );
+    if (location === "separate") storage.setItem(retentiveStorageKey, "[null, {}]");
+    expect(readAutosave(storage)?.retentive).toEqual([]);
     store.dispose();
   });
 });
