@@ -8,36 +8,40 @@ import { browserStorage } from "./browser-storage.js";
 import { createBrowserTheme } from "./theme.js";
 import "./style.css";
 
-const client = new RuntimeClient(
-  new Worker(new URL("./runtime.worker.ts", import.meta.url), { type: "module" }),
-);
-const storage = browserStorage();
-const saved = readAutosave(storage);
-const store = createAppStore(client, saved ?? "");
-if (saved) {
-  store.send({ type: "setCycle", ms: saved.cycleMs });
-  store.loadEditor();
-} else store.restoreExample();
-const autosave = createAutosave(store, storage);
-const saveWhenHidden = () => {
-  if (document.visibilityState === "hidden") autosave.flush();
-};
-window.addEventListener("pagehide", autosave.flush);
-document.addEventListener("visibilitychange", saveWhenHidden);
-const element = document.getElementById("root");
-if (!element) throw new Error("Missing app root");
-const root = createRoot(element);
-const i18n = createBrowserI18n();
-const theme = createBrowserTheme();
-root.render(<App store={store} i18n={i18n} theme={theme} />);
+async function start() {
+  const client = new RuntimeClient(
+    new Worker(new URL("./runtime.worker.ts", import.meta.url), { type: "module" }),
+  );
+  const storage = browserStorage();
+  const saved = readAutosave(storage);
+  const store = createAppStore(client, saved ?? "");
+  if (saved) {
+    store.send({ type: "setCycle", ms: saved.cycleMs });
+    store.loadEditor();
+  } else await store.openExample("blink");
+  const autosave = createAutosave(store, storage);
+  const saveWhenHidden = () => {
+    if (document.visibilityState === "hidden") autosave.flush();
+  };
+  window.addEventListener("pagehide", autosave.flush);
+  document.addEventListener("visibilitychange", saveWhenHidden);
+  const element = document.getElementById("root");
+  if (!element) throw new Error("Missing app root");
+  const root = createRoot(element);
+  const i18n = createBrowserI18n();
+  const theme = createBrowserTheme();
+  root.render(<App store={store} i18n={i18n} theme={theme} />);
 
-if (import.meta.hot)
-  import.meta.hot.dispose(() => {
-    root.unmount();
-    window.removeEventListener("pagehide", autosave.flush);
-    document.removeEventListener("visibilitychange", saveWhenHidden);
-    autosave.dispose();
-    theme.dispose();
-    store.dispose();
-    client.dispose();
-  });
+  if (import.meta.hot)
+    import.meta.hot.dispose(() => {
+      root.unmount();
+      window.removeEventListener("pagehide", autosave.flush);
+      document.removeEventListener("visibilitychange", saveWhenHidden);
+      autosave.dispose();
+      theme.dispose();
+      store.dispose();
+      client.dispose();
+    });
+}
+
+void start();

@@ -5,11 +5,12 @@ import { browserStorage } from "./browser-storage.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
 import { createAppStore } from "./store.js";
+import blinkProjectXml from "../../../examples/blink/project.xml?raw";
 
 function setup() {
   const worker = new FakeWorker();
   const store = createAppStore(new RuntimeClient(worker));
-  store.restoreExample();
+  store.openProject(blinkProjectXml);
   let value: string | null = null;
   const storage = {
     getItem: vi.fn(() => value),
@@ -113,7 +114,7 @@ describe("browser autosave", () => {
     { source: 5 },
     { project: {} },
     { project: { fileHeader: {}, contentHeader: {}, task: null } },
-  ])("falls back to the example for invalid saved data %j", (invalid) => {
+  ])("falls back to the example for invalid saved data %j", async (invalid) => {
     const { store, storage } = setup();
     const state = store.getSnapshot();
     const raw =
@@ -134,7 +135,7 @@ describe("browser autosave", () => {
       new RuntimeClient(new FakeWorker()),
       readAutosave(storage) ?? "",
     );
-    expect(fallback.restoreExample()).toBe(true);
+    expect(await fallback.openExample("blink")).toBe(true);
     expect(fallback.getSnapshot()).toMatchObject({
       source: expect.stringContaining("PROGRAM Main"),
       layout: expect.any(Array),

@@ -8,7 +8,7 @@ structure with a `STRING[20]` name and three TIME durations. An initialized
 one without copying it. Three TON instances time the steps, and CONCAT builds
 the monitored status from the selected recipe's name.
 
-Open the web app, choose **Open project**, and select this `project.xml`.
+Open the web app, select **Batch mixer** under **Example**, then click **Open example** twice to confirm.
 Press **RUN**, leave both recipe switches OFF for Quick, then press and release
 **START**. **FILL VALVE**, **MIXER** and **DRAIN VALVE** light in sequence;
 **DONE** stays on after completion. In the variable monitor, `State` shows

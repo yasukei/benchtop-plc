@@ -1,3 +1,4 @@
+import { bundledExamples, type ExampleId } from "../examples.js";
 import { outputsLive } from "../io-image.js";
 import { NumericPart } from "./NumericPart.js";
 import { assignNumericBounds, assignNumericType, panelNumericTypes } from "./numeric.js";
@@ -145,11 +146,16 @@ export function OperatorPanel({
   const [projectError, setProjectError] = useState<
     "projectError" | "unsupportedProjectCycle" | null
   >(null);
-  const [confirmRestore, setConfirmRestore] = useState(false);
+  const visibleProjectError =
+    state.openProjectError === "example-load" ? "exampleLoadError" : projectError;
+  const [confirmExample, setConfirmExample] = useState(false);
+  const [exampleId, setExampleId] = useState<ExampleId>("blink");
+  const [openingExample, setOpeningExample] = useState(false);
+  const example = bundledExamples.find(({ id }) => id === exampleId)!;
   const canOpenProject =
     state.runtimeState === "STOP" && !state.emergencyActive && state.connection === "connected";
   useEffect(() => {
-    setConfirmRestore(false);
+    setConfirmExample(false);
   }, [state.pous, state.layout, state.cycleMs, state.project, canOpenProject]);
   const canvas = useRef<HTMLDivElement>(null);
   const dragging = useRef<{ id: string; pointer: number; dx: number; dy: number } | null>(null);
@@ -191,7 +197,7 @@ export function OperatorPanel({
           <input
             type="file"
             accept=".xml"
-            disabled={!canOpenProject}
+            disabled={!canOpenProject || openingExample}
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
@@ -213,31 +219,54 @@ export function OperatorPanel({
         </label>
       </div>
       <div className="panel-tools">
+        <label>
+          {text.example}
+          <select
+            value={exampleId}
+            disabled={!canOpenProject || openingExample}
+            aria-describedby="example-description"
+            onChange={(event) => {
+              setExampleId(event.target.value as ExampleId);
+              setConfirmExample(false);
+            }}
+          >
+            {bundledExamples.map((item) => (
+              <option key={item.id} value={item.id}>
+                {text[item.name]}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
-          disabled={!canOpenProject}
-          aria-describedby={confirmRestore ? "restore-example-confirmation" : undefined}
+          disabled={!canOpenProject || openingExample}
+          aria-describedby={confirmExample ? "open-example-confirmation" : undefined}
           onClick={() => {
-            if (!confirmRestore) {
-              setConfirmRestore(true);
+            if (!confirmExample) {
+              setConfirmExample(true);
               return;
             }
-            setProjectError(store.restoreExample() ? null : "projectError");
-            setConfirmRestore(false);
-            setSelected(null);
+            setOpeningExample(true);
+            setConfirmExample(false);
+            void store.openExample(exampleId).then((opened) => {
+              setProjectError(opened ? null : "projectError");
+              setOpeningExample(false);
+              if (opened) setSelected(null);
+            });
           }}
         >
-          {text.restoreExample}
+          {text.openExample}
         </button>
-        {confirmRestore && <button onClick={() => setConfirmRestore(false)}>{text.cancel}</button>}
+        {confirmExample && <button onClick={() => setConfirmExample(false)}>{text.cancel}</button>}
       </div>
-      {confirmRestore && (
-        <p id="restore-example-confirmation" role="status">
-          {text.confirmRestoreExample}
+      <p id="example-description">{text[example.description]}</p>
+      {confirmExample && (
+        <p id="open-example-confirmation" role="status">
+          {text.confirmOpenExample}
         </p>
       )}
-      {projectError && (
+      {visibleProjectError && (
         <div role="alert">
-          <p>{text[projectError]}</p>
+          <p>{text[visibleProjectError]}</p>
           {state.saveDiagnostics.map((diagnostic, index) => (
             <p key={index}>
               {diagnostic.pou} {formatDiagnostic(language, diagnostic)}

@@ -5,7 +5,7 @@
 [`tests/conformance/running-light/program.st`](../../tests/conformance/running-light/program.st).
 It exercises `BYTE`, `USINT`, `UDINT`, `TIME`, `TON`, `ROL`/`ROR` and bit access.
 
-Open the web app, choose **Open project**, and select this `project.xml`. Press
+Open the web app, select **Running light** under **Example**, then click **Open example** twice to confirm. Press
 **RUN**, then hold **START** briefly. One LED lights immediately, then moves once
 every `Speed` (initially `T#200ms`). The panel has START and STOP push buttons, a
 DIRECTION selector and eight LEDs in a row, numbered 0–7 from left to right.

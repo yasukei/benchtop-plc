@@ -1,6 +1,6 @@
 # Sorting conveyor reference project
 
-Open `project.xml` with **Open project** in the web app, press **RUN**, wait for an
+In the web app, select **Sorting conveyor** under **Example** and click **Open example** twice to confirm, press **RUN**, wait for an
 idle scan, then press and release **START**. **BELT RUN** lights. Hold **PART A**
 to simulate a part at the first bin: **DIVERT A** lights and **BIN A TOTAL**
 increments once. Release the sensor to retract the diverter. **PART B** similarly

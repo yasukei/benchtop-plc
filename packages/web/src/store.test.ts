@@ -1,6 +1,8 @@
 import type { Diagnostic, RuntimeSnapshot } from "@benchtop-plc/core";
 import { describe, expect, it, vi } from "vitest";
 import { readProject, writeProject } from "@benchtop-plc/project";
+import { bundledExamples } from "./examples.js";
+import * as examples from "./examples.js";
 import { en, ja } from "./catalog.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { RuntimeClient } from "./runtime-client.js";
@@ -336,7 +338,7 @@ it.each(
 
 it.each(["PT1S", "PT0.005S", "PT0.010000001S", "P1D"])(
   "explains unsupported implicit interval %s without replacing the current project",
-  (interval) => {
+  async (interval) => {
     const { store, worker } = setup();
     const project = readProject(store.saveProject()!).value!;
     project.task.interval = interval;
@@ -349,18 +351,18 @@ it.each(["PT1S", "PT0.005S", "PT0.010000001S", "P1D"])(
     expect(store.openProject("invalid XML")).toBe(false);
     expect(store.getSnapshot().openProjectError).toBeNull();
     expect(store.openProject(xml)).toBe(false);
-    expect(store.restoreExample()).toBe(true);
+    expect(await store.openExample("blink")).toBe(true);
     expect(store.getSnapshot().openProjectError).toBeNull();
     store.dispose();
   },
 );
 
-it("restores the bundled example's source, panel and cycle through the project loader", () => {
+it("restores the bundled example's source, panel and cycle through the project loader", async () => {
   const { store, worker } = setup();
   store.setSource("PROGRAM Changed END_PROGRAM");
   store.setLayout([]);
   store.send({ type: "setCycle", ms: 100 });
-  expect(store.restoreExample()).toBe(true);
+  expect(await store.openExample("blink")).toBe(true);
   const restored = store.getSnapshot();
   expect(restored.source).toContain("PROGRAM Main");
   expect(restored.diagnostics).toEqual([]);
@@ -391,7 +393,7 @@ it("restores the bundled example's source, panel and cycle through the project l
     { type: "watchBodies", bodies: [{ pou: "Main", instance: "mainInstance" }] },
   ]);
   // Replacing a project cannot race an unacknowledged load.
-  expect(store.restoreExample()).toBe(false);
+  expect(await store.openExample("blink")).toBe(false);
   acknowledgeLoad(worker);
   expect(store.getSnapshot().loadedSources).toEqual([restored.source]);
   store.dispose();
@@ -399,14 +401,14 @@ it("restores the bundled example's source, panel and cycle through the project l
 
 it.each(["RUN", "FAULT", "ESTOP", "emergency", "disconnected"] as const)(
   "blocks restoring the example while %s without changing the current project",
-  (condition) => {
+  async (condition) => {
     const { store, worker } = setup();
     if (condition === "emergency") store.setEmergency(true);
     else if (condition === "disconnected") worker.dispatchEvent(new Event("error"));
     else worker.receive({ type: "state", state: condition });
     const before = store.getSnapshot();
     const sent = worker.sent.length;
-    expect(store.restoreExample()).toBe(false);
+    expect(await store.openExample("blink")).toBe(false);
     expect(store.getSnapshot()).toBe(before);
     expect(worker.sent).toHaveLength(sent);
     store.dispose();
@@ -535,7 +537,7 @@ it("clears an earlier save failure when an open attempt fails", () => {
   store.dispose();
 });
 
-it("keeps import warnings until dismissed or replaced by a successful open", () => {
+it("keeps import warnings until dismissed or replaced by a successful open", async () => {
   const { store, worker } = setup();
   const xml = store.saveProject()!;
   const withVendorData = xml.replace(
@@ -566,7 +568,7 @@ it("keeps import warnings until dismissed or replaced by a successful open", () 
   expect(store.getSnapshot().openDiagnostics).toEqual([]);
   expect(store.openProject(withVendorData)).toBe(true);
   acknowledgeLoad(worker);
-  expect(store.restoreExample()).toBe(true);
+  expect(await store.openExample("blink")).toBe(true);
   expect(store.getSnapshot().openDiagnostics).toEqual([]);
   store.dispose();
 });
@@ -875,9 +877,9 @@ it.each(["none", "stop", "warmRestart", "coldReset"] as const)(
   },
 );
 
-it.each(["openProject", "restoreExample"] as const)(
+it.each(["openProject", "openExample"] as const)(
   "%s clears stored and pending retained values without waiting for the Worker",
-  (action) => {
+  async (action) => {
     const { store: initial } = setup();
     const xml = initial.saveProject()!;
     const worker = new FakeWorker();
@@ -896,7 +898,7 @@ it.each(["openProject", "restoreExample"] as const)(
     expect(store.openProject("invalid")).toBe(false);
     expect(store.getSnapshot().retentive).toHaveLength(1);
     if (action === "openProject") expect(store.openProject(xml)).toBe(true);
-    else expect(store.restoreExample()).toBe(true);
+    else expect(await store.openExample("blink")).toBe(true);
     expect(store.getSnapshot().retentive).toBeUndefined();
     expect(store.getSnapshot().retentiveSkipped).toEqual([]);
     expect(worker.sent.find((message) => message.type === "load")).not.toHaveProperty("retentive");
@@ -1459,3 +1461,98 @@ it("keeps editor types current without replacing the runtime's loaded compilatio
     vi.useRealTimers();
   }
 });
+
+it.each(bundledExamples)(
+  "opens and compiles the bundled $id project as a fresh load",
+  async ({ id, name, description }) => {
+    const { store: initial } = setup();
+    const worker = new FakeWorker();
+    const store = createAppStore(new RuntimeClient(worker), {
+      ...initial.getSnapshot(),
+      retentive: [
+        {
+          kind: "leaf",
+          path: "mainInstance.n",
+          dataType: '"INT"',
+          value: { dataType: "INT", value: 9 },
+        },
+      ],
+      breakpoints: { MAIN: [1] },
+      instanceChoices: { MAIN: "mainInstance" },
+    });
+    expect(await store.openExample(id)).toBe(true);
+    const state = store.getSnapshot();
+    expect(state.diagnostics.filter(({ severity }) => severity === "error")).toEqual([]);
+    expect(state.openDiagnostics).toEqual([]);
+    expect(state.layout.length).toBeGreaterThan(0);
+    expect(state.retentive).toBeUndefined();
+    expect(state.breakpoints).toBeUndefined();
+    expect(state.instanceChoices).toBeUndefined();
+    expect(state.configuration !== null).toBe(id === "tank-station");
+    const load = worker.sent.find((message) => message.type === "load");
+    expect(load).toBeDefined();
+    expect(load).not.toHaveProperty("retentive");
+    acknowledgeLoad(worker);
+    expect(store.getSnapshot().loadedIr?.programs.length).toBeGreaterThan(0);
+    expect(store.getSnapshot().loadedSources).toEqual(state.pous.map(({ source }) => source));
+    for (const text of [en, ja]) {
+      expect(text[name].length).toBeGreaterThan(0);
+      expect(text[description].length).toBeGreaterThan(0);
+    }
+    store.dispose();
+    initial.dispose();
+  },
+);
+
+it("keeps the current work if fetching an example fails", async () => {
+  const { store, worker } = setup();
+  const before = store.getSnapshot();
+  const loader = vi.spyOn(examples, "loadExample").mockRejectedValueOnce(new Error("Offline"));
+  try {
+    expect(await store.openExample("tank-station")).toBe(false);
+    expect(store.getSnapshot()).toEqual({ ...before, openProjectError: "example-load" });
+    expect(worker.sent).toEqual([]);
+  } finally {
+    loader.mockRestore();
+    store.dispose();
+  }
+});
+
+it("checks project-opening guards again after fetching an example", async () => {
+  const { store, worker } = setup();
+  const opening = store.openExample("tank-station");
+  worker.receive({ type: "state", state: "RUN" });
+  const before = store.getSnapshot();
+  expect(await opening).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+  expect(worker.sent).toEqual([]);
+  store.dispose();
+});
+
+it.each(["source", "layout", "cycle"] as const)(
+  "preserves %s edits made while fetching an example",
+  async (edit) => {
+    const { store, worker } = setup();
+    const xml = await examples.loadExample("blink");
+    let finish!: (xml: string) => void;
+    const loader = vi.spyOn(examples, "loadExample").mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    try {
+      const opening = store.openExample("blink");
+      if (edit === "source") store.setSource("PROGRAM Edited END_PROGRAM");
+      else if (edit === "layout") store.setLayout([]);
+      else store.send({ type: "setCycle", ms: 100 });
+      const before = store.getSnapshot();
+      finish(xml);
+      expect(await opening).toBe(false);
+      expect(store.getSnapshot()).toBe(before);
+      expect(worker.sent.filter(({ type }) => type === "load")).toEqual([]);
+    } finally {
+      loader.mockRestore();
+      store.dispose();
+    }
+  },
+);

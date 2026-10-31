@@ -122,7 +122,7 @@ messages. Tank station combines two parameterized PROGRAM instances, fast and sl
 tasks, an alarm event task, shared globals, memory flags and retained pump run-time
 counters with numeric panel controls. Sorting conveyor combines namespaced classes,
 inheritance, method overrides, an interface array, a reference to an instance and
-function block methods with retained bin totals. Load an example's XML with **Open project**. See
+function block methods with retained bin totals. Select a bundled project under **Example**, then click **Open example** twice to confirm. See
 [the web app guide](docs/web-app.md) for the host boundary and browser tests.
 Follow the [debugging walkthrough](docs/debugging.md) to inspect conveyor instances,
 halt on a part arrival and step through the call stack.

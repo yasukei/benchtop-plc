@@ -10,6 +10,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Open any of the six bundled examples from the app with localized names and descriptions, confirmation before replacing work, and project XML loaded on demand.
+
 - Add bounded compiler and PLCopen XML property tests with reproducible seeds,
   shrinking and generated project round trips; document replay and longer runs.
 

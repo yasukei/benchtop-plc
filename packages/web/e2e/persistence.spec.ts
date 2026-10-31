@@ -92,17 +92,15 @@ test("keeps uncompilable editor text across reloads with diagnostics and no load
   await expect(page.getByLabel("Runtime state")).toHaveText("RUN");
 });
 
-test("flushes pending edits on immediate reload and autosaves Restore example", async ({
-  page,
-}) => {
+test("flushes pending edits on immediate reload and autosaves Open example", async ({ page }) => {
   await page.goto("/");
   const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
   await editor.fill(source);
   await page.reload();
   await expect(editor.locator(".cm-line")).toHaveText(source.split("\n"));
   await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Restore example", exact: true }).click();
-  await page.getByRole("button", { name: "Restore example", exact: true }).click();
+  await page.getByRole("button", { name: "Open example", exact: true }).click();
+  await page.getByRole("button", { name: "Open example", exact: true }).click();
   await expect(editor).toContainText("PROGRAM Main");
   await page.reload();
   await expect(editor).toContainText("PROGRAM Main");

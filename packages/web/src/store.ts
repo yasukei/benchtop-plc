@@ -26,7 +26,7 @@ import {
   type EditorPou,
 } from "./pous.js";
 import type { PanelLayout } from "./panel/layout.js";
-import blinkProjectXml from "../../../examples/blink/project.xml?raw";
+import { loadExample, type ExampleId } from "./examples.js";
 import type {
   CommandRejectionMessage,
   ConfigurationIR,
@@ -52,7 +52,7 @@ export interface AppState extends SavedWork {
   editorSession: number;
   saveDiagnostics: Diagnostic[];
   openDiagnostics: Diagnostic[];
-  openProjectError: "unsupported-cycle" | null;
+  openProjectError: "unsupported-cycle" | "example-load" | null;
   layout: PanelLayout;
   emergencyActive: boolean;
   emergencyReleased: boolean;
@@ -463,7 +463,26 @@ export function createAppStore(client: RuntimeClient, initial: string | SavedWor
       return result.value;
     },
     openProject,
-    restoreExample: () => openProject(blinkProjectXml),
+    async openExample(id: ExampleId) {
+      const before = state;
+      try {
+        const xml = await loadExample(id);
+        // Fetching must not discard work edited after the user confirmed replacement.
+        if (
+          !sameSources(pouSources(state.pous), pouSources(before.pous)) ||
+          !sameSources(pouSources(state.dataTypes), pouSources(before.dataTypes)) ||
+          state.configuration?.source !== before.configuration?.source ||
+          state.layout !== before.layout ||
+          state.cycleMs !== before.cycleMs ||
+          state.project !== before.project
+        )
+          return false;
+        return openProject(xml);
+      } catch {
+        update({ openProjectError: "example-load" });
+        return false;
+      }
+    },
     setEmergency(active: boolean) {
       if (state.connection !== "connected") return;
       update({ emergencyActive: active, emergencyReleased: !active });
