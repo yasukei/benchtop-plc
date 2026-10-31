@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Expression, ConfigurationIR } from "@benchtop-plc/core";
-import { check, compile, lower, parse } from "./index.js";
+import { check, compile, compileProject, lower, parse, parsePou } from "./index.js";
 
 function valid(declarations: string, body = ""): ConfigurationIR {
   const result = compile(`PROGRAM Main\nVAR\n${declarations}\nEND_VAR\n${body}\nEND_PROGRAM`);
@@ -90,6 +90,174 @@ describe("compile entry point", () => {
     expect(restored).toStrictEqual(parsed.ast);
     expect(check(restored).diagnostics).toMatchObject([{ code: "type.invalid-constant" }]);
     expect(compile(source).diagnostics).toMatchObject([{ code: "type.invalid-constant" }]);
+  });
+});
+
+describe("project checking after syntax errors", () => {
+  it.each([false, true])(
+    "checks other bodies regardless of source order (reverse=%s)",
+    (reverse) => {
+      for (const dataTypes of [[], ["TYPE Count : INT; END_TYPE"]]) {
+        const sources = [
+          "PROGRAM Main VAR x : INT; END_VAR missing := 1; x := x + ; END_PROGRAM",
+          "FUNCTION_BLOCK Counter missing := 1; END_FUNCTION_BLOCK",
+        ];
+        if (reverse) sources.reverse();
+        const result = compileProject(sources, dataTypes);
+        expect(result).not.toHaveProperty("ir");
+        expect(result.diagnostics).toMatchObject([
+          { code: "syntax.expected-token", pou: "Main", sourceIndex: reverse ? 1 : 0 },
+          { code: "name.undeclared", pou: "Counter", sourceIndex: reverse ? 0 : 1 },
+        ]);
+        expect(result.diagnostics).toHaveLength(2);
+        expect(result.diagnostics[0]!.span).toEqual(
+          parsePou(sources[reverse ? 1 : 0]!).diagnostics[0]!.span,
+        );
+      }
+    },
+  );
+
+  it("retains a failed function's input and result types for callers", () => {
+    const result = compileProject([
+      "PROGRAM Main VAR x : INT; END_VAR x := F(TRUE); END_PROGRAM",
+      "FUNCTION F : INT VAR_INPUT value : INT; END_VAR F := ; END_FUNCTION",
+    ]);
+    expect(result).not.toHaveProperty("ir");
+    expect(
+      result.diagnostics.map(({ code, pou, sourceIndex }) => ({ code, pou, sourceIndex })),
+    ).toEqual([
+      { code: "syntax.expected-token", pou: "F", sourceIndex: 1 },
+      { code: "type.assign-mismatch", pou: "Main", sourceIndex: 0 },
+    ]);
+  });
+
+  it("retains namespaced block members and method signatures", () => {
+    const result = compileProject([
+      `PROGRAM Main
+VAR instance : Plant.Counter; x : INT; END_VAR
+x := instance.Value; instance.Set(TRUE);
+END_PROGRAM`,
+      `NAMESPACE Plant
+FUNCTION_BLOCK Counter
+VAR_OUTPUT Value : INT; END_VAR
+METHOD PUBLIC Set VAR_INPUT input : INT; END_VAR END_METHOD
+Value := ;
+END_FUNCTION_BLOCK
+END_NAMESPACE`,
+    ]);
+    expect(result).not.toHaveProperty("ir");
+    expect(result.diagnostics).toMatchObject([
+      { code: "syntax.expected-token", pou: "Plant.Counter", sourceIndex: 1 },
+      { code: "type.assign-mismatch", pou: "Main", sourceIndex: 0 },
+    ]);
+    expect(result.diagnostics).toHaveLength(2);
+  });
+
+  it("discards method bodies before resolving namespaces in a failed POU", () => {
+    const result = compileProject([
+      "PROGRAM Main missing := 1; END_PROGRAM",
+      `NAMESPACE Plant
+FUNCTION_BLOCK Counter
+VAR x : INT; END_VAR
+METHOD PUBLIC Update
+x := Plant.Missing();
+END_METHOD
+x := ;
+END_FUNCTION_BLOCK
+END_NAMESPACE`,
+    ]);
+    expect(result).not.toHaveProperty("ir");
+    expect(result.diagnostics).toMatchObject([
+      { code: "syntax.expected-token", pou: "Plant.Counter", sourceIndex: 1 },
+      { code: "name.undeclared", pou: "Main", sourceIndex: 0 },
+    ]);
+    expect(result.diagnostics).toHaveLength(2);
+  });
+
+  it.each([
+    "PROGRAM VAR x : INT; END_VAR END_PROGRAM",
+    "PROGRAM Main VAR x : ; END_VAR END_PROGRAM",
+    "FUNCTION_BLOCK Counter METHOD Set value := ; END_METHOD END_FUNCTION_BLOCK",
+    "PROGRAM Main @ END_PROGRAM",
+    "PROGRAM Main END_PROGRAM FUNCTION Extra END_FUNCTION",
+  ])("still stops checking when declarations are not safely available: %s", (source) => {
+    const other = "FUNCTION_BLOCK Other missing := 1; END_FUNCTION_BLOCK";
+    for (const sources of [
+      [source, other],
+      [other, source],
+    ]) {
+      const result = compileProject(sources);
+      const sourceIndex = sources.indexOf(source);
+      expect(result).not.toHaveProperty("ir");
+      expect(result.diagnostics).toEqual(
+        parsePou(source).diagnostics.map((diagnostic) => ({ ...diagnostic, sourceIndex })),
+      );
+    }
+  });
+
+  it("never lowers a project whose only error is in a body", () => {
+    const source = "PROGRAM Main VAR x : INT; END_VAR x := ; END_PROGRAM";
+    expect(compile(source)).toEqual({ diagnostics: parse(source).diagnostics });
+    expect(parse(source).ast).toBeNull();
+    expect(parsePou(source).ast).toBeNull();
+  });
+
+  it.each([
+    ["x := 1;", "syntax.missing-end"],
+    [`x := ${"(".repeat(40)}1${")".repeat(40)}; END_PROGRAM`, "syntax.nesting-limit"],
+    [`x := ${Array(260).fill("1").join(" + ")}; END_PROGRAM`, "syntax.tree-depth-limit"],
+  ])("retains declarations after an unfinished or excessive body: %s", (body, code) => {
+    const result = compileProject([
+      `PROGRAM Main VAR x : INT; END_VAR ${body}`,
+      "FUNCTION_BLOCK Other missing := 1; END_FUNCTION_BLOCK",
+    ]);
+    expect(result).not.toHaveProperty("ir");
+    expect(result.diagnostics).toMatchObject([
+      { code, pou: "Main", sourceIndex: 0 },
+      { code: "name.undeclared", pou: "Other", sourceIndex: 1 },
+    ]);
+    expect(result.diagnostics).toHaveLength(2);
+  });
+
+  it("does not recover declarations exceeding the tree-depth budget", () => {
+    const source = `PROGRAM Main VAR x : INT := ${Array(260).fill("1").join(" + ")}; END_VAR x := ; END_PROGRAM`;
+    const result = compileProject([
+      source,
+      "FUNCTION_BLOCK Other missing := 1; END_FUNCTION_BLOCK",
+    ]);
+    expect(result).toEqual({
+      diagnostics: parsePou(source).diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        sourceIndex: 0,
+      })),
+    });
+  });
+
+  it("retains every failed POU's name and kind for project checks", () => {
+    const result = compileProject([
+      "PROGRAM Main x := ; END_PROGRAM",
+      "FUNCTION_BLOCK Counter y := ; END_FUNCTION_BLOCK",
+      "FUNCTION_BLOCK Counter END_FUNCTION_BLOCK",
+    ]);
+    expect(result).not.toHaveProperty("ir");
+    expect(result.diagnostics).toMatchObject([
+      { code: "syntax.expected-token", pou: "Main", sourceIndex: 0 },
+      { code: "syntax.expected-token", pou: "Counter", sourceIndex: 1 },
+      { code: "pou.duplicate", pou: "Counter", sourceIndex: 2 },
+    ]);
+    expect(result.diagnostics).toHaveLength(3);
+  });
+
+  it("keeps invalid data type sources as a barrier to body checking", () => {
+    const result = compileProject(
+      ["PROGRAM Main x := ; END_PROGRAM", "FUNCTION_BLOCK Other missing := 1; END_FUNCTION_BLOCK"],
+      ["TYPE Count : ; END_TYPE"],
+    );
+    expect(result).not.toHaveProperty("ir");
+    expect(result.diagnostics.map(({ code }) => code)).toEqual([
+      "syntax.expected-identifier",
+      "syntax.expected-token",
+    ]);
   });
 });
 

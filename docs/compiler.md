@@ -26,6 +26,28 @@ to remain intact. It produces a fresh plain-data tree without mutating or sharin
 mutable objects with the AST. Maps, source identifier objects and unneeded parser
 fields never appear in the IR.
 
+## Syntax errors and project checking
+
+When a POU body has a syntax error, compilation retains its header and declarations
+if they have all parsed successfully, including any method definitions before the
+body. These declarations still participate in project name, kind and signature
+resolution, so semantic diagnostics in other, fully parsed POUs remain visible.
+The failed POU's body and methods are not semantically checked. The compiler does
+not resume parsing within the failed body or report further syntax errors there.
+Project-wide resolution errors still stop subsequent checking as usual.
+
+If a header or variable declaration is damaged, checking stops for the whole
+project: its complete names, kinds and signatures are unknown. An error that
+interrupts parsing a method also stops checking because later method signatures
+may be unknown. Lexer
+errors, malformed source wrappers and extra declarations in a source remain a
+barrier to checking; the compiler does not guess missing declarations or search
+past an error. Invalid data type sources retain their existing checking barriers.
+
+Any syntax error prevents IR generation, even when every other POU checks
+successfully. The public `parse` and `parsePou` entry points continue to return
+`ast: null` on failure; declaration recovery is internal to project compilation.
+
 ## Data type sources
 
 ```ts

@@ -20,7 +20,7 @@ import { blockVariant } from "./overloaded-blocks.js";
 import { arrayType } from "@benchtop-plc/core";
 import { isElementaryTypeName } from "./lexer.js";
 import { resolveDataTypes } from "./data-types.js";
-import { parseDataType, parsePou } from "./parser.js";
+import { parseDataType, parsePouForChecking } from "./parser.js";
 
 /** Source order identifies a POU even when its header is missing or its name is duplicated. */
 export type CompileDiagnostic = Diagnostic & {
@@ -91,16 +91,27 @@ export function compileProject(
     }
   }
   const sourceIndexes = new Map<Program, number>();
+  const incompleteSources = new Set<number>();
+  const bodyDiagnostics = new Set<CompileDiagnostic>();
   const asts: Program[] = [];
   for (const [sourceIndex, source] of sources.entries()) {
-    const parsed = parsePou(source);
-    diagnostics.push(...parsed.diagnostics.map((diagnostic) => ({ ...diagnostic, sourceIndex })));
-    if (parsed.ast) {
-      asts.push(parsed.ast);
-      sourceIndexes.set(parsed.ast, sourceIndex);
+    const parsed = parsePouForChecking(source);
+    const parseDiagnostics = parsed.diagnostics.map((diagnostic) => ({
+      ...diagnostic,
+      sourceIndex,
+    }));
+    diagnostics.push(...parseDiagnostics);
+    const ast = parsed.ast ?? parsed.declarations;
+    if (ast) {
+      asts.push(ast);
+      sourceIndexes.set(ast, sourceIndex);
+      if (!parsed.ast) {
+        incompleteSources.add(sourceIndex);
+        for (const diagnostic of parseDiagnostics) bodyDiagnostics.add(diagnostic);
+      }
     }
   }
-  // A damaged header cannot reliably participate in project-wide name/count checks.
+  // Unknown headers or declarations cannot participate in project-wide checks.
   if (asts.length !== sources.length) return { diagnostics };
   const namespaceDiagnostics = resolveNamespaces(
     [...asts, ...dataTypes],
@@ -164,7 +175,12 @@ export function compileProject(
         args: { name: ast.name.name, kind: "type" },
       });
   }
-  if (dataTypeSources.length && diagnostics.some((diagnostic) => diagnostic.severity === "error"))
+  if (
+    dataTypeSources.length &&
+    diagnostics.some(
+      (diagnostic) => diagnostic.severity === "error" && !bodyDiagnostics.has(diagnostic),
+    )
+  )
     return { diagnostics };
   const blocks = asts.filter((ast) => ast.kind === "functionBlock" || ast.kind === "class");
   const blockIds = new Map(blocks.map((ast, index) => [ast.name.key, index]));
@@ -244,9 +260,12 @@ export function compileProject(
   const methods = [...new Set(blocks.flatMap((owner) => owner.methods ?? []))];
   for (const method of methods) sourceIndexes.set(method, sourceIndexes.get(method.owner!)!);
   const prototypes = [...prototypeOwners.keys()];
-  const allBodies = [...asts.filter((ast) => ast.kind !== "interface"), ...methods];
+  const declarationBodies = [...asts.filter((ast) => ast.kind !== "interface"), ...methods];
+  const allBodies = declarationBodies.filter(
+    (ast) => !incompleteSources.has(sourceIndexes.get(ast)!),
+  );
   const interfaces = new Map<Program, CheckedProgram>();
-  for (const ast of new Set([...allBodies, ...prototypes])) {
+  for (const ast of new Set([...declarationBodies, ...prototypes])) {
     const result = checkDeclarations(ast, resolved.types, pous, blockIds, scope);
     const owner = prototypeOwners.get(ast);
     if (owner)

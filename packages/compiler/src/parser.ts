@@ -26,6 +26,8 @@ import { checkNesting, MAX_SOURCE_NESTING, nestingError } from "./nesting.js";
 export type ParseResult =
   { ast: Program; diagnostics: [] } | { ast: null; diagnostics: [Diagnostic] };
 
+type CheckingParseResult = ParseResult & { declarations?: Program };
+
 const precedence: Partial<Record<string, number>> = {
   OR: 1,
   XOR: 2,
@@ -51,6 +53,8 @@ const isFunction = (name: string): boolean =>
 export class Parser {
   private cursor = 0;
   private nesting = 0;
+  /** A complete signature retained only for project checking after a body error. */
+  recoveredDeclarations?: Program;
 
   /** Guard recursive descent before constructing an AST that can be inspected. */
   private nested<T>(parse: () => T): T {
@@ -68,7 +72,10 @@ export class Parser {
     return this.cursor;
   }
 
-  constructor(private readonly tokens: Token[]) {}
+  constructor(
+    private readonly tokens: Token[],
+    private readonly recoverDeclarations = false,
+  ) {}
 
   private get current(): Token {
     return this.tokens[this.cursor]!;
@@ -177,21 +184,55 @@ export class Parser {
       } while (this.accept(","));
       this.expect(";");
     }
-    const ast = dataType ? this.dataType() : this.run(pou);
+    const scoped = <T extends Program | DataTypeDeclaration>(ast: T): T => {
+      if (this.namespace) {
+        ast.namespace = this.namespace;
+        ast.simpleName = ast.name;
+        ast.name = {
+          ...ast.name,
+          name: `${this.namespace.name}.${ast.name.name}`,
+          key: `${this.namespace.key}.${ast.name.key}`,
+        };
+      }
+      if (using.length) ast.using = using;
+      return ast;
+    };
+    const retain = (ast: Program): void => {
+      const declarations: Program = {
+        ...ast,
+        body: [],
+        ...(ast.methods ? { methods: ast.methods.map((method) => ({ ...method, body: [] })) } : {}),
+      };
+      try {
+        this.recoveredDeclarations = checkNesting(declarations);
+      } catch (limitError) {
+        if (!(limitError instanceof FrontendError)) throw limitError;
+        // Never pass an unsafe declaration tree to recursive compiler consumers.
+        this.recoveredDeclarations = undefined;
+      }
+    };
+    let ast: Program | DataTypeDeclaration;
+    try {
+      ast = dataType ? this.dataType() : this.run(pou);
+    } catch (error) {
+      if (this.recoveredDeclarations) retain(scoped(this.recoveredDeclarations));
+      throw error;
+    }
     if (this.namespace) {
       this.expect("END_NAMESPACE");
       this.accept(";");
-      ast.namespace = this.namespace;
-      ast.simpleName = ast.name;
-      ast.name = {
-        ...ast.name,
-        name: `${this.namespace.name}.${ast.name.name}`,
-        key: `${this.namespace.key}.${ast.name.key}`,
-      };
     }
-    if (using.length) ast.using = using;
+    scoped(ast);
     if (this.current.kind !== "eof") this.expected("eof");
-    return checkNesting(ast);
+    try {
+      return checkNesting(ast);
+    } catch (error) {
+      // Tree limits are checked after parsing; distinguish an unsafe body from
+      // unsafe declarations by validating the same declaration-only snapshot.
+      if (this.recoverDeclarations && !dataType && error instanceof FrontendError)
+        retain(ast as Program);
+      throw error;
+    }
   }
 
   private assignmentOperator(): void {
@@ -352,13 +393,7 @@ export class Parser {
     if ((header.key === "INTERFACE" || prototype) && !this.at(end)) this.expected(end);
     if (header.key === "CLASS" && !this.at(end))
       this.fail({ code: "class.body", severity: "error", span: this.current.span, args: {} });
-    const body = this.body([end], end);
-    this.expect(end);
-    const span = this.spanFrom(start);
-    this.accept(";");
-    if (method) Object.assign(span, this.spanFrom(start));
-    if (!method && !this.namespace && this.current.kind !== "eof") this.expected("eof");
-    return {
+    const ast: Program = {
       ...modifiers,
       ...(internal ? { internal: true as const } : {}),
       ...(extended.length ? { extends: extended } : {}),
@@ -379,8 +414,8 @@ export class Parser {
                 : "program",
       name,
       declarations,
-      body,
-      span,
+      body: [],
+      span: this.spanFrom(start),
       ...(resultType ? { resultType } : {}),
       ...(resultReference ? { resultReference } : {}),
       ...(resultArray ? { resultArray } : {}),
@@ -388,6 +423,22 @@ export class Parser {
       ...(resultStringLength === undefined ? {} : { resultStringLength }),
       ...(sections.length ? { sections } : {}),
     };
+    try {
+      ast.body = this.body([end], end);
+      this.expect(end);
+    } catch (error) {
+      if (this.recoverDeclarations && !method && error instanceof FrontendError) {
+        // All declarations and methods are known. Discard every body statement;
+        // resuming within a body or finding later methods would require guessing.
+        this.recoveredDeclarations = ast;
+      }
+      throw error;
+    }
+    ast.span = this.spanFrom(start);
+    this.accept(";");
+    if (method) Object.assign(ast.span, this.spanFrom(start));
+    if (!method && !this.namespace && this.current.kind !== "eof") this.expected("eof");
+    return ast;
   }
 
   private typeSyntax(): import("./ast.js").TypeSyntax {
@@ -1060,10 +1111,20 @@ export function parsePou(source: string, legacyNames = false): ParseResult {
   return parseSource(source, true, legacyNames);
 }
 
-function parseSource(source: string, pou: boolean, legacyNames = false): ParseResult {
+/** Internal compilation entry point; public parsers still return no AST on failure. */
+export function parsePouForChecking(source: string): CheckingParseResult {
+  return parseSource(source, true, false, true);
+}
+
+function parseSource(
+  source: string,
+  pou: boolean,
+  legacyNames = false,
+  recoverDeclarations = false,
+): CheckingParseResult {
   const result = lex(source, legacyNames);
   if (result.tokens === null) return { ast: null, diagnostics: result.diagnostics };
-  const parser = new Parser(result.tokens);
+  const parser = new Parser(result.tokens, recoverDeclarations);
   try {
     return { ast: parser.source(false, pou), diagnostics: [] };
   } catch (error) {
@@ -1078,7 +1139,11 @@ function parseSource(source: string, pou: boolean, legacyNames = false): ParseRe
           : {}),
         ...(parser.diagnosticName ? { pou: parser.diagnosticName } : {}),
       };
-      return { ast: null, diagnostics: [diagnostic] };
+      return {
+        ast: null,
+        diagnostics: [diagnostic],
+        ...(parser.recoveredDeclarations ? { declarations: parser.recoveredDeclarations } : {}),
+      };
     }
     throw error;
   }
