@@ -10,6 +10,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Link compliance claims for comments, string escapes, namespace `INTERNAL` access,
+  TOD/LTOD conversions and ADR arithmetic/string examples to conformance cases.
+
 - Reject writes to active `FOR` control variables inside the loop body, including
   nested `FOR` reuse, `=>` output targets, `VAR_IN_OUT` actuals and `REF()` arguments,
   with the new `flow.for-control-write` error. Reads and writes after `END_FOR`

@@ -217,6 +217,20 @@ describe("ADR 0013 conversions and constants", () => {
       execute(`initial: INT := ${expression}; result: INT;`, `result := ${expression};`).values,
     ).toEqual({ initial: expected, result: expected });
   });
+  it("wraps DINT minimum divided by minus one in constants and runtime number arithmetic (ADR 0013)", () => {
+    const { values, runtime } = execute(
+      `dividend: DINT := -2147483648; divisor: DINT := -1;
+      initial: DINT := DINT#-2147483648 / -1; literalResult, variableResult: DINT;`,
+      `literalResult := DINT#-2147483648 / -1;
+      variableResult := dividend / divisor;`,
+    );
+    expect(values).toMatchObject({
+      initial: -2147483648,
+      literalResult: -2147483648,
+      variableResult: -2147483648,
+    });
+    expect(runtime.diagnostic).toBeNull();
+  });
   it("compiles and executes every conversion opcode with its declared source and destination", () => {
     for (const [name, signature] of Object.entries(conversionFunctions)) {
       for (const from of signature.arguments[0]!) {

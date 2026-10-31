@@ -40,6 +40,7 @@ it.each([
 });
 
 it.each([
+  ["STRING", "DELETE('ABC', 5, 2)", "A"],
   ["WSTRING", 'CONCAT("Ω", "Ä", "B")', "ΩÄB"],
   ["WSTRING", 'INSERT("ABC", "Ω", ULINT#2)', "ABΩC"],
   ["WSTRING", 'REPLACE("ABC", "Ω", LINT#5, USINT#2)', "AΩ"],
