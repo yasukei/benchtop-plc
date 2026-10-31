@@ -37,9 +37,8 @@ export interface EditorProps {
   fault: Diagnostic | null;
   language: Language;
   ir?: ConfigurationIR;
-  sources?: readonly string[];
+  hoverIr?: ConfigurationIR;
   dataTypes?: readonly string[];
-  sourceIndex?: number;
   pou?: string;
   instance?: string;
   breakpointLines?: { line: number; active: boolean }[];
@@ -170,12 +169,7 @@ export function createStEditor(
         displayField,
         hoverTooltip((_view, position) => {
           if (!previous) return null;
-          const hover = blockTypeAt(
-            previous.sources ?? [previous.source],
-            previous.sourceIndex ?? 0,
-            position,
-            previous.dataTypes,
-          );
+          const hover = blockTypeAt(previous.source, position, previous.hoverIr);
           return hover
             ? {
                 pos: hover.from,
