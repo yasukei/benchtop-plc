@@ -229,6 +229,9 @@ END_CONFIGURATION`;
     await hover(/^count :=/, "count", `count: ${type}`);
     await hover(/^timer\(/, "timer", "timer: TON_LTIME");
   }
+  // Close the hover before fill focuses the editor and scrolls the page.
+  await page.mouse.move(0, 0);
+  await expect(page.locator(".cm-tooltip-hover")).toHaveCount(0);
   // The loaded runtime still has LTIME; hovers must use the unapplied editor compilation.
   await editor.fill(second.replace("LT#1s", "T#1s"));
   await hover(/^timer\(/, "timer", "timer: TON");
