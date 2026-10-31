@@ -120,6 +120,7 @@ class Checker {
   private readonly diagnostics: Diagnostic[] = [];
   private readonly symbols: VariableSymbol[] = [];
   private readonly names = new Map<string, VariableSymbol>();
+  private readonly activeForVariables = new Set<number>();
   private readonly constants = new Map<string, ConstantSymbol>();
   private readonly declaredNames = new Set<string>();
   private readonly expressions = new Map<AST.Expression, ExpressionInfo>();
@@ -1175,6 +1176,12 @@ class Checker {
     return { dataType: "BOOL" };
   }
 
+  private forControlWrite(symbol: VariableSymbol, name: AST.Identifier): boolean {
+    if (!this.activeForVariables.has(symbol.id)) return false;
+    this.report("flow.for-control-write", { name: name.name }, name.span);
+    return true;
+  }
+
   private reference(
     node: AST.AssignmentTarget,
     write = false,
@@ -1374,6 +1381,7 @@ class Checker {
     }
     const symbol = this.resolve(name);
     if (!symbol) return null;
+    if (write && this.forControlWrite(symbol, name)) return null;
     if (node.kind === "name") {
       if (!isScalar(symbol.type) && !instance) {
         this.report("fb.instance-as-value", { name: name.name }, node.span);
@@ -1926,6 +1934,8 @@ class Checker {
       root = root.kind === "field" ? root.object : root.array;
     const name =
       root.kind === "member" && root.instance.key === "THIS" ? root.member : rootName(root);
+    const symbol = this.names.get(name.key);
+    if (symbol && this.forControlWrite(symbol, name)) return null;
     const declaration = (this.ast.owner?.declarations ?? [])
       .concat(this.ast.declarations)
       .find((d) => d.names.some((n) => n.key === name.key));
@@ -2061,10 +2071,14 @@ class Checker {
       );
     }
     this.functionArguments.set(node, inputs);
+    let validOutputs = true;
     for (const output of node.outputs ?? []) {
       const port = signature.outputs!.findIndex(([name]) => name === output.name.key);
       const target = this.reference(output.target, true);
-      if (!target) return rejectCall();
+      if (!target) {
+        validOutputs = false;
+        continue;
+      }
       this.expressions.set(output.target, target);
       if (
         !this.assignment(
@@ -2073,8 +2087,9 @@ class Checker {
           output.target.span,
         )
       )
-        return rejectCall();
+        validOutputs = false;
     }
+    if (!validOutputs) return rejectCall();
     if (
       !node.inputNames &&
       (inputs.length < signature.min || (signature.max !== null && inputs.length > signature.max))
@@ -3017,6 +3032,7 @@ class Checker {
             );
           const symbol = constant ? null : this.resolve(node.variable);
           if (symbol) {
+            this.forControlWrite(symbol, node.variable);
             if (!isScalar(symbol.type))
               this.report("fb.instance-as-value", { name: node.variable.name }, node.variable.span);
             else if (symbol.descriptor && subrangeType(symbol.descriptor, this.types))
@@ -3049,7 +3065,10 @@ class Checker {
             if (info && (!isInteger(info.dataType) || this.enum(info) || this.aggregate(info)))
               this.report("type.for-bound-not-integer", { bound, type: info.dataType }, value.span);
           }
+          const alreadyActive = symbol && this.activeForVariables.has(symbol.id);
+          if (symbol) this.activeForVariables.add(symbol.id);
           this.statements(node.body, depth + 1);
+          if (symbol && !alreadyActive) this.activeForVariables.delete(symbol.id);
           break;
         }
         case "while":

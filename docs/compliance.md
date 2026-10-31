@@ -112,9 +112,16 @@ See the full [operator order](compiler-parser.md#syntax-and-values).
 | Assignment `:=`                               | Yes     | Only ADR 0013 widening is implicit; narrowing needs an explicit conversion                                                                                                                                                                                           |
 | Function calls as statements and `=>` outputs | Yes     | Formal and non-formal user/standard function calls; standard inputs are mandatory; extensible inputs use consecutive IN numbers; writable outputs follow assignment widening; FB inputs remain formal only                                                           |
 | FB call with named inputs                     | Yes     |                                                                                                                                                                                                                                                                      |
-| `IF`, `CASE`, `FOR`, `WHILE`, `REPEAT`        | Yes     | CASE selectors and labels, and FOR variables and bounds, must be integers; CASE labels must be constant                                                                                                                                                              |
+| `IF`, `CASE`, `WHILE`, `REPEAT`               | Yes     | CASE selectors and labels must be integers; CASE labels must be constant                                                                                                                                                                                             |
+| `FOR`                                         | Partial | Integer controls and bounds; statically identifiable control writes in the body are rejected (Ed. 3, 7.3.3.4.2); see below for analysis limits.                                                                                                                      |
 | `EXIT`, `RETURN`                              | Yes     | RETURN leaves the current POU                                                                                                                                                                                                                                        |
 | `CONTINUE`                                    | No      |                                                                                                                                                                                                                                                                      |
+
+`FOR` rejects assignments, nested FOR reuse, `=>` output targets, `VAR_IN_OUT`
+actuals and `REF()` arguments that write or expose an active control variable
+inside its body. Reads and writes after `END_FOR` remain allowed. Changes through
+aliases acquired before the loop, called POUs using `VAR_EXTERNAL`, and calls in
+initial/final/step expressions are not analyzed across calls.
 
 ## Standard functions
 

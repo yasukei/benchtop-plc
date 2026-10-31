@@ -170,6 +170,7 @@ const examples = {
   "type.for-variable-not-integer": { name: "Index", type: "REAL" },
   "type.for-variable-subrange": { name: "p", type: { kind: "named", name: "Percent" } },
   "type.for-bound-not-integer": { bound: "step", type: "LREAL" },
+  "flow.for-control-write": { name: "i" },
   "flow.exit-outside-loop": {},
   "fb.not-function-block": { name: "Counter" },
   "fb.no-matching-variant": { name: "Counter", types: ["LINT", "ULINT"] },

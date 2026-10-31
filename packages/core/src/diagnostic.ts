@@ -161,6 +161,7 @@ export interface DiagnosticArgs {
   "type.for-variable-not-integer": { name: string; type: TypeDescriptor };
   "type.for-variable-subrange": { name: string; type: TypeDescriptor };
   "type.for-bound-not-integer": { bound: "from" | "to" | "step"; type: TypeDescriptor };
+  "flow.for-control-write": { name: string };
   "flow.exit-outside-loop": NoArguments;
   "fb.not-function-block": { name: string };
   "fb.unknown-member": { name: string; member: string };

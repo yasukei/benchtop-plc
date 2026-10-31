@@ -1,0 +1,4 @@
+{
+  "kind": "compile-error",
+  "diagnostics": ["flow.for-control-write"]
+}

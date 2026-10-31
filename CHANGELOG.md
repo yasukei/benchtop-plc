@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Reject writes to active `FOR` control variables inside the loop body, including
+  nested `FOR` reuse, `=>` output targets, `VAR_IN_OUT` actuals and `REF()` arguments,
+  with the new `flow.for-control-write` error. Reads and writes after `END_FOR`
+  remain allowed.
+
 - Follow IEC 61131-3 Ed. 3 Table 71 by binding unary `+`, `-` and `NOT` before
   `**`. This changes results of accepted ST: `-2 ** 2` and `-x ** 2` with `x = 2`
   now yield 4.0 instead of -4.0. Use `-(2 ** 2)` to retain -4.0.
