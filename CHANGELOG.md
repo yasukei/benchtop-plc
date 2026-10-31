@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Consolidate the existing operating-state, overlay and command behavior in
+  ADR 0022, distinguishing ignored commands from diagnostic-bearing rejections
+  and documenting faults during single scans and warm-restart fault clearing.
+
 - Link compliance claims for comments, string escapes, namespace `INTERNAL` access,
   TOD/LTOD conversions and ADR arithmetic/string examples to conformance cases.
 

@@ -26,7 +26,7 @@ restarting the ticker when running. An explicit configuration rejects it with
 RUN is idempotent and starts scans on ticks, without an immediate initial scan.
 The virtual clock dispatches every due callback chronologically, breaking ties by
 registration order. Cancellation and registrations during callbacks take effect
-immediately. Nested `advance` calls are rejected. Production clock/ticker adapters
+immediately. Nested `advance` calls throw a programming error. Production clock/ticker adapters
 belong to the Worker host (#12).
 
 ## Task scheduling
@@ -70,7 +70,15 @@ The 200,000-iteration limit applies independently to each task run.
 ## Scan and state
 
 Operating-state transitions, restart semantics and run-time error reactions are
-defined in [ADR 0010](adr/0010-operating-states-restarts-and-runtime-errors.md).
+defined in [ADR 0010](adr/0010-operating-states-restarts-and-runtime-errors.md)
+and consolidated with overlays and command outcomes in
+[ADR 0022](adr/0022-operating-state-command-matrix.md). An **ignored** command has
+no effect and produces no rejection. A **rejected** command has no effect and
+produces a nonfatal `rejected` event with a command-rejection code through the
+Worker (`RuntimeCommandRejected` in the headless API). Neither clears a fault.
+The Worker can still republish the current state, snapshot and latched diagnostic
+after an ignored or rejected command.
+
 STOP → RUN resumes with existing variable and FB state; cold reset or loading a
 program initializes it. Outputs remain subject to the state rules below.
 
@@ -92,7 +100,8 @@ Input/output callbacks receive copied images.
 ESTOP and FAULT ignore scans and RUN requests. STOP scans update internal state
 and annotations while keeping output-mapped variables and output images OFF.
 `step()` executes exactly one pass only in STOP and returns the current snapshot
-without execution in other states, except HALT, which rejects it. It uses the same injected clock as cyclic
+without execution in other states (ignored), except HALT, which rejects it with
+`runtime.halted`. It uses the same injected clock as cyclic
 execution; it does not advance virtual time on the caller's behalf. The Worker
 routes the core protocol's `step` command to this method.
 
@@ -120,7 +129,9 @@ then reports STOP; a later RUN request is required to start execution.
 
 `load` initializes a new program; `coldReset` recreates all variables and FB
 instances. Both clear diagnostics, annotations and scan counters and keep outputs
-OFF. Loading/resetting during a scan is rejected. A stop during a host/library
+OFF. Reentrant loading/resetting during a scan throws a programming error, rather
+than a command rejection; Worker protocol commands arrive between execution
+slices. A stop during a host/library
 callback aborts the remaining scan stages; an emergency stop stays active even if
 the interrupted computation subsequently faults. Stale ticker callbacks cannot
 restart scans. Outputs stay OFF in every operating state except RUN, including
@@ -202,7 +213,8 @@ Division by zero reports the expression span; zero FOR step reports the step
 expression span. Non-finite values and REAL overflow use `runtime.invalid-value`
 at the innermost expression or assignment/FB call that detected the invalid value.
 These faults cancel the ticker, clear outputs, latch FAULT and expose a copied
-`diagnostic`. Warm restart, cold reset or loading a program clears FAULT.
+`diagnostic`, including when the error occurs during a single scan in STOP or
+after resuming a halt. Warm restart, cold reset or loading a program clears FAULT.
 
 Unexpected host/library programming errors also clear outputs and latch FAULT,
 then propagate to the host; they are not PLC-language diagnostics.
@@ -503,7 +515,7 @@ String stores keep the first code units up to the destination's capacity, withou
 faulting. This applies to ordinary assignments, function and FB inputs, outputs,
 results, temporaries and in-out aliases. In-outs share the caller's storage, so
 the caller's capacity applies even when the formal parameter has another length.
-CHAR/WCHAR hold exactly one unit. Single-byte values reject units above 16#FF.
+CHAR/WCHAR hold exactly one unit. Single-byte values cannot contain units above 16#FF.
 Comparisons order code units lexicographically, including prefix ordering; generic
 selection, MIN/MAX/LIMIT and MOVE operate on strings and characters.
 
