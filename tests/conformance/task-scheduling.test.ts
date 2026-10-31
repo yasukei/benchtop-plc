@@ -478,3 +478,87 @@ END_PROGRAM`,
     ).flat()[0]!.values,
   ).toEqual([{ dataType: "DINT", value: 6 }]);
 });
+
+for (const [area, eventInput] of [
+  ["M", "flag"],
+  ["I", "flag"],
+  ["I", "%IX1.3"],
+] as const) {
+  it.each([false, true])(
+    `samples ${area} ${eventInput} with last-set overlapping force precedence (word bit: %s)`,
+    (byteBit) => {
+      const inputs: IoImage = Array<number>(64).fill(0);
+      inputs[1] = byteBit ? 0 : 8;
+      const { runtime, clock, value, id } = setup(
+        config(
+          cyclic("Poll", 10) + `TASK Edge (SINGLE := ${eventInput}, PRIORITY := 0);`,
+          instance("C", "Poll") + instance("E", "Edge"),
+          `VAR_GLOBAL flag AT %${area}X1.3 : BOOL; whole AT %${area}W0 : WORD; END_VAR`,
+        ),
+        [counter],
+        { stages: { readInputs: () => inputs } },
+      );
+      const setBit = () => runtime.force(id("flag"), { dataType: "BOOL", value: !byteBit });
+      // The sampled bit is in the high byte of the word, not its low byte.
+      const setWord = () =>
+        runtime.force(id("whole"), { dataType: "WORD", value: byteBit ? 0x0800 : 0 });
+      setBit();
+      setWord();
+      runtime.run();
+      clock.advance(10);
+      expect(value("flag")).toMatchObject({ value: byteBit });
+      expect(value("E.n")).toMatchObject({ value: byteBit ? 1 : 0 });
+      setBit();
+      clock.advance(10);
+      expect(value("flag")).toMatchObject({ value: !byteBit });
+      expect(value("E.n")).toMatchObject({ value: 1 });
+      setWord();
+      clock.advance(10);
+      expect(value("flag")).toMatchObject({ value: byteBit });
+      expect(value("E.n")).toMatchObject({ value: byteBit ? 2 : 1 });
+      runtime.force(id("whole"), null);
+      clock.advance(10);
+      expect(value("flag")).toMatchObject({ value: !byteBit });
+      expect(value("E.n")).toMatchObject({ value: 2 });
+      expect(runtime.snapshot().forced).toEqual([id("flag")]);
+    },
+  );
+}
+
+it.each(["flag", "%IX1.3"])(
+  "samples %s through an overlapping input force without running a task or changing memory",
+  (eventInput) => {
+    const inputs: IoImage = Array<number>(64).fill(0);
+    const { runtime, clock, value, id } = setup(
+      config(
+        `TASK Edge (SINGLE := ${eventInput}, PRIORITY := 0);`,
+        instance("E", "Edge"),
+        "VAR_GLOBAL flag AT %IX1.3 : BOOL; whole AT %IB1 : BYTE; neighbor AT %IX1.2 : BOOL; END_VAR",
+      ),
+      [counter],
+      { stages: { readInputs: () => inputs } },
+    );
+    runtime.force(id("whole"), { dataType: "BYTE", value: 4 });
+    inputs[1] = 8;
+    runtime.run();
+    clock.advance(10);
+    expect(runtime.snapshot().scanCount).toBe(0);
+    expect(value("E.n")).toMatchObject({ value: 0 });
+    expect(value("whole")).toMatchObject({ value: 0 });
+    // A disjoint bit force must not override the sampled bit supplied by the byte force.
+    runtime.force(id("neighbor"), { dataType: "BOOL", value: false });
+    runtime.force(id("whole"), { dataType: "BYTE", value: 8 });
+    clock.advance(10);
+    expect(value("E.n")).toMatchObject({ value: 1 });
+    runtime.force(id("neighbor"), { dataType: "BOOL", value: false });
+    clock.advance(10);
+    expect(value("E.n")).toMatchObject({ value: 1 });
+    // With no covering force left, sampling returns to the fresh input image.
+    runtime.force(id("whole"), null);
+    inputs[1] = 0;
+    clock.advance(10);
+    inputs[1] = 8;
+    clock.advance(10);
+    expect(value("E.n")).toMatchObject({ value: 2 });
+  },
+);

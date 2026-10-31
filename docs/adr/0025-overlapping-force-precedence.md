@@ -42,6 +42,14 @@ memory only at the next normal force stage, including during HALT (ADR 0018).
 Existing image/parameter boundaries, within-instance writes and output clearing
 outside RUN remain unchanged.
 
+Event-task sampling uses the same last-set precedence for the sampled bit,
+including a located global or a direct `%IX` input. Resolve active forces against
+the sample before detecting its rising edge, even if a newly set force has not
+reached a normal force stage yet. Without a covering force, sample a located input
+from the fresh host input image and other globals from memory, as in ADR 0016.
+Sampling does not apply forces to memory, consume pending writes or move any
+normal task stage; an idle pass can therefore observe forces without running a task.
+
 For example, force `wide AT %MW0 : WORD` to `16#1234`, then
 `low AT %MB0 : BYTE` to `16#FF`. After a force stage, `wide` reads `16#12FF`
 and `low` reads `16#FF`. Set the same word force again: the next stage gives
@@ -56,6 +64,10 @@ is released while the word force remains, the next stage gives `16#1234`.
 cover both set orders, re-forcing with the same value, releasing either force in
 either order, writes to released storage, rejected re-forces and byte/bit overlap.
 They check values seen by the program and by snapshots, plus active force IDs.
+[Task-scheduling conformance tests](../../tests/conformance/task-scheduling.test.ts)
+cover matching event edges for overlapping memory/input forces, re-forces and
+release, direct input events, idle sampling without memory changes and return to
+the live input image when a covering force is released.
 
 ## Consequences
 

@@ -63,6 +63,10 @@ clear samples to FALSE; STOP → RUN retains them. An event-only resource ticks
 every 10 ms. Global values are sampled before task writes; located input globals and direct inputs use the
 live host input image. Pending monitor writes are consumed at the next task run,
 so they affect a global event sample on a subsequent pass.
+Active forces covering the sampled bit follow last-set precedence, including
+overlapping wider forces and direct `%IX` events (ADR 0025). This also observes
+forces set since the last normal force stage. Sampling resolves only the event
+value; it does not change memory or apply pending writes, even on an idle pass.
 
 After a cyclic run, the next due time advances from its prior due time by one
 interval. Activations at or before the finish time are skipped and counted as
