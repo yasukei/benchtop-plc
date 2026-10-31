@@ -27,6 +27,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Accept equivalent resolved types in override and interface method signatures:
+  aliases, matching named/anonymous subranges and different string capacities
+  follow ADR 0015, while distinct structures, enumerations and subrange/base types
+  remain incompatible.
+
 - Reuse parsed sources and namespace lookups while saving and opening projects,
   avoiding repeated parsing and traversal of every POU in larger projects.
 

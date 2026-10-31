@@ -1,4 +1,5 @@
 import { sameNamespace } from "./namespaces.js";
+import { sameMethodSignature } from "./signatures.js";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceNode } from "@benchtop-plc/core";
 import type { Access, Program } from "./ast.js";
 import type { CheckedProgram } from "./checked.js";
@@ -158,26 +159,11 @@ export function checkOverrides(
   checked: ReadonlyMap<Program, CheckedProgram>,
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  const signature = (method: Program): string | undefined => {
-    const info = checked.get(method);
-    if (!info) return;
-    return JSON.stringify({
-      result: info.result?.descriptor ?? info.result?.type ?? null,
-      parameters: method.declarations
-        .filter((d) => ["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT"].includes(d.section ?? ""))
-        .flatMap((d) =>
-          d.names.map((n) => {
-            const symbol = info.symbols[info.references.get(n)!.variable]!;
-            return [n.key, d.section, symbol.descriptor ?? symbol.type];
-          }),
-        ),
-    });
-  };
   for (const type of blocks)
     for (const method of type.methods ?? []) {
       if (method.owner !== type || !method.override) continue;
       const base = type.baseType?.methods?.find((m) => m.name.key === method.name.key);
-      if (base && signature(method) !== signature(base))
+      if (base && !sameMethodSignature(method, base, checked))
         report(diagnostics, type, method.name, "inheritance.override-signature", {
           name: method.name.name,
         });

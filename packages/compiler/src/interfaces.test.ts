@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { compileProject, parsePou } from "./index.js";
+import { signatureTypes, signatureTypeSources } from "./signatures.test-support.js";
 
 export const actuator = `INTERFACE IActuator
 METHOD Start END_METHOD
@@ -299,4 +300,58 @@ it("binds PROGRAM arrays of interfaces with exact array types", () => {
   );
   expect(result.diagnostics).toEqual([]);
   expect(result.ir!.resource.programs[0]!.storage[0]!.kind).toBe("array");
+});
+
+it.each(signatureTypes)(
+  "compares interface $position types using $name equivalence (matches: $matches)",
+  ({ left, right, matches, position }) => {
+    const signature = (prefix: string, type: string) =>
+      `METHOD ${prefix} Check ${position === "result" ? `: ${type}` : `${position} value: ${type}; END_VAR`} END_METHOD`;
+    const prototype = signature("", right);
+    const implementation = signature("PUBLIC", left);
+    const result = compileProject(
+      [
+        main(),
+        `INTERFACE I ${prototype} END_INTERFACE`,
+        `FUNCTION_BLOCK Impl IMPLEMENTS I ${implementation} END_FUNCTION_BLOCK`,
+      ],
+      signatureTypeSources,
+    );
+    if (matches) {
+      expect(result.diagnostics).toEqual([]);
+      expect(result.ir).toBeDefined();
+    } else {
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics.map((d) => d.code)).toEqual(["interface.unimplemented"]);
+    }
+    const inherited = compileProject(
+      [
+        main(),
+        `INTERFACE IA ${prototype} END_INTERFACE`,
+        `INTERFACE IB ${signature("", left)} END_INTERFACE`,
+        "INTERFACE IC EXTENDS IA, IB END_INTERFACE",
+      ],
+      signatureTypeSources,
+    );
+    expect(inherited.diagnostics.map((d) => d.code)).toEqual(
+      matches ? [] : ["interface.signature"],
+    );
+  },
+);
+
+it.each([
+  ["count", "", "VAR_INPUT x: INT; END_VAR"],
+  ["name", "", "VAR_INPUT x,z: INT; END_VAR"],
+  ["order", "", "VAR_INPUT y,x: INT; END_VAR"],
+  ["section", "", "VAR_OUTPUT x,y: INT; END_VAR"],
+  ["result presence", ": INT", "VAR_INPUT x,y: INT; END_VAR"],
+])("preserves interface parameter and result details: %s", (_detail, resultType, parameters) => {
+  const prototype = "METHOD Check VAR_INPUT x,y: INT; END_VAR END_METHOD";
+  const result = compileProject([
+    main(),
+    `INTERFACE I ${prototype} END_INTERFACE`,
+    `CLASS Impl IMPLEMENTS I METHOD PUBLIC Check ${resultType} ${parameters} END_METHOD END_CLASS`,
+  ]);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics.map((d) => d.code)).toEqual(["interface.unimplemented"]);
 });

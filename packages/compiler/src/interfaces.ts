@@ -1,6 +1,7 @@
 import type { Diagnostic, TypeTable } from "@benchtop-plc/core";
 import type { Program } from "./ast.js";
 import type { CheckedProgram } from "./checked.js";
+import { sameMethodSignature } from "./signatures.js";
 
 export function resolveInterfaces(asts: Program[], pous: ReadonlyMap<string, Program>) {
   const diagnostics: Diagnostic[] = [];
@@ -91,26 +92,8 @@ export function checkInterfaces(
       span: owner.name.span,
       args: { name },
     });
-  const signature = (method: Program) => {
-    const info = checked.get(method);
-    return (
-      info &&
-      JSON.stringify({
-        result: info.result?.descriptor ?? null,
-        parameters: method.declarations
-          .filter((d) => d.section && ["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT"].includes(d.section))
-          .flatMap((d) =>
-            d.names.map((n) => [
-              n.key,
-              d.section,
-              info.symbols[info.references.get(n)!.variable]!.descriptor,
-            ]),
-          ),
-      })
-    );
-  };
   for (const [owner, a, b] of conflicts)
-    if (signature(a) !== signature(b)) report(owner, "interface.signature", b.name.name);
+    if (!sameMethodSignature(a, b, checked)) report(owner, "interface.signature", b.name.name);
   const visited = new Set<Program>();
   const visit = (type: Program): void => {
     if (visited.has(type)) return;
@@ -134,7 +117,7 @@ export function checkInterfaces(
           (!method ||
             method.abstract ||
             method.access !== "PUBLIC" ||
-            signature(method) !== signature(prototype))
+            !sameMethodSignature(method, prototype, checked))
         )
           report(type, "interface.unimplemented", prototype.name.name);
       }

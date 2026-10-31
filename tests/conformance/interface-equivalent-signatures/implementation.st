@@ -1,0 +1,10 @@
+FUNCTION_BLOCK DeviceImpl IMPLEMENTS IDevice
+METHOD PUBLIC Count : AliasInt
+  VAR_INPUT step: AliasInt; text: STRING[10]; END_VAR
+  Count := step + STRING_TO_INT(text);
+END_METHOD
+METHOD PUBLIC Format : STRING[10]
+  VAR_INPUT step: AliasInt; text: STRING[10]; END_VAR
+  Format := CONCAT(text, INT_TO_STRING(step));
+END_METHOD
+END_FUNCTION_BLOCK
