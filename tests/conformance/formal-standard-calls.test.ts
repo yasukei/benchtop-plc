@@ -108,3 +108,34 @@ it("evaluates both SEL values and its selector in source order", () => {
   expect(value("order")).toMatchObject({ value: 123 });
   expect(value("resultValue")).toMatchObject({ value: 1 });
 });
+
+it.each<[string, ScalarValue]>([
+  ["BOOL", true],
+  ["BYTE", 255],
+  ["WORD", 65535],
+  ["DWORD", 4294967295],
+  ["LWORD", "18446744073709551615"],
+])("folds formal NOT constants like the unary operator for %s", (type, expected) => {
+  const zero = type === "BOOL" ? "FALSE" : `${type}#0`;
+  const { value } = execute([
+    `PROGRAM Main
+    VAR CONSTANT
+      formalConstant: ${type} := NOT(IN := ${zero});
+      positionalConstant: ${type} := NOT(${zero});
+    END_VAR
+    VAR formalValue, positionalValue: ${type}; END_VAR
+    formalValue := formalConstant; positionalValue := positionalConstant;
+    END_PROGRAM`,
+  ]);
+  expect(value("formalValue")).toMatchObject({ value: expected });
+  expect(value("positionalValue")).toMatchObject({ value: expected });
+});
+
+it("accepts formal NOT constant CASE labels", () => {
+  const { value } = execute([
+    `PROGRAM Main VAR resultValue: INT; END_VAR
+    CASE BYTE#255 OF NOT(IN := BYTE#0): resultValue := 1; END_CASE;
+    END_PROGRAM`,
+  ]);
+  expect(value("resultValue")).toMatchObject({ value: 1 });
+});

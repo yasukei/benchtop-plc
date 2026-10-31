@@ -132,7 +132,9 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 Formal inputs may be supplied in any order and are evaluated once in source order.
 All inputs are required; extensible numbered inputs must be consecutive. Unknown
-or duplicate names and missing inputs reject the call without follow-on type errors.
+or duplicate names and missing inputs reject the call without follow-on type errors;
+independent errors in the supplied expressions are still reported. With a constant
+operand, formal `NOT(IN := ...)` retains unary `NOT(...)` constant-expression support.
 
 | Function family                                                         | Formal inputs                                           |
 | ----------------------------------------------------------------------- | ------------------------------------------------------- |

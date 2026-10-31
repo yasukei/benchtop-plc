@@ -117,3 +117,11 @@ it.each([
   expect(result.ir).toBeUndefined();
   expect(result.diagnostics.map((d) => d.code)).toEqual(codes);
 });
+
+it("requires a constant operand for a formal NOT initializer", () => {
+  const result = compile(
+    "PROGRAM Main VAR inputValue: BYTE; outputValue: BYTE := NOT(IN := inputValue); END_VAR END_PROGRAM",
+  );
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics.map((d) => d.code)).toEqual(["decl.nonconstant-initializer"]);
+});

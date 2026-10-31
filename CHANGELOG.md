@@ -29,7 +29,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 - Accept formal calls to all registered standard functions, including consecutive
   numbered inputs for extensible functions. Preserve source evaluation order and
-  report invalid or incomplete calls without cascading arity or assignment errors.
+  report invalid or incomplete calls without cascading arity or assignment errors,
+  while retaining independent input diagnostics. Formal `NOT` also supports constant
+  expressions wherever the positional unary operator does.
 
 - Accept equivalent resolved types in override and interface method signatures:
   aliases, matching named/anonymous subranges and different string capacities

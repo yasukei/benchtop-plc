@@ -2350,6 +2350,16 @@ class Checker {
         }
       }
     }
+    if (dataType && validArguments && name === "NOT") {
+      const operand = args[0]!;
+      return this.constant(
+        { dataType },
+        node,
+        operand.constant === undefined
+          ? undefined
+          : () => unaryConstant("NOT", internalValue(operand.dataType, operand.constant!)),
+      );
+    }
     return dataType && validArguments ? { dataType: signature.result ?? dataType } : null;
   }
 
