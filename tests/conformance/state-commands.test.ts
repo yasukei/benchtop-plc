@@ -266,6 +266,16 @@ describe("ADR 0022 command matrix", () => {
         expect(runtime.state).toBe(pending ? "FAULT" : "STOP");
         expect(runtime.diagnostic).toEqual(pending);
       }
+      if (command === "set cycle" && outcome === "A:=") {
+        // Restart preserves the interval and makes it observable after FAULT or ESTOP.
+        runtime.coldReset();
+        runtime.setEmergencyStop(false);
+        runtime.run();
+        clock.advance(10);
+        expect(runtime.snapshot().scanCount).toBe(0);
+        clock.advance(10);
+        expect(runtime.snapshot().scanCount).toBe(1);
+      }
       runtime.stop();
     },
   );

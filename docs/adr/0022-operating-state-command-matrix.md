@@ -124,7 +124,7 @@ a forced variable during HALT is consumed without changing its value. Forces
 take effect at the next normal force stage. Outside HALT, debug commands cannot
 energize output storage outside RUN; during HALT, writes can change output
 storage but cannot publish a new output image. HALT over RUN holds the last
-published image; HALT over STOP, FAULT and ESTOP keep the image OFF. Stop,
+published image; HALT over STOP keeps the image OFF, as do FAULT and ESTOP. Stop,
 emergency stop and faults preserve inspectable program storage, forces and
 pending writes; restart/load clear forces and pending writes as ADR 0016 specifies.
 
