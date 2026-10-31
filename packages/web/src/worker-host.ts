@@ -23,20 +23,20 @@ export function createWorkerHost(
   let lastHalt = "";
   let loaded = false;
   const inputs: IoImage = Array<number>(64).fill(0);
-  let lastRetentiveTime = -Infinity;
+  let lastRetentiveSampleTime = -Infinity;
   let lastRetentiveJson: string | undefined;
   const publish = (immediate = false, loadId?: number) => {
     if (
       runtime.state !== "HALT" &&
       loaded &&
-      (immediate || clock.now() - lastRetentiveTime >= 1000)
+      (immediate || clock.now() - lastRetentiveSampleTime >= 1000)
     ) {
       const records = runtime.retentiveRecords();
       const json = JSON.stringify(records);
+      lastRetentiveSampleTime = clock.now();
       if (json !== lastRetentiveJson || immediate) {
         post({ type: "retentive", records });
         lastRetentiveJson = json;
-        lastRetentiveTime = clock.now();
       }
     }
     // Compute publication data before acknowledging a successful load.

@@ -426,11 +426,19 @@ Warm restart sits next to Cold reset and becomes Acknowledge fault in FAULT. It
 always returns the operating state to STOP and preserves retained data. The
 English and Japanese catalogs supply these controls and all retention warnings.
 
-The Worker sends a complete retained set at most once per second as scan values
-change, and immediately after commands that change storage or operating state and scans
-that enter FAULT.
-The page replaces the optional `retentive` array in the version 4 autosave record
-immediately, preserving all editable sources alongside it. Reload can lose up to
+The Worker samples retained values at most once per second, even when unchanged,
+and sends a complete set when it changes. Commands that change storage or operating
+state and scans that enter FAULT publish immediately.
+The page saves this array immediately under `benchtop-plc.retentive` in
+`localStorage`, independently of the editable workspace at `benchtop-plc.work`.
+Retained updates neither rewrite the workspace nor postpone pending editor saves.
+Existing version 4 workspaces with an embedded `retentive` array migrate on first
+load; embedded values remain available if migration cannot write the separate key.
+Stored records are validated individually before restoration; valid records still
+restore when others are malformed, and expected paths that were not restored are
+reported. Malformed retention does not prevent restoring editable work. See
+[ADR 0027](adr/0027-separate-browser-retained-storage.md) for storage precedence and
+migration. Reload can lose up to
 about one second of changes. It compiles autosaved sources, loads and restores
 values, and stays in STOP. A normal Apply, RUN with unapplied edits, Open project
 or Open example initializes all values as a program load.

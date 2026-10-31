@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { autosaveStorageKey, createAutosave, readAutosave, type SavedWork } from "./autosave.js";
+import {
+  autosaveStorageKey,
+  retentiveStorageKey,
+  createAutosave,
+  readAutosave,
+  type SavedWork,
+} from "./autosave.js";
 import { createPous, pouKinds } from "./pous.js";
 import { browserStorage } from "./browser-storage.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
@@ -11,11 +17,11 @@ function setup() {
   const worker = new FakeWorker();
   const store = createAppStore(new RuntimeClient(worker));
   store.openProject(blinkProjectXml);
-  let value: string | null = null;
+  const values = new Map<string, string>();
   const storage = {
-    getItem: vi.fn(() => value),
-    setItem: vi.fn((_: string, next: string) => {
-      value = next;
+    getItem: vi.fn((key = autosaveStorageKey) => values.get(key) ?? null),
+    setItem: vi.fn((key: string, next: string) => {
+      values.set(key, next);
     }),
   };
   return { store, worker, storage };
@@ -24,6 +30,199 @@ function setup() {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+const retained = [
+  {
+    kind: "leaf" as const,
+    path: "mainInstance.kept",
+    dataType: '{"TYPE":"LINT"}',
+    value: { dataType: "LINT" as const, value: "9223372036854775807" },
+  },
+  {
+    kind: "block" as const,
+    path: "mainInstance.ctr",
+    blockType: "CTU" as const,
+    inputs: [
+      { dataType: "BOOL" as const, value: true },
+      { dataType: "BOOL" as const, value: false },
+      { dataType: "INT" as const, value: 10 },
+    ],
+    outputs: [
+      { dataType: "BOOL" as const, value: false },
+      { dataType: "INT" as const, value: 1 },
+    ],
+    state: { previous: true, optional: null },
+  },
+];
+
+it("writes retained changes without rewriting work or moving an edit's save deadline", () => {
+  vi.useFakeTimers();
+  const { store, worker, storage } = setup();
+  const autosave = createAutosave(store, storage);
+  store.setSource("saved draft");
+  autosave.flush();
+  const original = storage.getItem();
+  storage.setItem.mockClear();
+  worker.receive({ type: "retentive", records: retained });
+  expect(storage.setItem).toHaveBeenCalledExactlyOnceWith(
+    retentiveStorageKey,
+    JSON.stringify(retained),
+  );
+  expect(storage.getItem()).toBe(original);
+  store.setSource("pending draft");
+  vi.advanceTimersByTime(400);
+  worker.receive({ type: "retentive", records: [] });
+  expect(storage.getItem()).toBe(original);
+  vi.advanceTimersByTime(100);
+  expect(readAutosave(storage)).toMatchObject({
+    pous: [{ source: "pending draft" }],
+    retentive: [],
+  });
+  expect(storage.setItem.mock.calls.map(([key]) => key)).toEqual([
+    retentiveStorageKey,
+    retentiveStorageKey,
+    autosaveStorageKey,
+  ]);
+  autosave.dispose();
+  store.dispose();
+});
+
+it("migrates embedded retained records on first read and uses newer separate records thereafter", () => {
+  const { store, storage } = setup();
+  const legacy = JSON.stringify({ version: 4, ...store.getSnapshot(), retentive: retained });
+  storage.setItem(autosaveStorageKey, legacy);
+  storage.setItem.mockClear();
+  expect(readAutosave(storage)?.retentive).toEqual(retained);
+  expect(storage.setItem).toHaveBeenCalledExactlyOnceWith(
+    retentiveStorageKey,
+    JSON.stringify(retained),
+  );
+  expect(storage.getItem()).toBe(legacy);
+  storage.setItem.mockClear();
+  expect(readAutosave(storage)?.retentive).toEqual(retained);
+  expect(storage.setItem).not.toHaveBeenCalled();
+  storage.setItem(retentiveStorageKey, "[]");
+  expect(readAutosave(storage)?.retentive).toEqual([]);
+  storage.setItem(retentiveStorageKey, "null");
+  expect(readAutosave(storage)?.retentive).toBeUndefined();
+  store.dispose();
+});
+
+describe.each(["embedded", "separate"])("validates %s retained data", (location) => {
+  it.each([
+    null,
+    {},
+    [null],
+    [42],
+    [{}],
+    [{ ...retained[0], kind: "unknown" }],
+    [{ ...retained[0], path: 42 }],
+    [{ ...retained[0], dataType: null }],
+    [{ ...retained[0], value: null }],
+    [{ ...retained[0], value: { dataType: "UNKNOWN", value: 1 } }],
+    [{ ...retained[0], value: { dataType: "INT", value: 32768 } }],
+    [{ ...retained[0], value: { dataType: "BOOL", value: 1 } }],
+    [{ ...retained[0], value: { dataType: "LINT", value: "01" } }],
+    [{ ...retained[1], blockType: "UNKNOWN" }],
+    [{ ...retained[1], inputs: null }],
+    [{ ...retained[1], inputs: [{}] }],
+    [{ ...retained[1], outputs: [{}] }],
+    [{ ...retained[1], state: [] }],
+    [{ ...retained[1], state: { previous: 1 } }],
+  ])("ignores malformed retained data %j while preserving editable work", (invalid) => {
+    const { store, storage } = setup();
+    const stored = Array.isArray(invalid) ? [...retained, ...invalid] : invalid;
+    storage.setItem(
+      autosaveStorageKey,
+      JSON.stringify({
+        version: 4,
+        ...store.getSnapshot(),
+        retentive: location === "embedded" ? stored : retained,
+      }),
+    );
+    if (location === "separate") storage.setItem(retentiveStorageKey, JSON.stringify(stored));
+    const restored = readAutosave(storage);
+    expect(restored?.pous).toEqual(store.getSnapshot().pous);
+    if (Array.isArray(invalid)) {
+      expect(restored?.retentive).toEqual(retained);
+      expect(JSON.parse(storage.getItem(retentiveStorageKey)!)).toEqual(
+        location === "embedded" ? retained : stored,
+      );
+    } else expect(restored).not.toHaveProperty("retentive");
+    store.dispose();
+  });
+
+  it("returns an empty restore set when every record is malformed", () => {
+    const { store, storage } = setup();
+    storage.setItem(
+      autosaveStorageKey,
+      JSON.stringify({
+        version: 4,
+        ...store.getSnapshot(),
+        ...(location === "embedded" ? { retentive: [null, {}] } : {}),
+      }),
+    );
+    if (location === "separate") storage.setItem(retentiveStorageKey, "[null, {}]");
+    expect(readAutosave(storage)?.retentive).toEqual([]);
+    store.dispose();
+  });
+});
+
+it("preserves work when separate retention is unreadable, and legacy values when migration cannot write", () => {
+  const { store, storage } = setup();
+  storage.setItem(
+    autosaveStorageKey,
+    JSON.stringify({ version: 4, ...store.getSnapshot(), retentive: retained }),
+  );
+  storage.setItem.mockImplementation(() => {
+    throw new Error("Full");
+  });
+  expect(readAutosave(storage)?.retentive).toEqual(retained);
+  const getItem = storage.getItem.getMockImplementation()!;
+  for (const raw of ["{", "[]"]) {
+    storage.getItem.mockImplementation((key = autosaveStorageKey) => {
+      if (key === retentiveStorageKey) {
+        if (raw === "[]") throw new Error("Blocked");
+        return raw;
+      }
+      return getItem(key);
+    });
+    expect(readAutosave(storage)?.pous).toEqual(store.getSnapshot().pous);
+    expect(readAutosave(storage)).not.toHaveProperty("retentive");
+  }
+  store.dispose();
+});
+
+it("keeps legacy retention in edited work until the separate key can be written", () => {
+  const { store, storage } = setup();
+  storage.setItem(
+    autosaveStorageKey,
+    JSON.stringify({ version: 4, ...store.getSnapshot(), retentive: retained }),
+  );
+  const setItem = storage.setItem.getMockImplementation()!;
+  storage.setItem.mockImplementation((key, value) => {
+    if (key === retentiveStorageKey) throw new Error("Full");
+    setItem(key, value);
+  });
+  const fresh = createAppStore(new RuntimeClient(new FakeWorker()), readAutosave(storage)!);
+  const autosave = createAutosave(fresh, storage);
+  fresh.setSource("PROGRAM unfinished");
+  autosave.flush();
+  expect(JSON.parse(storage.getItem()!).retentive).toEqual(retained);
+  expect(readAutosave(storage)).toMatchObject({
+    pous: [{ source: "PROGRAM unfinished" }],
+    retentive: retained,
+  });
+  expect(fresh.getSnapshot().storageWarning).toBe(true);
+  storage.setItem.mockImplementation(setItem);
+  fresh.setSource("PROGRAM still_unfinished");
+  autosave.flush();
+  expect(JSON.parse(storage.getItem()!)).not.toHaveProperty("retentive");
+  expect(readAutosave(storage)?.retentive).toEqual(retained);
+  autosave.dispose();
+  fresh.dispose();
+  store.dispose();
 });
 
 describe("browser autosave", () => {
@@ -495,6 +694,8 @@ it.each([
 it("saves complete retained sets immediately, restores only on the first load, and warns if storage fails", () => {
   const { store, worker, storage } = setup();
   const autosave = createAutosave(store, storage);
+  store.setSource(store.getSnapshot().source + "\n");
+  autosave.flush();
   const records = [
     {
       kind: "leaf" as const,
@@ -504,6 +705,11 @@ it("saves complete retained sets immediately, restores only on the first load, a
     },
   ];
   worker.receive({ type: "retentive", records });
+  expect(storage.setItem.mock.calls.map(([key]) => key)).toEqual([
+    autosaveStorageKey,
+    retentiveStorageKey,
+  ]);
+  expect(JSON.parse(storage.getItem()!)).not.toHaveProperty("retentive");
   expect(readAutosave(storage)?.retentive).toEqual(records);
   const freshWorker = new FakeWorker();
   const fresh = createAppStore(new RuntimeClient(freshWorker), readAutosave(storage)!);
@@ -527,6 +733,7 @@ it("keeps retained records while autosaved source fails compilation and restores
   const autosave = createAutosave(store, storage);
   store.setSource("PROGRAM unfinished");
   worker.receive({ type: "retentive", records: [] });
+  autosave.flush();
   const saved = readAutosave(storage)!;
   const freshWorker = new FakeWorker();
   const fresh = createAppStore(new RuntimeClient(freshWorker), saved);

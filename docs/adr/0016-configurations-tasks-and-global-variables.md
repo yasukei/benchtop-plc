@@ -1,6 +1,7 @@
 # 0016. Configurations, tasks, global variables and retentive variables
 
 - Status: Accepted
+- Superseded in part by: [0027. Separate browser retained storage](0027-separate-browser-retained-storage.md) (browser retained storage location)
 - Date: 2026-10-24
 - Related: [0003](0003-injected-clock.md),
   [0006](0006-plcopen-xml-project-format.md),

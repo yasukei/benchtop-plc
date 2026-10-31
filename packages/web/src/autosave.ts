@@ -1,5 +1,12 @@
 import type { Project } from "@benchtop-plc/project";
 import {
+  isFunctionBlockType,
+  validateValue,
+  type DataType,
+  type RetentiveRecord,
+  type TypedValue,
+} from "@benchtop-plc/core";
+import {
   createDataTypes,
   createPous,
   derivePou,
@@ -14,13 +21,14 @@ import type { BrowserStorage } from "./browser-storage.js";
 import { readLayout, type PanelLayout } from "./panel/layout.js";
 
 export const autosaveStorageKey = "benchtop-plc.work";
+export const retentiveStorageKey = "benchtop-plc.retentive";
 export const cycleOptions = [10, 20, 50, 100] as const;
 export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
   breakpoints?: import("./breakpoints.js").SourceBreakpoints;
   instanceChoices?: import("./instances.js").InstanceChoices;
-  retentive?: import("@benchtop-plc/core").RetentiveRecord[];
+  retentive?: RetentiveRecord[];
   configuration: EditorConfiguration | null;
   selectedConfiguration: boolean;
   dataTypes: EditorDataType[];
@@ -42,6 +50,54 @@ function strings(value: unknown, required: string[], optional: string[] = []): b
     required.every((key) => typeof value[key] === "string") &&
     optional.every((key) => value[key] === undefined || typeof value[key] === "string")
   );
+}
+
+function isTypedValue(value: unknown): value is TypedValue {
+  if (!record(value) || typeof value.dataType !== "string") return false;
+  try {
+    // Unknown type names also fail validation; the stored type is untrusted.
+    validateValue(value.dataType as DataType, value.value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isRetentiveRecord(value: unknown): value is RetentiveRecord {
+  if (!record(value) || typeof value.path !== "string") return false;
+  if (value.kind === "leaf") return typeof value.dataType === "string" && isTypedValue(value.value);
+  return (
+    value.kind === "block" &&
+    typeof value.blockType === "string" &&
+    isFunctionBlockType(value.blockType) &&
+    Array.isArray(value.inputs) &&
+    value.inputs.every(isTypedValue) &&
+    Array.isArray(value.outputs) &&
+    value.outputs.every(isTypedValue) &&
+    record(value.state) &&
+    Object.values(value.state).every((item) => item === null || typeof item === "boolean")
+  );
+}
+
+function readRetentive(storage: BrowserStorage | undefined, legacy: unknown) {
+  try {
+    const raw = storage?.getItem(retentiveStorageKey);
+    const value: unknown = raw == null ? legacy : JSON.parse(raw);
+    if (!Array.isArray(value)) return undefined;
+    const records = value.filter(isRetentiveRecord);
+    if (raw == null) {
+      try {
+        // Keep the legacy workspace intact if migration cannot be persisted.
+        storage?.setItem(retentiveStorageKey, JSON.stringify(records));
+      } catch {
+        // A full or blocked store must not prevent restoring the legacy values.
+      }
+    }
+    return records;
+  } catch {
+    // Retention corruption must not discard otherwise valid editable work.
+    return undefined;
+  }
 }
 
 /** Validate metadata without compiling the editor text or converting it to XML. */
@@ -185,6 +241,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
     }
     const layout = readLayout(value.layout);
     if (!layout) return null;
+    const retentive = readRetentive(storage, value.retentive);
     return {
       ...(record(value.breakpoints) &&
       Object.values(value.breakpoints).every(
@@ -197,9 +254,7 @@ export function readAutosave(storage?: BrowserStorage): SavedWork | null {
       Object.values(value.instanceChoices).every((path) => typeof path === "string")
         ? { instanceChoices: value.instanceChoices as Record<string, string> }
         : {}),
-      ...(Array.isArray(value.retentive)
-        ? { retentive: value.retentive as import("@benchtop-plc/core").RetentiveRecord[] }
-        : {}),
+      ...(retentive === undefined ? {} : { retentive }),
       configuration,
       selectedConfiguration,
       pous,
@@ -225,14 +280,33 @@ interface WorkStore {
 /** Subscribe only to editable work; runtime snapshots must not postpone a save. */
 export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
   let previous = store.getSnapshot();
-  let pending: SavedWork | undefined;
+  let retainedPersisted = false;
+  let pending: Omit<SavedWork, "retentive"> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const flush = () => {
     clearTimeout(timer);
     if (!pending) return;
     try {
       if (!storage) throw new Error("Storage unavailable");
-      storage.setItem(autosaveStorageKey, JSON.stringify({ version: 4, ...pending }));
+      let embedded: RetentiveRecord[] | undefined;
+      if (!retainedPersisted && previous.retentive !== undefined) {
+        try {
+          storage.setItem(retentiveStorageKey, JSON.stringify(previous.retentive));
+          retainedPersisted = true;
+        } catch {
+          // Do not erase the only persisted copy if a legacy migration still cannot write.
+          embedded = previous.retentive;
+        }
+      }
+      storage.setItem(
+        autosaveStorageKey,
+        JSON.stringify({
+          version: 4,
+          ...pending,
+          ...(embedded === undefined ? {} : { retentive: embedded }),
+        }),
+      );
+      if (embedded !== undefined) store.storageFailed?.();
     } catch {
       store.storageFailed?.();
     }
@@ -240,27 +314,38 @@ export function createAutosave(store: WorkStore, storage?: BrowserStorage) {
   };
   const unsubscribe = store.subscribe(() => {
     const next = store.getSnapshot();
-    if (
-      next.breakpoints === previous.breakpoints &&
-      next.instanceChoices === previous.instanceChoices &&
-      next.retentive === previous.retentive &&
-      next.configuration === previous.configuration &&
-      next.selectedConfiguration === previous.selectedConfiguration &&
-      next.dataTypes === previous.dataTypes &&
-      next.selectedDataType === previous.selectedDataType &&
-      next.pous === previous.pous &&
-      next.selectedPou === previous.selectedPou &&
-      next.layout === previous.layout &&
-      next.cycleMs === previous.cycleMs &&
-      next.project === previous.project
-    )
-      return;
-    const retainedChanged = next.retentive !== previous.retentive;
+    const prior = previous;
     previous = next;
+    const retainedChanged = next.retentive !== prior.retentive;
+    if (retainedChanged) {
+      retainedPersisted = false;
+      try {
+        if (!storage) throw new Error("Storage unavailable");
+        // A null tombstone prevents old embedded values from returning after an import.
+        storage.setItem(retentiveStorageKey, JSON.stringify(next.retentive ?? null));
+        retainedPersisted = true;
+      } catch {
+        store.storageFailed?.();
+      }
+    }
+    if (
+      next.breakpoints === prior.breakpoints &&
+      next.instanceChoices === prior.instanceChoices &&
+      next.configuration === prior.configuration &&
+      next.selectedConfiguration === prior.selectedConfiguration &&
+      next.dataTypes === prior.dataTypes &&
+      next.selectedDataType === prior.selectedDataType &&
+      next.pous === prior.pous &&
+      next.selectedPou === prior.selectedPou &&
+      next.layout === prior.layout &&
+      next.cycleMs === prior.cycleMs &&
+      next.project === prior.project
+    ) {
+      return;
+    }
     pending = {
       ...(next.breakpoints === undefined ? {} : { breakpoints: next.breakpoints }),
       ...(next.instanceChoices === undefined ? {} : { instanceChoices: next.instanceChoices }),
-      ...(next.retentive === undefined ? {} : { retentive: next.retentive }),
       configuration: next.configuration,
       selectedConfiguration: next.selectedConfiguration,
       dataTypes: next.dataTypes,

@@ -17,6 +17,12 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Sample retained values at most once per second while running, including when
+  they are unchanged. Autosave retained values separately from edited work to avoid
+  rewriting the workspace on each retained update; existing autosaves migrate their
+  embedded retained values on first load. Valid records still restore when other
+  records in the stored set are malformed, with a warning for unrestored paths.
+
 - Record a paired re-measurement of the ADR 0018 runtime performance budget and
   document the manual Runtime benchmark workflow, which compares a chosen revision
   with the pre-resumable baseline and retains timings and environment details.

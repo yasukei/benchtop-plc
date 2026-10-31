@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { readProject } from "@benchtop-plc/project";
-import { autosaveStorageKey } from "../src/autosave.js";
+import { retentiveStorageKey } from "../src/autosave.js";
 
 test("operates both tanks and keeps run-time counters across reload and project text across save/reopen", async ({
   page,
@@ -93,9 +93,9 @@ test("operates both tanks and keeps run-time counters across reload and project 
       page.evaluate(
         (key) =>
           JSON.parse(localStorage.getItem(key)!)
-            .retentive.filter((record: { path: string }) => record.path.endsWith(".RunTicks"))
+            .filter((record: { path: string }) => record.path.endsWith(".RunTicks"))
             .map((record: { value: { value: number } }) => record.value.value),
-        autosaveStorageKey,
+        retentiveStorageKey,
       ),
     )
     .toEqual(kept);

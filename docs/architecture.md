@@ -47,6 +47,10 @@ recorded in [ADR 0016](adr/0016-configurations-tasks-and-global-variables.md). I
 implementation is tracked by the sub-issues of
 [#147](https://github.com/yasukei/benchtop-plc/issues/147).
 
+[ADR 0027](adr/0027-separate-browser-retained-storage.md) supersedes ADR 0016's
+browser storage location for retained sets, recording the separate key, legacy
+migration and precedence over embedded records.
+
 Milestone 7's accepted model for methods, classes, inheritance, interfaces, references
 to instances and namespaces, including their monitoring and PLCopen XML mapping, is
 recorded in [ADR 0017](adr/0017-classes-methods-interfaces-and-namespaces.md). Its
