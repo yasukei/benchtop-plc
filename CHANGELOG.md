@@ -137,6 +137,9 @@ Debugging: inline values in every POU body for a chosen instance, breakpoints wi
 
 ### Added
 
+- Add bounded compiler and PLCopen XML property tests with reproducible seeds,
+  shrinking and generated project round trips; document replay and longer runs.
+
 - Sorting conveyor debugging guide with a Playwright acceptance walkthrough,
   covering instance and body values, event breakpoints, halted I/O, stepping,
   the call stack and keyboard shortcuts. The counter block body now publishes
