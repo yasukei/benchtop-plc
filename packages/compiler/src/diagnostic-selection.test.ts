@@ -6,6 +6,18 @@ const task = `${resource} TASK T (INTERVAL := T#20ms, PRIORITY := 1);`;
 const main = "PROGRAM Main END_PROGRAM";
 
 it.each([
+  ["VAR a : ARRAY[1..z] OF INT; END_VAR", ""],
+  ["VAR a : INT := z; END_VAR", ""],
+  ["VAR a : INT; END_VAR", "CASE a OF z: a := 1; END_CASE;"],
+])("keeps rejected CONSTANT temporaries available in constant contexts: %s %s", (locals, body) => {
+  const source = `FUNCTION_BLOCK BlockType VAR_TEMP CONSTANT z : INT := 2; END_VAR
+    ${locals} ${body} END_FUNCTION_BLOCK`;
+  expect(compileProject([main, source]).diagnostics).toEqual([
+    expect.objectContaining({ code: "decl.constant-section", args: { section: "VAR_TEMP" } }),
+  ]);
+});
+
+it.each([
   ["", "syntax.unexpected-eof", {}],
   ["CONFIGURATION", "syntax.unexpected-eof", {}],
   ["CONFIGURATION Plant", "syntax.missing-end", { expected: "END_CONFIGURATION" }],

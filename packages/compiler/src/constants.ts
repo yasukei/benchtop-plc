@@ -6,7 +6,10 @@ export { unaryValue as unaryConstant, binaryValue as binaryConstant } from "@ben
 
 /** Preserve invalid source qualifiers in the AST without losing parameter symbols. */
 export function isConstantDeclaration(declaration: Declaration): boolean {
-  return !!declaration.constant && (!declaration.section || declaration.section === "VAR_EXTERNAL");
+  return (
+    !!declaration.constant &&
+    !["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT"].includes(declaration.section ?? "")
+  );
 }
 
 /** Typed constant operations use exactly the same result coercion as execution. */
