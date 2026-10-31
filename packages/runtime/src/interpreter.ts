@@ -23,6 +23,7 @@ import {
   binaryValue,
   unaryValue,
   validateValue,
+  methodImplementation,
 } from "@benchtop-plc/core";
 import type {
   AnnotatedBody,
@@ -221,7 +222,8 @@ export class Interpreter {
     for (const fn of ir.functions ?? []) Interpreter.lower(fn.body);
     for (const block of ir.functionBlocks ?? []) {
       Interpreter.lower(block.body);
-      for (const method of block.methods ?? []) Interpreter.lower(method.body);
+      for (const method of block.methods ?? [])
+        if ("body" in method) Interpreter.lower(method.body);
     }
   }
 
@@ -1321,6 +1323,7 @@ export class Interpreter {
     );
     const instance = location.frame.userBlock(location.variable);
     const definition = this.programMemory.ir.functionBlocks![instance.block]!;
+    const body = this.programMemory.ir.functionBlocks![definition.bodyOwner ?? instance.block]!;
     instance.resetTemporaries();
     for (const [slot, actual] of args.aliases)
       instance.frame.bind(slot, actual.frame, actual.variable);
@@ -1332,13 +1335,10 @@ export class Interpreter {
     const callerReceiver = this.receiver;
     this.receiver = instance;
     this.memory = instance.frame;
-    this.pou =
-      definition.bodyOwner === undefined
-        ? definition.name
-        : this.programMemory.ir.functionBlocks![definition.bodyOwner]!.name;
+    this.pou = body.name;
     this.instancePath = instance.path;
     this.push(
-      definition.body,
+      body.body,
       (abandoned) => {
         this.receiver = callerReceiver;
         instance.frame.unbind(definition.inOuts ?? []);
@@ -1390,13 +1390,11 @@ export class Interpreter {
 
   private superCall(block: number): void {
     const definition = this.programMemory.ir.functionBlocks![block]!;
+    const body = this.programMemory.ir.functionBlocks![definition.bodyOwner ?? block]!;
     const callerPou = this.pou;
-    this.pou =
-      definition.bodyOwner === undefined
-        ? definition.name
-        : this.programMemory.ir.functionBlocks![definition.bodyOwner]!.name;
+    this.pou = body.name;
     this.push(
-      definition.body,
+      body.body,
       () => {
         this.pou = callerPou;
       },
@@ -1433,18 +1431,24 @@ export class Interpreter {
         ? this.programMemory.ir.interfaces!.find((i) => i.name === call.method!.interface)!.methods[
             call.function
           ]
-        : this.programMemory.ir.functionBlocks![call.method.block]!.methods![call.function]
+        : methodImplementation(
+            this.programMemory.ir.functionBlocks!,
+            call.method.block,
+            call.function,
+          )
       : undefined;
     const definition = call.method
       ? call.method.static
         ? staticMethod
-        : this.programMemory.ir.functionBlocks![receiver!.block]!.methods![
+        : methodImplementation(
+            this.programMemory.ir.functionBlocks!,
+            receiver!.block,
             call.method.interface
               ? this.programMemory.ir.functionBlocks![receiver!.block]!.methodTable![
                   staticMethod!.name.toUpperCase()
                 ]!
-              : call.function
-          ]
+              : call.function,
+          )
       : this.functions[call.function];
     if (!definition) throw new Error("Missing function body");
     // Signature order is stable across overrides; locals and receiver sizes are not.

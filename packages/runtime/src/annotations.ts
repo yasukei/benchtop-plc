@@ -1,3 +1,4 @@
+import { methodImplementation } from "@benchtop-plc/core";
 import type {
   AnnotatedBody,
   BodyWatch,
@@ -19,10 +20,13 @@ export function watchedBodyKeys(
   const keys = new Set<string>();
   for (const watch of watches) {
     keys.add(bodyKey(watch.pou, watch.instance));
-    const block = ir.functionBlocks?.find(
-      (block) => block.name.toUpperCase() === watch.pou.toUpperCase(),
-    );
-    for (const method of block?.methods ?? []) {
+    const blockIndex =
+      ir.functionBlocks?.findIndex(
+        (block) => block.name.toUpperCase() === watch.pou.toUpperCase(),
+      ) ?? -1;
+    const block = ir.functionBlocks?.[blockIndex];
+    for (const [slot] of (block?.methods ?? []).entries()) {
+      const method = methodImplementation(ir.functionBlocks!, blockIndex, slot);
       const owner =
         method.declaringType === undefined ? block! : ir.functionBlocks![method.declaringType]!;
       keys.add(bodyKey(`${owner.name}.${method.name}`, watch.instance));

@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- **Breaking core protocol change:** the IR carried by `load` stores inherited
+  methods as `{ block, method }` references to their declaring implementations.
+  Inherited function block bodies remain empty and resolve through `bodyOwner`,
+  so each implementation appears once in serialized IR (ADR 0017).
+
 - Define overlapping-force precedence in ADR 0025: the most recently set force
   wins on shared storage, and re-forcing now moves an existing force to newest
   precedence. Event-task sampling also observes overlapping forces in last-set

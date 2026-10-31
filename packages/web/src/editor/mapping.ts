@@ -77,6 +77,7 @@ export function mapAnnotations(
     bodies.add(definition.name.toUpperCase());
   }
   for (const method of block?.methods ?? []) {
+    if (!("body" in method)) continue;
     if ((method.declaringType ?? blockIndex) !== blockIndex) continue;
     visit(method.body);
     bodies.add(`${block!.name}.${method.name}`.toUpperCase());

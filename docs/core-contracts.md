@@ -512,8 +512,9 @@ of monitor watches, snapshot compaction, forces and VariableId allocation.
 
 ## Function block methods
 
-`UserFunctionBlockIR.methods` holds each `UserMethodIR` once; `methodTable` maps
-upper-case names to implementation indices. A method has function-style inputs,
+`UserFunctionBlockIR.methods` holds each declared `UserMethodIR` once and uses
+`UserMethodReference` entries for inherited slots; `methodTable` maps upper-case
+names to effective method slots. A method has function-style inputs,
 outputs, in-out aliases, an optional result and fresh local variables. Slots below
 `memberCount` refer to the receiver's block variables; subsequent slots refer to
 `variables`, starting at `memberCount`. Member declarations are not copied into
@@ -546,6 +547,14 @@ is its actual type. Effective `methods` and `methodTable` retain inherited metho
 slots; an override replaces its slot and new methods append. `abstract` and `final`
 record declaration modifiers on types and methods.
 
+An inherited method entry is `{ block, method }`: `block` indexes the declaring
+definition in `functionBlocks` and `method` indexes its `methods` array. References
+point directly to a `UserMethodIR`, never to another reference, including across
+multiple inheritance levels and forward source order. Only the declaring slot
+contains the implementation's body, signature and locals. `methodImplementation`
+resolves an effective slot for consumers; serializing the IR contains each method
+implementation once.
+
 A method's `declaringType` identifies its source definition. `memberCount` is the
 receiver prefix used by that implementation; its locals start immediately after
 that prefix, even on an instance with additional derived members. Call parameter
@@ -555,7 +564,11 @@ implementation's corresponding slot; local declarations may differ in number and
 position. `method.static` selects the base table for
 `SUPER.M()`; other method calls use the receiver's actual table. `superCall.block`
 runs that base definition's effective body on the current receiver. `bodyOwner`
-identifies the declaration supplying an inherited body and its fault location.
+identifies the declaration supplying an inherited body and its fault location;
+the derived definition's `body` is empty. Consumers execute the body at `bodyOwner`
+(or the definition itself when absent), retaining the actual receiver's storage.
+An inherited body's statements occur only in its declaring definition, including
+after JSON serialization or structured cloning.
 All these fields are plain structured-cloneable data.
 
 ## Interfaces (ADR 0017)

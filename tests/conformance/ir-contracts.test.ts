@@ -1,4 +1,5 @@
 import type {
+  ConfigurationIR,
   Expression,
   LiteralExpression,
   ProgramIR,
@@ -6,7 +7,104 @@ import type {
   Statement,
   VariableReference,
 } from "@benchtop-plc/core";
+import { methodImplementation, snapshotVariable } from "@benchtop-plc/core";
+import { compileProject } from "@benchtop-plc/compiler";
+import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 import { expect, it } from "vitest";
+
+it("transports each inherited implementation once across a three-level hierarchy", () => {
+  const compiled = compileProject([
+    `PROGRAM Main VAR d: Leaf; seen: INT; END_VAR
+      d(); seen := d.Read(); END_PROGRAM`,
+    `FUNCTION_BLOCK Leaf EXTENDS Middle
+      VAR leafMember: INT := 5; END_VAR
+      METHOD PUBLIC OVERRIDE Change
+        SUPER.Change(); n := n + leafMember;
+      END_METHOD
+    END_FUNCTION_BLOCK`,
+    `FUNCTION_BLOCK Root
+      VAR_OUTPUT n: INT; END_VAR
+      METHOD PUBLIC Read : INT
+        Read := n;
+      END_METHOD
+      METHOD PUBLIC Change
+        n := n + 1;
+      END_METHOD
+      METHOD PUBLIC Value : INT
+        Value := 11;
+      END_METHOD
+      Change();
+    END_FUNCTION_BLOCK`,
+    `FUNCTION_BLOCK Middle EXTENDS Root
+      VAR middleMember: INT := 3; END_VAR
+      METHOD PUBLIC OVERRIDE Value : INT
+        Value := 22;
+      END_METHOD
+      METHOD PUBLIC Added : INT
+        Added := middleMember;
+      END_METHOD
+    END_FUNCTION_BLOCK`,
+  ]);
+  expect(compiled.diagnostics).toEqual([]);
+  const serialized = JSON.stringify(compiled.ir);
+  const transported: ConfigurationIR = JSON.parse(serialized);
+  expect(transported).toStrictEqual(compiled.ir);
+  expect(structuredClone(compiled.ir)).toStrictEqual(transported);
+  const [leaf, root, middle] = transported.functionBlocks!;
+  expect(leaf).toMatchObject({
+    base: 2,
+    bodyOwner: 1,
+    body: [],
+    methodTable: { READ: 0, CHANGE: 1, VALUE: 2, ADDED: 3 },
+    methods: [
+      { block: 1, method: 0 },
+      { declaringType: 0, memberCount: 3 },
+      { block: 2, method: 2 },
+      { block: 2, method: 3 },
+    ],
+  });
+  expect(middle).toMatchObject({
+    base: 1,
+    bodyOwner: 1,
+    body: [],
+    methods: [
+      { block: 1, method: 0 },
+      { block: 1, method: 1 },
+      { declaringType: 2 },
+      { declaringType: 2 },
+    ],
+  });
+  expect(root!.body).toHaveLength(1);
+  expect(serialized.split(JSON.stringify(root!.body))).toHaveLength(2);
+  expect(root!.methods).toHaveLength(3);
+  const implementations = transported.functionBlocks!.flatMap((block) =>
+    (block.methods ?? []).filter((entry) => "body" in entry),
+  );
+  expect(implementations.map((entry) => entry.name)).toEqual([
+    "Change",
+    "Read",
+    "Change",
+    "Value",
+    "Value",
+    "Added",
+  ]);
+  expect(serialized.match(/"memberCount":/g)).toHaveLength(6);
+  for (const implementation of implementations)
+    expect(serialized.split(JSON.stringify(implementation.body))).toHaveLength(2);
+  expect(leaf!.methods![0]).toStrictEqual({ block: 1, method: 0 });
+  expect(middle!.methods![0]).toStrictEqual({ block: 1, method: 0 });
+  expect(methodImplementation(transported.functionBlocks!, 0, 0)).toBe(root!.methods![0]);
+  expect(methodImplementation(transported.functionBlocks!, 0, 2)).toBe(middle!.methods![2]);
+
+  const clock = new VirtualClock();
+  const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
+  runtime.load(transported);
+  runtime.watch(transported.variables.map((_, id) => id));
+  runtime.step();
+  expect(runtime.diagnostic).toBeNull();
+  const seen = transported.variables.findIndex((variable) => variable.name === "mainInstance.seen");
+  expect(snapshotVariable(runtime.snapshot(), seen)).toMatchObject({ value: 6 });
+});
 
 it("represents every milestone IR variant as transportable data", () => {
   const span: SourceSpan = { line: 1, column: 1, endLine: 1, endColumn: 2 };

@@ -76,7 +76,7 @@ export function mapBreakpointLines(
   return origins.flatMap((origin, i) => (origin !== null && lines.includes(origin) ? [i + 1] : []));
 }
 
-/** Source names also cover methods declared in that source, excluding inherited copies. */
+/** Source names also cover methods declared in that source. */
 export function haltPoints(ir: ConfigurationIR, source: string): Breakpoint[] {
   const points: Breakpoint[] = [];
   const visit = (pou: string, statements: readonly Statement[]) => {
@@ -101,7 +101,7 @@ export function haltPoints(ir: ConfigurationIR, source: string): Breakpoint[] {
     if (block.name.toUpperCase() !== key) return;
     if (block.bodyOwner === undefined || block.bodyOwner === index) visit(block.name, block.body);
     for (const method of block.methods ?? [])
-      if ((method.declaringType ?? index) === index)
+      if ("body" in method && (method.declaringType ?? index) === index)
         visit(`${block.name}.${method.name}`, method.body);
   });
   return points;
