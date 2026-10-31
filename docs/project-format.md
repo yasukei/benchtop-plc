@@ -7,9 +7,10 @@ used by the package, so its built ESM also runs in a Web Worker.
 
 The model includes file/content header metadata, an ordered `dataTypes: string[]`
 (each text contains exactly one `TYPE Name : ...; END_TYPE`) before the ordered
-`pous: string[]` (each text contains exactly one `PROGRAM`, `FUNCTION` or
-`FUNCTION_BLOCK`), the `configuration`, `resource`, `task` and optional `instance`
-fields for the implicit configuration, an optional `configurationSource: string`,
+`pous: string[]` (each text contains exactly one `PROGRAM`, `FUNCTION`,
+`FUNCTION_BLOCK`, `CLASS` or `INTERFACE`, optionally wrapped in a `NAMESPACE`), the
+`configuration`, `resource`, `task` and optional `instance` fields for the implicit
+configuration, an optional `configurationSource: string`,
 and a JSON panel layout. A configuration source takes precedence over the implicit
 fields when saving and compiling. Task intervals use ISO 8601
 fixed durations such as `PT0.01S`; task priority is 0–65535. Writing binds the
@@ -112,7 +113,7 @@ save and open. An unresolved enum member, such as `State#Missing`, remains a
 semantic error that can be exchanged, like an undeclared type. Other representable
 semantic errors still belong to compilation.
 
-`pointer` remains unsupported; structures are described below.
+Structures and `REF_TO` references (mapped to TC6 `pointer`) are described below.
 Files written by 0.4.0 with an empty `<dataTypes/>` import with `dataTypes: []`;
 the blink, running-light and motor-starters example sources remain unchanged.
 

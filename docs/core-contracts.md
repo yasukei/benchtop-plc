@@ -321,10 +321,11 @@ code-specific `args` object, severity, optional source POU name (`pou`) and span
 argument conventions are documented in [diagnostics.md](diagnostics.md). Localized
 message text belongs to the UI catalog.
 
-Expected validation failures for `force` and `write` produce a non-fatal `rejected`
-event with `command: "force" | "write"` and a `Diagnostic<CommandRejectionCode>`.
-The rejection codes identify invalid scalar targets, mismatched types, invalid
-values and writes to input-mapped variables. Rejections preserve operating state,
+Expected command validation failures produce a non-fatal `rejected` event.
+`CommandRejectionMessage` defines the supported `command` values and carries a
+`Diagnostic<CommandRejectionCode>`; `CommandRejectionCode` defines the rejection
+codes for debug writes, input and cycle validation, and debugger state checks.
+Rejections preserve operating state,
 memory, forces, pending writes and the Worker connection. They are separate from
 PLC `fault` events and never replace a latched fault's diagnostic. The host also
 publishes its current state and snapshot after a rejection. `step` outside STOP remains ignored except in HALT, where it is rejected.

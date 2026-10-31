@@ -47,9 +47,9 @@ waits for the next pass.
 Every pass samples all event inputs, including single scans and passes without a
 ready cyclic task. A FALSE → TRUE transition runs the event task once. Nothing is
 sampled while stopped without a single scan, so an edge arriving during STOP is
-seen on the first subsequent pass. Load and cold reset clear samples to FALSE;
-STOP → RUN retains them. An event-only resource ticks every 10 ms. Global values
-are sampled before task writes; located input globals and direct inputs use the
+seen on the first subsequent pass. Load, cold reset, warm restart and page reload
+clear samples to FALSE; STOP → RUN retains them. An event-only resource ticks
+every 10 ms. Global values are sampled before task writes; located input globals and direct inputs use the
 live host input image. Pending monitor writes are consumed at the next task run,
 so they affect a global event sample on a subsequent pass.
 
@@ -59,8 +59,9 @@ overruns, without a fault or catch-up execution. A 10 ms task due at 10 ms that
 finishes at 35 ms has two overruns and is next due at 40 ms.
 
 `snapshot.tasks` reports task name, run count, last and maximum execution time in
-milliseconds from the injected Clock, and overruns, in declaration order. Load and
-cold reset clear these statistics. The Worker publishes them with every snapshot.
+milliseconds from the injected Clock, and overruns, in declaration order. Load,
+cold reset, warm restart and page reload clear these statistics. The Worker
+publishes them with every snapshot.
 `scanCount` counts passes in which at least one task ran; idle event samples do not
 increase it. Single scans run every cyclic task once and only rising event tasks,
 without counting overruns. A fault, STOP or emergency stop halts the entire resource.
@@ -220,10 +221,12 @@ The same interpreter keeps the scan's loop counter across all calls.
 The function's name reads and writes its result variable. RETURN ends only that
 invocation. After execution, `=>` outputs copy back in binding order, using implicit
 assignment widening; an expression call then yields the result. A no-result function
-runs as a statement and produces no inline annotation. Function-statement results
-are annotated in watched PROGRAM and function block bodies, as with standard functions; outputs are not
-annotated, and function-body statements do not create inline values. Faults inside
-a function carry its source POU name and local span, preserved through nested calls.
+runs as a statement and produces no call-result annotation. Function-statement
+results are annotated in watched bodies, as with standard functions; outputs are
+not annotated. A watched function body shows inline values from its last call in
+the latest pass in which it ran, with the immediate caller's POU, instance path
+when present, and call line (ADR 0018). Faults inside a function carry its source
+POU name and local span, preserved through nested calls.
 
 ## User function blocks and temporary storage
 
@@ -245,9 +248,10 @@ nested standard FBs. STOP → RUN, single scan and FAULT preserve persistent sta
 Writes and forces use the existing pre/post execution stages on the monitored
 VariableIds, including private scalar members. Fault diagnostics carry the
 executing `pou` and canonical dotted `instance` path, with the span in that POU.
-A function called from a block clears the instance context while its body runs;
-faults there name only the function POU. Returning restores the caller's instance
-context so later block faults retain their path.
+A function called from a block has no block instance context while its body runs;
+faults there name the function POU and the owning program instance, rather than
+the nested block path. Returning restores the caller's instance context so later
+block faults retain their path.
 
 ## Standard library integration
 

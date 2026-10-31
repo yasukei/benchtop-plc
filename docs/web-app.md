@@ -36,7 +36,8 @@ injected clock and ticker. `worker-host.ts` adapts the core protocol to the head
 runtime and sends state, snapshots and faults after commands and scheduled scans.
 Changing the cycle reschedules the ticker without clearing memory or changing
 operating state. Single scan is accepted only in STOP. Cold reset and load clear
-the program's memory and input image; the runtime preserves an active emergency stop.
+the program's memory and input image. Warm restart also clears the input image,
+while preserving retained program data. The runtime preserves an active emergency stop.
 The host accepts emergency-stop messages from the operator panel and routes
 scalar force/write commands to the debug API. Expected command validation errors
 produce a non-fatal `rejected` event instead of escaping the Worker listener.
@@ -342,8 +343,8 @@ block members appear under paths such as `M[2].RUNNING`; nested instance arrays
 keep the full parent path. Expanding the array watches its visible leaves.
 Scalar user member writes and forces use their usual controls and affect the
 same persistent state used by indexed calls. Forced members remain visible when
-the array is collapsed. Inline values in PROGRAM show indexed call outputs;
-function block bodies still have no inline values.
+the array is collapsed. Inline values show indexed call outputs in watched bodies;
+a function block body shows inline values for the selected instance (ADR 0018).
 
 ## Reference monitoring
 
@@ -441,8 +442,9 @@ autosave work as for function blocks, including incomplete class drafts.
 A PROGRAM can declare an instance and call its methods. The monitor shows dotted
 class members with the same value, write and force controls as block members,
 regardless of access. Constants and method locals are absent. Class method results
-in PROGRAM bodies have inline values; class method bodies do not. Save and reopen
-preserve exact class text through the project source extension.
+in watched bodies have inline values; class method bodies show values from the
+last call on the selected instance (ADR 0018). Save and reopen preserve exact
+class text through the project source extension.
 
 ## Inherited instances
 
