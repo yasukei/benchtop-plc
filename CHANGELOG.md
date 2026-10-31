@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Run debugger shortcut scenarios in Chromium, Firefox and WebKit on Linux in CI,
+  keeping other browser tests and the Pages smoke suite on Chromium. Document
+  installation of all three engines and the Chromium-only container option.
+
 - Consolidate the existing operating-state, overlay and command behavior in
   ADR 0022, distinguishing ignored commands from diagnostic-bearing rejections
   and documenting faults during single scans and warm-restart fault clearing.

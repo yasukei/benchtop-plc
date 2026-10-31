@@ -9,9 +9,27 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     trace: "retain-on-failure",
-    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH },
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH },
+      },
+    },
+    // Keep the full suite on Chromium; only debugger shortcuts need all three engines.
+    {
+      name: "firefox",
+      grep: /@debugger-shortcuts/,
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit",
+      grep: /@debugger-shortcuts/,
+      use: { ...devices["Desktop Safari"] },
+    },
+  ],
   webServer: {
     // CI builds in an earlier step; local runs build before starting preview.
     command:

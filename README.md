@@ -62,19 +62,20 @@ described in [ADR 0011](docs/adr/0011-versioning-changelog-and-releases.md).
 
 ### Playwright browser setup
 
-After `pnpm install` on a fresh clone, install the browser version matching the
+After `pnpm install` on a fresh clone, install the browser versions matching the
 locked Playwright dependency, then run the suites:
 
 ```sh
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium firefox webkit
 pnpm test:e2e
 pnpm test:e2e:pages
 ```
 
 Use `pnpm install --frozen-lockfile` to match CI's dependency installation.
 On Linux, if browser system libraries are missing, use
-`pnpm exec playwright install --with-deps chromium`. CI installs only the headless
-shell with `pnpm exec playwright install --with-deps --only-shell chromium`.
+`pnpm exec playwright install --with-deps chromium firefox webkit`. CI keeps
+Chromium headless with `pnpm exec playwright install --with-deps --only-shell chromium`
+and installs Firefox and WebKit with `pnpm exec playwright install --with-deps firefox webkit`.
 For local runs without `CI` set, both suites build the app and start their own
 preview server; CI builds before running `test:e2e`.
 
@@ -88,8 +89,16 @@ pnpm test:e2e
 pnpm test:e2e:pages
 ```
 
-The override takes an executable file, not a directory. Unset it to use the
-Playwright-managed browser again.
+The override takes an executable file, not a directory, and applies only to
+Chromium. Firefox and WebKit still use their Playwright-managed browsers. In a
+container with only Chromium, install the other engines with
+`pnpm exec playwright install --with-deps firefox webkit` for the full suite, or
+explicitly run `pnpm test:e2e --project=chromium` to omit their shortcut checks
+locally. The Pages suite always uses Chromium only. Unset the override to use
+Playwright-managed Chromium again.
+
+CI exercises the full suite in Chromium and the debugger shortcut scenarios in
+Firefox and WebKit on `ubuntu-latest` (Linux); it does not exercise Windows or macOS.
 
 ### Workspace
 

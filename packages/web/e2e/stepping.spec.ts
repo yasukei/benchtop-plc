@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
-test("steps into an interface call, inspects both frames, and steps out to the next conveyor actuator", async ({
+test("steps into an interface call, inspects both frames, and steps out to the next conveyor actuator @debugger-shortcuts", async ({
   page,
 }) => {
   const xml = readFileSync(

@@ -267,7 +267,7 @@ appear in the diagnostics list while the source matches.
 ## Browser tests
 
 ```sh
-pnpm exec playwright install --with-deps chromium
+pnpm exec playwright install --with-deps chromium firefox webkit
 pnpm test:e2e
 ```
 
@@ -278,10 +278,20 @@ the production bundle on port 4173. The tests exercise the actual bundled Worker
 RUN/STOP, scans, reset, theme, narrow
 layout, a Worker startup failure, non-fatal rejected debug commands, localized
 editor diagnostics, indentation, source application, changing reference-program
-values and runtime fault lines. CI installs Chromium and runs these tests; on
-failure it uploads the HTML report and retained traces. On a machine with a
-system Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path
-to use it instead of Playwright's downloaded browser.
+values and runtime fault lines. CI runs the full suite in Chromium and only the
+`@debugger-shortcuts` scenarios in Firefox and WebKit on `ubuntu-latest` (Linux);
+Windows and macOS are not exercised by CI. The tagged scenarios are the conveyor
+breakpoint/Continue test, interface-call stepping test and debugging-guide walkthrough.
+Tag new C/N/I/O shortcut scenarios with `@debugger-shortcuts` to include them in
+all three engines. The Pages smoke suite remains Chromium-only.
+
+CI installs Chromium's headless shell plus Firefox and WebKit; on failure it
+uploads the HTML report and retained traces. On a machine with a system Chromium,
+set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path to override
+Chromium in both suites. Firefox and WebKit still need their Playwright-managed
+browsers. A container with only Chromium can explicitly omit those projects with
+`pnpm test:e2e --project=chromium`; see the [browser setup](../README.md#playwright-browser-setup)
+for installation and override commands.
 
 The public demo on GitHub Pages is served from `/benchtop-plc/`. The `Pages`
 workflow builds it with `pnpm --filter @benchtop-plc/web build:pages` (Vite's
@@ -537,6 +547,8 @@ selects and the source editor. Modifiers, held-key repeats and IME composition a
 ignored, preserving typing and native controls. Focus a runtime control or call
 stack button to use them. Halts and frame selection select and scroll to the current
 statement without moving focus into the editor, so consecutive shortcuts remain
-available. Tooltips and `aria-keyshortcuts` expose the bindings. The Chromium
-Playwright scenario exercises I followed by N without refocusing, then O from the
-selected outer frame; other browser projects are outside this issue's scope.
+available. Tooltips and `aria-keyshortcuts` expose the bindings. Playwright tests
+these shortcuts in Chromium, Firefox and WebKit on Linux: the stepping scenario
+exercises I followed by N without refocusing, then O from the selected outer
+frame; the breakpoint scenario continues with C; the debugging-guide walkthrough
+uses all four bindings. CI does not verify their delivery on Windows or macOS.

@@ -60,20 +60,21 @@ on every PR. Run that full set locally to reproduce CI.
 ### Playwright browser setup
 
 On a fresh clone, use the Node.js and pnpm versions described in
-[README.md](README.md#development), then install dependencies and the matching browser:
+[README.md](README.md#development), then install dependencies and the matching browsers:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium firefox webkit
 pnpm test:e2e
 pnpm test:e2e:pages
 ```
 
 On Linux, if browser system libraries are missing, use
-`pnpm exec playwright install --with-deps chromium`. CI uses
-`pnpm exec playwright install --with-deps --only-shell chromium` because these
-tests run headless. For local runs without `CI` set, both suites build and start
-their own preview server; CI builds before running `test:e2e`.
+`pnpm exec playwright install --with-deps chromium firefox webkit`. CI keeps
+Chromium headless with `pnpm exec playwright install --with-deps --only-shell chromium`
+and installs the other engines with `pnpm exec playwright install --with-deps firefox webkit`.
+For local runs without `CI` set, both suites build and start their own preview
+server; CI builds before running `test:e2e`.
 
 If a container has a preinstalled Chromium of another version, Playwright may
 report "Executable doesn't exist" because it expects its own browser revision.
@@ -86,8 +87,17 @@ pnpm test:e2e
 pnpm test:e2e:pages
 ```
 
-Both Playwright configurations honor this override. Unset it to return to the
-Playwright-managed browser.
+Both Playwright configurations honor this override for Chromium only. Firefox
+and WebKit still use their Playwright-managed browsers. If the container only has
+Chromium, install those two with `pnpm exec playwright install --with-deps firefox webkit`
+to run the full suite, or explicitly run `pnpm test:e2e --project=chromium` to omit
+them locally; this omits the cross-browser shortcut checks. The Pages suite is
+always Chromium-only. Unset the override to return to Playwright-managed Chromium.
+
+CI runs the full e2e suite in Chromium and the `@debugger-shortcuts` scenarios in
+Firefox and WebKit on `ubuntu-latest` (Linux). Windows and macOS are not exercised
+by CI. Tag any new C/N/I/O debugger shortcut scenario with `@debugger-shortcuts`
+so all three browser projects collect it.
 
 ### Test coverage
 

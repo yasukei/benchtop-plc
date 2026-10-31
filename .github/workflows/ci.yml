@@ -43,6 +43,8 @@ jobs:
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps --only-shell chromium
         timeout-minutes: 5
+      - run: pnpm exec playwright install --with-deps firefox webkit
+        timeout-minutes: 5
       - run: pnpm test:e2e
       - run: pnpm test:e2e:pages
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
