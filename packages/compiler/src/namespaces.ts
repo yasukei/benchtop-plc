@@ -22,22 +22,94 @@ export function sameNamespace(declaring: SourceScope, from?: SourceScope): boole
   );
 }
 
+/** Reusable lookup indexes; replacing a source never walks its syntax tree. */
+export class NamespaceContext {
+  readonly declarations = new Map<string, Source>();
+  readonly namespaces = new Set<string>();
+  readonly roots = new Set<string>();
+  private readonly entries = new Map<number, Source>();
+  private readonly names = new Map<string, Map<number, Source>>();
+  private readonly namespaceCounts = new Map<string, number>();
+  private readonly rootCounts = new Map<string, number>();
+
+  constructor(sources: readonly Source[]) {
+    sources.forEach((source, index) => this.replace(index, source));
+  }
+
+  first(key: string): Source | undefined {
+    const group = this.names.get(key);
+    if (!group) return undefined;
+    const index = Math.min(...group.keys());
+    return group.get(index);
+  }
+
+  replace(index: number, source: Source | null): void {
+    const previous = this.entries.get(index);
+    if (previous) {
+      this.names.get(previous.name.key)!.delete(index);
+      this.countNamespace(previous, -1);
+      this.entries.delete(index);
+    }
+    if (source) {
+      this.entries.set(index, source);
+      let group = this.names.get(source.name.key);
+      if (!group) this.names.set(source.name.key, (group = new Map()));
+      group.set(index, source);
+      this.countNamespace(source, 1);
+    }
+    for (const key of new Set([previous?.name.key, source?.name.key])) {
+      if (key === undefined) continue;
+      const group = this.names.get(key);
+      if (group?.size) this.declarations.set(key, group.get(Math.max(...group.keys()))!);
+      else {
+        this.names.delete(key);
+        this.declarations.delete(key);
+      }
+    }
+  }
+
+  /** The codec's candidate shadows all same-named context sources until accepted. */
+  withSource<T>(source: Source, action: () => T): T {
+    const previous = this.declarations.get(source.name.key);
+    this.declarations.set(source.name.key, source);
+    this.countNamespace(source, 1);
+    try {
+      return action();
+    } finally {
+      if (previous) this.declarations.set(source.name.key, previous);
+      else this.declarations.delete(source.name.key);
+      this.countNamespace(source, -1);
+    }
+  }
+
+  private countNamespace(source: Source, change: number): void {
+    const adjust = (key: string, counts: Map<string, number>, keys: Set<string>): void => {
+      const count = (counts.get(key) ?? 0) + change;
+      if (count) {
+        counts.set(key, count);
+        keys.add(key);
+      } else {
+        counts.delete(key);
+        keys.delete(key);
+      }
+    };
+    const segments = source.namespace?.key.split(".") ?? [];
+    for (let length = 1; length <= segments.length; length++)
+      adjust(segments.slice(0, length).join("."), this.namespaceCounts, this.namespaces);
+    if (segments.length) adjust(segments[0]!, this.rootCounts, this.roots);
+  }
+}
+
 /** Qualify lexical references before inheritance flattens declarations from other sources.
  * The codec uses this same pass to put qualified references in standard TC6 fields.
  */
 export function resolveNamespaces(
   sources: readonly Source[],
   configuration?: Configuration,
+  context = new NamespaceContext(sources),
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  const declarations = new Map(sources.map((source) => [source.name.key, source]));
-  const namespaces = new Set<string>();
-  for (const source of sources) {
-    const segments = source.namespace?.key.split(".") ?? [];
-    for (let length = 1; length <= segments.length; length++)
-      namespaces.add(segments.slice(0, length).join("."));
-  }
-  const roots = new Set([...namespaces].map((name) => name.split(".")[0]!));
+  const { declarations, namespaces, roots } = context;
   const report = (
     source: Source | Configuration,
     node: SourceNode,

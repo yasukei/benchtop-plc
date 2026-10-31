@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseDataType, parsePou } from "@benchtop-plc/compiler";
+import { parseDataType, parsePou, resolveNamespaces } from "@benchtop-plc/compiler";
 import { readProject, writeProject, type Project } from "./index.js";
 
 vi.mock("@benchtop-plc/compiler", async (importOriginal) => {
@@ -8,6 +8,7 @@ vi.mock("@benchtop-plc/compiler", async (importOriginal) => {
     ...compiler,
     parsePou: vi.fn(compiler.parsePou),
     parseDataType: vi.fn(compiler.parseDataType),
+    resolveNamespaces: vi.fn(compiler.resolveNamespaces),
   };
 });
 
@@ -28,7 +29,7 @@ function project(blocks: number): Project {
       ...Array.from(
         { length: blocks },
         (_, i) =>
-          `// preserved block ${i}\nFUNCTION_BLOCK Block${i} VAR_OUTPUT value : Count := ${i}; END_VAR value := value + 1; END_FUNCTION_BLOCK`,
+          `// preserved block ${i}\nFUNCTION_BLOCK Block${i} VAR_OUTPUT value : Count := ${i}; END_VAR ${"value := value + 1; ".repeat(40)}END_FUNCTION_BLOCK`,
       ),
     ],
     configuration: "Config",
@@ -60,7 +61,14 @@ function expectSourcesParsedOnce(input: Project): void {
     ).toHaveLength(1);
 }
 
-describe("project parsing cost", () => {
+function sourceWalkCount(): number {
+  return vi
+    .mocked(resolveNamespaces)
+    .mock.calls.reduce((count, [sources]) => count + sources.length, 0);
+}
+
+describe("project source processing cost", () => {
+  // Coverage instrumentation slows this large fixture; counts, not elapsed time, are the metric.
   it("scales linearly from 40 to 80 blocks, including save validation and preserved sources", () => {
     const counts = [40, 80].map((blocks) => {
       const input = project(blocks);
@@ -70,17 +78,20 @@ describe("project parsing cost", () => {
       expect(saved.value).not.toBeNull();
       expectSourcesParsedOnce(input);
       const write = parseCounts();
+      const writeWalks = sourceWalkCount();
 
       vi.clearAllMocks();
       const opened = readProject(saved.value!);
       expect(opened).toEqual({ value: input, diagnostics: [] });
       expectSourcesParsedOnce(input);
       const read = parseCounts();
-      return { write, read };
+      return { write, read, writeWalks, readWalks: sourceWalkCount() };
     });
     expect(counts[1]!.write).toBeLessThanOrEqual(2 * counts[0]!.write);
     expect(counts[1]!.read).toBeLessThanOrEqual(2 * counts[0]!.read);
-  });
+    expect(counts[1]!.writeWalks).toBeLessThanOrEqual(2 * counts[0]!.writeWalks);
+    expect(counts[1]!.readWalks).toBeLessThanOrEqual(2 * counts[0]!.readWalks);
+  }, 30_000);
 
   it("starts a fresh cache on the next open or save", () => {
     const input = project(1);
@@ -100,4 +111,23 @@ describe("project parsing cost", () => {
       2 * read,
     );
   });
+});
+
+it("uses the standard base after rejecting stale preserved constants, regardless of POU order", () => {
+  const input = project(0);
+  input.dataTypes = [];
+  const base =
+    "NAMESPACE Lib FUNCTION_BLOCK Base VAR CONSTANT cap: INT := 2; END_VAR END_FUNCTION_BLOCK END_NAMESPACE";
+  const derived =
+    "NAMESPACE Lib FUNCTION_BLOCK Derived EXTENDS Base VAR items: ARRAY[1..cap] OF INT := [cap(1)]; END_VAR END_FUNCTION_BLOCK END_NAMESPACE";
+  input.pous = ["PROGRAM Main VAR d: Lib.Derived; END_VAR END_PROGRAM", derived, base];
+  const saved = writeProject(input);
+  expect(saved.diagnostics).toEqual([]);
+  const changed = saved.value!.replace("cap: INT := 2;", "cap: INT := 3;");
+  expect(changed).not.toBe(saved.value);
+  const opened = readProject(changed);
+  expect(opened.diagnostics.map((d) => d.code)).toEqual(["project.stale-source"]);
+  expect(opened.value!.pous.slice(0, 2)).toEqual(input.pous.slice(0, 2));
+  expect(opened.value!.pous[2]).not.toBe(base);
+  expect(opened.value!.pous[2]).toContain("cap : INT := 2;");
 });

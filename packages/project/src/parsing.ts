@@ -1,5 +1,7 @@
 import {
   parsePou,
+  NamespaceContext,
+  resolveNamespaces,
   parseConfiguration,
   parseDataType,
   type DataTypeDeclaration,
@@ -42,5 +44,33 @@ export class ParsingContext {
       const ast = this.contextSources.get(source);
       return ast ? [ast] : [];
     });
+  }
+}
+
+/** A stable lookup context can replace accepted sources without rewalking other POUs. */
+export class ProgramContext {
+  readonly lookup: NamespaceContext;
+
+  constructor(
+    private readonly parsing: ParsingContext,
+    sources: readonly string[],
+  ) {
+    const asts = parsing.context(sources);
+    this.lookup = new NamespaceContext([]);
+    sources.forEach((source, index) => {
+      this.lookup.replace(index, parsing.context([source])[0] ?? null);
+    });
+    resolveNamespaces(asts, undefined, this.lookup);
+  }
+
+  resolve(ast: Program): void {
+    this.lookup.withSource(ast, () => resolveNamespaces([ast], undefined, this.lookup));
+  }
+
+  replace(index: number, source: string): void {
+    const ast = this.parsing.context([source])[0] ?? null;
+    if (ast) this.lookup.withSource(ast, () => resolveNamespaces([ast], undefined, this.lookup));
+    // Replacements keep source positions, including holes left by legacy drafts.
+    this.lookup.replace(index, ast);
   }
 }

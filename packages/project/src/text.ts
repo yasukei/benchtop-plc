@@ -1,8 +1,7 @@
-import { ParsingContext } from "./parsing.js";
+import { ParsingContext, ProgramContext } from "./parsing.js";
 import {
   check,
   lex,
-  resolveNamespaces,
   type Declaration,
   type Expression,
   type GlobalScope,
@@ -30,15 +29,13 @@ function offset(source: string, span: SourceSpan, end = false): number {
 /** Collect lexical constants without adding inherited variables to standard TC6 elements. */
 function inheritedConstants(
   ast: import("@benchtop-plc/compiler").Program,
-  context: readonly (
-    import("@benchtop-plc/compiler").Program | import("@benchtop-plc/compiler").DataTypeDeclaration
-  )[],
+  context: ProgramContext,
 ): Declaration[] {
   const seen = new Set([ast.name.key]);
   const ancestors = (base: string | undefined): Declaration[] => {
     if (!base || seen.has(base)) return [];
     seen.add(base);
-    const parent = context.find((pou) => pou.name.key === base);
+    const parent = context.lookup.first(base);
     return parent && "body" in parent
       ? [...ancestors(parent.base?.key), ...parent.declarations.filter((d) => d.constant)]
       : [];
@@ -77,14 +74,15 @@ export function splitProgramWithContext(
   types: TypeTable = [],
   globals?: GlobalScope,
   legacyNames = false,
-  sources: readonly string[] = [],
+  sources: readonly string[] | ProgramContext = [],
 ): ProjectResult<SplitProgram> {
   const result = parsing.pou(source, legacyNames);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
-  const context = parsing.context(sources).filter((parsed) => parsed.name.key !== ast.name.key);
+  const context =
+    sources instanceof ProgramContext ? sources : new ProgramContext(parsing, sources);
   // Semantic errors remain exchangeable; only successful lookups change type references.
-  resolveNamespaces([ast, ...context]);
+  context.resolve(ast);
   if (ast.kind === "interface")
     return {
       value: null,

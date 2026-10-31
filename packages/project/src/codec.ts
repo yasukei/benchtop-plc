@@ -1,4 +1,4 @@
-import { ParsingContext } from "./parsing.js";
+import { ParsingContext, ProgramContext } from "./parsing.js";
 import { encodePanel } from "./panel.js";
 import {
   check,
@@ -968,6 +968,12 @@ function readProjectWithContext(parsing: ParsingContext, xml: string): ProjectRe
     });
     // Accept base sources first, so derived constants use validated preserved text
     // (or the standard fallback), independent of source order.
+    const sourceContext = new ProgramContext(parsing, [
+      ...programs.map((p) => p.source),
+      ...canonicalTypes,
+      ...extensions.interfaces,
+    ]);
+    const positions = new Map(programs.map((record, index) => [record, index]));
     const accepted = new Set<(typeof programs)[number]>();
     const accepting = new Set<(typeof programs)[number]>();
     const acceptSource = (record: (typeof programs)[number]): void => {
@@ -978,11 +984,14 @@ function readProjectWithContext(parsing: ParsingContext, xml: string): ProjectRe
         const base = parsing.pou(source).ast?.base?.key;
         const parent = programs.find((p) => p.split.name.toUpperCase() === base);
         if (parent) acceptSource(parent);
-        const preserved = splitProgramWithContext(parsing, source, resolved.types, globals, false, [
-          ...programs.map((p) => p.source),
-          ...canonicalTypes,
-          ...extensions.interfaces,
-        ]);
+        const preserved = splitProgramWithContext(
+          parsing,
+          source,
+          resolved.types,
+          globals,
+          false,
+          sourceContext,
+        );
         const comparable =
           parsing.pou(source).ast?.kind === "class" && !split.body.trim()
             ? { ...split, body: "" }
@@ -990,9 +999,10 @@ function readProjectWithContext(parsing: ParsingContext, xml: string): ProjectRe
         if (
           legacyDraft(parsing, source, "pou") ||
           (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(comparable))
-        )
+        ) {
           record.source = source;
-        else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
+          sourceContext.replace(positions.get(record)!, source);
+        } else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
       }
       accepting.delete(record);
       accepted.add(record);
@@ -1318,7 +1328,7 @@ export function writeProject(project: Project): ProjectResult<string> {
     (source) => parsing.pou(source).ast?.kind === "interface",
   );
   const pouSources = project.pous.filter((source) => !interfaceSources.includes(source));
-  const sources = [...project.pous, ...project.dataTypes];
+  const sources = new ProgramContext(parsing, [...project.pous, ...project.dataTypes]);
   const programs: SplitProgram[] = [];
   for (const source of pouSources) {
     const parsed = splitProgramWithContext(
