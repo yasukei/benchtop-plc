@@ -1,4 +1,4 @@
-# 0022. Interface in-outs and temporaries
+# 0023. Interface in-outs and temporaries
 
 - Status: Accepted
 - Date: 2026-10-31

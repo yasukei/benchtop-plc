@@ -320,7 +320,7 @@ A FUNCTION supports scalar `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT` and `VAR` dec
 Initializers are optional except on `VAR_IN_OUT`, where they are forbidden. `FUNCTION F : REAL` returns its result variable;
 `FUNCTION F` has no result and is callable only as a statement. Functions cannot
 declare FB instances or direct addresses; `VAR_TEMP` is limited to interface variables
-and arrays of them ([ADR 0022](adr/0022-interface-in-outs-and-temporaries.md)).
+and arrays of them ([ADR 0023](adr/0023-interface-in-outs-and-temporaries.md)).
 A PROGRAM cannot be called. It accepts `VAR_INPUT` and `VAR_OUTPUT`, while
 `VAR_IN_OUT` is limited to interface variables and arrays of interfaces. Each configured instance must bind every in-out to an exact-type mutable global using `:=`; the implicit configuration cannot bind in-outs. Direct addresses are allowed on PROGRAM variables and configuration/resource globals.
 
@@ -520,7 +520,7 @@ function results.
 Indexing a scalar instance reports `type.not-array` with its function block type.
 Unsupported named/nested instance-array types report `decl.fb-array-form` once per
 declaration, with `form` identifying the restriction
-([ADR 0023](adr/0023-function-block-instance-array-forms.md), extending ADR 0015).
+([ADR 0024](adr/0024-function-block-instance-array-forms.md), extending ADR 0015).
 
 Inline arrays with standard or user function block element types are instances,
 allowed in persistent PROGRAM/FB `VAR` and configuration/resource globals,
@@ -632,7 +632,7 @@ errors reuse ordinary assignment, constant, and declaration diagnostics. Every
 connection error names the configuration source, including its source index and
 span. Unconnected inputs and outputs are valid under explicit and implicit configurations.
 
-Under [ADR 0022](adr/0022-interface-in-outs-and-temporaries.md),
+Under [ADR 0023](adr/0023-interface-in-outs-and-temporaries.md),
 PROGRAM interface in-outs use `:=` to alias a mutable global interface cell (or
 exact-type array of interface cells). They do not copy values at task boundaries:
 retargeting through either name is immediately visible through the other. Constants,
@@ -648,7 +648,7 @@ parameters are unavailable because their caller storage may no longer exist.
 Method locals cannot shadow a member or method; method and member names are unique
 case-insensitively. Methods reject `VAR_EXTERNAL`, retention qualifiers
 and local block instances, and allow `VAR_TEMP` only for interface variables or arrays
-of them, as functions do ([ADR 0022](adr/0022-interface-in-outs-and-temporaries.md)).
+of them, as functions do ([ADR 0023](adr/0023-interface-in-outs-and-temporaries.md)).
 Structures containing interface fields and mixed interface/data temporary sections
 remain invalid.
 

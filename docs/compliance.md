@@ -301,10 +301,10 @@ Partial support of the standard's non-formal parameter list.
 
 Project restrictions: functions cannot declare FB instances, and VAR_TEMP in
 functions is limited to interface variables or arrays of them
-([ADR 0022](adr/0022-interface-in-outs-and-temporaries.md)). PROGRAM allows VAR_INPUT/VAR_OUTPUT;
+([ADR 0023](adr/0023-interface-in-outs-and-temporaries.md)). PROGRAM allows VAR_INPUT/VAR_OUTPUT;
 VAR_IN_OUT is limited to interface variables, with required configuration bindings
 to mutable globals of exactly the same type. As recorded in
-[ADR 0022](adr/0022-interface-in-outs-and-temporaries.md), these connections alias
+[ADR 0023](adr/0023-interface-in-outs-and-temporaries.md), these connections alias
 global storage without copying; missing bindings report `call.missing-in-out`,
 including under the implicit configuration. Direct addresses are allowed
 in PROGRAM VAR and configuration/resource globals, and are forbidden in both
@@ -358,7 +358,7 @@ per declaration (ADR 0014/0015). Instances cannot be values, constants,
 temporaries, function locals or parameters/results; instance array initializers,
 named instance-array types and function blocks inside structures or nested value
 arrays are unsupported
-([ADR 0023](adr/0023-function-block-instance-array-forms.md), extending ADR 0015).
+([ADR 0024](adr/0024-function-block-instance-array-forms.md), extending ADR 0015).
 Inline multidimensional instance arrays remain supported.
 Monitor paths include standard elements and user members.
 Whole-array MOVE/SEL/MUX for value arrays require equivalent bounds and element types,
@@ -402,7 +402,7 @@ Methods precede a function block's body; access defaults to PROTECTED. INTERNAL
 covers the declaring namespace and descendants, or the project for global types. Methods have function-style local
 storage and cannot declare instances, VAR_EXTERNAL or retention. VAR_TEMP is
 limited to interface variables or arrays of them, reset on every call
-([ADR 0022](adr/0022-interface-in-outs-and-temporaries.md)). They
+([ADR 0023](adr/0023-interface-in-outs-and-temporaries.md)). They
 cannot use the instance's VAR_IN_OUT or call its body through THIS. Member instances
 and their indexed elements can be called through THIS; bounds faults identify the
 member array in the instance path. Recursion is

@@ -157,7 +157,7 @@ arrays. A function cannot declare instances, and instances cannot be constants,
 temporaries, parameters or function results. Instance arrays have no initializer
 and cannot be copied or passed to whole-array selection functions.
 Named instance-array types and nested arrays of instances are rejected with
-`decl.fb-array-form`; [ADR 0023](adr/0023-function-block-instance-array-forms.md)
+`decl.fb-array-form`; [ADR 0024](adr/0024-function-block-instance-array-forms.md)
 extends ADR 0015 with these restrictions. Inline multidimensional arrays remain
 allowed.
 
@@ -234,7 +234,7 @@ following the block definitions.
 
 PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`, plus `VAR_IN_OUT` for interface
 variables and arrays of interfaces
-([ADR 0022](adr/0022-interface-in-outs-and-temporaries.md)). Every in-out requires
+([ADR 0023](adr/0023-interface-in-outs-and-temporaries.md)). Every in-out requires
 an explicit configuration connection (`:=`) to a mutable global of exactly the
 same type.
 `AT` on a PROGRAM parameter declaration is rejected (`decl.parameter-address`);
@@ -351,7 +351,7 @@ Interface variables default to NULL and accept only NULL initializers. They supp
 parameters, results, arrays, structures, globals and temporary storage, but cannot
 be CONSTANT or located. FUNCTION and method `VAR_TEMP` sections accept only
 interface variables or arrays of them, reset on every call;
-[ADR 0022](adr/0022-interface-in-outs-and-temporaries.md) records the exception to
+[ADR 0023](adr/0023-interface-in-outs-and-temporaries.md) records the exception to
 the earlier section bans. Assignment accepts compatible interface values, NULL, THIS
 and persistent implementing instances. Instance conversion preserves identity.
 `target ?= source;` accepts interface variables and a NULL source and is never an

@@ -60,7 +60,9 @@ tracked by the sub-issues of [#192](https://github.com/yasukei/benchtop-plc/issu
 
 Worker command/tick errors become recoverable internal-error faults, with fatal
 connection errors reserved for cases where the Worker cannot continue. See
-[ADR 0020](adr/0020-worker-error-recovery.md).
+[ADR 0020](adr/0020-worker-error-recovery.md). The combined operating-state, overlay
+and command table, including accepted, ignored and rejected outcomes, is in
+[ADR 0022](adr/0022-operating-state-command-matrix.md).
 
 ## Data flow
 

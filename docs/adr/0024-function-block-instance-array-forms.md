@@ -1,4 +1,4 @@
-# 0023. Function block instance array forms
+# 0024. Function block instance array forms
 
 - Status: Accepted
 - Date: 2026-10-31
