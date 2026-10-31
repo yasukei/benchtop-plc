@@ -28,6 +28,18 @@ export type ParseResult =
 
 type CheckingParseResult = ParseResult & { declarations?: Program };
 
+const declarationBoundaries = new Set([
+  "VAR",
+  "VAR_INPUT",
+  "VAR_OUTPUT",
+  "VAR_IN_OUT",
+  "VAR_TEMP",
+  "VAR_EXTERNAL",
+  "END_VAR",
+  "METHOD",
+  "END_METHOD",
+]);
+
 const precedence: Partial<Record<string, number>> = {
   OR: 1,
   XOR: 2,
@@ -427,9 +439,16 @@ export class Parser {
       ast.body = this.body([end], end);
       this.expect(end);
     } catch (error) {
-      if (this.recoverDeclarations && !method && error instanceof FrontendError) {
-        // All declarations and methods are known. Discard every body statement;
-        // resuming within a body or finding later methods would require guessing.
+      if (
+        this.recoverDeclarations &&
+        !method &&
+        error instanceof FrontendError &&
+        !this.tokens
+          .slice(this.cursor)
+          .some((token) => token.kind === "keyword" && declarationBoundaries.has(token.key))
+      ) {
+        // A remaining section or method boundary means declarations may be
+        // missing, even if a misspelled keyword made body parsing start early.
         this.recoveredDeclarations = ast;
       }
       throw error;

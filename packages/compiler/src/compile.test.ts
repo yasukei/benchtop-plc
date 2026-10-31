@@ -180,6 +180,14 @@ END_NAMESPACE`,
     "FUNCTION_BLOCK Counter METHOD Set value := ; END_METHOD END_FUNCTION_BLOCK",
     "PROGRAM Main @ END_PROGRAM",
     "PROGRAM Main END_PROGRAM FUNCTION Extra END_FUNCTION",
+    "FUNCTION F : INT VAR_INPUT a : INT; END_VAR VAR_INPU b : INT; END_VAR F := a + b; END_FUNCTION",
+    "FUNCTION F : INT VAR_INPT a : INT; END_VAR F := a; END_FUNCTION",
+    "FUNCTION_BLOCK Counter foo VAR_OUTPUT Out : INT; END_VAR END_FUNCTION_BLOCK",
+    "FUNCTION_BLOCK Counter a := ; METHOD PUBLIC Run END_METHOD END_FUNCTION_BLOCK",
+    "FUNCTION_BLOCK Counter a := ; END_METHOD END_FUNCTION_BLOCK",
+    ...["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR_TEMP", "VAR_EXTERNAL"].map(
+      (section) => `PROGRAM Main x := ; ${section} x : INT; END_VAR END_PROGRAM`,
+    ),
   ])("still stops checking when declarations are not safely available: %s", (source) => {
     const other = "FUNCTION_BLOCK Other missing := 1; END_FUNCTION_BLOCK";
     for (const sources of [
@@ -193,6 +201,68 @@ END_NAMESPACE`,
         parsePou(source).diagnostics.map((diagnostic) => ({ ...diagnostic, sourceIndex })),
       );
     }
+  });
+
+  it.each([
+    [
+      "FUNCTION F : INT VAR_INPUT a : INT; END_VAR VAR_INPU b : INT; END_VAR F := a + b; END_FUNCTION",
+      "PROGRAM Main VAR x : INT; END_VAR x := F(a := 1, b := 2); END_PROGRAM",
+      [],
+    ],
+    [
+      "FUNCTION F : INT VAR_INPT a : INT; END_VAR F := a; END_FUNCTION",
+      "PROGRAM Main VAR x : INT; END_VAR x := F(a := 1); END_PROGRAM",
+      [],
+    ],
+    [
+      "FUNCTION_BLOCK Counter foo VAR_OUTPUT Out : INT; END_VAR END_FUNCTION_BLOCK",
+      "PROGRAM Main VAR instance : Counter; x : INT; END_VAR x := instance.Out; END_PROGRAM",
+      [],
+    ],
+    [
+      "FUNCTION_BLOCK Counter a := ; METHOD PUBLIC Run END_METHOD END_FUNCTION_BLOCK",
+      "PROGRAM Main VAR instance : Counter; END_VAR instance.Run(); END_PROGRAM",
+      [],
+    ],
+    [
+      "FUNCTION_BLOCK Counter IMPLEMENTS Runnable a := ; METHOD PUBLIC Run END_METHOD END_FUNCTION_BLOCK",
+      "PROGRAM Main VAR instance : Counter; END_VAR instance.Run(); END_PROGRAM",
+      ["INTERFACE Runnable METHOD Run END_METHOD END_INTERFACE"],
+    ],
+  ])(
+    "avoids false caller diagnostics after damaged declarations: %s",
+    (source, caller, interfaces) => {
+      for (const sources of [
+        [source, caller, ...interfaces],
+        [caller, source, ...interfaces],
+      ]) {
+        const result = compileProject(sources);
+        expect(result).toEqual({
+          diagnostics: parsePou(source).diagnostics.map((diagnostic) => ({
+            ...diagnostic,
+            sourceIndex: sources.indexOf(source),
+          })),
+        });
+      }
+    },
+  );
+
+  it("ignores declaration keywords inside comments and strings after a body error", () => {
+    const result = compileProject([
+      `PROGRAM Main
+VAR text : STRING; END_VAR
+text := ;
+(* VAR_INPUT x : INT; END_VAR METHOD Run END_METHOD *)
+text := 'VAR'; text := 'METHOD';
+END_PROGRAM`,
+      "FUNCTION_BLOCK Other missing := 1; END_FUNCTION_BLOCK",
+    ]);
+    expect(result).not.toHaveProperty("ir");
+    expect(result.diagnostics).toMatchObject([
+      { code: "syntax.expected-token", pou: "Main", sourceIndex: 0 },
+      { code: "name.undeclared", pou: "Other", sourceIndex: 1 },
+    ]);
+    expect(result.diagnostics).toHaveLength(2);
   });
 
   it("never lowers a project whose only error is in a body", () => {

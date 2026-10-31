@@ -39,8 +39,12 @@ Project-wide resolution errors still stop subsequent checking as usual.
 If a header or variable declaration is damaged, checking stops for the whole
 project: its complete names, kinds and signatures are unknown. An error that
 interrupts parsing a method also stops checking because later method signatures
-may be unknown. Lexer
-errors, malformed source wrappers and extra declarations in a source remain a
+may be unknown. Body recovery also stops if any remaining token from the failure
+position to the end of the source is `VAR`, `VAR_INPUT`, `VAR_OUTPUT`, `VAR_IN_OUT`,
+`VAR_TEMP`, `VAR_EXTERNAL`, `END_VAR`, `METHOD` or `END_METHOD`. These tokens cannot
+appear in a valid body and may indicate declarations hidden by a misspelled section
+keyword or a stray token. Comments and string contents do not count as keywords.
+Lexer errors, malformed source wrappers and extra declarations in a source remain a
 barrier to checking; the compiler does not guess missing declarations or search
 past an error. Invalid data type sources retain their existing checking barriers.
 
