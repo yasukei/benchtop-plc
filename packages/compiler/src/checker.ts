@@ -2006,9 +2006,11 @@ class Checker {
         { name: node.name.name, parameter: parameter.name },
         parameter.span,
       );
-    // Call-shape errors must not hide independent errors in supplied expressions.
+    const enumContext =
+      expectedType && enumerationType(expectedType, this.types) ? expectedType : undefined;
+    // Preserve independent expression errors and the enclosing enum context on rejection.
     const rejectCall = (): null => {
-      for (const argument of node.args) this.expression(argument);
+      for (const argument of node.args) this.expression(argument, enumContext);
       return null;
     };
     const seenOutputs = new Set<number>();
@@ -2084,8 +2086,6 @@ class Checker {
       );
       return rejectCall();
     }
-    const enumContext =
-      expectedType && enumerationType(expectedType, this.types) ? expectedType : undefined;
     const parameter = (arg: AST.Expression, index: number): ExpressionInfo | null => {
       const types = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
       return this.expression(

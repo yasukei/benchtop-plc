@@ -118,6 +118,22 @@ it.each([
   expect(result.diagnostics.map((d) => d.code)).toEqual(codes);
 });
 
+it.each([
+  ["SEL(TRUE, Red)", ["call.argument-count"]],
+  ["SEL(G := TRUE, IN0 := Red)", ["call.argument-count"]],
+  ["MUX(K := 0, IN1 := Red)", ["call.argument-count"]],
+  ["MOVE(Bad := Red)", ["call.invalid-parameter"]],
+  ["SEL(G := TRUE, IN0 := missing)", ["call.argument-count", "name.undeclared"]],
+  ["SEL(G := TRUE, IN0 := Red, Bad := missing)", ["call.invalid-parameter", "name.undeclared"]],
+])("preserves enum context when rejecting %s", (expression, codes) => {
+  const result = compileProject(
+    [`PROGRAM Main VAR c: Color; END_VAR c := ${expression}; END_PROGRAM`],
+    ["TYPE Color : (Red, Green); END_TYPE"],
+  );
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics.map((d) => d.code)).toEqual(codes);
+});
+
 it("requires a constant operand for a formal NOT initializer", () => {
   const result = compile(
     "PROGRAM Main VAR inputValue: BYTE; outputValue: BYTE := NOT(IN := inputValue); END_VAR END_PROGRAM",
