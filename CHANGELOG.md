@@ -27,6 +27,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Keep semantic diagnostics in other POUs visible while editing a POU body with a
+  syntax error, when its complete header and declarations are still known. Damaged
+  headers or declarations still stop checking, and syntax errors still prevent IR
+  generation.
+
 - Accept formal calls to all registered standard functions, including consecutive
   numbered inputs for extensible functions. Preserve source evaluation order and
   report invalid or incomplete calls without cascading arity or assignment errors,
