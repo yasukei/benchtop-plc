@@ -9,6 +9,7 @@ import type {
   RetentiveRecord,
   CommandRejectionCode,
   Diagnostic,
+  DirectAddress,
   IoImage,
   ProgramIR,
   ConfigurationIR,
@@ -18,7 +19,10 @@ import type {
   VariableId,
 } from "@benchtop-plc/core";
 import {
+  addressBytes,
+  addressOffset,
   readDirectValue,
+  writeDirectValue,
   isCharacterType,
   isLongType,
   scalarBase,
@@ -414,7 +418,12 @@ class PlcRuntime implements Runtime {
   force(variable: VariableId, value: TypedValue | null): void {
     this.debugVariable(variable);
     if (value === null) this.forces.delete(variable);
-    else this.forces.set(variable, this.debugValue(variable, value));
+    else {
+      const checked = this.debugValue(variable, value);
+      // Apply overlapping forces oldest first, including when an existing force is set again.
+      this.forces.delete(variable);
+      this.forces.set(variable, checked);
+    }
   }
 
   write(variable: VariableId, value: TypedValue): void {
@@ -445,6 +454,27 @@ class PlcRuntime implements Runtime {
 
   private applyForces(memory: Memory): void {
     for (const [variable, value] of this.forces) memory.write(variable, value.value);
+  }
+
+  /** Resolve a sampled bit without moving the normal memory/force stages. */
+  private forcedEventBit(memory: Memory, address: DirectAddress): boolean | undefined {
+    if (address.size !== "X") throw new Error("Expected event bit address");
+    let result: boolean | undefined;
+    for (const [variable, value] of this.forces) {
+      const declaration = memory.ir.variables[variable];
+      const source = declaration?.kind === "scalar" ? declaration.address : undefined;
+      if (!source || source.area !== address.area) continue;
+      const offset = addressOffset(source);
+      if (source.size === "X") {
+        if (source.byte === address.byte && source.bit === address.bit)
+          result = Boolean(value.value);
+      } else if (address.byte >= offset && address.byte < offset + addressBytes[source.size]) {
+        const bytes = Array<number>(addressBytes[source.size]).fill(0);
+        writeDirectValue(bytes, { ...source, index: 0 }, value);
+        result = (bytes[address.byte - offset]! & (1 << address.bit)) !== 0;
+      }
+    }
+    return result;
   }
 
   scanOnce(): RuntimeSnapshot {
@@ -498,13 +528,22 @@ class PlcRuntime implements Runtime {
         : this.inputs;
       const ready = scheduler.ready(start, singleScan, (input) => {
         if (input.kind === "address")
-          return Boolean(readDirectValue(eventImage, input.address, "BOOL"));
+          return (
+            this.forcedEventBit(memory, input.address) ??
+            Boolean(readDirectValue(eventImage, input.address, "BOOL"))
+          );
+        const declaration = memory.ir.variables[input.variable];
+        if (declaration?.kind === "scalar" && declaration.address) {
+          return (
+            this.forcedEventBit(memory, declaration.address) ??
+            (declaration.address.area === "I"
+              ? Boolean(readDirectValue(eventImage, declaration.address, "BOOL"))
+              : Boolean(memory.read(input.variable)))
+          );
+        }
         const force = this.forces.get(input.variable);
         if (force) return Boolean(force.value);
-        const declaration = memory.ir.variables[input.variable];
-        return declaration?.kind === "scalar" && declaration.address?.area === "I"
-          ? Boolean(readDirectValue(eventImage, declaration.address, "BOOL"))
-          : Boolean(memory.read(input.variable));
+        return Boolean(memory.read(input.variable));
       });
       const ir = memory.ir;
       const instances =

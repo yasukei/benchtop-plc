@@ -17,6 +17,12 @@ runtime.stop();
 
 The host injects a monotonic `Clock.now()` in milliseconds and a
 `Ticker.start(intervalMs, callback)` returning an idempotent cancellation function.
+The interval must be positive and finite. Each registration repeats independently,
+with its first callback due one interval after registration. Cancellation prevents
+future dispatches and can be called repeatedly or from the callback itself; it
+does not interrupt an executing callback. Host scheduling may deliver ticks late.
+This contract extends the injected clock decision in
+[ADR 0026](adr/0026-injected-ticker-contract.md).
 Loading a configuration sets the tick to the greatest common divisor of its cyclic
 intervals (10 ms for event-only configurations). Standalone
 legacy `ProgramIR` uses the positive finite `intervalMs` construction option.
@@ -28,6 +34,11 @@ The virtual clock dispatches every due callback chronologically, breaking ties b
 registration order. Cancellation and registrations during callbacks take effect
 immediately. Nested `advance` calls throw a programming error. Production clock/ticker adapters
 belong to the Worker host (#12).
+An advance includes deadlines equal to its target, sets `now()` to each callback's
+due time during dispatch, and finishes at the target time. New registrations are
+due one interval after the current virtual time and can run within the same advance.
+Repeating deadlines advance from the preceding deadline, preserving registration
+order at ties across all tickers sharing the clock.
 
 ## Task scheduling
 
@@ -52,6 +63,10 @@ clear samples to FALSE; STOP → RUN retains them. An event-only resource ticks
 every 10 ms. Global values are sampled before task writes; located input globals and direct inputs use the
 live host input image. Pending monitor writes are consumed at the next task run,
 so they affect a global event sample on a subsequent pass.
+Active forces covering the sampled bit follow last-set precedence, including
+overlapping wider forces and direct `%IX` events (ADR 0025). This also observes
+forces set since the last normal force stage. Sampling resolves only the event
+value; it does not change memory or apply pending writes, even on an idle pass.
 
 After a cyclic run, the next due time advances from its prior due time by one
 interval. Activations at or before the finish time are skipped and counted as
@@ -146,6 +161,20 @@ reading inputs/pending writes and after each parameter copy and instance executi
 force returns control to the input image or program on subsequent scans; it does
 not restore an old value. The snapshot's `forced` array contains the active IDs
 in ascending order, even while stopped or emergency-stopped.
+
+At every force stage, active forces apply from oldest to most recently set, so
+the newest force wins on overlapping addressed storage
+([ADR 0025](adr/0025-overlapping-force-precedence.md), extending ADR 0016).
+Re-forcing a variable makes it newest even with the same value; rejected commands
+leave precedence unchanged. A BOOL force changes only its bit. Other bits and
+bytes keep their own values. All active IDs remain marked forced, even when an
+overlapping force overrides part or all of a requested value.
+For example, forcing `%MW0` to `16#1234` then `%MB0` to `16#FF` yields `16#12FF`;
+re-forcing the word yields `16#1234` and the byte reads `16#34`.
+Releasing either force removes only its request: at the next force stage the
+remaining force reasserts its value on the shared storage. Releasing the word in
+that example lets the byte restore `16#FF`; the high byte stays `16#12` until
+something else writes it. No earlier memory value is restored.
 
 `write(variableId, typedValue)` rejects connected PROGRAM inputs with
 `runtime.write-connected-input` and input-mapped variables with
