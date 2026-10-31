@@ -890,10 +890,12 @@ Node 26.13.0, pnpm 10.34.7):
 
 - Baseline: `f0cd173a3a75f89e241780fd24e886f7388998c2` (before #194).
 - Candidate: `a649e1ba2b8f138ef5677ef30f0abb176d062466` (main after #308).
-- Harness: `0ac048f8cf988527379501f7ca3918e8f78bda27`, with identical
-  `runtime-benchmark.config.ts`, `vitest.config.ts`,
-  `tests/benchmarks/runtime.bench.ts` and sorting-conveyor `project.xml` copied
-  into both disposable checkouts. Each uses its own locked dependencies.
+- Harness inputs: `runtime-benchmark.config.ts`, `vitest.config.ts`,
+  `tests/benchmarks/runtime.bench.ts` and sorting-conveyor `project.xml` at the
+  candidate commit, copied unchanged into both disposable checkouts. The
+  paired-comparison script is `scripts/runtime-benchmark.ts`, introduced in
+  [PR #309](https://github.com/yasukei/benchtop-plc/pull/309). Each checkout uses
+  its own locked dependencies.
 
 | Program              | Baseline (µs) | Candidate (µs) | Ratio |
 | -------------------- | ------------: | -------------: | ----: |
