@@ -134,7 +134,7 @@ it.each<[string, ScalarValue]>([
 it("accepts formal NOT constant CASE labels", () => {
   const { value } = execute([
     `PROGRAM Main VAR resultValue: INT; END_VAR
-    CASE BYTE#255 OF NOT(IN := BYTE#0): resultValue := 1; END_CASE;
+    CASE 255 OF BYTE_TO_INT(NOT(IN := BYTE#0)): resultValue := 1; END_CASE;
     END_PROGRAM`,
   ]);
   expect(value("resultValue")).toMatchObject({ value: 1 });
