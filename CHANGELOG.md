@@ -27,6 +27,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Reuse parsed sources while saving and opening projects, avoiding repeated parsing
+  of every POU for each declaration in larger projects.
+
 - Show localized warnings when opening a project drops vendor data or replaces
   stale preserved source, showing identical repeated warnings once. Warnings remain
   beside the project controls until dismissed or another project opens successfully.
