@@ -332,3 +332,45 @@ it("aliases configured PROGRAM interface in-outs so retargeting is immediately s
   expect(value("MAININSTANCE.OBSERVED")).toMatchObject({ value: 6 });
   expect(value("MAININSTANCE.IDENTICAL")).toMatchObject({ value: true });
 });
+
+it("aliases configured PROGRAM interface array cells in both directions", () => {
+  const compiled = compileProject(
+    [
+      `PROGRAM Main VAR_IN_OUT links: ARRAY[1..2] OF IActuator; END_VAR
+    VAR_EXTERNAL shared: ARRAY[1..2] OF IActuator; globalValve: Valve; globalPump: Pump; END_VAR
+    VAR i: INT := 1; END_VAR
+    VAR_OUTPUT forwarded, reversed: BOOL; observed: INT; END_VAR
+    links[i] := globalValve; forwarded := shared[i] = links[i];
+    shared[i + 1] := globalPump; reversed := links[i + 1] = shared[i + 1];
+    links[i + 1].Start(step := 3); observed := shared[i + 1].Value();
+    END_PROGRAM`,
+      actuator,
+      valve,
+      pump,
+    ],
+    [],
+    `CONFIGURATION Config VAR_GLOBAL shared: ARRAY[1..2] OF IActuator; globalValve: Valve; globalPump: Pump; END_VAR
+    RESOURCE Res ON BENCHTOP TASK Cycle(INTERVAL := T#10ms, PRIORITY := 1);
+    PROGRAM mainInstance WITH Cycle: Main(links := shared); END_RESOURCE END_CONFIGURATION`,
+  );
+  expect(compiled.diagnostics).toEqual([]);
+  const ir = structuredClone(compiled.ir!);
+  const clock = new VirtualClock();
+  const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
+  runtime.load(ir);
+  runtime.watch(ir.variables.map((_, id) => id));
+  const value = (name: string) =>
+    snapshotVariable(
+      runtime.snapshot(),
+      ir.variables.findIndex((v) => v.key === name),
+    );
+  for (let scan = 1; scan <= 2; scan++) {
+    runtime.step();
+    expect(runtime.diagnostic).toBeNull();
+    expect(value("SHARED[1]")).toEqual({ kind: "reference", target: "GLOBALVALVE" });
+    expect(value("SHARED[2]")).toEqual({ kind: "reference", target: "GLOBALPUMP" });
+    expect(value("MAININSTANCE.FORWARDED")).toMatchObject({ value: true });
+    expect(value("MAININSTANCE.REVERSED")).toMatchObject({ value: true });
+    expect(value("MAININSTANCE.OBSERVED")).toMatchObject({ value: scan * 6 });
+  }
+});

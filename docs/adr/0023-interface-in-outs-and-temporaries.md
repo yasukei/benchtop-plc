@@ -59,12 +59,14 @@ FUNCTION_BLOCK temporary rules and CLASS section restrictions are unchanged.
 - [Compiler interface tests](../../packages/compiler/src/interfaces.test.ts):
   `binds a PROGRAM interface in-out to an exact-type global interface cell`,
   `binds PROGRAM arrays of interfaces with exact array types`,
+  `rejects PROGRAM interface array in-outs bound to %s`,
   `rejects invalid PROGRAM interface in-out bindings: %s`, and
   `requires an explicit configuration to bind PROGRAM interface in-outs`
   cover binding, type/direction checks and missing bindings.
 - [Interface conformance tests](../../tests/conformance/interfaces.test.ts):
   `aliases configured PROGRAM interface in-outs so retargeting is immediately shared`
-  proves aliasing during execution;
+  and `aliases configured PROGRAM interface array cells in both directions`
+  prove scalar and array-cell aliasing during execution;
   `resets interface-only FUNCTION and method temporaries on every call`
   covers scalar and nested-array temporaries;
   `restricts %s to interface-only declarations` covers the section restrictions,

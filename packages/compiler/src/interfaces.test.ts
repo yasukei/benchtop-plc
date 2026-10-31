@@ -300,6 +300,30 @@ it("binds PROGRAM arrays of interfaces with exact array types", () => {
   expect(result.ir!.resource.programs[0]!.storage[0]!.kind).toBe("array");
 });
 
+it.each(["ARRAY[2..3] OF IActuator", "ARRAY[1..2] OF IExtended"])(
+  "rejects PROGRAM interface array in-outs bound to %s",
+  (actualType) => {
+    const sources = inOutSources.map((source) =>
+      source
+        .replace("a: IActuator", "a: ARRAY[1..2] OF IActuator")
+        .replace("a.Start()", "a[1].Start()"),
+    );
+    const configuration = inOutConfiguration("(a := links)").replace(
+      "links: ARRAY[1..2] OF IActuator",
+      `links: ${actualType}`,
+    );
+    const result = compileProject(sources, [], configuration);
+    expect(result.ir).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "call.in-out-type",
+        sourceKind: "configuration",
+        sourceIndex: 0,
+      }),
+    );
+  },
+);
+
 it.each(signatureTypes)(
   "compares interface $position types using $name equivalence (matches: $matches)",
   ({ left, right, matches, position }) => {
