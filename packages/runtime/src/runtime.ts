@@ -414,7 +414,12 @@ class PlcRuntime implements Runtime {
   force(variable: VariableId, value: TypedValue | null): void {
     this.debugVariable(variable);
     if (value === null) this.forces.delete(variable);
-    else this.forces.set(variable, this.debugValue(variable, value));
+    else {
+      const checked = this.debugValue(variable, value);
+      // Apply overlapping forces oldest first, including when an existing force is set again.
+      this.forces.delete(variable);
+      this.forces.set(variable, checked);
+    }
   }
 
   write(variable: VariableId, value: TypedValue): void {
