@@ -1,4 +1,4 @@
-import { ParsingContext, ProgramContext } from "./parsing.js";
+import { generatedIdentifier, ParsingContext, ProgramContext } from "./parsing.js";
 import {
   check,
   lex,
@@ -541,7 +541,7 @@ export function canonicalInitializer(
       continue;
     }
     const countAst = parsing.pou(
-      `PROGRAM Initial MOVE(${expressionText(source, item.count.span)}); END_PROGRAM`,
+      `PROGRAM ${generatedIdentifier("Initial", source, ...types.map((type) => type.name))} MOVE(${expressionText(source, item.count.span)}); END_PROGRAM`,
     ).ast;
     if (!countAst) throw new RangeError("Invalid repetition expression");
     const statement = countAst.body[0]!;

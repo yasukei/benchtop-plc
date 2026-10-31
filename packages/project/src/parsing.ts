@@ -8,6 +8,18 @@ import {
   type Program,
 } from "@benchtop-plc/compiler";
 
+/** Valid ST names, unique even against unresolved references in generated wrappers.
+ * Conservatively reserve words inside comments and strings too; no parse is needed.
+ */
+export function generatedIdentifier(base: string, ...sources: string[]): string {
+  const used = new Set(
+    sources.flatMap((source) => source.toUpperCase().match(/[A-Z_][A-Z_0-9]*/g) ?? []),
+  );
+  let name = base;
+  for (let suffix = 1; used.has(name.toUpperCase()); suffix++) name = `${base}${suffix}`;
+  return name;
+}
+
 /** Parser results are plain trees. Preserve undefined and non-finite numeric literals too. */
 function copyTree<T>(value: T): T {
   if (Array.isArray(value)) return value.map((item: unknown) => copyTree(item)) as T;
