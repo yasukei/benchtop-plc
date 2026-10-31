@@ -62,6 +62,11 @@ const precedence: Partial<Record<string, number>> = {
 const isFunction = (name: string): boolean =>
   isStandardFunction(name) || name === "LOWER_BOUND" || name === "UPPER_BOUND";
 
+/** A separator after a name distinguishes a declaration from a closing END_* keyword. */
+export function startsDeclaration(next: Token | undefined): boolean {
+  return [":", ",", "AT"].includes(next?.key ?? "");
+}
+
 export class Parser {
   private cursor = 0;
   private nesting = 0;
@@ -373,10 +378,12 @@ export class Parser {
           ...(constant ? { constant: true } : {}),
         });
       if (prototype && (constant || retain || nonRetain)) this.expected("VAR_INPUT");
-      while (!this.at("END_VAR")) {
+      while (!this.at("END_VAR") || startsDeclaration(this.tokens[this.cursor + 1])) {
         if (
           this.current.kind === "eof" ||
-          (this.current.kind === "keyword" && this.current.key.startsWith("END_"))
+          (this.current.kind === "keyword" &&
+            this.current.key.startsWith("END_") &&
+            !startsDeclaration(this.tokens[this.cursor + 1]))
         )
           this.missingEnd("END_VAR");
         const declaration = this.declaration();
@@ -1085,6 +1092,16 @@ export class Parser {
     let formal: boolean | undefined;
     if (!this.at(")")) {
       do {
+        if (
+          ["EN", "ENO"].includes(this.current.key) &&
+          [":=", "=>"].includes(this.tokens[this.cursor + 1]?.key ?? "")
+        )
+          this.fail({
+            code: "syntax.unsupported-construct",
+            severity: "error",
+            span: this.current.span,
+            args: { construct: this.current.text },
+          });
         const named =
           this.current.kind === "identifier" &&
           ([":=", "=>"].includes(this.tokens[this.cursor + 1]?.key ?? "") ||

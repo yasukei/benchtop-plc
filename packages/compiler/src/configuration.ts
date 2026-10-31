@@ -1,6 +1,6 @@
 import { parseDirectAddress, isStandardFunction, isFunctionBlockType } from "@benchtop-plc/core";
 import type { CyclicTaskIR, Diagnostic, SourceSpan } from "@benchtop-plc/core";
-import { Parser } from "./parser.js";
+import { Parser, startsDeclaration } from "./parser.js";
 import type { Address, Declaration, Expression, Identifier, Program } from "./ast.js";
 import { FrontendError, joinedSpan } from "./diagnostic.js";
 import { exactNumber } from "./exact.js";
@@ -45,6 +45,9 @@ class ConfigurationParser {
   private get current(): Token {
     return this.tokens[this.cursor]!;
   }
+  private atEof(): boolean {
+    return this.current.kind === "eof";
+  }
   private take(): Token {
     const token = this.current;
     if (token.kind !== "eof") this.cursor++;
@@ -60,17 +63,41 @@ class ConfigurationParser {
     throw new FrontendError({ code, severity: "error", span: token.span, args: {} });
   }
   private expect(key: string): Token {
-    if (this.current.key !== key)
+    if (this.current.key !== key) {
+      if (key === "END_RESOURCE" && this.at("END_CONFIGURATION")) this.missingEnd(key);
+      if (this.atEof()) {
+        if (key.startsWith("END_")) this.missingEnd(key as `END_${string}`);
+        this.unexpectedEof();
+      }
       throw new FrontendError({
         code: "syntax.expected-token",
         severity: "error",
         span: this.current.span,
         args: { expected: key, found: this.current.text },
       });
+    }
     return this.take();
+  }
+  private unexpectedEof(): never {
+    throw new FrontendError({
+      code: "syntax.unexpected-eof",
+      severity: "error",
+      span: this.current.span,
+      args: {},
+    });
+  }
+  private missingEnd(expected: `END_${string}`): never {
+    const { line, column } = this.current.span;
+    throw new FrontendError({
+      code: "syntax.missing-end",
+      severity: "error",
+      span: { line, column, endLine: line, endColumn: column },
+      args: { expected },
+    });
   }
   private identifier(allowType = false): Identifier {
     const token = this.current;
+    if (token.kind === "eof") this.unexpectedEof();
     if (token.kind !== "identifier" && !(allowType && isElementaryTypeName(token.key)))
       throw new FrontendError(
         token.kind === "keyword" || token.kind === "boolean"
@@ -218,9 +245,20 @@ class ConfigurationParser {
           args: {},
           span: this.current.span,
         });
-      while (!this.at("END_VAR")) {
+      while (!this.at("END_VAR") || startsDeclaration(this.tokens[this.cursor + 1])) {
+        if (
+          this.atEof() ||
+          (["END_RESOURCE", "END_CONFIGURATION"].includes(this.current.key) &&
+            !startsDeclaration(this.tokens[this.cursor + 1]))
+        )
+          this.missingEnd("END_VAR");
         const start = this.cursor;
-        while (!this.at(";") && this.current.kind !== "eof" && !this.at("END_VAR")) this.take();
+        while (
+          !this.at(";") &&
+          !this.atEof() &&
+          (!this.at("END_VAR") || startsDeclaration(this.tokens[this.cursor + 1]))
+        )
+          this.take();
         const tokens = this.tokens.slice(start, this.cursor);
         const end = this.expect(";");
         const parser = new Parser([...tokens, end, { ...end, kind: "eof", key: "", text: "" }]);
@@ -239,6 +277,7 @@ class ConfigurationParser {
     const name = this.identifier();
     this.name = name.name;
     const globals = this.globals();
+    if (this.atEof()) this.missingEnd("END_CONFIGURATION");
     if (this.current.key !== "RESOURCE") {
       if (["END_CONFIGURATION", "CONFIGURATION"].includes(this.current.key))
         this.error("config.resource-count");
@@ -248,6 +287,7 @@ class ConfigurationParser {
     this.expect("ON");
     this.identifier();
     const resourceGlobals = this.globals();
+    if (this.atEof()) this.missingEnd("END_RESOURCE");
     if (!this.at("TASK")) this.error("config.task-count");
     const tasks: Configuration["tasks"] = [];
     while (this.at("TASK")) tasks.push(this.task());
@@ -266,13 +306,7 @@ class ConfigurationParser {
       if (this.at("WITH")) {
         this.take();
         binding = this.identifier();
-      } else
-        this.report({
-          code: "config.missing-task",
-          severity: "error",
-          span: instance.span,
-          args: { name: instance.name },
-        });
+      }
       this.expect(":");
       const type = this.identifier(true);
       while (this.at(".")) {
@@ -310,6 +344,13 @@ class ConfigurationParser {
         this.expect(")");
       }
       this.expect(";");
+      if (!binding)
+        this.report({
+          code: "config.missing-task",
+          severity: "error",
+          span: instance.span,
+          args: { name: instance.name },
+        });
       programs.push({ name: instance, type, task: binding, connections });
     }
     if (this.current.key === "TASK") this.error("config.task-count");

@@ -27,6 +27,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Report truncated configuration sources, reserved declaration names and unsupported
+  EN/ENO call parameters with diagnostics that identify the cause. Keep parameters
+  in rejected CONSTANT sections available to call checking to avoid follow-on errors.
+
 - Show variable types on hover in configured projects with multiple programs,
   including configuration globals and their external declarations.
 
