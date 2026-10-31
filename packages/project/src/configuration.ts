@@ -1,5 +1,6 @@
-import { check, lex, parsePou, parseConfiguration, type Token } from "@benchtop-plc/compiler";
-import { splitProgram, joinProgram } from "./text.js";
+import { ParsingContext } from "./parsing.js";
+import { check, lex, type Token } from "@benchtop-plc/compiler";
+import { splitProgramWithContext, joinProgram } from "./text.js";
 import type { VariableDeclaration } from "./model.js";
 import type { DataType, Diagnostic, TypeTable } from "@benchtop-plc/core";
 
@@ -25,6 +26,7 @@ export class ConfigurationError extends Error {
 
 /** Exchange accepts representable declarations even before the compiler can run them. */
 export function splitConfiguration(
+  parsing: ParsingContext,
   source: string,
   types: TypeTable = [],
   legacyNames = false,
@@ -51,7 +53,7 @@ export function splitConfiguration(
   const identifier = (type = false) => {
     const token = current();
     // Reuse the POU parser's identifier/type rules, including reserved names.
-    const parsed = parsePou(
+    const parsed = parsing.pou(
       type
         ? `PROGRAM __INSTANCE VAR x : ${token.text}; END_VAR END_PROGRAM`
         : `PROGRAM ${token.text} END_PROGRAM`,
@@ -63,7 +65,7 @@ export function splitConfiguration(
   };
   const scalar = (values: Token[], type: DataType): number | string => {
     const text = values.map((token) => token.text).join(" ");
-    const ast = parsePou(
+    const ast = parsing.pou(
       `PROGRAM __TASK VAR x : ${type} := ${text}; END_VAR END_PROGRAM`,
       legacyNames,
     ).ast;
@@ -130,7 +132,7 @@ export function splitConfiguration(
         } while (depth > 0);
         // Connections live only in the exact source extension. Validate their syntax
         // with the compiler while leaving semantic errors exchangeable, as for POUs.
-        const parsed = parseConfiguration(
+        const parsed = parsing.configuration(
           `CONFIGURATION C RESOURCE R ON Cpu
           TASK T (INTERVAL := T#10ms, PRIORITY := 0);
           PROGRAM A WITH T : Main ${connectionTokens.map((token) => token.text).join(" ")};
@@ -200,7 +202,8 @@ export function splitConfiguration(
     if (!task) return invalid("resource/pouInstance");
     task.instances.push({ name: instance.name, typeName: instance.typeName });
   }
-  const combined = splitProgram(
+  const combined = splitProgramWithContext(
+    parsing,
     `PROGRAM __GLOBALS ${globalSource} ${resourceGlobalSource} END_PROGRAM`,
     types,
     undefined,
@@ -208,10 +211,9 @@ export function splitConfiguration(
   );
   if (!combined.value) throw new ConfigurationError(combined.diagnostics[0]!);
   const count =
-    parsePou(`PROGRAM __GLOBALS ${globalSource} END_PROGRAM`, legacyNames).ast?.declarations.reduce(
-      (n, d) => n + d.names.length,
-      0,
-    ) ?? 0;
+    parsing
+      .pou(`PROGRAM __GLOBALS ${globalSource} END_PROGRAM`, legacyNames)
+      .ast?.declarations.reduce((n, d) => n + d.names.length, 0) ?? 0;
   return {
     name,
     resource,

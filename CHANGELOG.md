@@ -27,6 +27,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Reuse parsed sources and namespace lookups while saving and opening projects,
+  avoiding repeated parsing and traversal of every POU in larger projects.
+
 - Show localized warnings when opening a project drops vendor data or replaces
   stale preserved source, showing identical repeated warnings once. Warnings remain
   beside the project controls until dismissed or another project opens successfully.

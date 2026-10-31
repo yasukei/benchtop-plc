@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compileProject, parsePou, parseDataType } from "./index.js";
+import {
+  compileProject,
+  parsePou,
+  parseDataType,
+  NamespaceContext,
+  resolveNamespaces,
+} from "./index.js";
 
 const wrap = (namespace: string, source: string, using = "") =>
   `NAMESPACE ${namespace}\n${using}\n${source}\nEND_NAMESPACE`;
@@ -275,4 +281,61 @@ it("keeps namespace roots reserved for structure fields", () => {
       [wrap("A", "TYPE RecordType : STRUCT A: INT; END_STRUCT; END_TYPE")],
     ),
   ).toContain("decl.name-collision");
+});
+
+describe("reusable namespace lookup", () => {
+  it("walks only the supplied sources while resolving against the whole context", () => {
+    const block = parsePou(
+      wrap("Lib", "FUNCTION_BLOCK Block VAR n: Count; END_VAR END_FUNCTION_BLOCK"),
+    ).ast!;
+    const type = parseDataType(wrap("Lib", "TYPE Count : INT; END_TYPE")).ast!;
+    const before = JSON.stringify(block);
+    const context = new NamespaceContext([block, type]);
+    const program = parsePou(main("Block", "USING Lib;")).ast!;
+    expect(resolveNamespaces([program], undefined, context)).toEqual([]);
+    expect(program.declarations[0]!.typeName.key).toBe("LIB.BLOCK");
+    expect(JSON.stringify(block)).toBe(before);
+  });
+
+  it("keeps duplicate precedence and namespace membership when source slots change", () => {
+    const first = parsePou(motor("A.B")).ast!;
+    const last = parsePou(motor("A.B")).ast!;
+    const replacement = parsePou(motor("A.B", "FINAL")).ast!;
+    const context = new NamespaceContext([first, last]);
+    context.replace(0, replacement);
+    expect(context.first("A.B.MOTOR")).toBe(replacement);
+    expect(context.declarations.get("A.B.MOTOR")).toBe(last);
+    context.replace(1, null);
+    expect(context.declarations.get("A.B.MOTOR")).toBe(replacement);
+    expect([...context.namespaces]).toEqual(["A", "A.B"]);
+    context.replace(0, parsePou(motor("Other")).ast!);
+    expect([...context.namespaces]).toEqual(["OTHER"]);
+    expect([...context.roots]).toEqual(["OTHER"]);
+    expect(context.first("A.B.MOTOR")).toBeUndefined();
+    context.replace(0, null);
+    expect(context.declarations.size).toBe(0);
+    expect(context.namespaces.size).toBe(0);
+    expect(context.roots.size).toBe(0);
+  });
+
+  it("restores a temporary candidate and its namespace even when resolution throws", () => {
+    const original = parsePou(motor("Lib")).ast!;
+    const context = new NamespaceContext([original]);
+    const candidate = parsePou(motor("Lib", "FINAL")).ast!;
+    expect(() =>
+      context.withSource(candidate, () => {
+        expect(context.declarations.get("LIB.MOTOR")).toBe(candidate);
+        throw new Error("stop");
+      }),
+    ).toThrow("stop");
+    expect(context.declarations.get("LIB.MOTOR")).toBe(original);
+    const other = parsePou(motor("New.Path")).ast!;
+    context.withSource(other, () => {
+      expect(context.namespaces.has("NEW.PATH")).toBe(true);
+      expect(context.roots.has("NEW")).toBe(true);
+    });
+    expect(context.declarations.has("NEW.PATH.MOTOR")).toBe(false);
+    expect([...context.namespaces]).toEqual(["LIB"]);
+    expect([...context.roots]).toEqual(["LIB"]);
+  });
 });

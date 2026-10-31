@@ -1,9 +1,7 @@
+import { ParsingContext, ProgramContext } from "./parsing.js";
 import {
   check,
   lex,
-  parsePou,
-  parseDataType,
-  resolveNamespaces,
   type Declaration,
   type Expression,
   type GlobalScope,
@@ -29,23 +27,20 @@ function offset(source: string, span: SourceSpan, end = false): number {
 }
 
 /** Collect lexical constants without adding inherited variables to standard TC6 elements. */
-function inheritedConstants(source: string, sources: readonly string[]): Declaration[] {
-  const ast = parsePou(source).ast;
-  const context = sources.flatMap((text) => {
-    const other = parsePou(text).ast ?? parseDataType(text).ast;
-    return other && other.name.key !== ast?.name.key ? [other] : [];
-  });
-  if (ast) resolveNamespaces([ast, ...context]);
-  const seen = new Set(ast ? [ast.name.key] : []);
+function inheritedConstants(
+  ast: import("@benchtop-plc/compiler").Program,
+  context: ProgramContext,
+): Declaration[] {
+  const seen = new Set([ast.name.key]);
   const ancestors = (base: string | undefined): Declaration[] => {
     if (!base || seen.has(base)) return [];
     seen.add(base);
-    const parent = context.find((pou) => pou.name.key === base);
+    const parent = context.lookup.first(base);
     return parent && "body" in parent
       ? [...ancestors(parent.base?.key), ...parent.declarations.filter((d) => d.constant)]
       : [];
   };
-  return ancestors(ast?.base?.key);
+  return ancestors(ast.base?.key);
 }
 
 /** AST dependencies also work for declarations originating in another source text. */
@@ -62,15 +57,32 @@ export function splitProgram(
   legacyNames = false,
   sources: readonly string[] = [],
 ): ProjectResult<SplitProgram> {
-  const result = parsePou(source, legacyNames);
+  return splitProgramWithContext(
+    new ParsingContext(),
+    source,
+    types,
+    globals,
+    legacyNames,
+    sources,
+  );
+}
+
+/** Internal entry point sharing parsed sources across a complete codec operation. */
+export function splitProgramWithContext(
+  parsing: ParsingContext,
+  source: string,
+  types: TypeTable = [],
+  globals?: GlobalScope,
+  legacyNames = false,
+  sources: readonly string[] | ProgramContext = [],
+): ProjectResult<SplitProgram> {
+  const result = parsing.pou(source, legacyNames);
   if (!result.ast) return { value: null, diagnostics: result.diagnostics };
   const { ast } = result;
-  const context = sources.flatMap((text) => {
-    const parsed = parsePou(text).ast ?? parseDataType(text).ast;
-    return parsed && parsed.name.key !== ast.name.key ? [parsed] : [];
-  });
+  const context =
+    sources instanceof ProgramContext ? sources : new ProgramContext(parsing, sources);
   // Semantic errors remain exchangeable; only successful lookups change type references.
-  resolveNamespaces([ast, ...context]);
+  context.resolve(ast);
   if (ast.kind === "interface")
     return {
       value: null,
@@ -79,7 +91,7 @@ export function splitProgram(
       ],
     };
   const kind = ast.kind;
-  const inherited = inheritedConstants(source, sources);
+  const inherited = inheritedConstants(ast, context);
   const invalidCapacity = (name: string, length: number | undefined): boolean =>
     length !== undefined &&
     (!["STRING", "WSTRING"].includes(name) ||
@@ -159,6 +171,7 @@ export function splitProgram(
             [...inherited, ...ast.declarations.slice(0, ast.declarations.indexOf(declaration))],
             types,
             globals,
+            parsing,
           )
         : undefined;
     } catch (error) {
@@ -513,20 +526,21 @@ export function canonicalInitializer(
   declarations: Declaration[] = [],
   types: TypeTable = [],
   globals?: GlobalScope,
+  parsing = new ParsingContext(),
 ): string {
   if (node.kind === "structureInitializer")
-    return `(${node.members.map((member) => `${member.name.name} := ${canonicalInitializer(source, member.value, declarations, types, globals)}`).join(", ")})`;
+    return `(${node.members.map((member) => `${member.name.name} := ${canonicalInitializer(source, member.value, declarations, types, globals, parsing)}`).join(", ")})`;
   if (node.kind !== "arrayInitializer") return expressionText(source, node.span);
   const items: string[] = [];
   for (const item of node.items) {
     const values = item.values.map((value) =>
-      canonicalInitializer(source, value, declarations, types, globals),
+      canonicalInitializer(source, value, declarations, types, globals, parsing),
     );
     if (!item.count) {
       items.push(...values);
       continue;
     }
-    const countAst = parsePou(
+    const countAst = parsing.pou(
       `PROGRAM Initial MOVE(${expressionText(source, item.count.span)}); END_PROGRAM`,
     ).ast;
     if (!countAst) throw new RangeError("Invalid repetition expression");

@@ -1,9 +1,7 @@
+import { ParsingContext, ProgramContext } from "./parsing.js";
 import { encodePanel } from "./panel.js";
 import {
   check,
-  parsePou,
-  parseConfiguration,
-  parseDataType,
   resolveDataTypes,
   resolveNamespaces,
   type DataTypeDeclaration,
@@ -30,7 +28,7 @@ import {
   canonicalBody,
   canonicalInitializer,
   joinProgram,
-  splitProgram,
+  splitProgramWithContext,
   expressionText,
   containsSpan,
   normalizeType,
@@ -189,24 +187,35 @@ function interval(value: string): boolean {
     match.slice(1).every((part) => part === undefined || Number.isFinite(Number(part)))
   );
 }
-function legacyDraft(source: string, kind: "pou" | "dataType" | "configuration"): boolean {
+function legacyDraft(
+  parsing: ParsingContext,
+  source: string,
+  kind: "pou" | "dataType" | "configuration",
+): boolean {
   const parse =
-    kind === "pou" ? parsePou : kind === "dataType" ? parseDataType : parseConfiguration;
+    kind === "pou" ? parsing.pou : kind === "dataType" ? parsing.dataType : parsing.configuration;
   return !parse(source).ast && !!parse(source, true).ast;
 }
-function validateQualifiedIdentifier(name: string, path: string): void {
-  for (const segment of name.split(".")) validateIdentifier(segment, path);
+function validateQualifiedIdentifier(parsing: ParsingContext, name: string, path: string): void {
+  for (const segment of name.split(".")) validateIdentifier(parsing, segment, path);
 }
-function validateIdentifier(name: string, path: string): void {
-  const result = splitProgram(`PROGRAM ${name}\nEND_PROGRAM`, [], undefined, true);
+function validateIdentifier(parsing: ParsingContext, name: string, path: string): void {
+  const result = splitProgramWithContext(
+    parsing,
+    `PROGRAM ${name}\nEND_PROGRAM`,
+    [],
+    undefined,
+    true,
+  );
   if (!result.value || result.value.name !== name) fail("project.invalid", path);
 }
 
 function globalConstantScope(
+  parsing: ParsingContext,
   variables: VariableDeclaration[],
   types: TypeTable,
 ): GlobalScope | undefined {
-  const ast = parsePou(
+  const ast = parsing.pou(
     joinProgram({
       kind: "program",
       name: "__GLOBALS",
@@ -219,11 +228,12 @@ function globalConstantScope(
   return checked ? { constants: checked.constants, symbols: [], bindings: new Map() } : undefined;
 }
 function validateInitializers(
+  parsing: ParsingContext,
   program: SplitProgram,
   types: TypeTable,
   globals?: GlobalScope,
 ): void {
-  const parsed = parsePou(joinProgram(program), true);
+  const parsed = parsing.pou(joinProgram(program), true);
   if (!parsed.ast) {
     failSourceLimit(parsed.diagnostics);
     fail("project.invalid", "pou/interface");
@@ -272,8 +282,12 @@ interface SplitDataType {
   type: string;
   initialValue?: string;
 }
-function parseType(source: string, legacyNames = false): DataTypeDeclaration {
-  const parsed = parseDataType(source, legacyNames);
+function parseType(
+  parsing: ParsingContext,
+  source: string,
+  legacyNames = false,
+): DataTypeDeclaration {
+  const parsed = parsing.dataType(source, legacyNames);
   if (!parsed.ast) throw new ProjectError(parsed.diagnostics[0]!);
   return parsed.ast;
 }
@@ -284,12 +298,13 @@ function joinDataType(type: SplitDataType): string {
   );
 }
 function splitDataType(
+  parsing: ParsingContext,
   source: string,
   declarations: DataTypeDeclaration[],
   legacyNames = false,
   namespacePous: readonly Program[] = [],
 ): SplitDataType {
-  const ast = parseType(source, legacyNames);
+  const ast = parseType(parsing, source, legacyNames);
   // Initializers do not change the TC6 base type. Resolve definitions separately
   // so an unresolved initializer can still be exchanged (ADR 0014/0015).
   const context = declarations.filter((item) => item.name.key !== ast.name.key);
@@ -302,7 +317,7 @@ function splitDataType(
         .filter((pou) => ["class", "functionBlock"].includes(pou.kind))
         .map((pou, index) => [pou.name.key, index]),
     ),
-    interfaceTypes(namespacePous),
+    interfaceTypes(parsing, namespacePous),
   );
   const definition = resolved.types.find(
     (item) => item.name.toUpperCase() === ast.name.key,
@@ -318,7 +333,8 @@ function splitDataType(
     normalizeType(ast.typeName?.key ?? "INT") +
     (ast.stringLength === undefined ? "" : `[${ast.stringLength}]`);
   if (ast.members) {
-    const split = splitProgram(
+    const split = splitProgramWithContext(
+      parsing,
       `PROGRAM __STRUCT_SOURCE VAR ${ast.members.map((member) => qualifiedTypeText(source, member)).join(" ")} END_VAR END_PROGRAM`,
       resolved.types,
       undefined,
@@ -329,7 +345,8 @@ function splitDataType(
     type = `STRUCT ${split.value.variables.map((variable) => `${variable.name} : ${variable.type}${variable.initialValue === undefined ? "" : ` := ${variable.initialValue}`};`).join(" ")} END_STRUCT`;
   }
   if (ast.reference) {
-    const split = splitProgram(
+    const split = splitProgramWithContext(
+      parsing,
       `PROGRAM __TYPE_SOURCE VAR __VALUE : REF_TO ${qualifiedTypeText(source, ast.reference)}; END_VAR END_PROGRAM`,
       resolved.types,
       undefined,
@@ -341,7 +358,8 @@ function splitDataType(
   if (ast.array) {
     if (definition?.kind === "alias") type = formatType(definition.type);
     else {
-      const split = splitProgram(
+      const split = splitProgramWithContext(
+        parsing,
         `PROGRAM __TYPE_SOURCE VAR __VALUE : ${qualifiedTypeText(source, ast.array)}; END_VAR END_PROGRAM`,
         resolved.types,
       );
@@ -359,7 +377,9 @@ function splitDataType(
     else fail("project.invalid", `dataType/${ast.name.name}/baseType`);
   }
   // Slice initializer text by lexer spans, including CRLF sources.
-  const initialValue = ast.initializer ? canonicalInitializer(source, ast.initializer) : undefined;
+  const initialValue = ast.initializer
+    ? canonicalInitializer(source, ast.initializer, [], [], undefined, parsing)
+    : undefined;
   return { name: ast.name.name, type, ...(initialValue === undefined ? {} : { initialValue }) };
 }
 function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
@@ -385,7 +405,7 @@ function validateTypeInitializers(asts: DataTypeDeclaration[]): void {
       fail("project.invalid", `dataType/${ast.name.name}/initialValue`);
   }
 }
-function readInitialValue(node: XmlNode): string | undefined {
+function readInitialValue(parsing: ParsingContext, node: XmlNode): string | undefined {
   const initial = one(node, "initialValue", false);
   if (!initial) return undefined;
   const read = (value: XmlNode, member = false): string => {
@@ -407,7 +427,7 @@ function readInitialValue(node: XmlNode): string | undefined {
         .filter((item) => item.name === "value")
         .map((item) => {
           const name = attribute(item, "member");
-          validateIdentifier(name, "structValue/value/@member");
+          validateIdentifier(parsing, name, "structValue/value/@member");
           return `${name} := ${read(item, true)}`;
         });
       return `(${members.join(", ")})`;
@@ -429,11 +449,11 @@ function readInitialValue(node: XmlNode): string | undefined {
   };
   return read(initial);
 }
-function initialXml(value: string | undefined): string {
+function initialXml(parsing: ParsingContext, value: string | undefined): string {
   if (value === undefined) return "";
 
   const source = `PROGRAM Initial VAR a : INT := ${value}; END_VAR END_PROGRAM`;
-  const initializer = parsePou(source).ast?.declarations[0]?.initializer;
+  const initializer = parsing.pou(source).ast?.declarations[0]?.initializer;
   if (!initializer) fail("project.invalid", "arrayValue");
   const encode = (node: import("@benchtop-plc/compiler").Expression): string => {
     if (node.kind === "structureInitializer")
@@ -453,7 +473,7 @@ function initialXml(value: string | undefined): string {
         .map((item) => {
           if (!item.count) return item.values.map((v) => element("value", {}, encode(v))).join("");
           const countText = expressionText(source, item.count.span);
-          const ast = parsePou(
+          const ast = parsing.pou(
             `PROGRAM Count VAR n : DINT := ${countText}; END_VAR END_PROGRAM`,
           ).ast;
           const count = ast && check(ast).checked?.symbols[0]?.initialValue;
@@ -471,7 +491,7 @@ function initialXml(value: string | undefined): string {
   return element("initialValue", {}, encode(initializer));
 }
 
-function readType(type: XmlNode, enumeration = false): string {
+function readType(parsing: ParsingContext, type: XmlNode, enumeration = false): string {
   shape(
     type,
     [],
@@ -493,7 +513,7 @@ function readType(type: XmlNode, enumeration = false): string {
   const choice = choices[0]!;
   if (choice.name === "pointer") {
     shape(choice, [], ["baseType"]);
-    return `REF_TO ${readType(required(choice, "baseType"))}`;
+    return `REF_TO ${readType(parsing, required(choice, "baseType"))}`;
   }
   if (choice.name === "struct") {
     shape(choice, [], ["variable"]);
@@ -502,9 +522,9 @@ function readType(type: XmlNode, enumeration = false): string {
       .map((member) => {
         shape(member, ["name"], ["type", "initialValue"]);
         const name = attribute(member, "name");
-        validateIdentifier(name, "struct/variable/@name");
-        const initial = readInitialValue(member);
-        return `${name} : ${readType(required(member, "type"))}${initial === undefined ? "" : ` := ${initial}`};`;
+        validateIdentifier(parsing, name, "struct/variable/@name");
+        const initial = readInitialValue(parsing, member);
+        return `${name} : ${readType(parsing, required(member, "type"))}${initial === undefined ? "" : ` := ${initial}`};`;
       });
     if (!members.length) fail("project.invalid", "struct");
     return `STRUCT ${members.join(" ")} END_STRUCT`;
@@ -529,13 +549,13 @@ function readType(type: XmlNode, enumeration = false): string {
         return `${BigInt(lower)}..${BigInt(upper)}`;
       });
     if (!dimensions.length || dimensions.length > 3) fail("project.invalid", "array/dimension");
-    return `ARRAY[${dimensions.join(", ")}] OF ${readType(required(choice, "baseType"))}`;
+    return `ARRAY[${dimensions.join(", ")}] OF ${readType(parsing, required(choice, "baseType"))}`;
   }
   if (choice.name === "subrangeSigned" || choice.name === "subrangeUnsigned") {
     shape(choice, [], ["range", "baseType"]);
     const range = required(choice, "range");
     leaf(range, ["lower", "upper"]);
-    const base = readType(required(choice, "baseType"));
+    const base = readType(parsing, required(choice, "baseType"));
     if (!isIntegerType(base) || !base.startsWith("U") !== (choice.name === "subrangeSigned"))
       fail("project.invalid", `${choice.name}/baseType`);
     for (const key of ["lower", "upper"])
@@ -552,7 +572,7 @@ function readType(type: XmlNode, enumeration = false): string {
       .map((member) => {
         leaf(member, ["name", "value"]);
         const name = attribute(member, "name");
-        validateIdentifier(name, "enum/value/@name");
+        validateIdentifier(parsing, name, "enum/value/@name");
         const value = member.attributes.value;
         if (value !== undefined && !/^[+-]?\d+$/.test(value))
           fail("project.invalid", "enum/value/@value");
@@ -560,7 +580,7 @@ function readType(type: XmlNode, enumeration = false): string {
       });
     if (!members.length) fail("project.invalid", "enum/values");
     const baseType = one(choice, "baseType", false);
-    const base = baseType ? readType(baseType) : "INT";
+    const base = baseType ? readType(parsing, baseType) : "INT";
     if (!isIntegerType(base)) fail("project.invalid", "enum/baseType");
     return `${base} (${members.join(", ")})`;
   }
@@ -584,7 +604,7 @@ function readType(type: XmlNode, enumeration = false): string {
   return choice.name.toUpperCase();
 }
 
-function readVariables(pou: XmlNode): VariableDeclaration[] {
+function readVariables(parsing: ParsingContext, pou: XmlNode): VariableDeclaration[] {
   const intf = required(pou, "interface");
   shape(
     intf,
@@ -597,12 +617,12 @@ function readVariables(pou: XmlNode): VariableDeclaration[] {
       child.name,
     ),
   )) {
-    variables.push(...readVariableGroup(group));
+    variables.push(...readVariableGroup(parsing, group));
   }
   return variables;
 }
 
-function readVariableGroup(group: XmlNode): VariableDeclaration[] {
+function readVariableGroup(parsing: ParsingContext, group: XmlNode): VariableDeclaration[] {
   const variables: VariableDeclaration[] = [];
   shape(group, ["constant", "retain", "nonretain"], ["variable"]);
   for (const attr of ["retain", "nonretain"])
@@ -617,14 +637,14 @@ function readVariableGroup(group: XmlNode): VariableDeclaration[] {
   for (const variable of group.children.filter((child) => child.name === "variable")) {
     shape(variable, ["name", "address"], ["type", "initialValue"]);
     const type = required(variable, "type");
-    const initialValue = readInitialValue(variable);
+    const initialValue = readInitialValue(parsing, variable);
     variables.push({
       section: group.name as VariableDeclaration["section"],
       ...(["true", "1"].includes(constant ?? "") ? { constant: true } : {}),
       ...(["true", "1"].includes(group.attributes.retain ?? "") ? { retain: true } : {}),
       ...(["true", "1"].includes(group.attributes.nonretain ?? "") ? { nonRetain: true } : {}),
       name: attribute(variable, "name"),
-      type: readType(type),
+      type: readType(parsing, type),
       ...(variable.attributes.address === undefined
         ? {}
         : { address: variable.attributes.address }),
@@ -650,10 +670,11 @@ function readCoordinates(header: XmlNode): void {
 }
 
 function interfaceTypes(
+  parsing: ParsingContext,
   sources: readonly (string | Program)[],
 ): import("@benchtop-plc/core").TypeTable {
   return sources.flatMap((source) => {
-    const ast = typeof source === "string" ? parsePou(source).ast : source;
+    const ast = typeof source === "string" ? parsing.pou(source).ast : source;
     return ast?.kind === "interface"
       ? [
           {
@@ -670,6 +691,7 @@ function interfaceTypes(
 }
 
 function readExtensions(
+  parsing: ParsingContext,
   root: XmlNode,
   diagnostics: Diagnostic[],
 ): { panel: JsonValue; sources: Map<XmlNode, string>; interfaces: string[] } {
@@ -729,7 +751,7 @@ function readExtensions(
               source.name !== "source" ||
               Object.keys(source.attributes).length ||
               source.children.length ||
-              parsePou(source.text).ast?.kind !== "interface"
+              parsing.pou(source.text).ast?.kind !== "interface"
             )
               fail("project.invalid", "addData/interfaces/source");
             interfaces.push(source.text);
@@ -765,6 +787,10 @@ function readExtensions(
 
 /** Malformed or unsupported input is returned as localizable diagnostics, never thrown. */
 export function readProject(xml: string): ProjectResult<Project> {
+  return readProjectWithContext(new ParsingContext(), xml);
+}
+
+function readProjectWithContext(parsing: ParsingContext, xml: string): ProjectResult<Project> {
   const diagnostics: Diagnostic[] = [];
   try {
     const root = parseXml(xml);
@@ -791,7 +817,7 @@ export function readProject(xml: string): ProjectResult<Project> {
     shape(dataTypesNode, [], ["dataType"]);
     const pous = required(types, "pous");
     shape(pous, [], ["pou"]);
-    const extensions = readExtensions(root, diagnostics);
+    const extensions = readExtensions(parsing, root, diagnostics);
     const dataTypeNodes = dataTypesNode.children.filter((child) => child.name === "dataType");
     // Standard POU names supply lookup context before their preserved sources are accepted.
     const namespacePous = [
@@ -799,55 +825,65 @@ export function readProject(xml: string): ProjectResult<Project> {
         .filter((node) => node.name === "pou")
         .flatMap((node) => {
           const name = attribute(node, "name");
-          validateQualifiedIdentifier(name, "pou/@name");
-          const ast = parsePou(
+          validateQualifiedIdentifier(parsing, name, "pou/@name");
+          const ast = parsing.pou(
             joinProgram({ kind: "functionBlock", name, variables: [], body: "" }),
           ).ast;
           return ast ? [ast] : [];
         }),
       ...extensions.interfaces.flatMap((source) => {
-        const ast = parsePou(source).ast;
+        const ast = parsing.pou(source).ast;
         return ast ? [ast] : [];
       }),
     ];
     const declarations = dataTypeNodes.map((node) => {
       shape(node, ["name"], ["baseType", "initialValue"]);
       const name = attribute(node, "name");
-      validateQualifiedIdentifier(name, "dataType/@name");
-      const initialValue = readInitialValue(node);
+      validateQualifiedIdentifier(parsing, name, "dataType/@name");
+      const initialValue = readInitialValue(parsing, node);
       return {
         name,
-        type: readType(required(node, "baseType"), true),
+        type: readType(parsing, required(node, "baseType"), true),
         ...(initialValue === undefined ? {} : { initialValue }),
       };
     });
     const canonicalTypes = declarations.map(joinDataType);
     // Validate the standard XML even when a reserved name makes its text a draft.
-    const validationAsts = canonicalTypes.map((source) => parseType(source, true));
+    const validationAsts = canonicalTypes.map((source) => parseType(parsing, source, true));
     validateTypeInitializers(validationAsts);
     for (const source of canonicalTypes)
-      if (legacyDraft(source, "dataType"))
-        splitDataType(source, validationAsts, true, namespacePous);
+      if (legacyDraft(parsing, source, "dataType"))
+        splitDataType(parsing, source, validationAsts, true, namespacePous);
     // Draft types are unknown to the remaining texts, preserving their source unchanged.
     const typeAsts = canonicalTypes
-      .filter((source) => !legacyDraft(source, "dataType"))
-      .map((source) => parseType(source));
-    const resolved = resolveDataTypes(typeAsts, new Map(), interfaceTypes(extensions.interfaces));
+      .filter((source) => !legacyDraft(parsing, source, "dataType"))
+      .map((source) => parseType(parsing, source));
+    const resolved = resolveDataTypes(
+      typeAsts,
+      new Map(),
+      interfaceTypes(parsing, extensions.interfaces),
+    );
     validateTypeInitializers(typeAsts);
     const dataTypes = declarations.map((_, index) => {
       const preservedDraft = extensions.sources.get(dataTypeNodes[index]!);
-      if (preservedDraft !== undefined && legacyDraft(preservedDraft, "dataType"))
+      if (preservedDraft !== undefined && legacyDraft(parsing, preservedDraft, "dataType"))
         return preservedDraft;
-      if (legacyDraft(canonicalTypes[index]!, "dataType")) return canonicalTypes[index]!;
+      if (legacyDraft(parsing, canonicalTypes[index]!, "dataType")) return canonicalTypes[index]!;
       // Normalize folded enum values and bounds before comparing preserved source.
-      const normalized = splitDataType(canonicalTypes[index]!, typeAsts, false, namespacePous);
+      const normalized = splitDataType(
+        parsing,
+        canonicalTypes[index]!,
+        typeAsts,
+        false,
+        namespacePous,
+      );
       let source = canonicalTypes[index]!;
       const preserved = extensions.sources.get(dataTypeNodes[index]!);
       if (preserved !== undefined) {
         let matches = false;
         try {
           matches =
-            JSON.stringify(splitDataType(preserved, typeAsts, false, namespacePous)) ===
+            JSON.stringify(splitDataType(parsing, preserved, typeAsts, false, namespacePous)) ===
             JSON.stringify(normalized);
         } catch {
           // Damaged or unrepresentable preserved text cannot override standard XML.
@@ -867,8 +903,11 @@ export function readProject(xml: string): ProjectResult<Project> {
     const resource = required(configuration, "resource");
     shape(resource, ["name"], ["task", "globalVars"]);
     const globals = globalConstantScope(
+      parsing,
       [configuration, resource].flatMap((node) =>
-        node.children.filter((n) => n.name === "globalVars").flatMap(readVariableGroup),
+        node.children
+          .filter((n) => n.name === "globalVars")
+          .flatMap((node) => readVariableGroup(parsing, node)),
       ),
       resolved.types,
     );
@@ -878,11 +917,11 @@ export function readProject(xml: string): ProjectResult<Project> {
       if (kind !== "program" && kind !== "function" && kind !== "functionBlock")
         fail("project.unsupported", "pou/@pouType");
       const name = attribute(pou, "name");
-      validateQualifiedIdentifier(name, "pou/@name");
-      const variables = readVariables(pou);
+      validateQualifiedIdentifier(parsing, name, "pou/@name");
+      const variables = readVariables(parsing, pou);
       const returnNode = one(required(pou, "interface"), "returnType", false);
       if (returnNode && kind !== "function") fail("project.invalid", "pou/interface/returnType");
-      const returnType = returnNode ? readType(returnNode) : undefined;
+      const returnType = returnNode ? readType(parsing, returnNode) : undefined;
       const bodyNode = required(pou, "body");
       shape(bodyNode, [], ["ST"]);
       const st = required(bodyNode, "ST");
@@ -905,9 +944,9 @@ export function readProject(xml: string): ProjectResult<Project> {
         variables,
         body: text.text,
       };
-      validateInitializers(split, resolved.types, globals);
+      validateInitializers(parsing, split, resolved.types, globals);
       const program = joinProgram(split);
-      const parsed = splitProgram(program, resolved.types, globals, true);
+      const parsed = splitProgramWithContext(parsing, program, resolved.types, globals, true);
       if (!parsed.value) {
         failSourceLimit(parsed.diagnostics);
         fail("project.invalid", "pou/interface");
@@ -929,6 +968,12 @@ export function readProject(xml: string): ProjectResult<Project> {
     });
     // Accept base sources first, so derived constants use validated preserved text
     // (or the standard fallback), independent of source order.
+    const sourceContext = new ProgramContext(parsing, [
+      ...programs.map((p) => p.source),
+      ...canonicalTypes,
+      ...extensions.interfaces,
+    ]);
+    const positions = new Map(programs.map((record, index) => [record, index]));
     const accepted = new Set<(typeof programs)[number]>();
     const accepting = new Set<(typeof programs)[number]>();
     const acceptSource = (record: (typeof programs)[number]): void => {
@@ -936,24 +981,28 @@ export function readProject(xml: string): ProjectResult<Project> {
       accepting.add(record);
       const { split, preserved: source } = record;
       if (source !== undefined) {
-        const base = parsePou(source).ast?.base?.key;
+        const base = parsing.pou(source).ast?.base?.key;
         const parent = programs.find((p) => p.split.name.toUpperCase() === base);
         if (parent) acceptSource(parent);
-        const preserved = splitProgram(source, resolved.types, globals, false, [
-          ...programs.map((p) => p.source),
-          ...canonicalTypes,
-          ...extensions.interfaces,
-        ]);
+        const preserved = splitProgramWithContext(
+          parsing,
+          source,
+          resolved.types,
+          globals,
+          false,
+          sourceContext,
+        );
         const comparable =
-          parsePou(source).ast?.kind === "class" && !split.body.trim()
+          parsing.pou(source).ast?.kind === "class" && !split.body.trim()
             ? { ...split, body: "" }
             : split;
         if (
-          legacyDraft(source, "pou") ||
+          legacyDraft(parsing, source, "pou") ||
           (preserved.value && JSON.stringify(preserved.value) === JSON.stringify(comparable))
-        )
+        ) {
           record.source = source;
-        else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
+          sourceContext.replace(positions.get(record)!, source);
+        } else diagnostics.push({ code: "project.stale-source", severity: "warning", args: {} });
       }
       accepting.delete(record);
       accepted.add(record);
@@ -962,11 +1011,11 @@ export function readProject(xml: string): ProjectResult<Project> {
     const structure: ConfigurationStructure = {
       globals: configuration.children
         .filter((n) => n.name === "globalVars")
-        .flatMap(readVariableGroup)
+        .flatMap((node) => readVariableGroup(parsing, node))
         .map((v) => ({ ...v, section: "localVars" as const })),
       resourceGlobals: resource.children
         .filter((n) => n.name === "globalVars")
-        .flatMap(readVariableGroup)
+        .flatMap((node) => readVariableGroup(parsing, node))
         .map((v) => ({ ...v, section: "localVars" as const })),
       name: attribute(configuration, "name"),
       resource: attribute(resource, "name"),
@@ -990,9 +1039,10 @@ export function readProject(xml: string): ProjectResult<Project> {
               leaf(instance, ["name", "typeName"]);
               const name = attribute(instance, "name"),
                 typeName = attribute(instance, "typeName");
-              validateIdentifier(name, "pouInstance/@name");
+              validateIdentifier(parsing, name, "pouInstance/@name");
               // Unknown program types are compiler errors, just as in preserved POU text.
-              const parsed = splitProgram(
+              const parsed = splitProgramWithContext(
+                parsing,
                 `PROGRAM __INSTANCE VAR x : ${typeName}; END_VAR END_PROGRAM`,
               );
               if (
@@ -1002,7 +1052,7 @@ export function readProject(xml: string): ProjectResult<Project> {
                 fail("project.invalid", "pouInstance/@typeName");
               return { name, typeName };
             });
-          validateIdentifier(attribute(task, "name"), "task/@name");
+          validateIdentifier(parsing, attribute(task, "name"), "task/@name");
           return {
             name: attribute(task, "name"),
             ...(taskInterval === undefined ? { single: single! } : { interval: taskInterval }),
@@ -1012,6 +1062,7 @@ export function readProject(xml: string): ProjectResult<Project> {
         }),
     };
     validateInitializers(
+      parsing,
       {
         kind: "program",
         name: structure.name,
@@ -1021,13 +1072,13 @@ export function readProject(xml: string): ProjectResult<Project> {
       resolved.types,
     );
     for (const node of [configuration, resource])
-      validateIdentifier(attribute(node, "name"), `${node.name}/@name`);
+      validateIdentifier(parsing, attribute(node, "name"), `${node.name}/@name`);
     const preserved = extensions.sources.get(configuration);
     let configurationSource: string | undefined;
     if (preserved !== undefined) {
-      if (legacyDraft(preserved, "configuration")) configurationSource = preserved;
+      if (legacyDraft(parsing, preserved, "configuration")) configurationSource = preserved;
       try {
-        if (sameConfiguration(splitConfiguration(preserved, resolved.types), structure))
+        if (sameConfiguration(splitConfiguration(parsing, preserved, resolved.types), structure))
           configurationSource = preserved;
       } catch {
         // Standard XML stays authoritative when source text is damaged.
@@ -1046,12 +1097,15 @@ export function readProject(xml: string): ProjectResult<Project> {
       configurationSource === undefined &&
       (preserved !== undefined ||
         !implicit ||
-        legacyDraft(joinConfiguration(structure), "configuration"))
+        legacyDraft(parsing, joinConfiguration(structure), "configuration"))
     ) {
       configurationSource = joinConfiguration(structure);
       // Prevent XML attributes from injecting declarations into generated source.
       if (
-        !sameConfiguration(splitConfiguration(configurationSource, resolved.types, true), structure)
+        !sameConfiguration(
+          splitConfiguration(parsing, configurationSource, resolved.types, true),
+          structure,
+        )
       )
         fail("project.invalid", "configuration");
     }
@@ -1096,17 +1150,22 @@ export function readProject(xml: string): ProjectResult<Project> {
   }
 }
 
-function typeXml(type: string): string {
+function typeXml(parsing: ParsingContext, type: string): string {
   if (type.startsWith("REF_TO "))
-    return element("pointer", {}, element("baseType", {}, typeXml(type.slice(7))));
+    return element("pointer", {}, element("baseType", {}, typeXml(parsing, type.slice(7))));
   if (type.startsWith("STRUCT ")) {
-    const ast = parseType(`TYPE __STRUCT_XML : ${type}; END_TYPE`);
+    const ast = parseType(parsing, `TYPE __STRUCT_XML : ${type}; END_TYPE`);
     const source = `TYPE __STRUCT_XML : ${type}; END_TYPE`;
-    const split = splitProgram(
+    const split = splitProgramWithContext(
+      parsing,
       `PROGRAM __STRUCT_SOURCE VAR ${ast.members!.map((member) => expressionText(source, member.span)).join(" ")} END_VAR END_PROGRAM`,
     );
     if (!split.value) fail("project.invalid", "struct");
-    return element("struct", {}, split.value.variables.map(variableXml).join(""));
+    return element(
+      "struct",
+      {},
+      split.value.variables.map((variable) => variableXml(parsing, variable)).join(""),
+    );
   }
   const array = /^ARRAY\[([^\]]+)\] OF (.+)$/.exec(type);
   if (array)
@@ -1119,7 +1178,7 @@ function typeXml(type: string): string {
           const [lower, upper] = d.trim().split("..");
           return element("dimension", { lower: lower!, upper: d.trim() === "*" ? "*" : upper! });
         })
-        .join("") + element("baseType", {}, typeXml(array[2]!)),
+        .join("") + element("baseType", {}, typeXml(parsing, array[2]!)),
     );
 
   const string = /^(STRING|WSTRING)(?:\[([0-9]+)\])?$/.exec(type);
@@ -1131,7 +1190,7 @@ function typeXml(type: string): string {
       !range[1]!.startsWith("U") ? "subrangeSigned" : "subrangeUnsigned",
       {},
       element("range", { lower: range[2]!, upper: range[3]! }) +
-        element("baseType", {}, typeXml(range[1]!)),
+        element("baseType", {}, typeXml(parsing, range[1]!)),
     );
   const enumeration = /^(\w+) \((.*)\)$/.exec(type);
   if (enumeration)
@@ -1148,7 +1207,7 @@ function typeXml(type: string): string {
             return element("value", { name: name!, value: value! });
           })
           .join(""),
-      ) + element("baseType", {}, typeXml(enumeration[1]!)),
+      ) + element("baseType", {}, typeXml(parsing, enumeration[1]!)),
     );
   return elementaryTypes.has(type)
     ? element(type)
@@ -1177,12 +1236,16 @@ function sameGroupQualifiers(a: VariableDeclaration, b: VariableDeclaration): bo
     !!a.constant === !!b.constant && !!a.retain === !!b.retain && !!a.nonRetain === !!b.nonRetain
   );
 }
-function globalGroupsXml(variables: VariableDeclaration[]): string {
+function globalGroupsXml(parsing: ParsingContext, variables: VariableDeclaration[]): string {
   let result = "";
   let group: VariableDeclaration[] = [];
   const flush = () => {
     if (group.length)
-      result += element("globalVars", groupAttributes(group[0]!), group.map(variableXml).join(""));
+      result += element(
+        "globalVars",
+        groupAttributes(group[0]!),
+        group.map((variable) => variableXml(parsing, variable)).join(""),
+      );
     group = [];
   };
   for (const variable of variables) {
@@ -1192,38 +1255,40 @@ function globalGroupsXml(variables: VariableDeclaration[]): string {
   flush();
   return result;
 }
-function variableXml(variable: VariableDeclaration): string {
+function variableXml(parsing: ParsingContext, variable: VariableDeclaration): string {
   return element(
     "variable",
     {
       name: variable.name,
       ...(variable.address === undefined ? {} : { address: variable.address }),
     },
-    element("type", {}, typeXml(variable.type)) + initialXml(variable.initialValue),
+    element("type", {}, typeXml(parsing, variable.type)) +
+      initialXml(parsing, variable.initialValue),
   );
 }
 
 /** Validate through the same supported-subset reader before returning an XML document. */
 export function writeProject(project: Project): ProjectResult<string> {
+  const parsing = new ParsingContext();
   let dataTypes: string;
   let resolved: ReturnType<typeof resolveDataTypes>;
   try {
-    const asts = project.dataTypes.map((source) => parseType(source));
+    const asts = project.dataTypes.map((source) => parseType(parsing, source));
     const namespacePous = project.pous.flatMap((source) => {
-      const ast = parsePou(source).ast;
+      const ast = parsing.pou(source).ast;
       return ast ? [ast] : [];
     });
     resolveNamespaces([...asts, ...namespacePous]);
-    resolved = resolveDataTypes(asts, new Map(), interfaceTypes(project.pous));
+    resolved = resolveDataTypes(asts, new Map(), interfaceTypes(parsing, project.pous));
     validateTypeInitializers(asts);
     dataTypes = project.dataTypes
       .map((source) => {
-        const split = splitDataType(source, asts, false, namespacePous);
+        const split = splitDataType(parsing, source, asts, false, namespacePous);
         return element(
           "dataType",
           { name: split.name },
-          element("baseType", {}, typeXml(split.type)) +
-            initialXml(split.initialValue) +
+          element("baseType", {}, typeXml(parsing, split.type)) +
+            initialXml(parsing, split.initialValue) +
             element("addData", {}, sourceXml(source)),
         );
       })
@@ -1243,7 +1308,7 @@ export function writeProject(project: Project): ProjectResult<string> {
     structure =
       project.configurationSource === undefined
         ? undefined
-        : splitConfiguration(project.configurationSource, resolved.types);
+        : splitConfiguration(parsing, project.configurationSource, resolved.types);
   } catch (error) {
     return {
       value: null,
@@ -1255,19 +1320,25 @@ export function writeProject(project: Project): ProjectResult<string> {
     };
   }
   const globals = globalConstantScope(
+    parsing,
     [...(structure?.globals ?? []), ...(structure?.resourceGlobals ?? [])],
     resolved.types,
   );
   const interfaceSources = project.pous.filter(
-    (source) => parsePou(source).ast?.kind === "interface",
+    (source) => parsing.pou(source).ast?.kind === "interface",
   );
   const pouSources = project.pous.filter((source) => !interfaceSources.includes(source));
+  const sources = new ProgramContext(parsing, [...project.pous, ...project.dataTypes]);
   const programs: SplitProgram[] = [];
   for (const source of pouSources) {
-    const parsed = splitProgram(source, resolved.types, globals, false, [
-      ...project.pous,
-      ...project.dataTypes,
-    ]);
+    const parsed = splitProgramWithContext(
+      parsing,
+      source,
+      resolved.types,
+      globals,
+      false,
+      sources,
+    );
     if (!parsed.value) return { value: null, diagnostics: parsed.diagnostics };
     programs.push(parsed.value);
   }
@@ -1287,7 +1358,7 @@ export function writeProject(project: Project): ProjectResult<string> {
           groups += element(
             current[0]!.section,
             groupAttributes(current[0]!),
-            current.map(variableXml).join(""),
+            current.map((variable) => variableXml(parsing, variable)).join(""),
           );
         current = [];
       };
@@ -1308,7 +1379,7 @@ export function writeProject(project: Project): ProjectResult<string> {
           {},
           (program.returnType === undefined
             ? ""
-            : element("returnType", {}, typeXml(program.returnType))) + groups,
+            : element("returnType", {}, typeXml(parsing, program.returnType))) + groups,
         ) +
           element("body", {}, element("ST", {}, element("xhtml:p", {}, escapeXml(program.body)))) +
           element("addData", {}, sourceXml(pouSources[index]!)),
@@ -1352,9 +1423,9 @@ export function writeProject(project: Project): ProjectResult<string> {
                 task.instances.map((instance) => element("pouInstance", instance)).join(""),
               ),
             )
-            .join("") + globalGroupsXml(configuration.resourceGlobals ?? []),
+            .join("") + globalGroupsXml(parsing, configuration.resourceGlobals ?? []),
         ) +
-          globalGroupsXml(configuration.globals ?? []) +
+          globalGroupsXml(parsing, configuration.globals ?? []) +
           element("addData", {}, sourceXml(project.configurationSource)),
       );
     }
@@ -1416,6 +1487,6 @@ export function writeProject(project: Project): ProjectResult<string> {
         element("instances", {}, configurations) +
         extra,
     );
-  const validation = readProject(xml);
+  const validation = readProjectWithContext(parsing, xml);
   return { value: validation.value ? xml : null, diagnostics: validation.diagnostics };
 }
