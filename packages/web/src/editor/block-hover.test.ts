@@ -173,3 +173,23 @@ it("returns no hover while the current editor compilation is unavailable", () =>
   const source = configuredSources[0]!;
   expect(compiledBlockTypeAt(source, source.indexOf("count :"))).toBeNull();
 });
+
+it("keeps uninstantiated program locals separate from same-named globals", () => {
+  const source = `PROGRAM Unused
+VAR timer : BOOL; temps : ARRAY[1..5] OF BOOL; END_VAR
+VAR_EXTERNAL shared : INT; timers : ARRAY[1..2] OF TON; END_VAR
+timer := TRUE; temps[1] := timer;
+END_PROGRAM`;
+  const config = configuration.replace("timer : TON;", "timer : TON; temps : ARRAY[1..2] OF INT;");
+  const result = compileProject([...configuredSources, source], [], config);
+  expect(result.diagnostics).toEqual([]);
+  for (const [text, expected] of [
+    ["timer :", "timer: BOOL"],
+    ["timer :=", "timer: BOOL"],
+    ["temps :", "temps: ARRAY[1..5] OF BOOL"],
+    ["temps[1]", "temps: ARRAY[1..5] OF BOOL"],
+    ["shared :", "shared: INT"],
+    ["timers :", "timers: ARRAY[1..2] OF TON_LTIME"],
+  ])
+    expect(compiledBlockTypeAt(source, source.indexOf(text!), result.ir)?.text).toBe(expected);
+});

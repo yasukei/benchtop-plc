@@ -38,12 +38,15 @@ export function blockTypeAt(source: string, position: number, ir?: Configuration
       (instance) => ir.programs[instance.program]!.name.toUpperCase() === ast.name.key,
     );
   const qualified =
-    ast?.kind === "program" && instance && !external
-      ? `${instance.name.toUpperCase()}.${token.key}`
+    ast?.kind === "program" && !external
+      ? instance && `${instance.name.toUpperCase()}.${token.key}`
       : token.key;
-  const variable = variables?.find((item) => item.key === qualified);
+  // Uninstantiated program locals have no storage in the configuration tables.
+  const variable = qualified ? variables?.find((item) => item.key === qualified) : undefined;
   if (declaration.array) {
-    const composite = ir.composites?.find((item) => item.name.toUpperCase() === qualified);
+    const composite = qualified
+      ? ir.composites?.find((item) => item.name.toUpperCase() === qualified)
+      : undefined;
     const dataType = variable?.kind === "array" ? variable.dataType : composite?.dataType;
     return {
       ...spanRange(source, token.span),
