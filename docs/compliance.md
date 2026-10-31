@@ -379,7 +379,11 @@ no cyclic or FINAL base. All sections and methods are inherited, including priva
 storage. PRIVATE members are accessible only in the declaring type; PROTECTED
 members also in descendants. Overrides require OVERRIDE and identical access,
 parameter names/sections/types/order and result type; PRIVATE/FINAL methods cannot
-be overridden. Dynamic binding includes implicit and explicit THIS calls, and the
+be overridden. Override and interface signatures use resolved type equivalence
+(ADR 0015): aliases match their bases, subranges match by base and limits whether
+named or anonymous, and string capacities do not affect type identity. Structures
+and enumerations remain nominal; a subrange does not match its base type.
+Dynamic binding includes implicit and explicit THIS calls, and the
 recursion graph conservatively includes all descendant overrides.
 
 SUPER.M() selects a concrete, accessible base method. SUPER() takes no arguments
@@ -394,7 +398,9 @@ These follow the 3rd edition and project restrictions, pending 4th edition check
 
 Interfaces contain public prototypes only and may extend several interfaces, with
 identical signatures for shared method names. Concrete classes and function blocks
-implement every prototype with PUBLIC methods. Interface variables support NULL,
+implement every prototype with PUBLIC methods. Shared prototypes and implementations
+use the same signature rule as overrides above, including parameter names, sections,
+order and result type. Interface variables support NULL,
 identity equality, compatible interface/instance/THIS assignment and dynamic method
 calls. They cannot be CONSTANT, located, dereferenced, called as bodies or used to
 access instance fields. Persistent storage is required for an instance target.

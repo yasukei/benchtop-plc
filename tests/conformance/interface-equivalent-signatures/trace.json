@@ -1,0 +1,14 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Dispatch the interface with equivalent parameter and result types",
+      "scans": 1,
+      "expect": {
+        "mainInstance.Count": 15,
+        "mainInstance.Formatted": "value3"
+      }
+    }
+  ]
+}

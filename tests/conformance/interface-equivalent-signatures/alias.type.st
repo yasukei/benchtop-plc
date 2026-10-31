@@ -1,0 +1,1 @@
+TYPE AliasInt : INT; END_TYPE

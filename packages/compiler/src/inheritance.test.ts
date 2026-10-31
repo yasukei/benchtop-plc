@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { compileProject, isKeyword, parsePou } from "./index.js";
+import { signatureTypes, signatureTypeSources } from "./signatures.test-support.js";
 
 const main = (body = "", declarations = "d: Derived;") =>
   `PROGRAM Main VAR ${declarations} END_VAR ${body} END_PROGRAM`;
@@ -242,19 +243,19 @@ it.each(["Check();", "THIS.Check();"])(
   },
 );
 
-it("compares parameter order, capacities and array bounds in override signatures", () => {
-  for (const [a, b] of [
-    ["x,y: INT;", "y,x: INT;"],
-    ["x: STRING[3];", "x: STRING[4];"],
-    ["x: ARRAY[1..2] OF INT;", "x: ARRAY[0..1] OF INT;"],
-  ]) {
-    const result = compileProject([
-      main(),
-      derived(method("PUBLIC OVERRIDE", "INT", `VAR_INPUT ${a} END_VAR`)),
-      base(method("PUBLIC", "INT", `VAR_INPUT ${b} END_VAR`)),
-    ]);
-    expect(result.diagnostics.map((d) => d.code)).toContain("inheritance.override-signature");
-  }
+it.each([
+  ["parameter order", "x,y: INT;", "y,x: INT;", false],
+  ["string capacities", "x: STRING[3];", "x: STRING[4];", true],
+  ["array bounds", "x: ARRAY[1..2] OF INT;", "x: ARRAY[0..1] OF INT;", false],
+])("compares %s in override signatures", (_detail, a, b, matches) => {
+  const result = compileProject([
+    main(),
+    derived(method("PUBLIC OVERRIDE", "INT", `VAR_INPUT ${a} END_VAR`)),
+    base(method("PUBLIC", "INT", `VAR_INPUT ${b} END_VAR`)),
+  ]);
+  expect(result.diagnostics.map((d) => d.code)).toEqual(
+    matches ? [] : ["inheritance.override-signature"],
+  );
 });
 
 it.each(["Extends", "Override", "Super", "Abstract", "Final"])(
@@ -313,3 +314,26 @@ it("keeps a derived declaration's own diagnostics when its base is invalid", () 
     { code: "decl.unknown-type", pou: "Base", sourceIndex: 2 },
   ]);
 });
+
+it.each(signatureTypes)(
+  "compares override $position types using $name equivalence (matches: $matches)",
+  ({ left, right, matches, position }) => {
+    const signature = (prefix: string, type: string) =>
+      method(
+        prefix,
+        position === "result" ? type : "",
+        position === "result" ? "" : `${position} value: ${type}; END_VAR`,
+      );
+    const result = compileProject(
+      [main(), derived(signature("PUBLIC OVERRIDE", left)), base(signature("PUBLIC", right))],
+      signatureTypeSources,
+    );
+    if (matches) {
+      expect(result.diagnostics).toEqual([]);
+      expect(result.ir).toBeDefined();
+    } else {
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics.map((d) => d.code)).toEqual(["inheritance.override-signature"]);
+    }
+  },
+);
