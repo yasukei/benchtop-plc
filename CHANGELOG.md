@@ -15,6 +15,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Record a paired re-measurement of the ADR 0018 runtime performance budget and
+  document the manual Runtime benchmark workflow, which compares a chosen revision
+  with the pre-resumable baseline and retains timings and environment details.
+
 - **Breaking core protocol change:** the IR carried by `load` stores inherited
   methods as `{ block, method }` references to their declaring implementations.
   Inherited function block bodies remain empty and resolve through `bodyOwner`,
