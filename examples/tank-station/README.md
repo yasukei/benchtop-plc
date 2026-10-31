@@ -6,7 +6,7 @@ alarm addresses, with one shared STOP input. Both import the same global setpoin
 limit through `VAR_EXTERNAL`. `StationStatistics` samples pump flags in `%MW0`,
 and an event task acknowledges alarms on a rising ACK input.
 
-Open the web app, choose **Open project**, and select `project.xml`. The panel has two
+Open the web app, select **Tank station** under **Example**, then click **Open example** twice to confirm. The panel has two
 tank rows and shared STOP, ACK and alarm controls below them.
 Set **SETPOINT (%)** to 50, **LEVEL 1 (%)** to 20 and **LEVEL 2 (%)** to 60.
 Press **RUN**, let the first idle scan run, then press and release **START 1**
@@ -57,7 +57,7 @@ from browser autosave and starts in STOP with both tanks disarmed. Timer state
 would also be initialized by these operations. Output displays show zero in
 STOP; press RUN to publish retained counters without starting either pump.
 Allow the first idle activation before pressing START again. A **Cold reset**,
-opening a project or restoring the startup example initializes the counters.
+opening a project or a bundled example initializes the counters.
 Save/reopen preserves all four source texts and the panel exactly, but does not
 save live counter values in XML. Reload retention uses browser storage, which
 updates at most once per second during RUN and after state changes; use toolbar

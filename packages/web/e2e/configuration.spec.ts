@@ -111,7 +111,7 @@ END_RESOURCE END_CONFIGURATION\r
     expect(
       readProject(readFileSync((await download.path())!, "utf8")).value?.configurationSource,
     ).toBe(configurationSource);
-    const restore = page.getByRole("button", { name: "Restore example", exact: true });
+    const restore = page.getByRole("button", { name: "Open example", exact: true });
     await restore.click();
     await restore.click();
     await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue(

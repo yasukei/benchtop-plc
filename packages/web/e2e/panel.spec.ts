@@ -439,7 +439,7 @@ for (const width of [1280, 400]) {
   });
 }
 
-test("restores the example only after in-page confirmation and supports cancellation", async ({
+test("opens an example only after in-page confirmation and supports cancellation", async ({
   page,
 }) => {
   await page.goto("/");
@@ -453,7 +453,7 @@ test("restores the example only after in-page confirmation and supports cancella
   await page.getByRole("button", { name: "Edit panel", exact: true }).click();
   await page.getByRole("button", { name: "START", exact: true }).click();
   await page.getByLabel("Label", { exact: true }).fill("Edited start");
-  const restore = page.getByRole("button", { name: "Restore example", exact: true });
+  const restore = page.getByRole("button", { name: "Open example", exact: true });
   await restore.click();
   const confirmation = page.getByText(
     "Click again to replace your program, panel layout and cycle.",
@@ -465,6 +465,10 @@ test("restores the example only after in-page confirmation and supports cancella
   await expect(page.getByLabel("Cycle (ms)")).toHaveValue("50");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(confirmation).toHaveCount(0);
+  await restore.click();
+  await page.getByRole("combobox", { name: "Example", exact: true }).selectOption("tank-station");
+  await expect(confirmation).toHaveCount(0);
+  await page.getByRole("combobox", { name: "Example", exact: true }).selectOption("blink");
   await restore.click();
   await expect(editor).toHaveText("PROGRAM Changed END_PROGRAM");
   await restore.click();
@@ -478,11 +482,11 @@ test("restores the example only after in-page confirmation and supports cancella
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
-test("guards restoring like opening projects and clears confirmation when execution starts", async ({
+test("guards opening examples like opening projects and clears confirmation when execution starts", async ({
   page,
 }) => {
   await page.goto("/");
-  const restore = page.getByRole("button", { name: "Restore example", exact: true });
+  const restore = page.getByRole("button", { name: "Open example", exact: true });
   const open = page.getByLabel("Open project", { exact: true });
   await restore.click();
   await page.getByRole("button", { name: "RUN", exact: true }).click();
@@ -498,7 +502,20 @@ test("guards restoring like opening projects and clears confirmation when execut
   await expect(restore).toBeEnabled();
   await expect(open).toBeEnabled();
   await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
-  const localized = page.getByRole("button", { name: "サンプルを復元", exact: true });
+  await expect(
+    page.getByRole("combobox", { name: "サンプル", exact: true }).locator("option"),
+  ).toHaveText([
+    "バッチミキサー",
+    "点滅ランプ",
+    "モータースターター",
+    "流れるランプ",
+    "仕分けコンベヤー",
+    "タンクステーション",
+  ]);
+  await expect(
+    page.getByText("アラームカウンター付きのランプを点滅・停止させます。", { exact: true }),
+  ).toBeVisible();
+  const localized = page.getByRole("button", { name: "サンプルを開く", exact: true });
   await localized.click();
   await expect(
     page.getByText("もう一度クリックするとプログラム・パネル配置・周期を置き換えます。", {

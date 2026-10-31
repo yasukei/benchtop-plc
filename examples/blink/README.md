@@ -25,7 +25,7 @@ has START (green), STOP (red), and RESET push buttons, Running (green), Lamp
 the controls apart on narrow screens.
 
 The web app opens this project on startup. Press RUN, then hold START briefly to
-latch Running and blink the Lamp LED. Use **Restore example** and confirm on the
+latch Running and blink the Lamp LED. Select **Blink** under **Example**, then use **Open example** and confirm on the
 page to replace the current program, panel layout, and task cycle with this
 project. A host can also import it using `@benchtop-plc/project`'s `readProject`.
 

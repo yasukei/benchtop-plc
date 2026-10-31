@@ -10,7 +10,8 @@ shell and diagnostics support English and Japanese as required by ADR 0008; see
 [i18n.md](i18n.md).
 
 `main.tsx` creates a module Worker, a `RuntimeClient` and a plain TypeScript app
-store, then restores saved work or opens the bundled blink example. React subscribes with
+store, then restores saved work or asynchronously opens the bundled blink example.
+React subscribes with
 `useSyncExternalStore`. Runtime state and scan telemetry come from Worker
 messages; the UI does not optimistically claim that RUN succeeded. Unexpected
 command or tick errors latch FAULT with `runtime.internal-error`, stop scanning
@@ -77,8 +78,15 @@ cannot be parsed. Imported types in older project metadata are retained.
 
 Autosave is a per-browser convenience. It is not shared between browsers or
 devices, and browser settings or storage limits may prevent persistence. Use
-**Save project** to keep or share a project. **Restore example** replaces the
-current work and is autosaved like other edits. Runtime state is not saved;
+**Save project** to keep or share a project. Select one of the six bundled projects
+under **Example** to see its localized
+name and one-line description, then click **Open example** twice to replace the
+current work; **Cancel** keeps it. Changing the selection clears confirmation.
+Opening an example is available in STOP with emergency stop released and the
+Worker connected, just like **Open project**. It replaces the program, panel and
+cycle, initializes retained values as a program load, and is autosaved like other
+edits. Each example's XML is loaded on demand; startup without saved work still
+opens Blink. Runtime state is not saved;
 retained values are saved as described below.
 
 ## Configuration source
@@ -177,10 +185,10 @@ controls, in the same area as save diagnostics. Identical warnings repeated acro
 POUs appear once. Saving keeps the imported content
 with those changes. The warnings remain through edits, runtime commands and saves
 until **Dismiss project warnings** is selected or another project opens
-successfully (including **Restore example**). A failed open leaves them visible.
+successfully (including **Open example**). A failed open leaves them visible.
 
 Try the [motor starters example](../examples/motor-starters/) by selecting
-`examples/motor-starters/project.xml` with **Open project**. Its POU list contains
+**Motor starters** under **Example** and confirming **Open example**. Its POU list contains
 `Main`, `MotorStarter` and `CanStart`: a program, a reusable function block with a
 nested TON, and an interlock function. Press **RUN**, then **M1 START** or
 **M2 START** on the panel. Each motor has a 500 ms start delay, a STOP button,
@@ -422,7 +430,7 @@ The page replaces the optional `retentive` array in the version 4 autosave recor
 immediately, preserving all editable sources alongside it. Reload can lose up to
 about one second of changes. It compiles autosaved sources, loads and restores
 values, and stays in STOP. A normal Apply, RUN with unapplied edits, Open project
-or Restore example initializes all values as a program load.
+or Open example initializes all values as a program load.
 
 When autosaved text does not compile, retained records remain in storage until
 the first successful load. A failed load also preserves the saved records for

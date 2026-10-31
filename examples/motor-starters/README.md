@@ -7,7 +7,7 @@ The exact sources are checked against
 One 10 ms cyclic task calls two independent instances, `M1` and `M2`, of the same
 block. Each instance owns its start/stop latch and nested `TON` timer.
 
-Open the web app, choose **Open project**, and select this `project.xml`. The POU
+Open the web app, select **Motor starters** under **Example**, then click **Open example** twice to confirm. The POU
 list shows all three texts. Press **RUN**, then hold **M1 START** briefly: the amber
 **M1 STARTING** lamp lights immediately, followed by the green **M1 RUN** lamp
 after 500 ms. Releasing START preserves the latch. Press **M1 STOP** to clear it,

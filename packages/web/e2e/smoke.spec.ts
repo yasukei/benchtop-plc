@@ -185,6 +185,69 @@ test("shows Worker startup failures and disables runtime controls", async ({ pag
       page.locator(".toolbar").getByRole("button", { name, exact: true }),
     ).toBeDisabled();
   }
-  await expect(page.getByRole("button", { name: "Restore example", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Open example", exact: true })).toBeDisabled();
   await expect(page.getByLabel("Open project", { exact: true })).toBeDisabled();
+});
+
+test("opens bundled examples including an explicit configuration", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("./");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  const picker = page.getByRole("combobox", { name: "Example", exact: true });
+  await expect(picker.locator("option")).toHaveText([
+    "Batch mixer",
+    "Blink",
+    "Motor starters",
+    "Running light",
+    "Sorting conveyor",
+    "Tank station",
+  ]);
+  const open = page.getByRole("button", { name: "Open example", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  const diagnostics = page.getByRole("region", { name: "Diagnostics", exact: true });
+  for (const [id, source, description] of [
+    [
+      "running-light",
+      "PROGRAM Main",
+      "Move a light along eight outputs with timers and bit operations.",
+    ],
+    [
+      "tank-station",
+      "PROGRAM TankControl",
+      "Control two tanks with shared settings and multiple tasks.",
+    ],
+  ] as const) {
+    await picker.selectOption(id);
+    await expect(page.getByText(description, { exact: true })).toBeVisible();
+    await open.click();
+    await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
+    await open.click();
+    await expect(editor).toContainText(source);
+    await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+    await expect(diagnostics).toContainText("No diagnostics");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await page.getByRole("button", { name: "Single scan", exact: true }).click();
+    await expect(page.getByLabel("Scans", { exact: true })).toHaveText("1");
+  }
+  await expect(page.getByLabel("Cycle (ms)")).toHaveCount(0);
+  await expect(page.getByRole("table", { name: "Task telemetry", exact: true })).toContainText(
+    "Control",
+  );
+  await expect(page.getByLabel("LEVEL 1 (%)", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("reports a failed startup example fetch and can open another example", async ({ page }) => {
+  await page.route("**/assets/project-*.js", (route) => route.abort());
+  await page.goto("./");
+  await expect(page.getByRole("alert")).toContainText("Unable to open or save this project.");
+  await page.unroute("**/assets/project-*.js");
+  // A failed module import is cached by the browser; another example can still open.
+  await page.getByRole("combobox", { name: "Example", exact: true }).selectOption("running-light");
+  const open = page.getByRole("button", { name: "Open example", exact: true });
+  await open.click();
+  await open.click();
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });

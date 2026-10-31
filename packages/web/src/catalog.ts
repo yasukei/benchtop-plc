@@ -128,8 +128,23 @@ export const en = {
   projectWarnings:
     "Opening this project dropped or replaced content. Saving will keep these changes.",
   dismissProjectWarnings: "Dismiss project warnings",
-  restoreExample: "Restore example",
-  confirmRestoreExample: "Click again to replace your program, panel layout and cycle.",
+  example: "Example",
+  openExample: "Open example",
+  exampleBatchMixer: "Batch mixer",
+  exampleBatchMixerDescription: "Mix batches with recipes, arrays and structured data.",
+  exampleBlink: "Blink",
+  exampleBlinkDescription: "Start and stop a blinking lamp with an alarm counter.",
+  exampleMotorStarters: "Motor starters",
+  exampleMotorStartersDescription:
+    "Control two motors with reusable function blocks and start timers.",
+  exampleRunningLight: "Running light",
+  exampleRunningLightDescription:
+    "Move a light along eight outputs with timers and bit operations.",
+  exampleSortingConveyor: "Sorting conveyor",
+  exampleSortingConveyorDescription: "Sort items with classes, interfaces and retained bin totals.",
+  exampleTankStation: "Tank station",
+  exampleTankStationDescription: "Control two tanks with shared settings and multiple tasks.",
+  confirmOpenExample: "Click again to replace your program, panel layout and cycle.",
   cancel: "Cancel",
   projectError: "Unable to open or save this project. Check the program and panel layout.",
   unsupportedProjectCycle:
@@ -286,8 +301,23 @@ export const ja: Record<keyof typeof en, string> = {
   projectWarnings:
     "プロジェクトを開く際に一部の内容を破棄または置き換えました。保存するとこれらの変更が反映されます。",
   dismissProjectWarnings: "プロジェクトの警告を閉じる",
-  restoreExample: "サンプルを復元",
-  confirmRestoreExample: "もう一度クリックするとプログラム・パネル配置・周期を置き換えます。",
+  example: "サンプル",
+  openExample: "サンプルを開く",
+  exampleBatchMixer: "バッチミキサー",
+  exampleBatchMixerDescription: "レシピ・配列・構造化データを使ってバッチを混合します。",
+  exampleBlink: "点滅ランプ",
+  exampleBlinkDescription: "アラームカウンター付きのランプを点滅・停止させます。",
+  exampleMotorStarters: "モータースターター",
+  exampleMotorStartersDescription:
+    "再利用可能なファンクションブロックと起動タイマーで2台のモーターを制御します。",
+  exampleRunningLight: "流れるランプ",
+  exampleRunningLightDescription: "タイマーとビット演算で8つの出力に沿ってランプを移動させます。",
+  exampleSortingConveyor: "仕分けコンベヤー",
+  exampleSortingConveyorDescription:
+    "クラス・インターフェース・保持カウンターで品物を仕分けします。",
+  exampleTankStation: "タンクステーション",
+  exampleTankStationDescription: "共有設定と複数タスクで2つのタンクを制御します。",
+  confirmOpenExample: "もう一度クリックするとプログラム・パネル配置・周期を置き換えます。",
   cancel: "キャンセル",
   projectError: "プロジェクトを開くか保存できません。プログラムとパネル配置を確認してください。",
   unsupportedProjectCycle:

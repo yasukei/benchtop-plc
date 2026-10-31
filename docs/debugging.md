@@ -7,7 +7,8 @@ The instructions use the English labels; select English in **Language** if neede
 
 ## 1. Open a fresh project
 
-Use **Open project** to load
+Select **Sorting conveyor** under **Example**, then click **Open example** twice
+to confirm. The project is also available as
 [`examples/sorting-conveyor/project.xml`](../examples/sorting-conveyor/project.xml).
 Opening replaces the current workspace, initializes both bin totals and clears
 workspace breakpoints and instance choices. Save any work you want to keep first.
