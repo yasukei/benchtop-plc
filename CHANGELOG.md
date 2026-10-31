@@ -15,6 +15,14 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   Inherited function block bodies remain empty and resolve through `bodyOwner`,
   so each implementation appears once in serialized IR (ADR 0017).
 
+- Define overlapping-force precedence in ADR 0025: the most recently set force
+  wins on shared storage, and re-forcing now moves an existing force to newest
+  precedence. Event-task sampling also observes overlapping forces in last-set
+  order, including direct input events. Releasing one force lets remaining forces
+  reassert their values at the next force stage without restoring old memory.
+  Record the existing injected
+  ticker scheduling, idempotent cancellation and virtual dispatch order in ADR 0026.
+
 - Run debugger shortcut scenarios in Chromium, Firefox and WebKit on Linux in CI,
   keeping other browser tests and the Pages smoke suite on Chromium. Document
   installation of all three engines and the Chromium-only container option.

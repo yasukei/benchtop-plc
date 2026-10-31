@@ -186,3 +186,97 @@ it("keeps aliases, references, forces and VAR_IN_OUT bound to the same located b
   clock.advance(10);
   expect(value("mainInstance.shared")).toMatchObject({ value: 263 });
 });
+
+const overlappingForceProgram = `PROGRAM Main VAR
+  wide AT %MW0 : WORD; low AT %MB0 : BYTE; seen : WORD;
+  END_VAR seen := wide; END_PROGRAM`;
+
+it.each([false, true])(
+  "applies overlapping forces in last-set order and promotes re-forces (byte first: %s)",
+  (byteFirst) => {
+    const { runtime, clock, value, id } = setup([overlappingForceProgram]);
+    const wide = id("mainInstance.wide"),
+      low = id("mainInstance.low");
+    const setWord = () => runtime.force(wide, { dataType: "WORD", value: 0x1234 });
+    const setByte = () => runtime.force(low, { dataType: "BYTE", value: 0xff });
+    const first = byteFirst ? setByte : setWord;
+    const last = byteFirst ? setWord : setByte;
+    const check = (expected: number) => {
+      clock.advance(10);
+      expect(value("mainInstance.wide")).toMatchObject({ value: expected });
+      expect(value("mainInstance.low")).toMatchObject({ value: expected & 0xff });
+      expect(value("mainInstance.seen")).toMatchObject({ value: expected });
+      expect(runtime.snapshot().forced).toEqual([wide, low].sort((a, b) => a - b));
+    };
+    first();
+    last();
+    runtime.run();
+    check(byteFirst ? 0x1234 : 0x12ff);
+    // Setting the same value again still makes this the newest force.
+    first();
+    check(byteFirst ? 0x12ff : 0x1234);
+    last();
+    check(byteFirst ? 0x1234 : 0x12ff);
+  },
+);
+
+for (const byteFirst of [false, true]) {
+  it.each(["wide", "low"] as const)(
+    `reapplies the remaining overlapping force after releasing %s (byte first: ${byteFirst})`,
+    (released) => {
+      const { runtime, clock, value, id } = setup([overlappingForceProgram]);
+      const wide = id("mainInstance.wide"),
+        low = id("mainInstance.low");
+      const forces = [
+        () => runtime.force(wide, { dataType: "WORD", value: 0x1234 }),
+        () => runtime.force(low, { dataType: "BYTE", value: 0xff }),
+      ];
+      for (const set of byteFirst ? [...forces].reverse() : forces) set();
+      runtime.run();
+      clock.advance(10);
+      const before = byteFirst ? 0x1234 : 0x12ff;
+      expect(value("mainInstance.wide")).toMatchObject({ value: before });
+      runtime.force(id(`mainInstance.${released}`), null);
+      expect(runtime.snapshot().forced).toEqual([released === "wide" ? low : wide]);
+      // Release changes the force set immediately, but bytes only at a force stage.
+      expect(value("mainInstance.wide")).toMatchObject({ value: before });
+      clock.advance(10);
+      const remaining = released === "wide" ? 0x12ff : 0x1234;
+      expect(value("mainInstance.wide")).toMatchObject({ value: remaining });
+      expect(value("mainInstance.seen")).toMatchObject({ value: remaining });
+      // Uncovered bytes retain their value until the program, image or a write changes them.
+      runtime.write(wide, { dataType: "WORD", value: 0 });
+      clock.advance(10);
+      const afterWrite = released === "wide" ? 0x00ff : 0x1234;
+      expect(value("mainInstance.wide")).toMatchObject({ value: afterWrite });
+      expect(value("mainInstance.seen")).toMatchObject({ value: afterWrite });
+    },
+  );
+}
+
+it("keeps overlapping force values and precedence unchanged after an invalid re-force", () => {
+  const { runtime, id, value } = setup([overlappingForceProgram]);
+  runtime.force(id("mainInstance.low"), { dataType: "BYTE", value: 0xff });
+  runtime.force(id("mainInstance.wide"), { dataType: "WORD", value: 0x1234 });
+  expect(() => runtime.force(id("mainInstance.low"), { dataType: "BYTE", value: 256 })).toThrow(
+    RuntimeCommandRejected,
+  );
+  runtime.step();
+  expect(value("mainInstance.wide")).toMatchObject({ value: 0x1234 });
+  expect(runtime.snapshot().forced).toHaveLength(2);
+});
+
+it("overrides only the addressed bit when the newest force overlaps a byte", () => {
+  const { runtime, id, value } = setup([
+    `PROGRAM Main VAR lowByte AT %MB0 : BYTE; bit0 AT %MX0.0 : BOOL;
+    END_VAR END_PROGRAM`,
+  ]);
+  runtime.force(id("mainInstance.lowByte"), { dataType: "BYTE", value: 0xaa });
+  runtime.force(id("mainInstance.bit0"), { dataType: "BOOL", value: true });
+  runtime.step();
+  expect(value("mainInstance.lowByte")).toMatchObject({ value: 0xab });
+  runtime.force(id("mainInstance.lowByte"), { dataType: "BYTE", value: 0xaa });
+  runtime.step();
+  expect(value("mainInstance.lowByte")).toMatchObject({ value: 0xaa });
+  expect(value("mainInstance.bit0")).toMatchObject({ value: false });
+});
