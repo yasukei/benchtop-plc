@@ -355,14 +355,15 @@ export interface UserFunctionBlockIR extends SourceNode {
   interfaces?: string[];
   /** Base definition index; variables and method slots are flattened base first. */
   base?: number;
-  /** Definition declaring the effective body; absent means this definition. */
+  /** Declaring body definition; absent means this type. Inherited definitions keep body empty. */
   bodyOwner?: number;
   abstract?: true;
   final?: true;
   /** Absent denotes a function block, preserving existing IR producers. */
   kind?: "functionBlock" | "class";
-  methods?: UserMethodIR[];
-  /** Case-insensitive method name to implementation index. */
+  /** Effective slots: declared implementations or direct references to their declaring type. */
+  methods?: (UserMethodIR | UserMethodReference)[];
+  /** Case-insensitive method name to effective method slot. */
   methodTable?: Record<string, number>;
   name: string;
   variables: LocalVariable[];
@@ -376,11 +377,30 @@ export interface UserFunctionBlockIR extends SourceNode {
 
 /** Slots below memberCount address the receiver; other slots address fresh locals. */
 export interface UserMethodIR extends UserFunctionIR {
-  /** Definition declaring this implementation, including inherited methods. */
+  /** Definition declaring this implementation. */
   declaringType?: number;
   abstract?: true;
   final?: true;
   memberCount: number;
+}
+
+/** An inherited slot refers directly to an implementation, never another reference. */
+export interface UserMethodReference {
+  block: number;
+  method: number;
+}
+
+/** Resolve an effective method slot without changing its receiver or parameter layout. */
+export function methodImplementation(
+  blocks: readonly UserFunctionBlockIR[],
+  block: number,
+  method: number,
+): UserMethodIR {
+  const entry = blocks[block]!.methods![method]!;
+  if ("body" in entry) return entry;
+  const implementation = blocks[entry.block]!.methods![entry.method]!;
+  if ("body" in implementation) return implementation;
+  throw new Error("Inherited method must refer directly to an implementation");
 }
 
 export interface UserFunctionIR extends SourceNode {

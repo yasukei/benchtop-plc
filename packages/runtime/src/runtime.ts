@@ -572,7 +572,9 @@ class PlcRuntime implements Runtime {
                       const key = location.pou.toUpperCase();
                       const source = ir.functionBlocks?.find((block) =>
                         block.methods?.some(
-                          (method) => `${block.name}.${method.name}`.toUpperCase() === key,
+                          (method) =>
+                            "body" in method &&
+                            `${block.name}.${method.name}`.toUpperCase() === key,
                         ),
                       );
                       const breakpoint =

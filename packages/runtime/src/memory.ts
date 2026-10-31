@@ -657,6 +657,7 @@ export class Memory extends MemoryFrame {
     for (const block of ir.functionBlocks ?? []) {
       validateLiterals(block.body);
       for (const method of block.methods ?? []) {
+        if (!("body" in method)) continue;
         validateLiterals(method.body);
         method.variables.forEach((v) => initialCell(v, ir.types ?? []));
       }

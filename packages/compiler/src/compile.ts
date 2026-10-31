@@ -491,13 +491,20 @@ export function compileProject(
       ...(ast.final ? { final: true as const } : {}),
       ...(ast.methods?.length
         ? {
-            methods: ast.methods.map((method) => ({
-              ...lowerFunction(checked.get(method)!),
-              memberCount: checked.get(method)!.memberCount!,
-              declaringType: blockIds.get(method.owner!.name.key)!,
-              ...(method.abstract ? { abstract: true as const } : {}),
-              ...(method.final ? { final: true as const } : {}),
-            })),
+            methods: ast.methods.map((method) =>
+              method.owner === ast
+                ? {
+                    ...lowerFunction(checked.get(method)!),
+                    memberCount: checked.get(method)!.memberCount!,
+                    declaringType: blockIds.get(ast.name.key)!,
+                    ...(method.abstract ? { abstract: true as const } : {}),
+                    ...(method.final ? { final: true as const } : {}),
+                  }
+                : {
+                    block: blockIds.get(method.owner!.name.key)!,
+                    method: method.owner!.methods!.indexOf(method),
+                  },
+            ),
             methodTable: Object.fromEntries(ast.methods.map((m, i) => [m.name.key, i])),
           }
         : {}),
@@ -511,8 +518,6 @@ export function compileProject(
       extends: ast.implemented ?? [],
       methods: ast.methods!.map((method) => lowerFunction(interfaces.get(method)!)),
     }));
-  for (const block of ir.functionBlocks ?? [])
-    if (block.bodyOwner !== undefined) block.body = ir.functionBlocks![block.bodyOwner]!.body;
   if (functions.length) ir.functions = functions.map((ast) => lowerFunction(checked.get(ast)!));
   diagnostics.push(
     ...outputOverlapWarnings(ir).map((diagnostic) =>

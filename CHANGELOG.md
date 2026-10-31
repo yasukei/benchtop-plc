@@ -10,6 +10,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- **Breaking core protocol change:** the IR carried by `load` stores inherited
+  methods as `{ block, method }` references to their declaring implementations.
+  Inherited function block bodies remain empty and resolve through `bodyOwner`,
+  so each implementation appears once in serialized IR (ADR 0017).
+
 - Run debugger shortcut scenarios in Chromium, Firefox and WebKit on Linux in CI,
   keeping other browser tests and the Pages smoke suite on Chromium. Document
   installation of all three engines and the Chromium-only container option.
