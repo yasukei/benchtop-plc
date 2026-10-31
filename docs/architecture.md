@@ -78,8 +78,13 @@ connection errors reserved for cases where the Worker cannot continue. See
 
 ## Scan cycle
 
-Each scan: read the input image → apply pending writes → apply forces → execute the
-program → apply forces → write the output image. Time comes from an injected `Clock`.
+Each scheduler pass runs the tasks ready at its start in scheduler order. For each
+task run: copy the input image into `%I` → apply pending writes → apply forces;
+then, for each program instance in declaration order: copy connected inputs →
+apply forces → execute → apply forces → copy connected outputs → apply forces.
+After the last instance, publish `%Q` as the output image (ADR 0016). Time comes
+from an injected `Clock`, and an injected `Ticker` drives scheduler passes. See
+[runtime task scheduling](runtime.md#task-scheduling).
 Operating states are `STOP`, `RUN` and `FAULT`. An independent emergency stop flag
 overlays the operating state and reports `ESTOP` while active. Every operating state
 except `RUN` keeps outputs OFF. A breakpoint reports `HALT` over `RUN` or `STOP`;

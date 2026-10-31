@@ -38,6 +38,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Align runtime, workbench, project-format and core-contract documentation with
+  the accepted ADRs, including inline values, task scheduling, restart effects
+  and fault context. Complete the diagnostics reference and check its codes
+  against the core contract in tests.
+
 - Use valid, collision-free internal ST names during project exchange, preserving
   configuration constants and keeping configuration and resource globals in their
   original scopes when identifier rules are tightened.

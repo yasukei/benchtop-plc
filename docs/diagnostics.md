@@ -17,9 +17,13 @@ rather than the nested block path while its body runs. The web catalogs include 
 ## Naming and compatibility
 
 Codes use `<category>.<lower-kebab-case-reason>`. Categories are `lex` (lexing),
-`syntax` (parsing), `pou` (project-wide POU rules), `decl` (declarations), `name` (name resolution), `type` (type
-checking), `flow` (control flow), `fb` (function blocks), `call` (function calls), `config` (configuration rules)
-and `runtime` (execution faults and command rejections). Codes and argument keys are stable identifiers:
+`syntax` (parsing), `pou` (project-wide POU rules), `decl` (declarations), `name`
+(name resolution), `type` (type checking), `flow` (control flow), `fb` (function
+blocks), `call` (function calls), `access` (access control), `class` (classes),
+`global` (global variables), `inheritance` (inheritance rules), `interface`
+(interfaces), `method` (methods), `namespace` (namespaces), `project` (project
+files), `config` (configuration rules) and `runtime` (execution faults and command
+rejections). Codes and argument keys are stable identifiers:
 do not rename or repurpose an existing code. Add a new code for a new meaning and
 update this table, tests and every UI catalog when catalogs are available.
 
@@ -128,8 +132,10 @@ for checking calls, so rejecting the qualifier does not cause argument-count err
 | `decl.address-out-of-range`       | Valid address syntax refers outside supported I/O                                        | `{ address: string }`                                                                                              |
 | `decl.nonconstant-initializer`    | Initial value is not a constant expression                                               | `{ name: string }`                                                                                                 |
 | `decl.fb-initializer`             | Initial value supplied for an FB instance                                                | `{ name: string }`                                                                                                 |
+| `decl.open-array-section`         | Open array is outside a direct VAR_IN_OUT parameter, or contains a nested open array     | `{}`                                                                                                               |
 | `decl.in-out-initializer`         | Initial value supplied for an in-out parameter                                           | `{ name: string }`                                                                                                 |
 | `name.undeclared`                 | Identifier has no declaration                                                            | `{ name: string }`                                                                                                 |
+| `type.unknown-structure-member`   | Structure type has no member with the given name                                         | `{ type: TypeDescriptor; member: string }`                                                                         |
 | `type.portability`                | Warning: conversion differs from vendor runtimes                                         | `{ function: string }`                                                                                             |
 | `type.ambiguous-enumeration`      | Unqualified enum member clashes with a variable or constant                              | `{ name: string }`                                                                                                 |
 | `type.not-array`                  | Indexing applied to a non-array value                                                    | `{ type: TypeDescriptor }`                                                                                         |
@@ -172,14 +178,16 @@ for checking calls, so rejecting the qualifier does not cause argument-count err
 | `runtime.debug-value`             | Invalid debug value, non-finite value or overflow                                        | `{}`                                                                                                               |
 | `runtime.write-input-mapped`      | One-shot write targets an input-mapped variable                                          | `{ name: string }`                                                                                                 |
 
-`CommandRejectionCode` selects the four debug-command codes above. They are sent
-in non-fatal `rejected` events with the originating `force` or `write` command,
-not PLC `fault` events. Rejections have severity `error` but do not change the
-operating state or a latched execution diagnostic. `debug-target` uses no ID
+`CommandRejectionCode` selects expected command-validation diagnostics, including
+the debug-command codes above and the input, cycle and debugger-state codes
+listed below. `CommandRejectionMessage` pairs the diagnostic with the originating
+command in a non-fatal `rejected` event, separate from PLC `fault` events.
+Rejections have severity `error` but do not change the operating state or a latched
+execution diagnostic. `debug-target` uses no ID
 argument because an invalid ID can be non-finite and must not enter JSON data.
 `debug-type-mismatch` uses `from` for the supplied value type and `to` for the
 declaration type; `write-input-mapped.name` retains the declaration's spelling.
-The web catalogs render all four codes in English and Japanese.
+The web catalogs render all command-rejection codes in English and Japanese.
 
 The enclosing `Diagnostic.span` identifies the offending token/expression/member
 or loop when source information is available. For a missing terminator or EOF,
