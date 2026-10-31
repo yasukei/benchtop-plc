@@ -1,6 +1,17 @@
 import { compileProject } from "@benchtop-plc/compiler";
 import { expect, it } from "vitest";
-import { blockTypeAt } from "./block-hover.js";
+import { blockTypeAt as compiledBlockTypeAt } from "./block-hover.js";
+
+function blockTypeAt(
+  sources: readonly string[],
+  sourceIndex: number,
+  position: number,
+  dataTypes: readonly string[] = [],
+  configuration?: string,
+) {
+  const result = compileProject(sources, dataTypes, configuration);
+  return compiledBlockTypeAt(sources[sourceIndex]!, position, result.ir);
+}
 
 it("shows selected variants on declarations and uses, excluding comments and member names", () => {
   const source = `PROGRAM Main VAR c: CTU; END_VAR
@@ -94,4 +105,71 @@ it("shows a reference's complete target type in variable hovers", () => {
   expect(blockTypeAt([source], 0, source.indexOf("r :"))?.text).toBe(
     "r: REF_TO ARRAY[1..2] OF INT",
   );
+});
+
+const configuredSources = [
+  `PROGRAM Main
+VAR count : DINT; c : CTU; END_VAR
+VAR_EXTERNAL shared : INT; timer : TON; timers : ARRAY[1..2] OF TON; END_VAR
+count := shared;
+c(PV := DINT#40000);
+timer(IN := TRUE);
+timers[1](IN := TRUE);
+END_PROGRAM`,
+  `PROGRAM Other
+VAR count : BOOL; c : CTU; END_VAR
+VAR_EXTERNAL shared : INT; timer : TON; timers : ARRAY[1..2] OF TON; END_VAR
+count := shared > 0;
+c(PV := ULINT#1);
+timer(PT := LT#1s);
+timers[1](PT := LT#1s);
+END_PROGRAM`,
+];
+const configuration = `CONFIGURATION Plant
+VAR_GLOBAL shared : INT; timer : TON; END_VAR
+RESOURCE Station ON BENCHTOP
+VAR_GLOBAL timers : ARRAY[1..2] OF TON; END_VAR
+TASK Tick (INTERVAL := T#10ms, PRIORITY := 1);
+PROGRAM First WITH Tick : Other;
+PROGRAM Second WITH Tick : Main;
+END_RESOURCE
+END_CONFIGURATION`;
+
+it("uses the configured compilation for distinct program locals and inferred block variants", () => {
+  const result = compileProject(configuredSources, [], configuration);
+  expect(result.diagnostics).toEqual([]);
+  for (const [index, type, counter] of [
+    [0, "DINT", "CTU_DINT"],
+    [1, "BOOL", "CTU_ULINT"],
+  ] as const) {
+    const source = configuredSources[index]!;
+    for (const text of ["count :", "count :="])
+      expect(compiledBlockTypeAt(source, source.indexOf(text), result.ir)?.text).toBe(
+        `count: ${type}`,
+      );
+    expect(compiledBlockTypeAt(source, source.indexOf("c(PV"), result.ir)?.text).toBe(
+      `c: ${counter}`,
+    );
+  }
+});
+
+it("shows configuration and resource globals and bound externals with their selected types", () => {
+  const result = compileProject(configuredSources, [], configuration);
+  expect(result.diagnostics).toEqual([]);
+  for (const source of [...configuredSources, configuration]) {
+    for (const [name, type] of [
+      ["shared", "INT"],
+      ["timer", "TON_LTIME"],
+      ["timers", "ARRAY[1..2] OF TON_LTIME"],
+    ]) {
+      const position = source.indexOf(`${name} :`);
+      // The resource global array is declared in the same configuration source.
+      expect(compiledBlockTypeAt(source, position, result.ir)?.text).toBe(`${name}: ${type}`);
+    }
+  }
+});
+
+it("returns no hover while the current editor compilation is unavailable", () => {
+  const source = configuredSources[0]!;
+  expect(compiledBlockTypeAt(source, source.indexOf("count :"))).toBeNull();
 });

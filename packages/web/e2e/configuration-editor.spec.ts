@@ -163,3 +163,75 @@ test("shows no inline values for an uninstantiated PROGRAM", async ({ page }) =>
   await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue("Second");
   await expect(page.locator(".inline-values")).toHaveCount(1);
 });
+
+test("shows current variable types in two configured programs and their globals", async ({
+  page,
+}) => {
+  const base = readProject(readFileSync("examples/blink/project.xml", "utf8")).value!;
+  const first = `PROGRAM Main
+VAR count : DINT; END_VAR
+VAR_EXTERNAL timer : TON; END_VAR
+count := count + 1;
+timer(IN := TRUE);
+END_PROGRAM`;
+  const second = `PROGRAM Other
+VAR count : BOOL; END_VAR
+VAR_EXTERNAL timer : TON; END_VAR
+count := TRUE;
+timer(PT := LT#1s);
+END_PROGRAM`;
+  const config = `CONFIGURATION Plant
+VAR_GLOBAL timer : TON; END_VAR
+RESOURCE Station ON BENCHTOP
+TASK Tick (INTERVAL := T#100ms, PRIORITY := 1);
+PROGRAM First WITH Tick : Main;
+PROGRAM Second WITH Tick : Other;
+END_RESOURCE
+END_CONFIGURATION`;
+  const xml = writeProject({
+    ...base,
+    pous: [first, second],
+    configurationSource: config,
+  }).value!;
+  await page.goto("/");
+  await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
+  await page.getByLabel("Open project", { exact: true }).setInputFiles({
+    name: "hover.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(xml),
+  });
+  const list = page.getByRole("region", { name: "POUs", exact: true });
+  const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
+  const hover = async (linePattern: RegExp, name: string, expected: string) => {
+    await page.mouse.move(0, 0);
+    const line = editor.locator(".cm-line").filter({ hasText: linePattern });
+    await line.scrollIntoViewIfNeeded();
+    const point = await line.evaluate((element, name) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let text = walker.nextNode();
+      while (text && !text.textContent!.includes(name)) text = walker.nextNode();
+      if (!text) throw new Error("Expected variable text");
+      const offset = text.textContent!.indexOf(name);
+      const range = document.createRange();
+      range.setStart(text, offset);
+      range.setEnd(text, offset + name.length);
+      const rect = range.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    }, name);
+    await page.mouse.move(point.x, point.y);
+    await expect(page.locator(".cm-tooltip-hover")).toHaveText(expected);
+  };
+  for (const [name, type] of [
+    ["Main", "DINT"],
+    ["Other", "BOOL"],
+  ]) {
+    await list.getByRole("button", { name: new RegExp(`^${name} PROGRAM`) }).click();
+    await hover(/^count :=/, "count", `count: ${type}`);
+    await hover(/^timer\(/, "timer", "timer: TON_LTIME");
+  }
+  // The loaded runtime still has LTIME; hovers must use the unapplied editor compilation.
+  await editor.fill(second.replace("LT#1s", "T#1s"));
+  await hover(/^timer\(/, "timer", "timer: TON");
+  await list.getByRole("button", { name: /^Plant CONFIGURATION/ }).click();
+  await hover(/^VAR_GLOBAL timer/, "timer", "timer: TON");
+});

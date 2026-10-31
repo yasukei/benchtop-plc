@@ -1418,3 +1418,44 @@ it.each(["snapshot", "fault"] as const)(
     store.dispose();
   },
 );
+
+it("keeps editor types current without replacing the runtime's loaded compilation", () => {
+  vi.useFakeTimers();
+  const { store, worker } = setup();
+  try {
+    store.loadEditor();
+    acknowledgeLoad(worker);
+    const loaded = store.getSnapshot().loadedIr;
+    expect(store.getSnapshot().editorIr).toBe(loaded);
+
+    store.setSource("PROGRAM Main VAR c : CTU; END_VAR c(PV := DINT#40000); END_PROGRAM");
+    expect(store.getSnapshot().editorIr).toBeUndefined();
+    vi.advanceTimersByTime(250);
+    expect(store.getSnapshot().editorIr?.variables[0]).toMatchObject({
+      kind: "functionBlock",
+      fbType: "CTU_DINT",
+    });
+    expect(store.getSnapshot().loadedIr).toBe(loaded);
+
+    store.addConfiguration();
+    expect(store.getSnapshot().editorIr?.explicit).toBe(true);
+    store.setSource(store.getSnapshot().source.replace(": Main", ": Missing"));
+    expect(store.getSnapshot().editorIr).toBeUndefined();
+    vi.advanceTimersByTime(250);
+    expect(store.getSnapshot().editorIr).toBeUndefined();
+    expect(store.getSnapshot().diagnostics).not.toEqual([]);
+    store.deleteConfiguration();
+    expect(store.getSnapshot().editorIr?.explicit).toBe(false);
+
+    store.addDataType();
+    expect(store.getSnapshot().editorIr).toBeDefined();
+    store.setSource("TYPE CounterValue : DINT; END_TYPE");
+    expect(store.getSnapshot().editorIr).toBeUndefined();
+    vi.advanceTimersByTime(250);
+    expect(store.getSnapshot().editorIr).toBeDefined();
+    expect(store.getSnapshot().loadedIr).toBe(loaded);
+  } finally {
+    store.dispose();
+    vi.useRealTimers();
+  }
+});

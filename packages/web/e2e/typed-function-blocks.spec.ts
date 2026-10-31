@@ -89,6 +89,7 @@ END_PROGRAM`);
 test("shows local variable hovers without treating formal parameter names as locals", async ({
   page,
 }) => {
+  await page.clock.install();
   await page.goto("/");
   await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
   const editor = page.getByRole("textbox", { name: "Structured Text", exact: true });
@@ -96,6 +97,7 @@ test("shows local variable hovers without treating formal parameter names as loc
 VAR t : TON; IN : BOOL; END_VAR
 t(IN := IN, PT := T#1s);
 END_PROGRAM`);
+  await page.clock.runFor(250);
   await expect(page.getByRole("region", { name: "Diagnostics", exact: true })).toContainText(
     "No diagnostics",
   );
@@ -113,7 +115,6 @@ END_PROGRAM`);
     });
   });
   // Advance beyond CodeMirror's hover delay for both the actual and formal name.
-  await page.clock.install();
   await page.mouse.move(points[0]!.x, points[0]!.y);
   await page.clock.runFor(1000);
   await expect(page.locator(".cm-tooltip-hover")).toHaveText("IN: BOOL");

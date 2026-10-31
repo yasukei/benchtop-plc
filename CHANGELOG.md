@@ -27,6 +27,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Show variable types on hover in configured projects with multiple programs,
+  including configuration globals and their external declarations.
+
 - Keep semantic diagnostics in other POUs visible while editing a POU body with a
   syntax error, when its complete header and declarations are still known. Damaged
   headers or declarations still stop checking, and syntax errors still prevent IR

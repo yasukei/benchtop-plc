@@ -298,13 +298,8 @@ export function App({ store, i18n, theme }: { store: AppStore; i18n: I18n; theme
                   key={state.editorSession}
                   ref={editor}
                   source={state.source}
-                  sources={pouSources(state.pous)}
+                  hoverIr={state.editorIr}
                   dataTypes={pouSources(state.dataTypes)}
-                  sourceIndex={
-                    !state.selectedConfiguration && state.selectedDataType === null
-                      ? state.selectedPou
-                      : -1
-                  }
                   onChange={store.setSource}
                   breakpointLines={store.breakpointMarkers()}
                   onToggleBreakpoint={
