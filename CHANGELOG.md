@@ -10,6 +10,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Record existing PROGRAM interface in-out aliasing, interface-only FUNCTION/method
+  temporaries and named/nested function block instance array restrictions in ADRs
+  0022 and 0023, with links from the language references.
+
 - Link compliance claims for comments, string escapes, namespace `INTERNAL` access,
   TOD/LTOD conversions and ADR arithmetic/string examples to conformance cases.
 
