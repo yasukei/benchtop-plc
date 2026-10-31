@@ -1,4 +1,4 @@
-/** Stable package identity used by the workspace smoke test. */
+/** Stable package identity. */
 export const packageName = "@benchtop-plc/runtime";
 export * from "./clock.js";
 export * from "./library.js";

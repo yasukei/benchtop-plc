@@ -1,5 +1,6 @@
 import {
   calendarBinary,
+  calendarDateNs,
   calendarUnit,
   coerceCalendar,
   dayNs,
@@ -45,17 +46,8 @@ export function callTimeArithmetic(
 
 function dateNs(parts: readonly bigint[]): bigint {
   const [year, month, day] = parts as readonly [bigint, bigint, bigint];
-  if (year < 1n || year > 9999n || month < 1n || month > 12n || day < 1n || day > 31n)
-    throw new RangeError("Invalid date components");
-  const stamp = new Date(0);
-  stamp.setUTCFullYear(Number(year), Number(month - 1n), Number(day));
-  if (
-    stamp.getUTCFullYear() !== Number(year) ||
-    stamp.getUTCMonth() !== Number(month - 1n) ||
-    stamp.getUTCDate() !== Number(day)
-  )
-    throw new RangeError("Invalid date components");
-  return BigInt(stamp.getTime()) * 1000000n;
+  // CONCAT_* retains its four-digit year limit, unlike calendar literal parsing.
+  return calendarDateNs(Number(year), Number(month), Number(day), 9999);
 }
 function timeNs(parts: readonly bigint[]): bigint {
   const [hour, minute, second, ms] = parts as readonly [bigint, bigint, bigint, bigint];

@@ -1,3 +1,11 @@
+import {
+  coerceValue,
+  formatValue,
+  validateValue,
+  parseDirectAddress,
+  readDirectValue,
+  writeDirectValue,
+} from "./index.js";
 import { expect, expectTypeOf, it } from "vitest";
 import type {
   AssignmentTarget,
@@ -157,4 +165,14 @@ it("describes every protocol command and event as plain data", () => {
   ];
   expect(JSON.parse(JSON.stringify(commands))).toStrictEqual(commands);
   expect(JSON.parse(JSON.stringify(events))).toStrictEqual(events);
+});
+
+it("exposes value validation and direct I/O helpers through the package entry point", () => {
+  expect(coerceValue("INT", 42)).toBe(42);
+  expect(formatValue("INT", 42)).toBe("42");
+  expect(() => validateValue("INT", 32768)).toThrow(RangeError);
+  const address = parseDirectAddress("%IW0")!;
+  const image = Array<number>(64).fill(0);
+  writeDirectValue(image, address, { dataType: "WORD", value: 4660 });
+  expect(readDirectValue(image, address, "WORD")).toBe(4660);
 });

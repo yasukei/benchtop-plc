@@ -19,11 +19,10 @@ import {
 } from "./pous.js";
 import type { BrowserStorage } from "./browser-storage.js";
 import { readLayout, type PanelLayout } from "./panel/layout.js";
+import { cycleOptions, type CycleMs } from "./cycle.js";
 
 export const autosaveStorageKey = "benchtop-plc.work";
 export const retentiveStorageKey = "benchtop-plc.retentive";
-export const cycleOptions = [10, 20, 50, 100] as const;
-export type CycleMs = (typeof cycleOptions)[number];
 
 export interface SavedWork {
   breakpoints?: import("./breakpoints.js").SourceBreakpoints;
