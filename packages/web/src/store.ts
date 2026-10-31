@@ -38,12 +38,13 @@ import type {
   UiToRuntimeMessage,
 } from "@benchtop-plc/core";
 import type { ClientEvent, RuntimeClient } from "./runtime-client.js";
-import { cycleOptions, type CycleMs, type SavedWork } from "./autosave.js";
+import type { SavedWork } from "./autosave.js";
+import { cycleOptions, type CycleMs } from "./cycle.js";
 
 import { instancesForSource, watchedBodies } from "./instances.js";
 
-export { cycleOptions } from "./autosave.js";
-export type { CycleMs } from "./autosave.js";
+export { cycleOptions } from "./cycle.js";
+export type { CycleMs } from "./cycle.js";
 
 export interface AppState extends SavedWork {
   storageWarning: boolean;

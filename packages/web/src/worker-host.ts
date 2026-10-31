@@ -10,7 +10,7 @@ import {
 } from "@benchtop-plc/core";
 import { createRuntime, RuntimeCommandRejected } from "@benchtop-plc/runtime";
 import type { Clock, Ticker } from "@benchtop-plc/runtime";
-import { cycleOptions, type CycleMs } from "./store.js";
+import { cycleOptions, type CycleMs } from "./cycle.js";
 
 /** Scheduling is injected here as well, so the bridge can be tested without a browser. */
 export function createWorkerHost(

@@ -164,6 +164,12 @@ it("evaluates split inputs once, supports omitted outputs and assigns aliases in
 
 it.each([
   ["DATE", "CONCAT_DATE(2026, 2, 30)"],
+  ["DATE", "CONCAT_DATE(0, 1, 1)"],
+  ["DATE", "CONCAT_DATE(1, 1, 1)"],
+  ["DATE", "CONCAT_DATE(9999, 12, 31)"],
+  ["DATE", "CONCAT_DATE(10000, 1, 1)"],
+  ["DATE", "CONCAT_DATE(2024, 0, 1)"],
+  ["DATE", "CONCAT_DATE(2024, 1, 0)"],
   ["DATE", "CONCAT_DATE(2100, 2, 29)"],
   ["DATE", "CONCAT_DATE(2026, 13, 1)"],
   ["DATE", "CONCAT_DATE(1969, 12, 31)"],

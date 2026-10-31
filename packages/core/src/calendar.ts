@@ -28,6 +28,26 @@ export function coerceCalendar(type: CalendarType, value: ScalarValue): number |
   return type.startsWith("L") ? n.toString() : Number(n);
 }
 
+/** Validate Gregorian components without allowing Date to normalize impossible dates. */
+export function calendarDateNs(
+  year: number,
+  month: number,
+  day: number,
+  maxYear = Infinity,
+): bigint {
+  const stamp = new Date(0);
+  stamp.setUTCFullYear(year, month - 1, day);
+  if (
+    year < 1 ||
+    year > maxYear ||
+    stamp.getUTCFullYear() !== year ||
+    stamp.getUTCMonth() !== month - 1 ||
+    stamp.getUTCDate() !== day
+  )
+    throw new RangeError("Invalid date");
+  return BigInt(stamp.getTime()) * 1000000n;
+}
+
 /** Parse without a locale or time zone, and reject the normalization of impossible dates. */
 export function parseCalendar(type: CalendarType, literal: string): number | string {
   const text = literal.slice(literal.indexOf("#") + 1);
@@ -43,16 +63,8 @@ export function parseCalendar(type: CalendarType, literal: string): number | str
     const year = Number(date[1]!.replaceAll("_", "")),
       month = Number(date[2]!.replaceAll("_", "")),
       day = Number(date[3]!.replaceAll("_", ""));
-    const stamp = new Date(0);
-    stamp.setUTCFullYear(year, month - 1, day);
-    if (
-      year < 1 ||
-      stamp.getUTCFullYear() !== year ||
-      stamp.getUTCMonth() !== month - 1 ||
-      stamp.getUTCDate() !== day
-    )
-      throw new RangeError("Invalid date");
-    ns = BigInt(stamp.getTime()) * 1000000n;
+    // Literal years are limited by the destination storage, without a four-digit cap.
+    ns = calendarDateNs(year, month, day);
   }
   if (!dateOnly) {
     const time = new RegExp(`^(${field}):(${field}):(${field})(?:\\.(${field}))?$`).exec(
