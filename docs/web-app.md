@@ -199,7 +199,8 @@ overload and press START again to restart. Save/reopen keeps all three POU texts
 and the panel. The bundled startup example remains blink.
 
 Try the [batch mixer example](../examples/batch-mixer/) to run one of three
-recipes. Open `examples/batch-mixer/project.xml`, press **RUN**, select a recipe
+recipes. Select **Batch mixer** under **Example** and confirm **Open example**,
+press **RUN**, then select a recipe
 with **STANDARD RECIPE** or **GENTLE RECIPE** (both OFF selects Quick; Gentle
 wins if both are ON), then press and release **START**. The FILL VALVE, MIXER and
 DRAIN VALVE lamps follow the timed steps; DONE stays on after completion.
@@ -212,7 +213,8 @@ batch. Save/reopen preserves both TYPE texts, the PROGRAM, recipe initializers
 and panel; runtime state is reset.
 
 Try the [tank station example](../examples/tank-station/) for configurations,
-tasks, globals and retention together. Open `examples/tank-station/project.xml`,
+tasks, globals and retention together. Select **Tank station** under **Example**
+and confirm **Open example**, then
 set SETPOINT (%) to 50 and both LEVEL inputs below 50, press **RUN**, wait for an
 idle scan, then press and release **START 1** and **START 2**. Each pump fills
 until its level reaches the shared setpoint; change the levels manually.
@@ -228,8 +230,9 @@ Cold reset and opening a project initialize the counters. Save/reopen preserves
 the configuration, all three PROGRAM texts and the panel; XML excludes live values.
 
 Try the [sorting conveyor example](../examples/sorting-conveyor/) for classes,
-interfaces, namespaces and retained function block counters together. Open
-`examples/sorting-conveyor/project.xml`, press **RUN**, wait for an idle scan,
+interfaces, namespaces and retained function block counters together. Select
+**Sorting conveyor** under **Example** and confirm **Open example**, then press
+**RUN**, wait for an idle scan,
 then press and release **START**. Hold **PART A** or **PART B** to light the
 matching DIVERT lamp and count one part in that bin; release to retract the gate.
 The belt stays running until **STOP BELT**; **RESET TOTALS** clears both bin counts.
