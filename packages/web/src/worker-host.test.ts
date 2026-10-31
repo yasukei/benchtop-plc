@@ -1,6 +1,7 @@
 import type { RuntimeToUiMessage, UiToRuntimeMessage } from "@benchtop-plc/core";
 import { VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
-import { describe, expect, it } from "vitest";
+import * as runtime from "@benchtop-plc/runtime";
+import { describe, expect, it, vi } from "vitest";
 import { demoProgram } from "./demo.js";
 import { createWorkerHost } from "./worker-host.js";
 
@@ -305,6 +306,39 @@ it("publishes complete retained sets at most once a second while running and imm
   expect(retained().at(-1)).toMatchObject({ records: [{ value: { value: 199 } }] });
   host.handle({ type: "coldReset" });
   expect(retained().at(-1)).toMatchObject({ records: [{ value: { value: 0 } }] });
+});
+
+it("samples unchanged retained values only once per interval while ticking every 10 ms", () => {
+  const createRuntime = runtime.createRuntime;
+  const sample = vi.fn();
+  const factory = vi.spyOn(runtime, "createRuntime").mockImplementationOnce((options) => {
+    const instance = createRuntime(options);
+    const records = instance.retentiveRecords.bind(instance);
+    instance.retentiveRecords = () => {
+      sample();
+      return records();
+    };
+    return instance;
+  });
+  try {
+    const { host, clock, messages } = setup();
+    const ir = structuredClone(demoProgram);
+    ir.variables[0]!.retain = true;
+    ir.body = [];
+    host.handle({ type: "load", loadId: 2, ir });
+    host.handle({ type: "run" });
+    sample.mockClear();
+    const publications = messages.filter((m) => m.type === "retentive").length;
+    clock.advance(3100);
+    expect(sample).toHaveBeenCalledTimes(3);
+    expect(messages.filter((m) => m.type === "retentive")).toHaveLength(publications);
+    host.handle({ type: "stop" });
+    expect(sample).toHaveBeenCalledTimes(4);
+    expect(messages.filter((m) => m.type === "retentive")).toHaveLength(publications + 1);
+    host.dispose();
+  } finally {
+    factory.mockRestore();
+  }
 });
 
 it("restores retained values during load and reports mismatched paths in STOP", () => {

@@ -824,11 +824,11 @@ it.each(["none", "stop", "warmRestart", "coldReset"] as const)(
       return { store: createAppStore(new RuntimeClient(worker), initial), host, clock };
     };
     const first = connect("PROGRAM Main VAR RETAIN n : INT := 0; END_VAR n := n + 1; END_PROGRAM");
-    let value: string | null = null;
+    const values = new Map<string, string>();
     const storage = {
-      getItem: () => value,
-      setItem: (_: string, next: string) => {
-        value = next;
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, next: string) => {
+        values.set(key, next);
       },
     };
     const autosave = createAutosave(first.store, storage);

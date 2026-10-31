@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { readProject, writeProject } from "@benchtop-plc/project";
-import { autosaveStorageKey } from "../src/autosave.js";
+import { autosaveStorageKey, retentiveStorageKey } from "../src/autosave.js";
 
 const source = `PROGRAM Retained
 VAR RETAIN kept : INT; ctr : CTU; END_VAR
@@ -39,10 +39,10 @@ test("retained scalar and counter survive page reload in STOP; warm restart and 
     .poll(() =>
       page.evaluate(
         (key) =>
-          JSON.parse(localStorage.getItem(key)!).retentive.find((r: { path: string }) =>
+          JSON.parse(localStorage.getItem(key)!).find((r: { path: string }) =>
             r.path.endsWith(".kept"),
           )?.value.value,
-        autosaveStorageKey,
+        retentiveStorageKey,
       ),
     )
     .toBe(3);
@@ -57,6 +57,63 @@ test("retained scalar and counter survive page reload in STOP; warm restart and 
   await page.getByRole("button", { name: "Cold reset", exact: true }).click();
   await expect(row(page, "kept").locator("td").nth(2)).toHaveText("0");
 });
+
+for (const format of ["embedded", "separate"] as const) {
+  test(`restores retained scalar and block values from ${format} autosaves`, async ({ page }) => {
+    await apply(page);
+    await page.getByRole("button", { name: "Single scan", exact: true }).click();
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key)!)?.pous[0].source,
+          autosaveStorageKey,
+        ),
+      )
+      .toBe(source);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) =>
+            JSON.parse(localStorage.getItem(key)!).find((r: { path: string }) =>
+              r.path.endsWith(".kept"),
+            )?.value.value,
+          retentiveStorageKey,
+        ),
+      )
+      .toBe(1);
+    if (format === "embedded")
+      await page.evaluate(
+        ({ workKey, retainedKey }) => {
+          const work = JSON.parse(localStorage.getItem(workKey)!);
+          work.retentive = JSON.parse(localStorage.getItem(retainedKey)!);
+          localStorage.setItem(workKey, JSON.stringify(work));
+          localStorage.removeItem(retainedKey);
+        },
+        { workKey: autosaveStorageKey, retainedKey: retentiveStorageKey },
+      );
+    await page.reload();
+    await expect(page.getByLabel("Runtime state")).toHaveText("STOP");
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
+    await expect(row(page, "reset").locator("td").nth(2)).toHaveText("0");
+    await expect(row(page, "ctr")).toContainText("CV=1");
+    // Legacy data is migrated before execution resumes; a second reload uses the separate key.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) =>
+            JSON.parse(localStorage.getItem(key)!).find((r: { path: string }) =>
+              r.path.endsWith(".kept"),
+            )?.value.value,
+          retentiveStorageKey,
+        ),
+      )
+      .toBe(1);
+    await page.reload();
+    await expect(row(page, "kept").locator("td").nth(2)).toHaveText("1");
+    await expect(row(page, "ctr")).toContainText("CV=1");
+  });
+}
 
 for (const command of ["none", "STOP", "Warm restart", "Cold reset"] as const) {
   test(`opening invalid source keeps old retained values cleared after ${command} and reload`, async ({
@@ -81,7 +138,7 @@ for (const command of ["none", "STOP", "Warm restart", "Cold reset"] as const) {
     await expect
       .poll(() =>
         page.evaluate(
-          (key) => JSON.parse(localStorage.getItem(key)!).pous[0].source,
+          (key) => JSON.parse(localStorage.getItem(key)!)?.pous[0].source,
           autosaveStorageKey,
         ),
       )
@@ -132,7 +189,7 @@ for (const action of ["load", "warmRestart", "coldReset"] as const) {
     await expect
       .poll(() =>
         page.evaluate(
-          (key) => JSON.parse(localStorage.getItem(key)!).pous[0].source,
+          (key) => JSON.parse(localStorage.getItem(key)!)?.pous[0].source,
           autosaveStorageKey,
         ),
       )
@@ -185,7 +242,7 @@ test("invalid autosaved edits preserve retained values across repeated reloads u
   await expect
     .poll(() =>
       page.evaluate(
-        (key) => JSON.parse(localStorage.getItem(key)!).pous[0].source,
+        (key) => JSON.parse(localStorage.getItem(key)!)?.pous[0].source,
         autosaveStorageKey,
       ),
     )
@@ -199,10 +256,10 @@ test("invalid autosaved edits preserve retained values across repeated reloads u
       .poll(() =>
         page.evaluate(
           (key) =>
-            JSON.parse(localStorage.getItem(key)!).retentive.find((r: { path: string }) =>
+            JSON.parse(localStorage.getItem(key)!).find((r: { path: string }) =>
               r.path.endsWith(".kept"),
             )?.value.value,
-          autosaveStorageKey,
+          retentiveStorageKey,
         ),
       )
       .toBe(1);

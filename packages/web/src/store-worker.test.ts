@@ -1,7 +1,7 @@
 import type { RetentiveRecord } from "@benchtop-plc/core";
 import { VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 import { expect, it } from "vitest";
-import { createAutosave, readAutosave, type SavedWork } from "./autosave.js";
+import { autosaveStorageKey, createAutosave, readAutosave, type SavedWork } from "./autosave.js";
 import { FakeWorker } from "./fake-worker.test-support.js";
 import { createPous } from "./pous.js";
 import { RuntimeClient } from "./runtime-client.js";
@@ -84,11 +84,11 @@ function setup(retentive?: RetentiveRecord[]) {
 
 it("preserves autosaved retained values across failed loads and restores them on retry only", () => {
   const { store, worker, flush, initial, dispose } = setup(records);
-  let encoded = JSON.stringify({ version: 4, ...initial });
+  const values = new Map([[autosaveStorageKey, JSON.stringify({ version: 4, ...initial })]]);
   const storage = {
-    getItem: () => encoded,
-    setItem: (_: string, value: string) => {
-      encoded = value;
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
     },
   };
   const autosave = createAutosave(store, storage);
