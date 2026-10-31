@@ -871,18 +871,76 @@ no breakpoints and with an unreachable breakpoint set. They exclude snapshot
 serialization and collect invocation annotations while debugging is active; no
 debugging-active performance budget is imposed.
 
-Results for issue #194 (Node 22.22.1, Linux x86-64; same machine, sequential runs),
-using the same benchmark on base commit `f0cd173` and this implementation:
+Historical results for issue #194 (Node 22.22.1, Linux x86-64; same machine,
+sequential runs), using the same benchmark on base commit `f0cd173` and that
+implementation:
 
 | Program              | Before (µs) | After (µs) | Ratio |
 | -------------------- | ----------: | ---------: | ----: |
 | Sorting conveyor     |      70.542 |     86.848 | 1.23× |
 | Loop with user calls |   8,776.739 | 11,053.199 | 1.26× |
 
-ADR 0018 permits at most 2× the baseline median for each ordinary benchmark.
-To repeat the baseline, check out `f0cd173` in another worktree, copy
-`runtime-benchmark.config.ts` and `tests/benchmarks/runtime.bench.ts` from this
-change, install its locked dependencies and run:
+These historical measurements are informational. Ratios between separate sessions,
+including the interpreter-only medians recorded for #197 below, do not establish
+compliance with the budget: the machine, Node version and harness must match.
+
+Issue #247 re-measured both revisions sequentially in one session on
+2026-10-31 (Linux 7.0.14 x86-64, Intel Xeon Processor, 16 logical CPUs,
+Node 26.13.0, pnpm 10.34.7):
+
+- Baseline: `f0cd173a3a75f89e241780fd24e886f7388998c2` (before #194).
+- Candidate: `a649e1ba2b8f138ef5677ef30f0abb176d062466` (main after #308).
+- Harness inputs: `runtime-benchmark.config.ts`, `vitest.config.ts`,
+  `tests/benchmarks/runtime.bench.ts` and sorting-conveyor `project.xml` at the
+  candidate commit, copied unchanged into both disposable checkouts. The
+  paired-comparison script is `scripts/runtime-benchmark.ts`, introduced in
+  [PR #309](https://github.com/yasukei/benchtop-plc/pull/309). Each checkout uses
+  its own locked dependencies.
+
+| Program              | Baseline (µs) | Candidate (µs) | Ratio |
+| -------------------- | ------------: | -------------: | ----: |
+| Sorting conveyor     |        77.802 |         97.167 | 1.25× |
+| Loop with user calls |     9,064.038 |     12,694.335 | 1.40× |
+
+Both ordinary benchmarks meet ADR 0018's at-most-2× median budget in this paired
+measurement. No breakpoint is set or step pending. Compilation, loading and
+snapshot serialization remain outside the timed region.
+
+#### Repeat the paired measurement
+
+In GitHub Actions, select **Runtime benchmark → Run workflow** and enter the
+candidate branch, tag or commit in `ref` (default `main`). The workflow checks out
+the fixed pre-#194 baseline and the requested revision in the same job, uses the
+Node and pnpm versions selected by the harness checkout, and runs
+`pnpm bench:runtime` sequentially with the same harness. Only the two ordinary
+interpreter cases are selected, because the baseline lacks the debugging APIs
+used by the additional runtime cases.
+
+The job summary lists both resolved commits, the harness commit, environment,
+medians, candidate/baseline ratios and whether each is within 2×. The
+`runtime-benchmark` artifact retains raw benchmark and installation logs,
+`environment.json` (including harness SHA-256 hashes), `comparison.json` and
+`summary.md` for 30 days. This workflow runs only on manual dispatch; timing
+never fails CI for exceeding the budget. Shared-runner timings are noisy. If a
+paired run exceeds the budget, open a follow-up issue to revisit ADR 0018;
+interpreter optimization is separate work.
+
+To run the same comparison locally, use the repository's required Node version
+and pnpm, then create two disposable checkouts and run the script from a current
+harness checkout:
+
+```sh
+git worktree add --detach /tmp/plc-baseline f0cd173a3a75f89e241780fd24e886f7388998c2
+git worktree add --detach /tmp/plc-candidate <candidate-commit>
+node scripts/runtime-benchmark.ts /tmp/plc-baseline /tmp/plc-candidate /tmp/plc-benchmark-results
+```
+
+The script replaces harness/configuration/fixture files and the `bench:runtime`
+package script in both disposable checkouts, installs each frozen lockfile, then
+measures baseline first and candidate second. Keep the machine otherwise idle.
+It preserves the resolved original commit IDs in the result files. For a manual
+baseline-only run with the same copied harness and installed dependencies, the
+equivalent command is:
 
 ```sh
 pnpm exec vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept -t '^(sorting conveyor|loop with user calls)$'
