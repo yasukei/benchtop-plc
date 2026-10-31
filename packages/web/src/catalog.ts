@@ -146,6 +146,7 @@ export const en = {
   exampleTankStationDescription: "Control two tanks with shared settings and multiple tasks.",
   confirmOpenExample: "Click again to replace your program, panel layout and cycle.",
   cancel: "Cancel",
+  exampleLoadError: "Unable to load this example. Check your connection and reload the page.",
   projectError: "Unable to open or save this project. Check the program and panel layout.",
   unsupportedProjectCycle:
     "Unable to open this project: the task interval is not a supported cycle. Supported cycles: 10, 20, 50 and 100 ms.",
@@ -319,6 +320,7 @@ export const ja: Record<keyof typeof en, string> = {
   exampleTankStationDescription: "共有設定と複数タスクで2つのタンクを制御します。",
   confirmOpenExample: "もう一度クリックするとプログラム・パネル配置・周期を置き換えます。",
   cancel: "キャンセル",
+  exampleLoadError: "サンプルを読み込めません。接続を確認してページを再読み込みしてください。",
   projectError: "プロジェクトを開くか保存できません。プログラムとパネル配置を確認してください。",
   unsupportedProjectCycle:
     "タスクの実行間隔が対応する周期ではないため、このプロジェクトを開けません。対応する周期: 10、20、50、100 ms。",

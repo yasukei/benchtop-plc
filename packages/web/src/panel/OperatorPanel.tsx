@@ -147,7 +147,7 @@ export function OperatorPanel({
     "projectError" | "unsupportedProjectCycle" | null
   >(null);
   const visibleProjectError =
-    projectError ?? (state.openProjectError === "example-load" ? "projectError" : null);
+    state.openProjectError === "example-load" ? "exampleLoadError" : projectError;
   const [confirmExample, setConfirmExample] = useState(false);
   const [exampleId, setExampleId] = useState<ExampleId>("blink");
   const [openingExample, setOpeningExample] = useState(false);

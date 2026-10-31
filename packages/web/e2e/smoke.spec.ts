@@ -241,7 +241,14 @@ test("opens bundled examples including an explicit configuration", async ({ page
 test("reports a failed startup example fetch and can open another example", async ({ page }) => {
   await page.route("**/assets/project-*.js", (route) => route.abort());
   await page.goto("./");
-  await expect(page.getByRole("alert")).toContainText("Unable to open or save this project.");
+  await expect(page.getByRole("alert")).toHaveText(
+    "Unable to load this example. Check your connection and reload the page.",
+  );
+  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("ja");
+  await expect(page.getByRole("alert")).toHaveText(
+    "サンプルを読み込めません。接続を確認してページを再読み込みしてください。",
+  );
+  await page.getByRole("combobox", { name: "言語", exact: true }).selectOption("en");
   await page.unroute("**/assets/project-*.js");
   // A failed module import is cached by the browser; another example can still open.
   await page.getByRole("combobox", { name: "Example", exact: true }).selectOption("running-light");
@@ -250,4 +257,14 @@ test("reports a failed startup example fetch and can open another example", asyn
   await open.click();
   await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.route("**/assets/project-*.js", (route) => route.abort());
+  await page.getByRole("combobox", { name: "Example", exact: true }).selectOption("tank-station");
+  await open.click();
+  await open.click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Unable to load this example. Check your connection and reload the page.",
+  );
+  await expect(page.getByRole("textbox", { name: "Structured Text", exact: true })).toContainText(
+    "PROGRAM Main",
+  );
 });
