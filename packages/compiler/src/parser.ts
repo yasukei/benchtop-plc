@@ -373,10 +373,15 @@ export class Parser {
           ...(constant ? { constant: true } : {}),
         });
       if (prototype && (constant || retain || nonRetain)) this.expected("VAR_INPUT");
-      while (!this.at("END_VAR")) {
+      while (
+        !this.at("END_VAR") ||
+        [":", ",", "AT"].includes(this.tokens[this.cursor + 1]?.key ?? "")
+      ) {
         if (
           this.current.kind === "eof" ||
-          (this.current.kind === "keyword" && this.current.key.startsWith("END_"))
+          (this.current.kind === "keyword" &&
+            this.current.key.startsWith("END_") &&
+            ![":", ",", "AT"].includes(this.tokens[this.cursor + 1]?.key ?? ""))
         )
           this.missingEnd("END_VAR");
         const declaration = this.declaration();
@@ -1085,6 +1090,16 @@ export class Parser {
     let formal: boolean | undefined;
     if (!this.at(")")) {
       do {
+        if (
+          ["EN", "ENO"].includes(this.current.key) &&
+          [":=", "=>"].includes(this.tokens[this.cursor + 1]?.key ?? "")
+        )
+          this.fail({
+            code: "syntax.unsupported-construct",
+            severity: "error",
+            span: this.current.span,
+            args: { construct: this.current.text },
+          });
         const named =
           this.current.kind === "identifier" &&
           ([":=", "=>"].includes(this.tokens[this.cursor + 1]?.key ?? "") ||

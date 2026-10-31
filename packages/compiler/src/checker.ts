@@ -76,7 +76,7 @@ import {
   materialize,
   timeLiteral,
 } from "./exact.js";
-import { binaryConstant, unaryConstant, withConstant } from "./constants.js";
+import { binaryConstant, unaryConstant, withConstant, isConstantDeclaration } from "./constants.js";
 import {
   blockVariant,
   readsInferredMember,
@@ -852,7 +852,7 @@ class Checker {
     if (descriptor && leafCount(descriptor, this.types) > 10000)
       this.report("type.invalid-constant", {}, declaration.span);
     if (
-      declaration.constant &&
+      isConstantDeclaration(declaration) &&
       (block ||
         (descriptor &&
           (isAggregateType(descriptor, this.types) || referenceLike(descriptor, this.types))))
@@ -860,7 +860,7 @@ class Checker {
       this.report("decl.constant-type", {}, declaration.typeName.span);
     if ((declaration.retain || declaration.nonRetain) && declaration.address)
       this.report("decl.retention-address", {}, declaration.address.span);
-    if (declaration.constant && declaration.address)
+    if (isConstantDeclaration(declaration) && declaration.address)
       this.report("decl.constant-address", {}, declaration.address.span);
     if (declaration.section === "VAR_IN_OUT" && declaration.initializer)
       this.report(
@@ -924,7 +924,7 @@ class Checker {
           this.report("global.not-found", { name: name.name }, name.span);
           continue;
         }
-        if (!!declaration.constant !== !!constant)
+        if (isConstantDeclaration(declaration) !== !!constant)
           this.report("global.constant-mismatch", { name: name.name }, name.span);
         if (constant) this.constants.set(name.key, { ...constant, name });
         else if (global) {
@@ -956,7 +956,7 @@ class Checker {
         this.report("decl.name-collision", { name: name.name, kind: "function" }, name.span);
       } else if (duplicate) {
         this.report("decl.duplicate", { name: name.name }, name.span);
-      } else if (declaration.constant && isScalar(type)) {
+      } else if (isConstantDeclaration(declaration) && isScalar(type)) {
         this.constants.set(name.key, { name, type, descriptor, initializerProcessed: false });
       } else if (known) {
         const symbol: VariableSymbol = {
@@ -1414,7 +1414,7 @@ class Checker {
     if (symbol.userBlock !== undefined) {
       const pou = this.pous.get(symbol.type)!;
       const parameters = pou.declarations
-        .filter((declaration) => !declaration.constant)
+        .filter((declaration) => !isConstantDeclaration(declaration))
         .flatMap((declaration) =>
           declaration.names.map((member) => ({
             name: member,
@@ -1518,7 +1518,7 @@ class Checker {
           node.kind !== "dereference" &&
           root.key !== "THIS" &&
           (!declaration ||
-            declaration.constant ||
+            isConstantDeclaration(declaration) ||
             ["VAR_TEMP", "VAR_IN_OUT"].includes(declaration.section ?? "") ||
             (this.ast.kind === "function" &&
               !this.ast.owner &&
@@ -1934,7 +1934,7 @@ class Checker {
     if (
       !(name.key === "THIS" && owner) &&
       (!declaration ||
-        declaration.constant ||
+        isConstantDeclaration(declaration) ||
         declaration.section === "VAR_TEMP" ||
         declaration.section === "VAR_IN_OUT" ||
         (this.ast.kind === "function" && this.ast.declarations.includes(declaration)))
@@ -2499,7 +2499,7 @@ class Checker {
     statement: boolean,
   ): ExpressionInfo | null {
     const parameters = pou.declarations
-      .filter((declaration) => !declaration.constant)
+      .filter((declaration) => !isConstantDeclaration(declaration))
       .flatMap((declaration) =>
         declaration.names.map((name) => ({
           name,
@@ -2707,7 +2707,7 @@ class Checker {
         ? []
         : this.pous
             .get(symbol.type)!
-            .declarations.filter((declaration) => !declaration.constant)
+            .declarations.filter((declaration) => !isConstantDeclaration(declaration))
             .flatMap((declaration) => declaration.names.map((name) => ({ name, declaration })))
             .map((parameter, variable) => ({ ...parameter, variable }))
             .filter(({ declaration }) => declaration.section === "VAR_IN_OUT");

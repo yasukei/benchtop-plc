@@ -155,9 +155,7 @@ it("supports interfaces in structures, arrays, globals, parameters and results",
 });
 
 it.each(["INTERFACE", "END_INTERFACE", "IMPLEMENTS"])("reserves %s", (word) => {
-  expect(codes([main(`${word}: INT;`)])).toContain(
-    word === "END_INTERFACE" ? "syntax.missing-end" : "syntax.reserved-identifier",
-  );
+  expect(codes([main(`${word}: INT;`)])).toEqual(["syntax.reserved-identifier"]);
 });
 
 it.each([

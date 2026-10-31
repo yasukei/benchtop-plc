@@ -79,6 +79,18 @@ missing-terminator diagnostics for every enclosing block. Lexical errors such as
 `lex.unterminated-comment` remain lexical diagnostics rather than being relabeled
 as syntax errors.
 
+These rules also apply to configuration sources: unfinished configuration,
+resource, task and program-instance headers use `syntax.unexpected-eof`; complete
+headers and declarations followed by EOF name the innermost missing `END_VAR`,
+`END_RESOURCE` or `END_CONFIGURATION`. A keyword in a declaration name position
+(for example, `end_if : INT`) uses `syntax.reserved-identifier`.
+
+Recognized call parameters `EN := ...` and `ENO => ...` are deferred language
+features and use `syntax.unsupported-construct` with the parameter's source spelling
+as `construct`. This does not enable their execution. Invalid `CONSTANT` sections
+continue to use `decl.constant-section`; their declared parameters remain available
+for checking calls, so rejecting the qualifier does not cause argument-count errors.
+
 | Input suffix                                    | Diagnostic              | Arguments                           |
 | ----------------------------------------------- | ----------------------- | ----------------------------------- |
 | `IF x THEN y := 1;` then EOF                    | `syntax.missing-end`    | `{ expected: "END_IF" }`            |
@@ -100,6 +112,7 @@ as syntax errors.
 | `syntax.expected-token`           | Expected token differs from the next token                                               | `{ expected: string; found: string }`                                                                              |
 | `syntax.expected-identifier`      | Identifier required at this position                                                     | `{ found: string }`                                                                                                |
 | `syntax.reserved-identifier`      | Reserved word used as an identifier                                                      | `{ name: string }`                                                                                                 |
+| `syntax.unsupported-construct`    | Recognized construct is not supported (currently EN/ENO call parameters)                 | `{ construct: string }`                                                                                            |
 | `syntax.assignment-operator`      | `=` used where assignment requires `:=`                                                  | `{}`                                                                                                               |
 | `syntax.unexpected-eof`           | Input ends before the construct is complete                                              | `{}`                                                                                                               |
 | `syntax.missing-end`              | Required closing `END_*` keyword is absent                                               | `{ expected: END_* keyword }`                                                                                      |

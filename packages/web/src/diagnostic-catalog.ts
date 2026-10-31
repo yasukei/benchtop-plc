@@ -141,6 +141,7 @@ export const diagnosticEn = {
   "syntax.expected-identifier": ({ found }) => `Expected an identifier; found ${typeText(found)}.`,
   "syntax.reserved-identifier": ({ name }) =>
     `Reserved word ${name} cannot be used as an identifier.`,
+  "syntax.unsupported-construct": ({ construct }) => `Construct ${construct} is not supported.`,
   "syntax.assignment-operator": () => "Assignment requires := instead of =.",
   "syntax.unexpected-eof": () => "Unexpected end of input.",
   "syntax.missing-end": ({ expected }) => `Missing ${expected}.`,
@@ -415,6 +416,7 @@ export const diagnosticJa = {
   "syntax.expected-identifier": ({ found }) =>
     `識別子が必要ですが、${typeText(found)}が見つかりました。`,
   "syntax.reserved-identifier": ({ name }) => `予約語${name}は識別子に使用できません。`,
+  "syntax.unsupported-construct": ({ construct }) => `構文${construct}はサポートされていません。`,
   "syntax.assignment-operator": () => "代入には=ではなく:=が必要です。",
   "syntax.unexpected-eof": () => "入力が途中で終了しています。",
   "syntax.missing-end": ({ expected }) => `${expected}がありません。`,

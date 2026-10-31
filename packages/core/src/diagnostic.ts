@@ -68,6 +68,7 @@ export interface DiagnosticArgs {
   "syntax.expected-token": { expected: string; found: string };
   "syntax.expected-identifier": { found: string };
   "syntax.reserved-identifier": { name: string };
+  "syntax.unsupported-construct": { construct: string };
   "syntax.assignment-operator": NoArguments;
   "syntax.unexpected-eof": NoArguments;
   "syntax.missing-end": { expected: `END_${string}` };

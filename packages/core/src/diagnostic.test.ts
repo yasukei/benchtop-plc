@@ -84,6 +84,7 @@ const examples = {
   "syntax.expected-token": { expected: ";", found: "END_PROGRAM" },
   "syntax.expected-identifier": { found: ":" },
   "syntax.reserved-identifier": { name: "IF" },
+  "syntax.unsupported-construct": { construct: "EN" },
   "syntax.assignment-operator": {},
   "syntax.unexpected-eof": {},
   "syntax.missing-end": { expected: "END_IF" },
