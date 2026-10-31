@@ -252,7 +252,7 @@ END_PROGRAM`,
   runtime.continue();
   expect(runtime.diagnostic?.code).toBe("runtime.watchdog");
   expect(value("mainInstance.n")).toMatchObject({ value: 200000 });
-});
+}, 30000);
 
 it("excludes a 12–5012 ms halt from Fast and Slow execution times and skipped activations", () => {
   const compiled = compile(

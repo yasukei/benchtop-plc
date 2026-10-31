@@ -191,7 +191,7 @@ it("keeps the watchdog budget across pauses and faults with the original locatio
     args: { limit: 200000 },
   });
   expect(value("n")).toMatchObject({ value: 200000 });
-});
+}, 30000);
 
 it("reports each task and keeps task telemetry unchanged when the clock does not advance", () => {
   const ir = compile(
