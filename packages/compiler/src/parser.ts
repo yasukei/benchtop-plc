@@ -979,7 +979,7 @@ export class Parser {
     }
     if (this.at("-") || this.at("+") || this.at("NOT")) {
       this.take();
-      const operand = this.expression(precedence["**"]!);
+      const operand = this.primary();
       return {
         kind: "unary",
         operator: token.key as "+" | "-" | "NOT",

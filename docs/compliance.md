@@ -96,6 +96,11 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Operators and statements (ST)
 
+Operator precedence follows IEC 61131-3 Ed. 3 Table 71: unary `+`, `-` and `NOT`
+bind more tightly than `**`, which binds more tightly than `*`, `/` and `MOD`.
+Binary operators of equal precedence associate left, including `**`.
+See the full [operator order](compiler-parser.md#syntax-and-values).
+
 | Feature                                       | Status  | Notes                                                                                                                                                                                                                                                                |
 | --------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `+ - * / MOD`, unary `+` and `-`              | Yes     | MOD accepts integers only; TIME/LTIME support duration addition/subtraction, scaling by a numeric right operand, and unary signs (minus rejects unsigned integers); calendar differences yield TIME/LTIME, TOD/DT ± duration select the narrowest matching signature |

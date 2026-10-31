@@ -53,19 +53,23 @@ and integer checks. An omitted BY stays absent in the AST. Empty statement lists
 and empty statements are accepted.
 
 Expressions support literals, name/member references, positional function calls,
-parentheses and these operators (highest precedence first):
+parentheses and these operators (highest precedence first, following IEC 61131-3
+Ed. 3 Table 71):
 
 1. Unary `+`, `-`, `NOT`
-2. `*`, `/`, `MOD`
-3. `+`, `-`
-4. `<`, `>`, `<=`, `>=`
-5. `=`, `<>`
-6. `AND`, `&` (both stored as `AND`)
-7. `XOR`
-8. `OR`
+2. `**`
+3. `*`, `/`, `MOD`
+4. `+`, `-`
+5. `<`, `>`, `<=`, `>=`
+6. `=`, `<>`
+7. `AND`, `&` (both stored as `AND`)
+8. `XOR`
+9. `OR`
 
-Binary operators associate left; unary operators nest right. Calls bind more
-tightly than unary operators. Function and FB names are not resolved here.
+Binary operators associate left; unary operators nest right. Thus `-2 ** 2`
+parses as `(-2) ** 2`, `2 ** 3 ** 2` as `(2 ** 3) ** 2`, and `2 ** -1` accepts
+a unary exponent. Calls bind more tightly than unary operators. Function and FB
+names are not resolved here.
 
 Literal nodes retain original text and a lexical kind (`integer`, `real`, `time`,
 `boolean`, `calendar`, `string`), with a decoded string, approximate numeric or boolean value. Exact numeric checking

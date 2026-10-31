@@ -196,8 +196,10 @@ calendar types. Generic groups use the set-based common type described above;
 selectors, shift counts and exponents never participate in the value group.
 An untyped integer in a real-only position (including the base of `2 ** 10`)
 becomes LREAL. Typed integer bases require an explicit real conversion.
-`**` binds more tightly than unary operators and multiplication (`-2 ** 2` is -4.0);
-operators at the same precedence evaluate left to right, so `2 ** 3 ** 2` is 64.0.
+Unary `+`, `-` and `NOT` bind more tightly than `**`, which binds more tightly
+than multiplication (IEC 61131-3 Ed. 3 Table 71). Thus `-2 ** 2` is 4.0;
+use `-(2 ** 2)` for -4.0. Operators at the same precedence evaluate left to right,
+so `2 ** 3 ** 2` is 64.0. Unary exponents remain accepted (`2 ** -1` is 0.5).
 Keyword function calls such as `AND(a, b)` and `MOD(a, b)` are accepted.
 `NOT(expr)` retains the existing parse as unary NOT with a parenthesized operand,
 so it remains valid in constant expressions.
