@@ -72,9 +72,15 @@ export function nestingSource(kind: (typeof nestingCases)[number], depth: number
     case "case":
       body = "CASE 1 OF 1: ".repeat(depth) + body + " END_CASE;".repeat(depth);
       break;
-    case "for":
-      body = "FOR i := 1 TO 1 DO ".repeat(depth) + body + " END_FOR;".repeat(depth);
+    case "for": {
+      const controls = Array.from({ length: depth }, (_, index) => `i${index}`);
+      if (controls.length) declarations += ` ${controls.join(", ")} : DINT;`;
+      body =
+        controls.map((name) => `FOR ${name} := 1 TO 1 DO `).join("") +
+        body +
+        " END_FOR;".repeat(depth);
       break;
+    }
     case "while":
       body = "WHILE TRUE DO ".repeat(depth) + body + " EXIT; END_WHILE;".repeat(depth);
       break;

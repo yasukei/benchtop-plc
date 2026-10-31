@@ -254,6 +254,8 @@ export const diagnosticEn = {
     `FOR variable ${name} has subrange type ${typeText(type)}, which is not supported as a loop control variable; use an unrestricted integer variable.`,
   "type.for-bound-not-integer": ({ bound, type }) =>
     `FOR ${enBounds[bound]} must be an integer; found ${typeText(type)}.`,
+  "flow.for-control-write": ({ name }) =>
+    `FOR control variable ${name} cannot be written inside its loop body.`,
   "flow.exit-outside-loop": () => "EXIT must be inside a loop.",
   "fb.not-function-block": ({ name }) => `${name} is not a function block instance.`,
   "fb.no-matching-variant": ({ name, types }) =>
@@ -529,6 +531,8 @@ export const diagnosticJa = {
     `FOR変数${name}の部分範囲型${typeText(type)}はループ制御変数として使用できません。部分範囲のない整数変数を使用してください。`,
   "type.for-bound-not-integer": ({ bound, type }) =>
     `FORの${jaBounds[bound]}には整数が必要ですが、${typeText(type)}です。`,
+  "flow.for-control-write": ({ name }) =>
+    `FOR の制御変数 ${name} にはループ本体内で書き込めません。`,
   "flow.exit-outside-loop": () => "EXITはループ内で使用してください。",
   "fb.not-function-block": ({ name }) =>
     `${name}はファンクションブロックのインスタンスではありません。`,

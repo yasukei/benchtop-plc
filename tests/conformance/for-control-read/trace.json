@@ -1,0 +1,15 @@
+{
+  "kind": "run",
+  "cycleMs": 10,
+  "steps": [
+    {
+      "label": "Read the control inside the loop and write it after END_FOR",
+      "scans": 1,
+      "expect": {
+        "mainInstance.total": 6,
+        "mainInstance.completed": 4,
+        "mainInstance.i": 42
+      }
+    }
+  ]
+}

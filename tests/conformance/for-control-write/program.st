@@ -1,0 +1,6 @@
+PROGRAM Main
+VAR i : INT; END_VAR
+FOR i := 1 TO 10 DO
+    i := i + 1;
+END_FOR;
+END_PROGRAM
