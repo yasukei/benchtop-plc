@@ -2006,12 +2006,17 @@ class Checker {
         { name: node.name.name, parameter: parameter.name },
         parameter.span,
       );
+    // Call-shape errors must not hide independent errors in supplied expressions.
+    const rejectCall = (): null => {
+      for (const argument of node.args) this.expression(argument);
+      return null;
+    };
     const seenOutputs = new Set<number>();
     for (const output of node.outputs ?? []) {
       const port = signature.outputs?.findIndex(([name]) => name === output.name.key) ?? -1;
       if (port < 0 || seenOutputs.has(port)) {
         invalidParameter(output.name);
-        return null;
+        return rejectCall();
       }
       seenOutputs.add(port);
     }
@@ -2033,7 +2038,7 @@ class Checker {
         }
         if (port < 0 || !Number.isSafeInteger(port + 1) || ordered.has(port)) {
           invalidParameter(parameter);
-          return null;
+          return rejectCall();
         }
         ordered.set(port, node.args[index]!);
         minimum = Math.max(minimum, port + 1);
@@ -2045,7 +2050,7 @@ class Checker {
           { name: node.name.name, min: minimum, max: signature.max, found: ordered.size },
           node.span,
         );
-        return null;
+        return rejectCall();
       }
       inputs.splice(
         0,
@@ -2057,7 +2062,7 @@ class Checker {
     for (const output of node.outputs ?? []) {
       const port = signature.outputs!.findIndex(([name]) => name === output.name.key);
       const target = this.reference(output.target, true);
-      if (!target) return null;
+      if (!target) return rejectCall();
       this.expressions.set(output.target, target);
       if (
         !this.assignment(
@@ -2066,7 +2071,7 @@ class Checker {
           output.target.span,
         )
       )
-        return null;
+        return rejectCall();
     }
     if (
       !node.inputNames &&
@@ -2077,7 +2082,7 @@ class Checker {
         { name: node.name.name, min: signature.min, max: signature.max, found: inputs.length },
         node.span,
       );
-      return null;
+      return rejectCall();
     }
     const enumContext =
       expectedType && enumerationType(expectedType, this.types) ? expectedType : undefined;

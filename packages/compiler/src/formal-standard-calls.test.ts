@@ -95,3 +95,25 @@ it.each([
     expect(result.diagnostics.map((d) => d.code)).toEqual([code]);
   },
 );
+
+it.each([
+  ["n := ABS(1, missing);", ["call.argument-count", "name.undeclared"]],
+  ["n := MAX(missing);", ["call.argument-count", "name.undeclared"]],
+  ["n := ABS(Bad := missing);", ["call.invalid-parameter", "name.undeclared"]],
+  ["n := MAX(IN1 := missing);", ["call.argument-count", "name.undeclared"]],
+  [
+    "n := ABS(IN := missing, IN := other);",
+    ["call.invalid-parameter", "name.undeclared", "name.undeclared"],
+  ],
+  [
+    "n := MAX(IN1 := missing, IN3 := other);",
+    ["call.argument-count", "name.undeclared", "name.undeclared"],
+  ],
+  ["n := ABS(Unknown => n, IN := missing);", ["call.invalid-parameter", "name.undeclared"]],
+  ["SPLIT_DATE(IN := missing, YEAR => other);", ["name.undeclared", "name.undeclared"]],
+  ["SPLIT_DATE(IN := missing, YEAR => flag);", ["type.assign-mismatch", "name.undeclared"]],
+])("keeps independent input diagnostics when rejecting %s", (body, codes) => {
+  const result = compile(`PROGRAM Main VAR n: INT; flag: BOOL; END_VAR ${body} END_PROGRAM`);
+  expect(result.ir).toBeUndefined();
+  expect(result.diagnostics.map((d) => d.code)).toEqual(codes);
+});
