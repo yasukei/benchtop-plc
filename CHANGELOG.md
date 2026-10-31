@@ -35,6 +35,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Fixed
 
+- Use valid, collision-free internal ST names during project exchange, preserving
+  configuration constants and keeping configuration and resource globals in their
+  original scopes when identifier rules are tightened.
+
 - Report truncated configuration sources, reserved declaration names and unsupported
   EN/ENO call parameters with diagnostics that identify the cause. Keep parameters
   in rejected CONSTANT sections available to call checking to avoid follow-on errors.

@@ -1,4 +1,4 @@
-import { ParsingContext, ProgramContext } from "./parsing.js";
+import { generatedIdentifier, ParsingContext, ProgramContext } from "./parsing.js";
 import { encodePanel } from "./panel.js";
 import {
   check,
@@ -215,12 +215,17 @@ function globalConstantScope(
   variables: VariableDeclaration[],
   types: TypeTable,
 ): GlobalScope | undefined {
+  const constants = variables.filter((v) => v.constant);
   const ast = parsing.pou(
     joinProgram({
       kind: "program",
-      name: "__GLOBALS",
+      name: generatedIdentifier(
+        "Globals",
+        ...constants.flatMap((v) => [v.name, v.type, v.initialValue ?? ""]),
+        ...types.map((type) => type.name),
+      ),
       body: "",
-      variables: variables.filter((v) => v.constant).map((v) => ({ ...v, section: "localVars" })),
+      variables: constants.map((v) => ({ ...v, section: "localVars" })),
     }),
   ).ast;
   if (!ast) return undefined;
@@ -322,6 +327,7 @@ function splitDataType(
   const definition = resolved.types.find(
     (item) => item.name.toUpperCase() === ast.name.key,
   )?.definition;
+  const wrapperNames = [source, ...resolved.types.map((type) => type.name)];
   if (
     ast.stringLength !== undefined &&
     resolved.diagnostics.some(
@@ -335,7 +341,7 @@ function splitDataType(
   if (ast.members) {
     const split = splitProgramWithContext(
       parsing,
-      `PROGRAM __STRUCT_SOURCE VAR ${ast.members.map((member) => qualifiedTypeText(source, member)).join(" ")} END_VAR END_PROGRAM`,
+      `PROGRAM ${generatedIdentifier("StructSource", ...wrapperNames)} VAR ${ast.members.map((member) => qualifiedTypeText(source, member)).join(" ")} END_VAR END_PROGRAM`,
       resolved.types,
       undefined,
       legacyNames,
@@ -347,7 +353,7 @@ function splitDataType(
   if (ast.reference) {
     const split = splitProgramWithContext(
       parsing,
-      `PROGRAM __TYPE_SOURCE VAR __VALUE : REF_TO ${qualifiedTypeText(source, ast.reference)}; END_VAR END_PROGRAM`,
+      `PROGRAM ${generatedIdentifier("TypeSource", ...wrapperNames)} VAR ${generatedIdentifier("Value", ...wrapperNames)} : REF_TO ${qualifiedTypeText(source, ast.reference)}; END_VAR END_PROGRAM`,
       resolved.types,
       undefined,
       legacyNames,
@@ -360,7 +366,7 @@ function splitDataType(
     else {
       const split = splitProgramWithContext(
         parsing,
-        `PROGRAM __TYPE_SOURCE VAR __VALUE : ${qualifiedTypeText(source, ast.array)}; END_VAR END_PROGRAM`,
+        `PROGRAM ${generatedIdentifier("TypeSource", ...wrapperNames)} VAR ${generatedIdentifier("Value", ...wrapperNames)} : ${qualifiedTypeText(source, ast.array)}; END_VAR END_PROGRAM`,
         resolved.types,
       );
       if (!split.value) fail("project.invalid", `dataType/${ast.name.name}/baseType`);
@@ -452,7 +458,7 @@ function readInitialValue(parsing: ParsingContext, node: XmlNode): string | unde
 function initialXml(parsing: ParsingContext, value: string | undefined): string {
   if (value === undefined) return "";
 
-  const source = `PROGRAM Initial VAR a : INT := ${value}; END_VAR END_PROGRAM`;
+  const source = `PROGRAM ${generatedIdentifier("Initial", value)} VAR ${generatedIdentifier("Value", value)} : INT := ${value}; END_VAR END_PROGRAM`;
   const initializer = parsing.pou(source).ast?.declarations[0]?.initializer;
   if (!initializer) fail("project.invalid", "arrayValue");
   const encode = (node: import("@benchtop-plc/compiler").Expression): string => {
@@ -474,7 +480,7 @@ function initialXml(parsing: ParsingContext, value: string | undefined): string 
           if (!item.count) return item.values.map((v) => element("value", {}, encode(v))).join("");
           const countText = expressionText(source, item.count.span);
           const ast = parsing.pou(
-            `PROGRAM Count VAR n : DINT := ${countText}; END_VAR END_PROGRAM`,
+            `PROGRAM ${generatedIdentifier("Count", countText)} VAR ${generatedIdentifier("Value", countText)} : DINT := ${countText}; END_VAR END_PROGRAM`,
           ).ast;
           const count = ast && check(ast).checked?.symbols[0]?.initialValue;
           if (typeof count !== "number" || count < 0 || count > 10000)
@@ -1043,7 +1049,7 @@ function readProjectWithContext(parsing: ParsingContext, xml: string): ProjectRe
               // Unknown program types are compiler errors, just as in preserved POU text.
               const parsed = splitProgramWithContext(
                 parsing,
-                `PROGRAM __INSTANCE VAR x : ${typeName}; END_VAR END_PROGRAM`,
+                `PROGRAM ${generatedIdentifier("Instance", typeName)} VAR ${generatedIdentifier("Value", typeName)} : ${typeName}; END_VAR END_PROGRAM`,
               );
               if (
                 !parsed.value ||
@@ -1154,11 +1160,11 @@ function typeXml(parsing: ParsingContext, type: string): string {
   if (type.startsWith("REF_TO "))
     return element("pointer", {}, element("baseType", {}, typeXml(parsing, type.slice(7))));
   if (type.startsWith("STRUCT ")) {
-    const ast = parseType(parsing, `TYPE __STRUCT_XML : ${type}; END_TYPE`);
-    const source = `TYPE __STRUCT_XML : ${type}; END_TYPE`;
+    const source = `TYPE ${generatedIdentifier("StructXml", type)} : ${type}; END_TYPE`;
+    const ast = parseType(parsing, source);
     const split = splitProgramWithContext(
       parsing,
-      `PROGRAM __STRUCT_SOURCE VAR ${ast.members!.map((member) => expressionText(source, member.span)).join(" ")} END_VAR END_PROGRAM`,
+      `PROGRAM ${generatedIdentifier("StructSource", source)} VAR ${ast.members!.map((member) => expressionText(source, member.span)).join(" ")} END_VAR END_PROGRAM`,
     );
     if (!split.value) fail("project.invalid", "struct");
     return element(

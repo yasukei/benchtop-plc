@@ -1,4 +1,4 @@
-import { ParsingContext } from "./parsing.js";
+import { generatedIdentifier, ParsingContext } from "./parsing.js";
 import { check, lex, type Token } from "@benchtop-plc/compiler";
 import { splitProgramWithContext, joinProgram } from "./text.js";
 import type { VariableDeclaration } from "./model.js";
@@ -34,6 +34,8 @@ export function splitConfiguration(
   const scanned = lex(source, legacyNames);
   if (!scanned.tokens) throw new ConfigurationError(scanned.diagnostics[0]);
   const tokens = scanned.tokens;
+  const generated = (base: string) =>
+    generatedIdentifier(base, source, ...types.map((type) => type.name));
   let cursor = 0;
   const current = () => tokens[cursor]!;
   const invalid = (path: string): never => {
@@ -55,7 +57,7 @@ export function splitConfiguration(
     // Reuse the POU parser's identifier/type rules, including reserved names.
     const parsed = parsing.pou(
       type
-        ? `PROGRAM __INSTANCE VAR x : ${token.text}; END_VAR END_PROGRAM`
+        ? `PROGRAM ${generated("Instance")} VAR ${generated("Value")} : ${token.text}; END_VAR END_PROGRAM`
         : `PROGRAM ${token.text} END_PROGRAM`,
       legacyNames,
     );
@@ -66,7 +68,7 @@ export function splitConfiguration(
   const scalar = (values: Token[], type: DataType): number | string => {
     const text = values.map((token) => token.text).join(" ");
     const ast = parsing.pou(
-      `PROGRAM __TASK VAR x : ${type} := ${text}; END_VAR END_PROGRAM`,
+      `PROGRAM ${generated("TaskSource")} VAR ${generated("Value")} : ${type} := ${text}; END_VAR END_PROGRAM`,
       legacyNames,
     ).ast;
     if (!ast) return invalid(`task/${type}`);
@@ -133,9 +135,9 @@ export function splitConfiguration(
         // Connections live only in the exact source extension. Validate their syntax
         // with the compiler while leaving semantic errors exchangeable, as for POUs.
         const parsed = parsing.configuration(
-          `CONFIGURATION C RESOURCE R ON Cpu
-          TASK T (INTERVAL := T#10ms, PRIORITY := 0);
-          PROGRAM A WITH T : Main ${connectionTokens.map((token) => token.text).join(" ")};
+          `CONFIGURATION ${generated("ConfigSource")} RESOURCE ${generated("ResourceSource")} ON ${generated("Cpu")}
+          TASK ${generated("TaskBinding")} (INTERVAL := T#10ms, PRIORITY := 0);
+          PROGRAM ${generated("Instance")} WITH ${generated("TaskBinding")} : ${generated("ProgramType")} ${connectionTokens.map((token) => token.text).join(" ")};
           END_RESOURCE END_CONFIGURATION`,
           legacyNames,
         );
@@ -204,16 +206,18 @@ export function splitConfiguration(
   }
   const combined = splitProgramWithContext(
     parsing,
-    `PROGRAM __GLOBALS ${globalSource} ${resourceGlobalSource} END_PROGRAM`,
+    `PROGRAM ${generated("Globals")} ${globalSource} ${resourceGlobalSource} END_PROGRAM`,
     types,
     undefined,
     legacyNames,
   );
   if (!combined.value) throw new ConfigurationError(combined.diagnostics[0]!);
-  const count =
-    parsing
-      .pou(`PROGRAM __GLOBALS ${globalSource} END_PROGRAM`, legacyNames)
-      .ast?.declarations.reduce((n, d) => n + d.names.length, 0) ?? 0;
+  const globals = parsing.pou(
+    `PROGRAM ${generated("Globals")} ${globalSource} END_PROGRAM`,
+    legacyNames,
+  );
+  if (!globals.ast) throw new ConfigurationError(globals.diagnostics[0]!);
+  const count = globals.ast.declarations.reduce((n, d) => n + d.names.length, 0);
   return {
     name,
     resource,
@@ -226,9 +230,10 @@ export function splitConfiguration(
 /** Rebuild editable text when no matching source extension is available. */
 export function joinConfiguration(configuration: ConfigurationStructure): string {
   const globalsText = (variables: VariableDeclaration[] = []): string => {
-    const source = joinProgram({ kind: "program", name: "__GLOBALS", variables, body: "" });
+    // This wrapper is removed before the generated configuration is parsed.
+    const source = joinProgram({ kind: "program", name: "Globals", variables, body: "" });
     return source
-      .replace(/^PROGRAM __GLOBALS\n?/, "")
+      .replace(/^PROGRAM Globals\n?/, "")
       .replace(/END_PROGRAM\n$/, "")
       .replace(/^VAR(?= |$)/gm, "VAR_GLOBAL");
   };
