@@ -434,8 +434,11 @@ The page saves this array immediately under `benchtop-plc.retentive` in
 Retained updates neither rewrite the workspace nor postpone pending editor saves.
 Existing version 4 workspaces with an embedded `retentive` array migrate on first
 load; embedded values remain available if migration cannot write the separate key.
-Stored records are validated before restoration; malformed retention does not
-prevent restoring editable work. Reload can lose up to
+Stored records are validated individually before restoration; valid records still
+restore when others are malformed, and expected paths that were not restored are
+reported. Malformed retention does not prevent restoring editable work. See
+[ADR 0027](adr/0027-separate-browser-retained-storage.md) for storage precedence and
+migration. Reload can lose up to
 about one second of changes. It compiles autosaved sources, loads and restores
 values, and stays in STOP. A normal Apply, RUN with unapplied edits, Open project
 or Open example initializes all values as a program load.

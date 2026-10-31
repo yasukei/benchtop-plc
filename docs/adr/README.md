@@ -36,3 +36,4 @@ An ADR records one design decision: its context, the decision, and its consequen
 - [0024. Function block instance array forms](0024-function-block-instance-array-forms.md)
 - [0025. Overlapping force precedence](0025-overlapping-force-precedence.md)
 - [0026. Injected ticker contract](0026-injected-ticker-contract.md)
+- [0027. Separate browser retained storage](0027-separate-browser-retained-storage.md)
