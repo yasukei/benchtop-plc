@@ -28,8 +28,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 ### Fixed
 
 - Show localized warnings when opening a project drops vendor data or replaces
-  stale preserved source. Warnings remain beside the project controls until
-  dismissed or another project opens successfully.
+  stale preserved source, showing identical repeated warnings once. Warnings remain
+  beside the project controls until dismissed or another project opens successfully.
 - Open projects with equivalent ISO 8601 spellings of supported task intervals,
   and explain that implicit configurations support only 10, 20, 50 and 100 ms cycles
   when an imported interval is unsupported.

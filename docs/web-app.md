@@ -172,7 +172,8 @@ PROGRAM user FB calls show outputs in declaration order as inline values.
 
 Opening a project that drops unknown vendor data or replaces stale preserved
 source shows the codec's warnings in English or Japanese beside the project
-controls, in the same area as save diagnostics. Saving keeps the imported content
+controls, in the same area as save diagnostics. Identical warnings repeated across
+POUs appear once. Saving keeps the imported content
 with those changes. The warnings remain through edits, runtime commands and saves
 until **Dismiss project warnings** is selected or another project opens
 successfully (including **Restore example**). A failed open leaves them visible.

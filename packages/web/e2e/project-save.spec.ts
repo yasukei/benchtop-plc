@@ -202,10 +202,11 @@ test("preserves an unresolved enum type default without routing its diagnostic i
 test("shows import warnings in both languages until dismissed or another project opens", async ({
   page,
 }) => {
-  const xml = sampleXml.replace(
-    "</addData></project>",
-    '<data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data></addData></project>',
-  );
+  const vendor =
+    '<data name="https://vendor.example/1" handleUnknown="preserve"><v:payload xmlns:v="https://vendor.example/1"/></data>';
+  const xml = sampleXml
+    .replace("</addData></project>", `${vendor}</addData></project>`)
+    .replace("</body>", `</body><addData>${vendor}</addData>`);
   await page.goto("/");
   const open = (buffer: string, label = "Open project") =>
     page.getByLabel(label, { exact: true }).setInputFiles({
@@ -217,6 +218,9 @@ test("shows import warnings in both languages until dismissed or another project
   await open(xml);
   const warning = page.getByRole("alert").filter({ hasText: "https://vendor.example/1" });
   await expect(warning).toContainText("Unknown vendor data was dropped: https://vendor.example/1.");
+  await expect(warning.getByText("Unknown vendor data was dropped:", { exact: false })).toHaveCount(
+    1,
+  );
   await expect(warning).toContainText("Saving will keep these changes.");
   await expect(page.getByText("Program applied", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Single scan", exact: true }).click();
