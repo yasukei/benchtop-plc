@@ -33,6 +33,8 @@ Other scripts:
   run before and during refactoring to find untested paths. Open `coverage/index.html`
   for the HTML report. CI runs this in place of `pnpm test`, shows per-package totals
   in the job summary and keeps the `unit-test-coverage` artifact for seven days.
+- `pnpm test tests/property` – bounded compiler and PLCopen XML property tests,
+  also included in `pnpm test`; see [seeds, replay and longer runs](tests/property/README.md).
 - `pnpm test:e2e` – end-to-end tests (Playwright); run for UI changes
 - `pnpm test:e2e:pages` – smoke tests against the GitHub Pages build under `/benchtop-plc/`;
   run for build or base-path changes (builds the Pages artifact itself)

@@ -8,6 +8,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ## [Unreleased]
 
+### Added
+
+- Add bounded compiler and PLCopen XML property tests with reproducible seeds,
+  shrinking and generated project round trips; document replay and longer runs.
+
 ### Changed
 
 - **Breaking core protocol change:** the IR carried by `load` stores inherited
