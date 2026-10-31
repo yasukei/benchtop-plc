@@ -49,6 +49,47 @@ it("traces string assignment, runtime truncation and code-unit comparisons", () 
   ).toContainEqual({ dataType: "STRING", value: "Hello" });
 });
 
+it.each([
+  ["$L", "\n"],
+  ["$N", "\n"],
+  ["$P", "\f"],
+  ["$R", "\r"],
+  ["$T", "\t"],
+  ["$$", "$"],
+])("decodes the %s escape in STRING and WSTRING assignments", (escape, expected) => {
+  const { runtime, value } = setup([
+    `PROGRAM Main VAR text, lowerText : STRING; wide, lowerWide : WSTRING; END_VAR
+    text := '${escape}'; lowerText := '${escape.toLowerCase()}';
+    wide := "${escape}"; lowerWide := "${escape.toLowerCase()}";
+    END_PROGRAM`,
+  ]);
+  const snapshot = runtime.step();
+  for (const [name, dataType] of [
+    ["text", "STRING"],
+    ["lowerText", "STRING"],
+    ["wide", "WSTRING"],
+    ["lowerWide", "WSTRING"],
+  ] as const)
+    expect(value(snapshot, name)).toEqual({ kind: "scalar", dataType, value: expected });
+  expect(runtime.diagnostic).toBeNull();
+});
+
+it("decodes escaped quote delimiters in STRING and WSTRING assignments", () => {
+  const { runtime, value } = setup([
+    `PROGRAM Main VAR text : STRING; wide : WSTRING; END_VAR
+    text := 'It$'s'; wide := "Say $"Hi$"";
+    END_PROGRAM`,
+  ]);
+  const snapshot = runtime.step();
+  expect(value(snapshot, "text")).toEqual({ kind: "scalar", dataType: "STRING", value: "It's" });
+  expect(value(snapshot, "wide")).toEqual({
+    kind: "scalar",
+    dataType: "WSTRING",
+    value: 'Say "Hi"',
+  });
+  expect(runtime.diagnostic).toBeNull();
+});
+
 it("uses the common character type for selection, ordering and MOVE", () => {
   const { runtime, value } = setup([
     `PROGRAM Main

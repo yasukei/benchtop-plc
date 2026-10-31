@@ -25,6 +25,22 @@ function execute(declarations: string, body: string) {
 }
 
 it.each([
+  ["TOD", "TOD#00:00:00", "LTOD", "TOD_TO_LTOD", "0"],
+  ["TOD", "TOD#12:34:56.123", "LTOD", "TOD_TO_LTOD", "45296123000000"],
+  ["TOD", "TOD#23:59:59.999", "LTOD", "TOD_TO_LTOD", "86399999000000"],
+  ["LTOD", "LTOD#00:00:00.000999999", "TOD", "LTOD_TO_TOD", 0],
+  ["LTOD", "LTOD#12:34:56.123999999", "TOD", "LTOD_TO_TOD", 45296123],
+  ["LTOD", "LTOD#23:59:59.999999999", "TOD", "LTOD_TO_TOD", 86399999],
+])("converts %s %s to %s using %s", (sourceType, literal, resultType, conversion, expected) => {
+  const { values, runtime } = execute(
+    `source: ${sourceType} := ${literal}; result: ${resultType};`,
+    `result := ${conversion}(source);`,
+  );
+  expect(runtime.diagnostic).toBeNull();
+  expect(values.result).toBe(expected);
+});
+
+it.each([
   ["TIME", "ADD_TIME(T#2147483647ms, T#1ms)", "T#-24d20h31m23s648ms"],
   ["TIME", "SUB_TIME(T#-2147483648ms, T#1ms)", "T#24d20h31m23s647ms"],
   ["TOD", "ADD_TOD_TIME(TOD#23:00:00, T#2h)", "TOD#01:00:00"],
