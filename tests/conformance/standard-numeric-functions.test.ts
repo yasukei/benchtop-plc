@@ -34,9 +34,13 @@ describe("standard numeric, bit and elementary functions", () => {
     ["LREAL", "(-1.0) ** LINT#-9223372036854775807", -1],
     ["LREAL", "2 * 3 ** 2 + 1", 19],
     ["LREAL", "2 ** 3 ** 2", 64],
-    ["LREAL", "-2 ** 2", -4],
+    ["LREAL", "-2 ** 2", 4],
+    ["LREAL", "+-2 ** 2", 4],
+    ["LREAL", "-(2 ** 2)", -4],
     ["LREAL", "(-2) ** 2", 4],
+    ["LREAL", "2 ** -1", 0.5],
     ["LREAL", "2 ** -2", 0.25],
+    ["LREAL", "2 ** -2 ** 2", 0.0625],
     ["LREAL", "SQRT(9)", 3],
     ["LREAL", "SQRT(18446744073709551615)", 4294967296],
     ["REAL", "SQRT(REAL#9)", 3],
@@ -112,6 +116,12 @@ describe("standard numeric, bit and elementary functions", () => {
     const { result, runtime } = execute(type, expression);
     expect(runtime.diagnostic).toBeNull();
     expect(result).toBe(expected);
+  });
+
+  it("binds unary minus before exponentiation on a variable", () => {
+    const { result, runtime } = execute("LREAL", "-x ** 2", "x: LREAL := 2;");
+    expect(runtime.diagnostic).toBeNull();
+    expect(result).toBe(4);
   });
 
   it("preserves parenthesized unary NOT in constant initializers and CASE labels", () => {
