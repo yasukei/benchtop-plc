@@ -236,6 +236,63 @@ it("passes interface values through function block input, output, in-out and tem
   expect(value("first")).toMatchObject({ value: 3 });
 });
 
+it("resets interface-only FUNCTION and method temporaries on every call", () => {
+  const locals = `VAR_INPUT source: IActuator; END_VAR
+    VAR_TEMP scratch: IActuator; links: ARRAY[1..1] OF ARRAY[1..1] OF IActuator; END_VAR`;
+  const body = `Fresh := (scratch = NULL) AND (links[1][1] = NULL);
+    scratch := source; links[1][1] := source;`;
+  const { runtime, value } = setup(
+    `IF Fresh(v) AND Fresh(p) THEN first := first + 1; END_IF;
+    IF inspector.Fresh(source := v) AND inspector.Fresh(source := p) THEN second := second + 1; END_IF;`,
+    "inspector: Helper;",
+    [
+      `FUNCTION Fresh : BOOL ${locals} ${body} END_FUNCTION`,
+      `CLASS Helper METHOD PUBLIC Fresh : BOOL ${locals} ${body} END_METHOD END_CLASS`,
+    ],
+  );
+  for (let scan = 1; scan <= 2; scan++) {
+    runtime.step();
+    expect(runtime.diagnostic).toBeNull();
+    expect(value("first")).toMatchObject({ value: scan });
+    expect(value("second")).toMatchObject({ value: scan });
+  }
+});
+
+it.each(["PROGRAM VAR_IN_OUT", "FUNCTION VAR_TEMP", "METHOD VAR_TEMP"])(
+  "restricts %s to interface-only declarations",
+  (context) => {
+    const [kind, section] = context.split(" ");
+    for (const declarations of [
+      "ordinary: INT;",
+      "ordinary: ARRAY[1..2] OF INT;",
+      "record: Holder;",
+      "link: IActuator; ordinary: INT;",
+      `link: IActuator; END_VAR ${section} ordinary: INT;`,
+    ]) {
+      const sections = `${section} ${declarations} END_VAR`;
+      const sources = [
+        actuator,
+        kind === "PROGRAM" ? `PROGRAM Main ${sections} END_PROGRAM` : "PROGRAM Main END_PROGRAM",
+        ...(kind === "PROGRAM"
+          ? []
+          : kind === "FUNCTION"
+            ? [`FUNCTION Check ${sections} END_FUNCTION`]
+            : [`CLASS Check METHOD PUBLIC Run ${sections} END_METHOD END_CLASS`]),
+      ];
+      const compiled = compileProject(sources, [
+        "TYPE Holder : STRUCT link: IActuator; END_STRUCT; END_TYPE",
+      ]);
+      expect(compiled.ir, `${context}: ${declarations}`).toBeUndefined();
+      expect(compiled.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "pou.invalid-section",
+          args: { section, kind: kind === "PROGRAM" ? "program" : "function" },
+        }),
+      );
+    }
+  },
+);
+
 it("aliases configured PROGRAM interface in-outs so retargeting is immediately shared", () => {
   const compiled = compileProject(
     [
@@ -274,4 +331,46 @@ it("aliases configured PROGRAM interface in-outs so retargeting is immediately s
   expect(runtime.diagnostic).toBeNull();
   expect(value("MAININSTANCE.OBSERVED")).toMatchObject({ value: 6 });
   expect(value("MAININSTANCE.IDENTICAL")).toMatchObject({ value: true });
+});
+
+it("aliases configured PROGRAM interface array cells in both directions", () => {
+  const compiled = compileProject(
+    [
+      `PROGRAM Main VAR_IN_OUT links: ARRAY[1..2] OF IActuator; END_VAR
+    VAR_EXTERNAL shared: ARRAY[1..2] OF IActuator; globalValve: Valve; globalPump: Pump; END_VAR
+    VAR i: INT := 1; END_VAR
+    VAR_OUTPUT forwarded, reversed: BOOL; observed: INT; END_VAR
+    links[i] := globalValve; forwarded := shared[i] = links[i];
+    shared[i + 1] := globalPump; reversed := links[i + 1] = shared[i + 1];
+    links[i + 1].Start(step := 3); observed := shared[i + 1].Value();
+    END_PROGRAM`,
+      actuator,
+      valve,
+      pump,
+    ],
+    [],
+    `CONFIGURATION Config VAR_GLOBAL shared: ARRAY[1..2] OF IActuator; globalValve: Valve; globalPump: Pump; END_VAR
+    RESOURCE Res ON BENCHTOP TASK Cycle(INTERVAL := T#10ms, PRIORITY := 1);
+    PROGRAM mainInstance WITH Cycle: Main(links := shared); END_RESOURCE END_CONFIGURATION`,
+  );
+  expect(compiled.diagnostics).toEqual([]);
+  const ir = structuredClone(compiled.ir!);
+  const clock = new VirtualClock();
+  const runtime = createRuntime({ clock, ticker: new VirtualTicker(clock) });
+  runtime.load(ir);
+  runtime.watch(ir.variables.map((_, id) => id));
+  const value = (name: string) =>
+    snapshotVariable(
+      runtime.snapshot(),
+      ir.variables.findIndex((v) => v.key === name),
+    );
+  for (let scan = 1; scan <= 2; scan++) {
+    runtime.step();
+    expect(runtime.diagnostic).toBeNull();
+    expect(value("SHARED[1]")).toEqual({ kind: "reference", target: "GLOBALVALVE" });
+    expect(value("SHARED[2]")).toEqual({ kind: "reference", target: "GLOBALPUMP" });
+    expect(value("MAININSTANCE.FORWARDED")).toMatchObject({ value: true });
+    expect(value("MAININSTANCE.REVERSED")).toMatchObject({ value: true });
+    expect(value("MAININSTANCE.OBSERVED")).toMatchObject({ value: scan * 6 });
+  }
 });

@@ -156,6 +156,10 @@ Up to three dimensions use the same constant bounds and checked indexing as valu
 arrays. A function cannot declare instances, and instances cannot be constants,
 temporaries, parameters or function results. Instance arrays have no initializer
 and cannot be copied or passed to whole-array selection functions.
+Named instance-array types and nested arrays of instances are rejected with
+`decl.fb-array-form`; [ADR 0024](adr/0024-function-block-instance-array-forms.md)
+extends ADR 0015 with these restrictions. Inline multidimensional arrays remain
+allowed.
 
 Call an element with formal arguments: `t[i](IN := run, PT := presets[i], Q => done)`.
 Read its public inputs/outputs with `t[i].IN` and `t[i].Q`; only inputs are writable
@@ -229,8 +233,10 @@ following the block definitions.
 ## PROGRAM parameters and connections
 
 PROGRAMs accept `VAR_INPUT` and `VAR_OUTPUT`, plus `VAR_IN_OUT` for interface
-variables and arrays of interfaces. Every in-out requires an explicit configuration
-connection (`:=`) to a mutable global of exactly the same type.
+variables and arrays of interfaces
+([ADR 0023](adr/0023-interface-in-outs-and-temporaries.md)). Every in-out requires
+an explicit configuration connection (`:=`) to a mutable global of exactly the
+same type.
 `AT` on a PROGRAM parameter declaration is rejected (`decl.parameter-address`);
 connect direct addresses in the configuration instead.
 An instance can connect named parameters, for example:
@@ -253,6 +259,8 @@ leaves carry `connectedInput: true`. PROGRAM bodies and storage remain independe
 of the connection lists, so every instance can connect to different sources.
 Interface in-outs instead share the connected global storage directly, with no
 input/output transfers; assignments through either name are immediately visible.
+A missing in-out binding reports `call.missing-in-out`, including under the
+implicit configuration.
 
 At task start the runtime reads inputs, consumes pending writes, and restores forces.
 For each instance in declaration order it copies connected inputs, restores forces,
@@ -341,7 +349,10 @@ Concrete types must provide every prototype with an identical signature.
 
 Interface variables default to NULL and accept only NULL initializers. They support
 parameters, results, arrays, structures, globals and temporary storage, but cannot
-be CONSTANT or located. Assignment accepts compatible interface values, NULL, THIS
+be CONSTANT or located. FUNCTION and method `VAR_TEMP` sections accept only
+interface variables or arrays of them, reset on every call;
+[ADR 0023](adr/0023-interface-in-outs-and-temporaries.md) records the exception to
+the earlier section bans. Assignment accepts compatible interface values, NULL, THIS
 and persistent implementing instances. Instance conversion preserves identity.
 `target ?= source;` accepts interface variables and a NULL source and is never an
 expression. Interface calls add recursion edges to every implementing method in

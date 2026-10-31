@@ -13,6 +13,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 - Consolidate the existing operating-state, overlay and command behavior in
   ADR 0022, distinguishing ignored commands from diagnostic-bearing rejections
   and documenting faults during single scans and warm-restart fault clearing.
+- Record existing PROGRAM interface in-out aliasing, interface-only FUNCTION/method
+  temporaries and named/nested function block instance array restrictions in ADRs
+  0023 and 0024, with links from the language references.
 
 - Link compliance claims for comments, string escapes, namespace `INTERNAL` access,
   TOD/LTOD conversions and ADR arithmetic/string examples to conformance cases.

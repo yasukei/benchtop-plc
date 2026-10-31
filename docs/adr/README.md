@@ -32,3 +32,5 @@ An ADR records one design decision: its context, the decision, and its consequen
 - [0020. Recover unexpected Worker errors as internal faults](0020-worker-error-recovery.md)
 - [0021. Limit syntactic source nesting](0021-source-nesting-limit.md)
 - [0022. Operating states, overlays and command outcomes](0022-operating-state-command-matrix.md)
+- [0023. Interface in-outs and temporaries](0023-interface-in-outs-and-temporaries.md)
+- [0024. Function block instance array forms](0024-function-block-instance-array-forms.md)
