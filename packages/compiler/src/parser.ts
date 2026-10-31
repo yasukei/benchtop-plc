@@ -889,7 +889,17 @@ export class Parser {
 
   private parsePrimary(): Expression {
     const token = this.current;
-    // NOT(expr) is also the existing unary operator with a grouped operand.
+    // Keep NOT(expr) as a unary operator, but route formal NOT calls through function checking.
+    if (
+      this.at("NOT") &&
+      this.tokens[this.cursor + 1]?.key === "(" &&
+      this.tokens[this.cursor + 2]?.kind === "identifier" &&
+      [":=", "=>"].includes(this.tokens[this.cursor + 3]?.key ?? "")
+    ) {
+      this.take();
+      this.expect("(");
+      return this.functionArguments({ name: token.text, key: token.key, span: token.span });
+    }
     if (this.at("-") || this.at("+") || this.at("NOT")) {
       this.take();
       const operand = this.expression(precedence["**"]!);

@@ -140,11 +140,20 @@ export interface StandardFunctionSignature {
   genericEnd?: number;
   /** Independent parameters: result takes this argument's type. */
   resultArgument?: number;
+  /** Formal inputs in positional order; the final numbered name continues its sequence for extensible arity. */
   inputNames?: readonly string[];
   outputs?: readonly FunctionBlockPort[];
   /** Named time arithmetic shares the corresponding operator's exact implementation. */
   operator?: "+" | "-" | "*" | "/";
 }
+// IEC 61131-3 standard function tables: unary/conversion input is IN.
+const unary = (types: Types, result: DataType): StandardFunctionSignature => ({
+  min: 1,
+  max: 1,
+  arguments: [types],
+  result,
+  inputNames: ["IN"],
+});
 const conversionEntries: [string, StandardFunctionSignature][] = [];
 for (const to of [...bits, ...numericTypes, "TIME", "LTIME"] as const) {
   const sources: Types =
@@ -163,18 +172,9 @@ for (const to of [...bits, ...numericTypes, "TIME", "LTIME"] as const) {
             : to === "LREAL"
               ? [...numericTypes, "LWORD"]
               : [...numericTypes, ...bits, "TIME", "LTIME"];
-  conversionEntries.push([`TO_${to}`, { min: 1, max: 1, arguments: [sources], result: to }]);
+  conversionEntries.push([`TO_${to}`, unary(sources, to)]);
   for (const from of sources) {
-    if (from !== to)
-      conversionEntries.push([
-        `${from}_TO_${to}`,
-        {
-          min: 1,
-          max: 1,
-          arguments: [[from]],
-          result: to,
-        },
-      ]);
+    if (from !== to) conversionEntries.push([`${from}_TO_${to}`, unary([from], to)]);
   }
 }
 const calendarSources = {
@@ -187,15 +187,8 @@ const calendarSources = {
 } as const;
 for (const to of calendarTypes) {
   const sources = calendarSources[to];
-  conversionEntries.push([
-    `TO_${to}`,
-    { min: 1, max: 1, arguments: [[to, ...sources]], result: to },
-  ]);
-  for (const from of sources)
-    conversionEntries.push([
-      `${from}_TO_${to}`,
-      { min: 1, max: 1, arguments: [[from]], result: to },
-    ]);
+  conversionEntries.push([`TO_${to}`, unary([to, ...sources], to)]);
+  for (const from of sources) conversionEntries.push([`${from}_TO_${to}`, unary([from], to)]);
 }
 // String conversions extend the existing overloaded destination signatures.
 const textTypes = ["STRING", "WSTRING"] as const;
@@ -229,13 +222,12 @@ const stringPairs: readonly (readonly [DataType, DataType])[] = [
   ...characterPairs,
 ];
 for (const [from, to] of stringPairs) {
-  conversionEntries.push([`${from}_TO_${to}`, { min: 1, max: 1, arguments: [[from]], result: to }]);
+  conversionEntries.push([`${from}_TO_${to}`, unary([from], to)]);
   const overloaded = conversionEntries.find(([name]) => name === `TO_${to}`);
   if (overloaded) {
     const sources = overloaded[1].arguments[0]!;
     if (!sources.includes(from)) overloaded[1].arguments = [[...sources, from]];
-  } else
-    conversionEntries.push([`TO_${to}`, { min: 1, max: 1, arguments: [[from, to]], result: to }]);
+  } else conversionEntries.push([`TO_${to}`, unary([from, to], to)]);
 }
 // Every conversion opcode is generated from the families in ConversionFunction.
 export const conversionFunctions = Object.fromEntries(conversionEntries) as Record<
@@ -246,15 +238,11 @@ const reals = ["REAL", "LREAL"] as const;
 const truncationEntries: [string, StandardFunctionSignature][] = [];
 const bcdEntries: [string, StandardFunctionSignature][] = [];
 for (const to of integers) {
-  truncationEntries.push([`TRUNC_${to}`, { min: 1, max: 1, arguments: [reals], result: to }]);
-  for (const from of reals)
-    truncationEntries.push([
-      `${from}_TRUNC_${to}`,
-      { min: 1, max: 1, arguments: [[from]], result: to },
-    ]);
+  truncationEntries.push([`TRUNC_${to}`, unary(reals, to)]);
+  for (const from of reals) truncationEntries.push([`${from}_TRUNC_${to}`, unary([from], to)]);
   for (const bits of bitStrings) {
-    bcdEntries.push([`${bits}_BCD_TO_${to}`, { min: 1, max: 1, arguments: [[bits]], result: to }]);
-    bcdEntries.push([`${to}_TO_BCD_${bits}`, { min: 1, max: 1, arguments: [[to]], result: bits }]);
+    bcdEntries.push([`${bits}_BCD_TO_${to}`, unary([bits], to)]);
+    bcdEntries.push([`${to}_TO_BCD_${bits}`, unary([to], bits)]);
   }
 }
 export const truncationFunctions = Object.fromEntries(truncationEntries) as Record<
@@ -265,11 +253,17 @@ export const bcdFunctions = Object.fromEntries(bcdEntries) as Record<
   BcdFunction,
   StandardFunctionSignature
 >;
-const generic = (types: Types, min: number, max: number | null): StandardFunctionSignature => ({
+const generic = (
+  types: Types,
+  min: number,
+  max: number | null,
+  inputNames: readonly string[] = min === 1 ? ["IN"] : ["IN1", "IN2"],
+): StandardFunctionSignature => ({
   min,
   max,
   arguments: [types],
   genericStart: 0,
+  inputNames,
 });
 const realUnary = generic(reals, 1, 1);
 const shift: StandardFunctionSignature = {
@@ -277,6 +271,7 @@ const shift: StandardFunctionSignature = {
   max: 2,
   arguments: [bits, integers],
   resultArgument: 0,
+  inputNames: ["IN", "N"],
 };
 const comparison: StandardFunctionSignature = { ...generic(scalarTypes, 2, null), result: "BOOL" };
 const timeEntries: [string, StandardFunctionSignature][] = [];
@@ -371,23 +366,49 @@ export const calendarFunctions = {
 
 const strings = ["STRING", "WSTRING"] as const;
 export const stringFunctions = {
-  LEN: { min: 1, max: 1, arguments: [strings], result: "INT" },
-  LEFT: { min: 2, max: 2, arguments: [strings, integers], resultArgument: 0 },
-  RIGHT: { min: 2, max: 2, arguments: [strings, integers], resultArgument: 0 },
-  MID: { min: 3, max: 3, arguments: [strings, integers, integers], resultArgument: 0 },
+  LEN: unary(strings, "INT"),
+  LEFT: {
+    min: 2,
+    max: 2,
+    arguments: [strings, integers],
+    resultArgument: 0,
+    inputNames: ["IN", "L"],
+  },
+  RIGHT: {
+    min: 2,
+    max: 2,
+    arguments: [strings, integers],
+    resultArgument: 0,
+    inputNames: ["IN", "L"],
+  },
+  MID: {
+    min: 3,
+    max: 3,
+    arguments: [strings, integers, integers],
+    resultArgument: 0,
+    inputNames: ["IN", "L", "P"],
+  },
   CONCAT: generic(strings, 2, null),
   INSERT: {
     min: 3,
     max: 3,
     arguments: [strings, strings, integers],
+    inputNames: ["IN1", "IN2", "P"],
     genericStart: 0,
     genericEnd: 2,
   },
-  DELETE: { min: 3, max: 3, arguments: [strings, integers, integers], resultArgument: 0 },
+  DELETE: {
+    min: 3,
+    max: 3,
+    arguments: [strings, integers, integers],
+    resultArgument: 0,
+    inputNames: ["IN", "L", "P"],
+  },
   REPLACE: {
     min: 4,
     max: 4,
     arguments: [strings, strings, integers, integers],
+    inputNames: ["IN1", "IN2", "L", "P"],
     genericStart: 0,
     genericEnd: 2,
   },
@@ -406,13 +427,19 @@ export const standardFunctions = {
   ASIN: realUnary,
   ACOS: realUnary,
   ATAN: realUnary,
-  ATAN2: generic(reals, 2, 2),
+  ATAN2: generic(reals, 2, 2, ["Y", "X"]),
   ADD: generic(numericTypes, 2, null),
   MUL: generic(numericTypes, 2, null),
   SUB: generic(numericTypes, 2, 2),
   DIV: generic(numericTypes, 2, 2),
   MOD: generic(integers, 2, 2),
-  EXPT: { min: 2, max: 2, arguments: [reals, numericTypes], resultArgument: 0 },
+  EXPT: {
+    min: 2,
+    max: 2,
+    arguments: [reals, numericTypes],
+    resultArgument: 0,
+    inputNames: ["IN1", "IN2"],
+  },
   MOVE: generic(scalarTypes, 1, 1),
   SHL: shift,
   SHR: shift,
@@ -424,9 +451,21 @@ export const standardFunctions = {
   NOT: generic(bits, 1, 1),
   MIN: generic(scalarTypes, 2, null),
   MAX: generic(scalarTypes, 2, null),
-  LIMIT: generic(scalarTypes, 3, 3),
-  SEL: { min: 3, max: 3, arguments: [["BOOL"], scalarTypes], genericStart: 1 },
-  MUX: { min: 3, max: null, arguments: [integers, scalarTypes], genericStart: 1 },
+  LIMIT: generic(scalarTypes, 3, 3, ["MN", "IN", "MX"]),
+  SEL: {
+    min: 3,
+    max: 3,
+    arguments: [["BOOL"], scalarTypes],
+    genericStart: 1,
+    inputNames: ["G", "IN0", "IN1"],
+  },
+  MUX: {
+    min: 3,
+    max: null,
+    arguments: [integers, scalarTypes],
+    genericStart: 1,
+    inputNames: ["K", "IN0", "IN1"],
+  },
   GT: comparison,
   GE: comparison,
   EQ: comparison,

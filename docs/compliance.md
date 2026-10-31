@@ -105,7 +105,7 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | Comparisons                                   | Yes     | Common type per ADR 0013; BOOL ordering is `FALSE < TRUE`; calendar values compare chronologically                                                                                                                                                                   |
 | Bit access `x.n`                              | Yes     | BYTE/WORD/DWORD/LWORD variables; a constant index within the width, readable and writable                                                                                                                                                                            |
 | Assignment `:=`                               | Yes     | Only ADR 0013 widening is implicit; narrowing needs an explicit conversion                                                                                                                                                                                           |
-| Function calls as statements and `=>` outputs | Yes     | User and standard functions and FBs: writable outputs follow assignment widening; FB inputs remain formal only                                                                                                                                                       |
+| Function calls as statements and `=>` outputs | Yes     | Formal and non-formal user/standard function calls; standard inputs are mandatory; extensible inputs use consecutive IN numbers; writable outputs follow assignment widening; FB inputs remain formal only                                                           |
 | FB call with named inputs                     | Yes     |                                                                                                                                                                                                                                                                      |
 | `IF`, `CASE`, `FOR`, `WHILE`, `REPEAT`        | Yes     | CASE selectors and labels, and FOR variables and bounds, must be integers; CASE labels must be constant                                                                                                                                                              |
 | `EXIT`, `RETURN`                              | Yes     | RETURN leaves the current POU                                                                                                                                                                                                                                        |
@@ -127,6 +127,32 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 | `<A>_BCD_TO_<B>`, `<A>_TO_BCD_<B>`                                                         | Yes     | All integer/bit-string pairs except BOOL; packed unsigned BCD; invalid digits or negative encoding inputs fault; results wrap                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Time and date functions                                                                    | Yes     | Named duration/calendar arithmetic and long forms; CONCAT, SPLIT with INT outputs and BOOL result, DAY_OF_WEEK (0 = Sunday); constructors and splits use millisecond components                                                                                                                                                                                                                                                                                                                                                           |
 | String functions                                                                           | Yes     | LEN, LEFT, RIGHT, MID, extensible CONCAT, INSERT, DELETE, REPLACE and FIND for STRING/WSTRING; ADR 0015 positions, clamping and faults; results capped at 1,024 code units                                                                                                                                                                                                                                                                                                                                                                |
+
+### Formal standard function inputs
+
+Formal inputs may be supplied in any order and are evaluated once in source order.
+All inputs are required; extensible numbered inputs must be consecutive. Unknown
+or duplicate names and missing inputs reject the call without follow-on type errors.
+
+| Function family                                                         | Formal inputs                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| Unary numeric, NOT, MOVE, conversions, truncation, BCD, LEN             | `IN`                                                    |
+| SUB, DIV, MOD, EXPT, NE                                                 | `IN1`, `IN2`                                            |
+| Extensible ADD, MUL, AND, OR, XOR, MIN, MAX, GT, GE, EQ, LE, LT, CONCAT | `IN1` through `INn`                                     |
+| SEL                                                                     | `G`, `IN0`, `IN1`                                       |
+| MUX                                                                     | `K`, then `IN0` through `INn`                           |
+| LIMIT                                                                   | `MN`, `IN`, `MX`                                        |
+| SHL, SHR, ROL, ROR                                                      | `IN`, `N`                                               |
+| LEFT, RIGHT; MID, DELETE                                                | `IN`, `L`; `IN`, `L`, `P`                               |
+| INSERT; REPLACE; FIND                                                   | `IN1`, `IN2`, `P`; `IN1`, `IN2`, `L`, `P`; `IN1`, `IN2` |
+| ATAN2                                                                   | `Y`, `X`                                                |
+
+These names follow the IEC 61131-3 function tables, cross-checked against
+[matiec's transcription of 2nd-edition Tables 22–29](https://github.com/beremiz/matiec/blob/3a41303bcb4e50403417bc39c63f88981d7d961e/lib/create_standard_function_txt.sh).
+ATAN2 is absent from those older tables; its `Y`, `X` inputs follow the
+[published Rusty declaration](https://github.com/PLC-lang/rusty/blob/e911ee5e0bce0ba60086ff5269d74090a27c32d6/libs/stdlib/iec61131-st/arithmetic_functions.st).
+Later-edition verification remains pending. Time/date functions keep their existing
+input names.
 
 ## Standard function blocks
 

@@ -2006,44 +2006,67 @@ class Checker {
         { name: node.name.name, parameter: parameter.name },
         parameter.span,
       );
-    if (node.inputNames) {
-      const ordered = new Map<number, AST.Expression>();
-      node.inputNames.forEach((parameter, index) => {
-        const port = signature.inputNames?.indexOf(parameter.key) ?? -1;
-        if (port < 0 || ordered.has(port)) invalidParameter(parameter);
-        else ordered.set(port, node.args[index]!);
-      });
-      if (ordered.size !== signature.min) {
-        this.report(
-          "call.argument-count",
-          { name: node.name.name, min: signature.min, max: signature.max, found: ordered.size },
-          node.span,
-        );
-      }
-      // Failed calls still check their supplied expressions, but never reach lowering.
-      if (Array.from({ length: signature.min }, (_, index) => ordered.has(index)).every(Boolean))
-        inputs.splice(
-          0,
-          inputs.length,
-          ...Array.from({ length: signature.min }, (_, index) => ordered.get(index)!),
-        );
-    }
-    this.functionArguments.set(node, inputs);
     const seenOutputs = new Set<number>();
     for (const output of node.outputs ?? []) {
       const port = signature.outputs?.findIndex(([name]) => name === output.name.key) ?? -1;
-      if (port < 0 || seenOutputs.has(port)) invalidParameter(output.name);
-      seenOutputs.add(port);
-      const target = this.reference(output.target, true);
-      if (target) {
-        this.expressions.set(output.target, target);
-        if (port >= 0)
-          this.assignment(
-            target.descriptor ?? target.dataType,
-            { dataType: signature.outputs![port]![1] },
-            output.target.span,
-          );
+      if (port < 0 || seenOutputs.has(port)) {
+        invalidParameter(output.name);
+        return null;
       }
+      seenOutputs.add(port);
+    }
+    if (node.inputNames) {
+      const ordered = new Map<number, AST.Expression>();
+      let minimum = signature.min;
+      for (const [index, parameter] of node.inputNames.entries()) {
+        let port = signature.inputNames?.indexOf(parameter.key) ?? -1;
+        if (port < 0 && signature.max === null) {
+          const numbered = /^IN(0|[1-9][0-9]*)$/.exec(parameter.key);
+          const last = /^IN([0-9]+)$/.exec(signature.inputNames?.at(-1) ?? "");
+          if (
+            numbered &&
+            last &&
+            Number.isSafeInteger(Number(numbered[1])) &&
+            Number(numbered[1]) > Number(last[1])
+          )
+            port = signature.inputNames!.length - 1 + (Number(numbered[1]) - Number(last[1]));
+        }
+        if (port < 0 || !Number.isSafeInteger(port + 1) || ordered.has(port)) {
+          invalidParameter(parameter);
+          return null;
+        }
+        ordered.set(port, node.args[index]!);
+        minimum = Math.max(minimum, port + 1);
+      }
+      // Check gaps before constructing the list, even for very large numbered inputs.
+      if (ordered.size !== minimum) {
+        this.report(
+          "call.argument-count",
+          { name: node.name.name, min: minimum, max: signature.max, found: ordered.size },
+          node.span,
+        );
+        return null;
+      }
+      inputs.splice(
+        0,
+        inputs.length,
+        ...Array.from({ length: ordered.size }, (_, index) => ordered.get(index)!),
+      );
+    }
+    this.functionArguments.set(node, inputs);
+    for (const output of node.outputs ?? []) {
+      const port = signature.outputs!.findIndex(([name]) => name === output.name.key);
+      const target = this.reference(output.target, true);
+      if (!target) return null;
+      this.expressions.set(output.target, target);
+      if (
+        !this.assignment(
+          target.descriptor ?? target.dataType,
+          { dataType: signature.outputs![port]![1] },
+          output.target.span,
+        )
+      )
+        return null;
     }
     if (
       !node.inputNames &&
@@ -2054,6 +2077,7 @@ class Checker {
         { name: node.name.name, min: signature.min, max: signature.max, found: inputs.length },
         node.span,
       );
+      return null;
     }
     const enumContext =
       expectedType && enumerationType(expectedType, this.types) ? expectedType : undefined;
@@ -2115,6 +2139,7 @@ class Checker {
         reference.nullReference && expectedType && referenceType(expectedType, this.types)
           ? expectedType
           : reference.descriptor!;
+      let valid = args.every((arg) => arg !== null);
       args.forEach((arg, index) => {
         if (!arg) return;
         const expected = signature.arguments[Math.min(index, signature.arguments.length - 1)]!;
@@ -2127,6 +2152,7 @@ class Checker {
               !this.enum(arg) &&
               expected.includes(arg.dataType);
         if (!accepted) {
+          valid = false;
           if (arg.nullReference)
             this.report("type.invalid-reference-target", {}, inputs[index]!.span);
           else
@@ -2142,6 +2168,7 @@ class Checker {
             );
         }
       });
+      if (!valid) return null;
       return {
         dataType: "INT",
         descriptor,
@@ -2155,6 +2182,7 @@ class Checker {
     );
     if (aggregate) {
       const firstValue = name === "SEL" || name === "MUX" ? 1 : 0;
+      let valid = args.every((arg) => arg !== null);
       args.forEach((arg, index) => {
         if (!arg) return;
         const accepted =
@@ -2165,7 +2193,8 @@ class Checker {
               signature.arguments[Math.min(index, signature.arguments.length - 1)]!.includes(
                 arg.dataType,
               );
-        if (!accepted)
+        if (!accepted) {
+          valid = false;
           this.report(
             "call.argument-type",
             {
@@ -2176,7 +2205,9 @@ class Checker {
             },
             inputs[index]!.span,
           );
+        }
       });
+      if (!valid) return null;
       return ["MOVE", "SEL", "MUX"].includes(name)
         ? { dataType: "INT", descriptor: aggregate.descriptor }
         : null;
@@ -2184,6 +2215,7 @@ class Checker {
     const enumeration = args.find((arg) => arg && this.enum(arg));
     if (enumeration) {
       const firstValue = name === "SEL" || name === "MUX" ? 1 : 0;
+      let valid = args.every((arg) => arg !== null);
       args.forEach((arg, index) => {
         if (!arg) return;
         const enumValue = ["MOVE", "SEL", "MUX"].includes(name) && index >= firstValue;
@@ -2191,7 +2223,8 @@ class Checker {
         const accepted = enumValue
           ? sameScalarType(enumeration.descriptor!, arg.descriptor ?? arg.dataType, this.types)
           : !this.enum(arg) && expected.includes(arg.dataType);
-        if (!accepted)
+        if (!accepted) {
+          valid = false;
           this.report(
             "call.argument-type",
             {
@@ -2202,7 +2235,9 @@ class Checker {
             },
             inputs[index]!.span,
           );
+        }
       });
+      if (!valid) return null;
       return ["MOVE", "SEL", "MUX"].includes(name)
         ? { dataType: enumeration.dataType, descriptor: enumeration.descriptor }
         : null;
@@ -2232,6 +2267,7 @@ class Checker {
       }
     });
     if (signature.result && start === undefined) {
+      if (!validArguments) return null;
       if (!Object.hasOwn(conversionFunctions, name)) return { dataType: signature.result };
       const arg = args[0];
       // Resolve overloaded conversions now, while the operand type is still available.
@@ -2261,7 +2297,7 @@ class Checker {
       return this.constant(
         { dataType: signature.result },
         node,
-        !validArguments || arg?.constant === undefined || inputs.length !== 1
+        arg?.constant === undefined || inputs.length !== 1
           ? undefined
           : () =>
               convertValue(
@@ -2279,7 +2315,7 @@ class Checker {
     }
     if (signature.resultArgument !== undefined) {
       const arg = args[signature.resultArgument];
-      return arg ? { dataType: arg.dataType } : null;
+      return arg && validArguments ? { dataType: arg.dataType } : null;
     }
     const values = args.flatMap((arg, index) =>
       arg && index >= (start ?? 0) && index < (signature.genericEnd ?? args.length)
@@ -2309,7 +2345,7 @@ class Checker {
         }
       }
     }
-    return dataType ? { dataType: signature.result ?? dataType } : null;
+    return dataType && validArguments ? { dataType: signature.result ?? dataType } : null;
   }
 
   private arrayBound(node: AST.FunctionCall): ExpressionInfo | null {
