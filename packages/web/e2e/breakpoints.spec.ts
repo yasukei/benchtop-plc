@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
-test("halts the sorting conveyor before counting a part and publishes its output only after Continue", async ({
+test("halts the sorting conveyor before counting a part and publishes its output only after Continue @debugger-shortcuts", async ({
   page,
 }) => {
   const xml = readFileSync(
@@ -64,7 +64,8 @@ test("halts the sorting conveyor before counting a part and publishes its output
   } finally {
     await page.keyboard.up("Space");
   }
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).focus();
+  await page.keyboard.press("c");
   await expect(total).toHaveText("1");
   await expect(page.locator(".halt-banner")).toHaveCount(0);
   await expect(panel.getByRole("status", { name: "DIVERT A", exact: true })).toHaveAttribute(

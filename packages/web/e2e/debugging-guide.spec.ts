@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 // Keep the actions, statement lines and observations in sync with docs/debugging.md.
-test("follows the sorting conveyor debugging guide", async ({ page }) => {
+test("follows the sorting conveyor debugging guide @debugger-shortcuts", async ({ page }) => {
   const panel = page.getByRole("region", { name: "Operator panel", exact: true });
   const picker = page.getByRole("combobox", { name: "Instance", exact: true });
   const scans = page.getByLabel("Scans", { exact: true });
