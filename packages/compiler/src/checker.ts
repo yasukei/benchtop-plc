@@ -352,7 +352,12 @@ class Checker {
     if (!declarationsOnly) {
       this.selectBlockVariants();
       this.statements(ast.body, 0);
-      if (this.result && !ast.abstract && !this.resultMayBeAssigned)
+      if (
+        this.result &&
+        !ast.abstract &&
+        !this.resultMayBeAssigned &&
+        !this.diagnostics.some((item) => item.severity === "error")
+      )
         this.report("pou.result-not-assigned", { name: ast.name.name }, ast.name.span);
     }
     if (

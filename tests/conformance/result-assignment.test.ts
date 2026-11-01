@@ -85,6 +85,43 @@ it.each([
   );
 });
 
+it.each([
+  {
+    name: "unknown function with an output target",
+    sources: ["FUNCTION F : INT Nope(q => F); END_FUNCTION"],
+    expected: ["call.unknown-function"],
+  },
+  {
+    name: "unknown method with an output target",
+    sources: ["CLASS Block METHOD PUBLIC M : INT THIS.Nope(o => M); END_METHOD END_CLASS"],
+    expected: ["method.unknown"],
+  },
+  {
+    name: "non-formal call with an in-out actual",
+    sources: [
+      "FUNCTION F : INT G(F); END_FUNCTION",
+      "FUNCTION G VAR_IN_OUT v: INT; END_VAR END_FUNCTION",
+    ],
+    expected: ["call.formal-required", "call.argument-count", "call.missing-in-out"],
+  },
+])("avoids a follow-on result diagnostic for $name", ({ sources, expected }) => {
+  const compiled = compileProject([main(""), ...sources]);
+  expect(compiled.ir).toBeUndefined();
+  expect(compiled.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expected);
+});
+
+it("still diagnoses a missing result assignment when the body only has a warning", () => {
+  const compiled = compileProject([
+    main(""),
+    "FUNCTION F : INT REAL_TO_DWORD(REAL#1.0); END_FUNCTION",
+  ]);
+  expect(compiled.ir).toBeUndefined();
+  expect(compiled.diagnostics.map(({ code, severity }) => ({ code, severity }))).toEqual([
+    { code: "type.portability", severity: "warning" },
+    { code: "pou.result-not-assigned", severity: "error" },
+  ]);
+});
+
 it("rejects concrete methods, but exempts interface prototypes and abstract methods", () => {
   const compiled = compileProject([
     main(""),
