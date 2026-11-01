@@ -14,7 +14,7 @@ import { isFunctionBlockType, isStandardFunction, leafCount } from "@benchtop-pl
 import type { Diagnostic, ConfigurationIR } from "@benchtop-plc/core";
 import type { Program } from "./ast.js";
 import type { CheckedProgram, VariableSymbol, GlobalScope } from "./checked.js";
-import { check, checkDeclarations } from "./checker.js";
+import { check, checkDeclarations, discoverOverloadBindings } from "./checker.js";
 import { lower, lowerFunction, lowerFunctionBlock } from "./lower.js";
 import { blockVariant } from "./overloaded-blocks.js";
 import { arrayType } from "@benchtop-plc/core";
@@ -293,8 +293,19 @@ export function compileProject(
   );
   // Discover overload bindings before selecting shared global and instance FB variants.
   if (scope)
-    for (const ast of allBodies)
-      check(ast, pous, functionIds, blockIds, resolved.types, interfaces, scope);
+    for (const ast of allBodies) {
+      const bindings = discoverOverloadBindings(
+        ast,
+        pous,
+        functionIds,
+        blockIds,
+        resolved.types,
+        interfaces,
+        scope,
+      );
+      scope.bindings = bindings.bindings;
+      scope.memberBindings = bindings.memberBindings;
+    }
   const checked = new Map<Program, CheckedProgram>();
   for (const ast of allBodies) {
     const result = check(ast, pous, functionIds, blockIds, resolved.types, interfaces, scope);
