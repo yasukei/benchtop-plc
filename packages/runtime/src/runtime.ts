@@ -118,6 +118,7 @@ class PlcRuntime implements Runtime {
   private haltStart = 0;
   private pausedMs = 0;
   private breakpoints = new Map<string, Set<number>>();
+  private methodSources = new Map<string, string>();
 
   setBreakpoints(breakpoints: readonly Breakpoint[]): void {
     this.breakpoints = new Map();
@@ -232,8 +233,14 @@ class PlcRuntime implements Runtime {
     if (this.scanning) throw new Error("Cannot load during a scan");
     const memory = new Memory(ir, this.library);
     Interpreter.prepare(ir);
+    const methodSources = new Map<string, string>();
+    for (const block of ir.functionBlocks ?? [])
+      for (const method of block.methods ?? [])
+        if ("body" in method)
+          methodSources.set(`${block.name}.${method.name}`.toUpperCase(), block.name.toUpperCase());
     this.halt("STOP");
     this.memory = memory;
+    this.methodSources = methodSources;
     const implicitTask =
       ir.kind === "configuration" && !ir.explicit ? ir.resource.tasks[0] : undefined;
     this.interval =
@@ -609,17 +616,10 @@ class PlcRuntime implements Runtime {
                 this.options.pause || this.breakpoints.size || this.pendingStep
                   ? (location) => {
                       const key = location.pou.toUpperCase();
-                      const source = ir.functionBlocks?.find((block) =>
-                        block.methods?.some(
-                          (method) =>
-                            "body" in method &&
-                            `${block.name}.${method.name}`.toUpperCase() === key,
-                        ),
-                      );
+                      const source = this.methodSources.get(key);
                       const breakpoint =
                         this.breakpoints.get(key)?.has(location.span.line) ||
-                        (source &&
-                          this.breakpoints.get(source.name.toUpperCase())?.has(location.span.line));
+                        (source && this.breakpoints.get(source)?.has(location.span.line));
                       const stepped =
                         this.pendingStep && stepReached(this.pendingStep, interpreter.frameStack);
                       if (!breakpoint && !stepped && !this.options.pause?.(location)) return false;
