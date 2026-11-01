@@ -16,7 +16,6 @@ import {
   isCalendarType,
   calendarBinary,
   isIntegerType,
-  integerRanges,
   isLongType,
   timeBinary,
   ltimeBinary,
@@ -28,9 +27,7 @@ import {
 import type {
   AnnotatedBody,
   CallFrame,
-  CallVariable,
   Diagnostic,
-  IntegerType,
   TypeDescriptor,
   Expression,
   ScalarValue,
@@ -48,6 +45,15 @@ import type {
 } from "@benchtop-plc/core";
 import type { RuntimeLibrary } from "./library.js";
 import { annotationLines } from "./annotations.js";
+import { callFrames, type FrameLocal } from "./call-stack.js";
+import {
+  lower,
+  prepare,
+  type ExecutionContext,
+  type ExecutionFrame,
+  type Receiver,
+  type Location,
+} from "./lowering.js";
 import {
   typed,
   isReferenceAddress,
@@ -66,7 +72,6 @@ export class RuntimeFault extends Error {
   }
 }
 
-type Location = { frame: MemoryFrame; variable: number };
 export interface PauseLocation {
   task: string;
   span: SourceSpan;
@@ -74,38 +79,9 @@ export interface PauseLocation {
   instancePath: string | null;
 }
 export type PauseHook = (location: PauseLocation) => boolean;
-type Instruction = { statement?: Statement; run: (vm: Interpreter, frame: ExecutionFrame) => void };
-interface FrameLocal {
-  slot: number;
-  name: string;
-  inOut?: true;
-}
-interface ExecutionFrame {
-  debug?: { kind: CallFrame["kind"]; memory: MemoryFrame; locals: readonly FrameLocal[] };
-  annotations?: Map<Statement, StatementAnnotation>;
-  body?: Omit<AnnotatedBody, "lines" | "scanCount">;
-  code: Instruction[];
-  pc: number;
-  statement?: Statement;
-  values: Map<Expression | UserFunctionCall, StoredValue>;
-  locations: Map<StorageReference, Location>;
-  loops: Map<Statement, { to: bigint; step: bigint }>;
-  receivers?: Map<UserFunctionCall, Interpreter["receiver"]>;
-  blockAnnotations?: Map<FunctionBlockCallStatement, InlineValue[]>;
-  completed?: Map<
-    | UserFunctionCall
-    | import("@benchtop-plc/core").FunctionCallExpression
-    | FunctionBlockCallStatement
-    | UserFunctionBlockCallStatement,
-    (index: number) => () => void
-  >;
-  copies?: (() => void)[];
-  finish?: (abandoned: boolean, span?: SourceSpan) => void;
-}
-const lowered = new WeakMap<readonly Statement[], Instruction[]>();
 
-export class Interpreter {
-  private memory: MemoryFrame;
+export class Interpreter implements ExecutionContext {
+  memory: MemoryFrame;
   private readonly stack: ExecutionFrame[] = [];
   private skipPause = false;
   private get frame(): ExecutionFrame | undefined {
@@ -126,7 +102,7 @@ export class Interpreter {
       body: this.recordFrames
         ? { pou: this.pou, instance, ...(caller ? { caller } : {}) }
         : undefined,
-      code: Interpreter.lower(body),
+      code: lower(body),
       pc: 0,
       values: new Map(),
       locations: new Map(),
@@ -156,56 +132,7 @@ export class Interpreter {
   }
 
   callFrames(): CallFrame[] {
-    const frames = [...this.stack].reverse();
-    return frames.flatMap((frame, index): CallFrame[] => {
-      if (!frame.debug || !frame.body) return [];
-      const { kind, memory, locals } = frame.debug;
-      const span = (index === 0 ? frame.code[frame.pc]?.statement : frame.statement)?.span;
-      if (!span) throw new Error("Missing call stack statement");
-      const values = locals.map((local): CallVariable => {
-        let actual: CallVariable["actual"];
-        if (local.inOut) {
-          const path = memory.debugPath(local.slot);
-          if (path !== undefined) actual = { path };
-          else {
-            // Follow shared cells through any intermediate in-out aliases to the owner.
-            for (const [callerIndex, caller] of frames.entries()) {
-              if (!caller.debug) continue;
-              for (const candidate of caller.debug.locals) {
-                if (candidate.inOut) continue;
-                const suffix = caller.debug.memory.debugSuffix(
-                  candidate.slot,
-                  memory.address(local.slot),
-                );
-                if (suffix !== undefined) {
-                  actual = { frame: callerIndex, name: candidate.name + suffix };
-                  break;
-                }
-              }
-              if (actual) break;
-            }
-            if (!actual) throw new Error("Missing in-out actual on call stack");
-          }
-        }
-        return {
-          name: local.name,
-          value: memory.debugValue(local.slot),
-          ...(actual ? { actual } : {}),
-        };
-      });
-      return [
-        {
-          kind,
-          pou: frame.body.pou,
-          instance: frame.body.instance,
-          span: { ...span },
-          ...(index === frames.length - 1 ? { task: this.task } : {}),
-          values,
-          ...(frame.body.caller ? { caller: { ...frame.body.caller } } : {}),
-          annotations: annotationLines(frame.annotations!),
-        },
-      ];
-    });
+    return callFrames(this.stack, this.task);
   }
 
   private blockLocals(definition: import("@benchtop-plc/core").UserFunctionBlockIR): FrameLocal[] {
@@ -217,344 +144,7 @@ export class Interpreter {
   }
 
   static prepare(ir: ProgramIR | ConfigurationIR): void {
-    for (const program of ir.kind === "configuration" ? ir.programs : [ir])
-      Interpreter.lower(program.body);
-    for (const fn of ir.functions ?? []) Interpreter.lower(fn.body);
-    for (const block of ir.functionBlocks ?? []) {
-      Interpreter.lower(block.body);
-      for (const method of block.methods ?? [])
-        if ("body" in method) Interpreter.lower(method.body);
-    }
-  }
-
-  private static lower(body: readonly Statement[]): Instruction[] {
-    const cached = lowered.get(body);
-    if (cached) return cached;
-    const code: Instruction[] = [];
-    lowered.set(body, code);
-    const emit = (run: Instruction["run"]) => {
-      code.push({ run });
-    };
-    const address = (ref: StorageReference): void => {
-      if (ref.kind === "index") {
-        address(ref.array);
-        for (const index of ref.indices) valueAlways(index);
-      } else if (ref.kind === "dereference") value(ref.reference);
-      else if (ref.kind === "structureMember") address(ref.object);
-      else if (ref.kind === "userFbMember" && ref.instance) address(ref.instance);
-      emit((vm, frame) => {
-        frame.locations.set(ref, vm.location(ref));
-      });
-    };
-    const target = (ref: AssignmentTarget): void => {
-      if (ref.kind === "elementBit") address(ref.element);
-      else if (ref.kind === "fbMember") {
-        if (ref.instance) address(ref.instance);
-      } else if (ref.kind !== "bit") address(ref);
-    };
-    const argumentsFor = (
-      inputs: { value: Expression }[],
-      inOuts: readonly import("@benchtop-plc/core").InOutBinding[],
-    ): void => {
-      const args = [
-        ...inputs.map((input) => ({ span: input.value.span, run: () => valueAlways(input.value) })),
-        ...inOuts.map((binding) => ({
-          span: binding.actual.span,
-          run: () => address(binding.actual),
-        })),
-      ].sort((a, b) => a.span.line - b.span.line || a.span.column - b.span.column);
-      for (const arg of args) arg.run();
-    };
-    const emitExpression = (expr: Expression | UserFunctionCall, run: Instruction["run"]): void => {
-      emit((vm, frame) => {
-        try {
-          run(vm, frame);
-        } catch (error) {
-          if (error instanceof RangeError && expr.dataType !== null)
-            throw vm.invalidValue(error, expr.span);
-          throw error;
-        }
-      });
-    };
-    const value = (expr: Expression | UserFunctionCall): void => {
-      // Call-free expressions stay tree operations; only paths that can enter a body
-      // need operand slots and continuations.
-      if (!Interpreter.hasCall(expr)) return;
-      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- hasCall excludes literals, variables, bits and null before continuation compilation.
-      switch (expr.kind) {
-        case "userFunctionCall":
-          if (expr.method?.receiver) address(expr.method.receiver);
-          // Capture the receiver before evaluating arguments, which may change references.
-          emitExpression(expr, (vm, frame) => {
-            vm.captureReceiver(expr, frame);
-          });
-          argumentsFor(expr.inputs, expr.inOuts ?? []);
-          emitExpression(expr, (vm) => {
-            vm.userCall(expr);
-          });
-          for (const [index, output] of expr.outputs.entries()) {
-            emitExpression(expr, (_vm, frame) => {
-              (frame.copies ??= []).push(frame.completed!.get(expr)!(index));
-            });
-            target(output.target);
-            emitExpression(expr, (_vm, frame) => {
-              frame.copies!.pop()!();
-            });
-          }
-          emitExpression(expr, (_vm, frame) => {
-            frame.completed?.delete(expr);
-          });
-          return;
-        case "binary":
-          valueAlways(expr.left);
-          valueAlways(expr.right);
-          break;
-        case "unary":
-          valueAlways(expr.operand);
-          break;
-        case "functionCall":
-          for (const index of expr.evaluationOrder ?? expr.args.map((_, index) => index))
-            valueAlways(expr.args[index]!);
-          emitExpression(expr, (vm, frame) => {
-            frame.values.set(
-              expr,
-              referenceLike(expr.dataType, vm.programMemory.ir.types) ||
-                isAggregateType(expr.dataType, vm.programMemory.ir.types)
-                ? vm.argumentValue(expr)
-                : vm.standardCall(expr, true),
-            );
-          });
-          for (const [index, output] of (expr.outputs ?? []).entries()) {
-            emitExpression(expr, (_vm, frame) => {
-              (frame.copies ??= []).push(frame.completed!.get(expr)!(index));
-            });
-            target(output.target);
-            emitExpression(expr, (_vm, frame) => {
-              frame.copies!.pop()!();
-            });
-          }
-          emitExpression(expr, (_vm, frame) => {
-            frame.completed?.delete(expr);
-          });
-          return;
-        case "index":
-        case "dereference":
-        case "structureMember":
-        case "userFbMember":
-          address(expr);
-          break;
-        case "fbMember":
-          if (expr.instance) address(expr.instance);
-          break;
-        case "elementBit":
-          address(expr.element);
-          break;
-        case "referenceOf":
-          if (expr.target.kind === "fbMember") {
-            if (expr.target.instance) address(expr.target.instance);
-          } else address(expr.target);
-          break;
-        case "instanceReference":
-          if (expr.target) address(expr.target);
-          break;
-        case "arrayBound":
-          if (["variable", "index", "structureMember", "userFbMember"].includes(expr.array.kind))
-            address(expr.array as StorageReference);
-          else valueAlways(expr.array);
-          break;
-      }
-      emitExpression(expr, (vm, frame) => {
-        frame.values.set(expr, vm.argumentValue(expr));
-      });
-    };
-    const valueAlways = (expr: Expression): void => {
-      value(expr);
-      if (!Interpreter.hasCall(expr))
-        emit((vm, frame) => {
-          frame.values.set(expr, vm.argumentValue(expr));
-        });
-    };
-    const jump = (destination: () => number) =>
-      emit((_vm, frame) => {
-        frame.pc = destination();
-      });
-    const list = (statements: readonly Statement[], exit?: () => number): void => {
-      for (const statement of statements) {
-        code.push({ statement, run: () => {} });
-        // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- Assignments and calls are compiled by this control-flow switch's default branch.
-        switch (statement.kind) {
-          case "if": {
-            const ends: { destination: number }[] = [];
-            for (const branch of statement.branches) {
-              value(branch.condition);
-              const next = { destination: 0 };
-              emit((vm, frame) => {
-                if (!vm.expression(branch.condition)) frame.pc = next.destination;
-              });
-              list(branch.body, exit);
-              const end = { destination: 0 };
-              ends.push(end);
-              jump(() => end.destination);
-              next.destination = code.length;
-            }
-            list(statement.elseBody, exit);
-            for (const end of ends) end.destination = code.length;
-            break;
-          }
-          case "case": {
-            value(statement.selector);
-            const starts: number[] = [];
-            let otherwise = 0;
-            emit((vm, frame) => {
-              const selector = BigInt(vm.expression(statement.selector));
-              const index = statement.branches.findIndex((branch) =>
-                branch.labels.some((label) =>
-                  label.kind === "value"
-                    ? selector === BigInt(label.value)
-                    : selector >= BigInt(label.lower) && selector <= BigInt(label.upper),
-                ),
-              );
-              frame.pc = index < 0 ? otherwise : starts[index]!;
-            });
-            const ends: { destination: number }[] = [];
-            for (const branch of statement.branches) {
-              starts.push(code.length);
-              list(branch.body, exit);
-              const end = { destination: 0 };
-              ends.push(end);
-              jump(() => end.destination);
-            }
-            otherwise = code.length;
-            list(statement.elseBody, exit);
-            for (const end of ends) end.destination = code.length;
-            break;
-          }
-          case "for": {
-            valueAlways(statement.from);
-            valueAlways(statement.to);
-            valueAlways(statement.step);
-            emit((vm, frame) => {
-              const from = vm.expression(statement.from),
-                to = BigInt(vm.expression(statement.to)),
-                step = BigInt(vm.expression(statement.step));
-              if (step === 0n) vm.fault("runtime.for-by-zero", statement.step.span);
-              vm.assign(statement.variable, from);
-              frame.loops.set(statement, { to, step });
-            });
-            const check = code.length;
-            let end = 0;
-            emit((vm, frame) => {
-              const { to, step } = frame.loops.get(statement)!;
-              const current = BigInt(vm.memory.read(statement.variable.variable));
-              if (step > 0n ? current > to : current < to) frame.pc = end;
-              else vm.iteration(statement.span);
-            });
-            list(statement.body, () => end);
-            emit((vm, frame) => {
-              const next =
-                BigInt(vm.memory.read(statement.variable.variable)) +
-                frame.loops.get(statement)!.step;
-              const [min, max] = integerRanges[statement.variable.dataType as IntegerType];
-              // End before assignment can wrap the control variable back into the loop.
-              if (next < BigInt(min) || next > BigInt(max)) frame.pc = end;
-              else vm.assign(statement.variable, next);
-            });
-            jump(() => check);
-            end = code.length;
-            break;
-          }
-          case "while":
-          case "repeat": {
-            let end = 0;
-            const check = code.length;
-            if (statement.kind === "while") {
-              emit((_vm, frame) => {
-                frame.statement = statement;
-                frame.values.clear();
-                frame.locations.clear();
-              });
-              value(statement.condition);
-              emit((vm, frame) => {
-                if (!vm.expression(statement.condition)) frame.pc = end;
-              });
-            }
-            emit((vm) => {
-              vm.iteration(statement.span);
-            });
-            list(statement.body, () => end);
-            if (statement.kind === "repeat") {
-              emit((_vm, frame) => {
-                frame.statement = statement;
-                frame.values.clear();
-                frame.locations.clear();
-              });
-              value(statement.until);
-              emit((vm, frame) => {
-                if (!vm.expression(statement.until)) frame.pc = check;
-              });
-            } else jump(() => check);
-            end = code.length;
-            break;
-          }
-          case "exit":
-            if (exit) jump(exit);
-            break;
-          case "return":
-            emit((_vm, frame) => {
-              frame.pc = frame.code.length;
-            });
-            break;
-          case "superCall":
-            emit((vm) => {
-              vm.superCall(statement.block);
-            });
-            break;
-          case "userFbCall":
-          case "fbCall":
-            if (statement.instance) address(statement.instance);
-            if (statement.kind === "userFbCall")
-              argumentsFor(statement.inputs, statement.inOuts ?? []);
-            else for (const input of statement.inputs) valueAlways(input.value);
-            emit((vm) => {
-              vm.blockCall(statement);
-            });
-            for (const [index, output] of (statement.outputs ?? []).entries()) {
-              emit((_vm, frame) => {
-                (frame.copies ??= []).push(frame.completed!.get(statement)!(index));
-              });
-              if (Interpreter.hasCall(output.target)) target(output.target);
-              emit((_vm, frame) => {
-                frame.copies!.pop()!();
-              });
-            }
-            emit((vm, frame) => {
-              vm.annotateBlock(statement);
-              frame.completed?.delete(statement);
-            });
-            break;
-          default:
-            if (statement.kind === "assignment") {
-              if (Interpreter.hasCall(statement.target)) {
-                valueAlways(statement.value);
-                target(statement.target);
-              } else value(statement.value);
-            } else if (statement.kind === "call") value(statement.call);
-            emit((vm) => {
-              vm.statement(statement);
-            });
-        }
-      }
-    };
-    list(body);
-    return code;
-  }
-
-  private static hasCall(value: unknown): boolean {
-    if (!value || typeof value !== "object") return false;
-    if ("kind" in value && value.kind === "userFunctionCall") return true;
-    return Object.entries(value).some(
-      ([key, child]) => key !== "dataType" && key !== "span" && Interpreter.hasCall(child),
-    );
+    prepare(ir);
   }
 
   private iterations = 0;
@@ -562,15 +152,10 @@ export class Interpreter {
   private pou: string;
   private task = "Cyclic";
   private instancePath?: string;
-  private receiver?: {
-    frame: MemoryFrame;
-    block: number;
-    path: string;
-    referenceAddress: () => ReferenceAddress;
-  };
+  private receiver?: Receiver;
 
   constructor(
-    private readonly programMemory: Memory,
+    readonly programMemory: Memory,
     private readonly scanStart: number,
     private readonly active: () => boolean,
     private readonly library?: RuntimeLibrary,
@@ -672,7 +257,7 @@ export class Interpreter {
     return scalarBase(type, this.programMemory.ir.types);
   }
 
-  private invalidValue(error: RangeError, span: SourceSpan): RuntimeFault {
+  invalidValue(error: RangeError, span: SourceSpan): RuntimeFault {
     return new RuntimeFault({
       severity: "error",
       span,
@@ -694,7 +279,7 @@ export class Interpreter {
     });
   }
 
-  private fault(
+  fault(
     code:
       | "runtime.division-by-zero"
       | "runtime.for-by-zero"
@@ -712,7 +297,7 @@ export class Interpreter {
     });
   }
 
-  private iteration(span: SourceSpan): void {
+  iteration(span: SourceSpan): void {
     if (++this.iterations > WATCHDOG_LIMIT) {
       throw new RuntimeFault({
         code: "runtime.watchdog",
@@ -736,10 +321,7 @@ export class Interpreter {
     }
   }
 
-  private location(ref: StorageReference): {
-    frame: MemoryFrame;
-    variable: number;
-  } {
+  location(ref: StorageReference): Location {
     const cached = this.frame?.locations.get(ref);
     if (cached) return cached;
     if (ref.kind === "dereference") {
@@ -873,7 +455,7 @@ export class Interpreter {
     throw new Error("Unsupported aggregate expression");
   }
 
-  private assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
+  assign(target: AssignmentTarget, value: ScalarValue): TypedValue {
     if (
       target.kind === "dereference" ||
       target.kind === "index" ||
@@ -1017,7 +599,7 @@ export class Interpreter {
     }
   }
 
-  private standardCall(
+  standardCall(
     expr: import("@benchtop-plc/core").FunctionCallExpression,
     defer = false,
   ): ScalarValue {
@@ -1116,7 +698,7 @@ export class Interpreter {
     this.skipPause = false;
   }
 
-  private statement(statement: Statement): void {
+  statement(statement: Statement): void {
     switch (statement.kind) {
       case "assignment":
         if (referenceLike(statement.target.dataType, this.programMemory.ir.types)) {
@@ -1220,7 +802,7 @@ export class Interpreter {
     frame.assignAggregate(variable, values);
   }
 
-  private argumentValue(expr: Expression): StoredValue {
+  argumentValue(expr: Expression): StoredValue {
     if (referenceLike(expr.dataType, this.programMemory.ir.types))
       return this.referenceExpression(expr);
     return isAggregateType(expr.dataType, this.programMemory.ir.types)
@@ -1290,7 +872,7 @@ export class Interpreter {
     };
   }
 
-  private blockCall(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
+  blockCall(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
     const location = call.instance
       ? this.location(call.instance)
       : { frame: this.memory, variable: call.variable };
@@ -1370,7 +952,7 @@ export class Interpreter {
     );
   }
 
-  private annotateBlock(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
+  annotateBlock(call: FunctionBlockCallStatement | UserFunctionBlockCallStatement): void {
     const location = call.instance
       ? this.location(call.instance)
       : { frame: this.memory, variable: call.variable };
@@ -1392,7 +974,7 @@ export class Interpreter {
     );
   }
 
-  private superCall(block: number): void {
+  superCall(block: number): void {
     const definition = this.programMemory.ir.functionBlocks![block]!;
     const body = this.programMemory.ir.functionBlocks![definition.bodyOwner ?? block]!;
     const callerPou = this.pou;
@@ -1410,7 +992,7 @@ export class Interpreter {
     );
   }
 
-  private captureReceiver(call: UserFunctionCall, frame: ExecutionFrame): void {
+  captureReceiver(call: UserFunctionCall, frame: ExecutionFrame): void {
     // Resolve the receiver before any arguments, including indexed instance calls.
     let location = call.method?.receiver ? this.location(call.method.receiver) : undefined;
     if (call.method?.interface && location) {
@@ -1426,7 +1008,7 @@ export class Interpreter {
     (frame.receivers ??= new Map()).set(call, receiver);
   }
 
-  private userCall(call: UserFunctionCall): StoredValue {
+  userCall(call: UserFunctionCall): StoredValue {
     if (this.frame?.values.has(call)) return this.frame.values.get(call)!;
     const callerFrame = this.frame!;
     const receiver = callerFrame.receivers?.get(call);
