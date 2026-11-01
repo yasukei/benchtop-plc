@@ -11,7 +11,7 @@ const method = (
   prefix = "PUBLIC",
   result = "INT",
   parameters = "VAR_INPUT value: INT; END_VAR",
-  body = "",
+  body = result && !prefix.includes("ABSTRACT") ? "Check := Check;" : "",
 ) => `METHOD ${prefix} Check ${result ? `: ${result}` : ""} ${parameters} ${body} END_METHOD`;
 
 it("resolves forward bases with stable base-first member and method slots", () => {

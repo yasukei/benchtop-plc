@@ -1,6 +1,6 @@
 # 0017. Classes, methods, interfaces and namespaces
 
-- Status: Accepted
+- Status: Accepted; result-default rule superseded by [0028](0028-result-assignment.md)
 - Date: 2026-10-25
 - Related: [0006](0006-plcopen-xml-project-format.md),
   [0010](0010-operating-states-restarts-and-runtime-errors.md),

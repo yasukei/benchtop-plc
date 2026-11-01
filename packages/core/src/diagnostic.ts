@@ -172,6 +172,7 @@ export interface DiagnosticArgs {
   "call.unknown-function": { name: string };
   "call.program": { name: string };
   "call.no-result": { name: string };
+  "pou.result-not-assigned": { name: string };
   "call.in-out-variable": NoArguments;
   "call.in-out-type": { from: TypeDescriptor; to: TypeDescriptor };
   "call.missing-in-out": { name: string; parameter: string };
@@ -186,6 +187,7 @@ export interface DiagnosticArgs {
   };
 
   "runtime.null-reference": NoArguments;
+  "runtime.result-not-assigned": NoArguments;
   "type.invalid-reference-target": NoArguments;
   "type.reference-initializer": NoArguments;
   "runtime.index-out-of-range": { index: number | string; lower: number; upper: number };

@@ -57,6 +57,10 @@ recorded in [ADR 0017](adr/0017-classes-methods-interfaces-and-namespaces.md). I
 implementation is tracked by the sub-issues of
 [#173](https://github.com/yasukei/benchtop-plc/issues/173).
 
+[ADR 0028](adr/0028-result-assignment.md) supersedes the unassigned-result
+fallback in ADR 0014 and ADR 0017: concrete result bodies need a possible write,
+and every completed invocation needs an actual write.
+
 Milestone 8's accepted model for debugging, covering instance selection, inline values
 in every body, breakpoints, the halted state, stepping, the call stack and resumable
 execution, is recorded in [ADR 0018](adr/0018-debugging.md). Its implementation is

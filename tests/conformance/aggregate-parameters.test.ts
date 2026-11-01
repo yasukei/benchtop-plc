@@ -47,14 +47,14 @@ it("traces Sum across arrays with different bounds and forwards open aliases", (
   ]);
 });
 
-it("returns independent structures and arrays, including default results and nested calls", () => {
+it("returns independent structures and arrays, including partially assigned results and nested calls", () => {
   const { step, value } = setup(
     [
       `PROGRAM Main VAR p,q : Point; a,b : ARRAY[1..2] OF Point; END_VAR
      p := MakePoint(x := 1.0, y := 2.0); q := DefaultPoint(); a := MakeArray(p := p); b := Identity(MakeArray(p := p));
      p.x := 99.0; a[1].y := 88.0; END_PROGRAM`,
       "FUNCTION MakePoint : Point VAR_INPUT x,y : REAL; END_VAR MakePoint.x := x; MakePoint.y := y; END_FUNCTION",
-      "FUNCTION DefaultPoint : Point END_FUNCTION",
+      "FUNCTION DefaultPoint : Point DefaultPoint.x := 0.0; END_FUNCTION",
       "FUNCTION MakeArray : ARRAY[1..2] OF Point VAR_INPUT p : Point; END_VAR MakeArray[1] := p; MakeArray[2] := p; END_FUNCTION",
       "FUNCTION Identity : ARRAY[1..2] OF Point VAR_INPUT a : ARRAY[1..2] OF Point; END_VAR Identity := a; END_FUNCTION",
     ],
@@ -176,7 +176,7 @@ it("queries fixed arrays, public aggregate ports and array results without losin
      lower := LOWER_BOUND(DIM := 1, IN := inst.a); upper := UPPER_BOUND(ResultArray(n := n), 1);
      LOWER_BOUND(IN := a, DIM := 1); p := inst.p; a := inst.a; END_PROGRAM`,
       "FUNCTION_BLOCK Ports VAR_INPUT a : ARRAY[-2..0] OF INT; p : Point; END_VAR END_FUNCTION_BLOCK",
-      "FUNCTION ResultArray : ARRAY[3..5] OF INT VAR_IN_OUT n : INT; END_VAR n := n + 1; END_FUNCTION",
+      "FUNCTION ResultArray : ARRAY[3..5] OF INT VAR_IN_OUT n : INT; END_VAR n := n + 1; ResultArray[3] := 0; END_FUNCTION",
     ],
     [point],
   );

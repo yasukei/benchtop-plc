@@ -140,6 +140,7 @@ class Checker {
   private readonly blockCalls = new Map<AST.FunctionCall, number>();
   private readonly failedBlockSelections = new Set<string>();
   private result?: VariableSymbol;
+  private resultMayBeAssigned = false;
   private collectingDeclarations = true;
   private readonly failedReferenceTypes = new Set<AST.Identifier>();
   private readonly failedReferenceTargets = new Set<AST.TypeSyntax>();
@@ -351,6 +352,8 @@ class Checker {
     if (!declarationsOnly) {
       this.selectBlockVariants();
       this.statements(ast.body, 0);
+      if (this.result && !ast.abstract && !this.resultMayBeAssigned)
+        this.report("pou.result-not-assigned", { name: ast.name.name }, ast.name.span);
     }
     if (
       this.inheritedDeclarationError ||
@@ -1382,6 +1385,7 @@ class Checker {
     const symbol = this.resolve(name);
     if (!symbol) return null;
     if (write && this.forControlWrite(symbol, name)) return null;
+    if (write && symbol === this.result) this.resultMayBeAssigned = true;
     if (node.kind === "name") {
       if (!isScalar(symbol.type) && !instance) {
         this.report("fb.instance-as-value", { name: name.name }, node.span);
@@ -3032,6 +3036,7 @@ class Checker {
             );
           const symbol = constant ? null : this.resolve(node.variable);
           if (symbol) {
+            if (symbol === this.result) this.resultMayBeAssigned = true;
             this.forControlWrite(symbol, node.variable);
             if (!isScalar(symbol.type))
               this.report("fb.instance-as-value", { name: node.variable.name }, node.variable.span);

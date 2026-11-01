@@ -120,7 +120,7 @@ type Cell = (
   | ScalarCell
   | { kind: "functionBlock"; fbType: FunctionBlockType; instance: FunctionBlockInstance }
   | UserBlockCell
-) & { path?: string };
+) & { path?: string; assignment?: { written: boolean } };
 
 function initialCell(
   variable: ScalarVariable | ReferenceVariable | ArrayVariable | StructureVariable,
@@ -189,6 +189,17 @@ export class MemoryFrame implements ScanMemory {
     return { kind: "aggregate", descriptor, elements: this.cells };
   }
 
+  /** Observe actual writes, including through aggregate views and shared in-out cells. */
+  trackAssignment(variable: number): () => boolean {
+    const assignment = { written: false };
+    const track = (cell: Cell): void => {
+      cell.assignment = assignment;
+      if (cell.kind === "aggregate") cell.elements.forEach(track);
+    };
+    track(this.cells[variable]!);
+    return () => assignment.written;
+  }
+
   descriptor(variable: number): TypeDescriptor {
     const cell = this.cells[variable];
     if (!cell || !("descriptor" in cell)) throw new Error("Expected value storage");
@@ -223,6 +234,8 @@ export class MemoryFrame implements ScanMemory {
     // descriptors before changing any destination leaf.
     if (!sameScalarType(this.descriptor(variable), values.dataType, this.types))
       throw new RangeError("Incompatible aggregate copy");
+    const cell = this.cells[variable]!;
+    if (cell.assignment) cell.assignment.written = true;
     values.elements.forEach((value, i) => {
       const frame = this.element(variable, i);
       if (isAggregateValue(value)) frame.assignAggregate(0, value);
@@ -271,6 +284,7 @@ export class MemoryFrame implements ScanMemory {
     const cell = this.cells[variable];
     if (cell?.kind !== "reference") throw new Error("Expected reference cell");
     cell.target = target;
+    if (cell.assignment) cell.assignment.written = true;
     return this.referenceValue(target);
   }
   inlineValue(variable: number): InlineValue {
@@ -408,6 +422,7 @@ export class MemoryFrame implements ScanMemory {
 
   write(variable: number, value: ScalarValue): void {
     const cell = this.cells[variable];
+    if (cell?.assignment) cell.assignment.written = true;
     if (cell?.kind === "long" || cell?.kind === "scalar") {
       value = truncateString(cell.descriptor, value, this.types);
       validateDeclaredValue(cell.descriptor, value, this.types);

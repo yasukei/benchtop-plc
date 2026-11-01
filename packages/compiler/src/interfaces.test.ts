@@ -133,7 +133,7 @@ it("rejects composite interface forwarding through the conservative call graph",
       `CLASS Group IMPLEMENTS IActuator
     VAR members: ARRAY[1..2] OF IActuator; END_VAR
     METHOD PUBLIC Start members[1].Start(); END_METHOD
-    METHOD PUBLIC Value : INT END_METHOD END_CLASS`,
+    METHOD PUBLIC Value : INT Value := 0; END_METHOD END_CLASS`,
     ]),
   ).toContain("pou.recursion");
 });
@@ -328,7 +328,7 @@ it.each(signatureTypes)(
   "compares interface $position types using $name equivalence (matches: $matches)",
   ({ left, right, matches, position }) => {
     const signature = (prefix: string, type: string) =>
-      `METHOD ${prefix} Check ${position === "result" ? `: ${type}` : `${position} value: ${type}; END_VAR`} END_METHOD`;
+      `METHOD ${prefix} Check ${position === "result" ? `: ${type}` : `${position} value: ${type}; END_VAR`} ${prefix && position === "result" ? "Check := Check;" : ""} END_METHOD`;
     const prototype = signature("", right);
     const implementation = signature("PUBLIC", left);
     const result = compileProject(
@@ -372,7 +372,7 @@ it.each([
   const result = compileProject([
     main(),
     `INTERFACE I ${prototype} END_INTERFACE`,
-    `CLASS Impl IMPLEMENTS I METHOD PUBLIC Check ${resultType} ${parameters} END_METHOD END_CLASS`,
+    `CLASS Impl IMPLEMENTS I METHOD PUBLIC Check ${resultType} ${parameters} ${resultType ? "Check := 0;" : ""} END_METHOD END_CLASS`,
   ]);
   expect(result.ir).toBeUndefined();
   expect(result.diagnostics.map((d) => d.code)).toEqual(["interface.unimplemented"]);
