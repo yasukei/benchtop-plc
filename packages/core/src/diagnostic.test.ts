@@ -2,6 +2,8 @@ import { expect, expectTypeOf, it } from "vitest";
 import type { Diagnostic, DiagnosticArgs, DiagnosticCode, SourceSpan } from "./index.js";
 
 const examples = {
+  "pou.result-not-assigned": { name: "Compute" },
+  "runtime.result-not-assigned": {},
   "namespace.unknown": { name: "A.Motor" },
   "namespace.ambiguous": { name: "A.Motor" },
   "namespace.internal": { name: "A.Motor" },

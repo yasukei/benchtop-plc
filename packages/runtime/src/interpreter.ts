@@ -100,7 +100,7 @@ interface ExecutionFrame {
     (index: number) => () => void
   >;
   copies?: (() => void)[];
-  finish?: (abandoned: boolean) => void;
+  finish?: (abandoned: boolean, span?: SourceSpan) => void;
 }
 const lowered = new WeakMap<readonly Statement[], Instruction[]>();
 
@@ -113,7 +113,7 @@ export class Interpreter {
   }
   private push(
     body: readonly Statement[],
-    finish?: (abandoned: boolean) => void,
+    finish?: (abandoned: boolean, span?: SourceSpan) => void,
     annotateBody = false,
     caller?: AnnotatedBody["caller"],
     debug?: { kind: CallFrame["kind"]; locals: readonly FrameLocal[] },
@@ -695,7 +695,11 @@ export class Interpreter {
   }
 
   private fault(
-    code: "runtime.division-by-zero" | "runtime.for-by-zero" | "runtime.null-reference",
+    code:
+      | "runtime.division-by-zero"
+      | "runtime.for-by-zero"
+      | "runtime.null-reference"
+      | "runtime.result-not-assigned",
     span: SourceSpan,
   ): never {
     throw new RuntimeFault({
@@ -1064,7 +1068,7 @@ export class Interpreter {
       if (frame.pc >= frame.code.length) {
         this.stack.pop();
         try {
-          frame.finish?.(false);
+          frame.finish?.(false, frame.statement?.span);
         } catch (error) {
           if (error instanceof RangeError && this.frame?.statement)
             throw this.invalidValue(error, this.frame.statement.span);
@@ -1471,6 +1475,8 @@ export class Interpreter {
       this.store(locals, parameterSlot(slot, "inputs"), value);
     for (const [slot, actual] of args.aliases)
       locals.bind(parameterSlot(slot, "inOuts"), actual.frame, actual.variable);
+    const resultAssigned =
+      definition.result === undefined ? undefined : locals.trackAssignment(definition.result);
     this.memory = locals;
     this.receiver = receiver;
     this.pou = receiver
@@ -1479,10 +1485,12 @@ export class Interpreter {
     this.instancePath = receiver?.path;
     this.push(
       definition.body,
-      (abandoned) => {
+      (abandoned, span) => {
         let result: StoredValue = null;
         try {
           if (!abandoned && definition.result !== undefined) {
+            if (!resultAssigned!())
+              this.fault("runtime.result-not-assigned", span ?? definition.span);
             result = referenceLike(
               locals.descriptor(definition.result),
               this.programMemory.ir.types,

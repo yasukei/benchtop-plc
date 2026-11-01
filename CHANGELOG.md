@@ -17,6 +17,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Require function and concrete method results to be assigned: previously accepted
+  bodies with no possible assignment now fail compilation, and calls that return
+  without an actual result write now fault. Member/element writes, output copies
+  and writes through in-out aliases count; abstract methods and prototypes are exempt.
+
 - Sample retained values at most once per second while running, including when
   they are unchanged. Autosave retained values separately from edited work to avoid
   rewriting the workspace on each retained update; existing autosaves migrate their

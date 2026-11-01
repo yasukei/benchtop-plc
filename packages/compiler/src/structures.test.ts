@@ -126,8 +126,8 @@ describe("structures", () => {
   it("rejects aggregate constants and accepts aggregate POU interfaces", () => {
     for (const source of [
       "PROGRAM Main VAR CONSTANT p : Point; END_VAR END_PROGRAM",
-      "FUNCTION F : Point END_FUNCTION",
-      "FUNCTION F : INT VAR_INPUT p : Point; END_VAR END_FUNCTION",
+      "FUNCTION F : Point F.x := 0.0; END_FUNCTION",
+      "FUNCTION F : INT VAR_INPUT p : Point; END_VAR F := 0; END_FUNCTION",
       "FUNCTION_BLOCK F VAR_OUTPUT p : Point; END_VAR END_FUNCTION_BLOCK",
     ]) {
       const result = compileProject(

@@ -172,6 +172,7 @@ for checking calls, so rejecting the qualifier does not cause argument-count err
 | `runtime.invalid-value`           | Non-finite result/view read, REAL overflow, invalid string position/length or conversion | `{}`                                                                                                               |
 | `runtime.division-by-zero`        | Division has a zero divisor                                                              | `{}`                                                                                                               |
 | `runtime.watchdog`                | Loop iteration limit exceeded                                                            | `{ limit: number }`                                                                                                |
+| `runtime.result-not-assigned`     | Function or method returns without an executed result assignment                         | `{}`                                                                                                               |
 | `runtime.for-by-zero`             | FOR step evaluates to zero                                                               | `{}`                                                                                                               |
 | `runtime.debug-target`            | Debug command target is not a loaded scalar                                              | `{}`                                                                                                               |
 | `runtime.debug-type-mismatch`     | Debug value type differs from the declaration                                            | `{ from: TypeDescriptor; to: TypeDescriptor }`                                                                     |
@@ -222,19 +223,20 @@ It does not prevent compilation, loading or execution.
 
 ## User-defined POU codes
 
-| Code                             | Meaning                                                            | Arguments                           |
-| -------------------------------- | ------------------------------------------------------------------ | ----------------------------------- |
-| `pou.duplicate`                  | Duplicate POU name, on the later POU                               | `{ name: string }`                  |
-| `pou.name-collision`             | POU name conflicts with a standard function, FB or elementary type | `{ name: string }`                  |
-| `pou.program-count`              | Project does not have exactly one PROGRAM; no POU or span          | `{ found: number }`                 |
-| `pou.unsupported-kind`           | Reserved compatibility code; no longer emitted for FUNCTION_BLOCK  | `{ name: string }`                  |
-| `pou.invalid-section`            | Variable section unsupported in this POU kind                      | `{ section: string; kind: string }` |
-| `pou.direct-address`             | Direct address outside the PROGRAM                                 | `{}`                                |
-| `pou.function-block-in-function` | FB instance declared in a function                                 | `{}`                                |
-| `pou.recursion`                  | Direct or indirect recursive call or FB containment                | `{ name: string }`                  |
-| `call.program`                   | Attempt to call a PROGRAM                                          | `{ name: string }`                  |
-| `call.no-result`                 | No-result function used in an expression                           | `{ name: string }`                  |
-| `call.formal-required`           | Positional call to a function with outputs or in-outs              | `{ name: string }`                  |
+| Code                             | Meaning                                                                    | Arguments                           |
+| -------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- |
+| `pou.duplicate`                  | Duplicate POU name, on the later POU                                       | `{ name: string }`                  |
+| `pou.name-collision`             | POU name conflicts with a standard function, FB or elementary type         | `{ name: string }`                  |
+| `pou.program-count`              | Project does not have exactly one PROGRAM; no POU or span                  | `{ found: number }`                 |
+| `pou.unsupported-kind`           | Reserved compatibility code; no longer emitted for FUNCTION_BLOCK          | `{ name: string }`                  |
+| `pou.invalid-section`            | Variable section unsupported in this POU kind                              | `{ section: string; kind: string }` |
+| `pou.direct-address`             | Direct address outside the PROGRAM                                         | `{}`                                |
+| `pou.function-block-in-function` | FB instance declared in a function                                         | `{}`                                |
+| `pou.recursion`                  | Direct or indirect recursive call or FB containment                        | `{ name: string }`                  |
+| `call.program`                   | Attempt to call a PROGRAM                                                  | `{ name: string }`                  |
+| `pou.result-not-assigned`        | Function or concrete method with a result has no possible assignment to it | `{ name: string }`                  |
+| `call.no-result`                 | No-result function used in an expression                                   | `{ name: string }`                  |
+| `call.formal-required`           | Positional call to a function with outputs or in-outs                      | `{ name: string }`                  |
 
 `pou.invalid-section.kind` is the AST kind (`program`, `function`, or
 `functionBlock`); `section` is the canonical ST section keyword. Localizers
@@ -595,3 +597,15 @@ diagnostic POU context and name arguments.
 These codes use `rejected`, with the corresponding `command`, and never latch a
 FAULT. Breakpoint and step halts use the separate `halted` event and reported HALT
 state; `debugStep` is a possible rejected `command`.
+
+### Missing result assignments
+
+`pou.result-not-assigned` checks concrete bodies only. Assignments to any result
+member, element or bit count, as do FOR control-variable writes, output bindings and in-out actuals that may
+write it. Interface prototypes and abstract methods are exempt. This is a
+syntactic possibility check, not control-flow analysis.
+
+`runtime.result-not-assigned` checks each completed invocation, including early
+RETURN. It requires an actual write, including output copy-back or a write through
+an in-out alias. The diagnostic's `pou`, `instance`, `task` and local `span` identify
+the execution context under ADR 0010. Abandoned debugger runs are exempt.

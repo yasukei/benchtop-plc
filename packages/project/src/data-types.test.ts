@@ -418,7 +418,7 @@ it.each(["State", "Percent", "Table", "Alias"])(
       [
         `PROGRAM Main VAR a : ARRAY[1..3] OF ${element}; nested : ARRAY[1..2] OF ARRAY[0..1] OF ${element}; END_VAR END_PROGRAM`,
         `FUNCTION_BLOCK Block VAR a : ARRAY[1..3] OF ${element}; END_VAR END_FUNCTION_BLOCK`,
-        `FUNCTION Local : INT VAR a : ARRAY[1..3] OF ${element}; END_VAR END_FUNCTION`,
+        `FUNCTION Local : INT VAR a : ARRAY[1..3] OF ${element}; END_VAR Local := 0; END_FUNCTION`,
       ],
     );
     const xml = save(value);
@@ -565,7 +565,7 @@ it("round-trips aggregate parameters/results and open dimensions with and withou
       "FUNCTION Change VAR_IN_OUT a : ARRAY[*] OF STRING[20]; END_VAR a[LOWER_BOUND(a,1)] := 'changed'; END_FUNCTION",
       "FUNCTION_BLOCK Copier VAR_INPUT a : Table; END_VAR VAR_OUTPUT q : Table; END_VAR q := a; END_FUNCTION_BLOCK",
       "FUNCTION Matrix VAR_IN_OUT a : ARRAY[*,*] OF INT; END_VAR END_FUNCTION",
-      "FUNCTION ResultArray : ARRAY[1..2] OF Point END_FUNCTION",
+      "FUNCTION ResultArray : ARRAY[1..2] OF Point ResultArray[1].x := 0.0; END_FUNCTION",
     ],
   );
   const xml = save(value);

@@ -260,7 +260,14 @@ on every call. Function locals are absent from monitor snapshots, writes and for
 The same interpreter keeps the scan's loop counter across all calls.
 
 The function's name reads and writes its result variable. RETURN ends only that
-invocation. After execution, `=>` outputs copy back in binding order, using implicit
+invocation. Each invocation must execute at least one result assignment before
+RETURN or the end of its body; otherwise `runtime.result-not-assigned` enters
+FAULT with the POU, instance context and the last executed statement's local span.
+Member, element, bit and FOR control-variable writes count, as do actual writes through `VAR_IN_OUT`
+aliases and `=>` output copies. Passing an alias without writing does not count.
+Untouched parts of an aggregate keep their defaults. Abandoned debugger runs do
+not perform this check. Concrete methods follow the same rule
+([ADR 0028](adr/0028-result-assignment.md)). After execution, `=>` outputs copy back in binding order, using implicit
 assignment widening; an expression call then yields the result. A no-result function
 runs as a statement and produces no call-result annotation. Function-statement
 results are annotated in watched bodies, as with standard functions; outputs are

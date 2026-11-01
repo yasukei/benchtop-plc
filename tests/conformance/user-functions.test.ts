@@ -32,7 +32,7 @@ it("uses fresh inputs, VAR, outputs and result storage on every invocation", () 
      VAR_INPUT N: INT := 2; END_VAR
      VAR counter: INT := 10; END_VAR
      VAR_OUTPUT Q: INT := 5; END_VAR
-     IF N = 0 THEN RETURN; END_IF;
+     IF N = 0 THEN Fresh := 0; RETURN; END_IF;
      counter := counter + N;
      Q := Q + counter;
      Fresh := Fresh + counter;

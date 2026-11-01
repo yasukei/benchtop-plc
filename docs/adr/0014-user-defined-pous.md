@@ -1,6 +1,6 @@
 # 0014. User-defined POUs, calls and instances
 
-- Status: Accepted
+- Status: Accepted; result-default rule superseded by [0028](0028-result-assignment.md)
 - Date: 2026-10-22
 - Related: [0002](0002-tree-shaped-ir-as-plain-data.md),
   [0006](0006-plcopen-xml-project-format.md),

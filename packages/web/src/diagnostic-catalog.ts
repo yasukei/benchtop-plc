@@ -119,6 +119,9 @@ export const diagnosticEn = {
   "runtime.configured-cycle": () =>
     `Command rejected: edit the configuration source to change the task interval.`,
   "runtime.null-reference": () => "Cannot dereference NULL.",
+  "runtime.result-not-assigned": () =>
+    "The function or method returned without assigning its result.",
+  "pou.result-not-assigned": ({ name }) => `${name} has no assignment to its result.`,
   "type.invalid-reference-target": () =>
     "A reference requires a compatible variable with persistent storage.",
   "type.reference-initializer": () => "A reference initializer must be NULL.",
@@ -397,6 +400,8 @@ export const diagnosticJa = {
   "runtime.configured-cycle": () =>
     `操作を拒否しました。タスク周期を変更するには構成ソースを編集してください。`,
   "runtime.null-reference": () => "NULLを逆参照できません。",
+  "runtime.result-not-assigned": () => "関数またはメソッドが戻り値を代入せずに終了しました。",
+  "pou.result-not-assigned": ({ name }) => `${name}の戻り値への代入がありません。`,
   "type.invalid-reference-target": () => "参照には互換性のある永続変数が必要です。",
   "type.reference-initializer": () => "参照の初期値はNULLにしてください。",
   "project.invalid-xml": () => "XMLが不正、DTDが存在、またはXMLの入れ子が深すぎます。",

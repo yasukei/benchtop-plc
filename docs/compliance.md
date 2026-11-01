@@ -267,6 +267,17 @@ components and out-of-range results, and DT floors to seconds. SPLIT functions
 return TRUE on success. These signatures, including the long forms, follow the
 issue #73 scope; the 4th edition text has not been independently checked.
 
+## Function and method result assignment
+
+IEC 61131-3 Ed. 3, 7.3.3.2.3 requires an assignment to the POU's result during
+each evaluation without EN/ENO. A function or concrete method with no possible
+result write is rejected with `pou.result-not-assigned`; a completed invocation
+without an actual write faults with `runtime.result-not-assigned`. Member,
+element and bit assignments, output copies and writes through in-out aliases
+count; merely passing an in-out does not. Interface prototypes and abstract
+methods are exempt from the body check. See [ADR 0028](adr/0028-result-assignment.md)
+and the [conformance cases](../tests/conformance/result-assignment.test.ts).
+
 ## Differences from vendor runtimes
 
 The compiler reports `type.portability` at the following calls, including their
