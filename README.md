@@ -13,9 +13,10 @@ Requirements: Node.js 26 or later (the CI major is pinned in `.node-version`) an
 pnpm (the version is pinned in `package.json`). Install pnpm directly with npm;
 pnpm 12 ships a native executable that older Corepack shims cannot launch. If
 Corepack already manages pnpm on your machine, run `corepack disable pnpm` first.
+The command below reads the pnpm version from `package.json`.
 
 ```sh
-npm install --global pnpm@12.16.1
+npm install --global "$(node -p "require('./package.json').packageManager")"
 pnpm install --frozen-lockfile
 pnpm typecheck   # TypeScript, strict mode
 pnpm lint        # ESLint, dependency direction (dependency-cruiser), Prettier check
