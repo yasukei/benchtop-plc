@@ -104,14 +104,25 @@ function measure(baselinePath: string, candidatePath: string, outputPath: string
       "vitest run -c runtime-benchmark.config.ts --disableConsoleIntercept";
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     process.stdout.write(`Installing locked dependencies for ${label}...\n`);
-    const installLog = command(checkout, "pnpm", ["install", "--frozen-lockfile"]);
+    // Keep the harness pnpm even when a historical checkout pins an older version.
+    const installLog = command(checkout, "pnpm", [
+      "with",
+      "current",
+      "install",
+      "--frozen-lockfile",
+    ]);
     writeFileSync(resolve(output, `${label}-install.log`), `${installLog}\n`);
     process.stdout.write(`Measuring ${label}...\n`);
     // Runtime-debugging cases use APIs absent from the baseline; compare only
     // the two ordinary interpreter cases supported by both revisions.
     const result = spawnSync(
       "pnpm",
-      ["bench:runtime", "--testNamePattern=^(sorting conveyor|loop with user calls)$"],
+      [
+        "with",
+        "current",
+        "bench:runtime",
+        "--testNamePattern=^(sorting conveyor|loop with user calls)$",
+      ],
       { cwd: checkout, encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } },
     );
     const log = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
