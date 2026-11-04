@@ -16,6 +16,14 @@ export function prepareRelease(
   date = new Date().toISOString().slice(0, 10),
 ): number {
   if (!semver.test(version)) throw new Error("Expected a SemVer version, for example 0.9.0.");
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== date
+  ) {
+    throw new Error("Expected a real calendar date in YYYY-MM-DD form.");
+  }
 
   const edits = new Map<string, string>();
   const read = (file: string) => readFileSync(resolve(root, file), "utf8");
@@ -63,8 +71,10 @@ export function prepareRelease(
 if (import.meta.main) {
   try {
     const [version, ...extra] = process.argv.slice(2);
-    if (!version || extra.length) throw new Error("Usage: pnpm release:prepare <version>");
-    const count = prepareRelease(resolve(import.meta.dirname, ".."), version);
+    if (!version || (extra.length > 0 && (extra.length !== 2 || extra[0] !== "--date"))) {
+      throw new Error("Usage: pnpm release:prepare <version> [--date YYYY-MM-DD]");
+    }
+    const count = prepareRelease(resolve(import.meta.dirname, ".."), version, extra[1]);
     process.stdout.write(
       `Prepared ${version} in ${count} files. Review the diff and write the release summary.\n`,
     );

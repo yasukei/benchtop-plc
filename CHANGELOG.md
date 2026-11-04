@@ -10,6 +10,9 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Added
 
+- Allow `pnpm release:prepare <version> --date YYYY-MM-DD` to set the changelog
+  release date explicitly, while keeping today's UTC date as the default.
+
 - Open any of the six bundled examples from the app with localized names and descriptions, confirmation before replacing work, and project XML loaded on demand.
 
 - Add bounded compiler and PLCopen XML property tests with reproducible seeds,
