@@ -48,6 +48,7 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           branch-token: ${{ steps.app-token.outputs.token }}
+          sign-commits: true
           branch: pnpm-update
           add-paths: |
             package.json
