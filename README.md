@@ -59,6 +59,11 @@ versions and every example's `productVersion`, moves the unreleased changelog
 entries into a dated release section using today's UTC date, leaves an empty
 `[Unreleased]` section and updates the comparison links.
 
+To set the release date explicitly, add `--date YYYY-MM-DD`, for example,
+`pnpm release:prepare 0.9.0 --date 2026-10-31`. The date must be a real calendar
+date in that form; invalid or missing values are rejected before any file is
+written. Omitting `--date` keeps today's UTC date as the default.
+
 Write the release summary in `CHANGELOG.md` manually, review the diff and date,
 then run the verification commands above and open a release PR. The version
 consistency test checks every package and example against the root version.
