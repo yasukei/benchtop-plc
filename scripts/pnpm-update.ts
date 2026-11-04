@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import process from "node:process";
 
 interface PnpmMetadata {
+  "dist-tags"?: { latest?: string };
   versions: Record<string, unknown>;
   time: Record<string, string>;
 }
@@ -19,16 +20,20 @@ function compareVersions(left: string, right: string): number {
   return 0;
 }
 
-/** npm publication dates, rather than dist-tags, determine the seven-day cooldown. */
+/** Cap releases at npm's latest tag; publication dates determine the seven-day cooldown. */
 export function selectPnpmUpdate(
   current: string,
   metadata: PnpmMetadata,
   now: number,
 ): string | undefined {
   if (!stableVersion.test(current)) throw new Error("Expected a pinned stable pnpm version.");
+  const ceiling = metadata["dist-tags"]?.latest;
+  if (typeof ceiling !== "string" || !stableVersion.test(ceiling)) {
+    throw new Error("Expected npm dist-tags.latest to be a stable pnpm version.");
+  }
   let latest = current;
   for (const version of Object.keys(metadata.versions)) {
-    if (!stableVersion.test(version)) continue;
+    if (!stableVersion.test(version) || compareVersions(version, ceiling) > 0) continue;
     const published = Date.parse(metadata.time[version] ?? "");
     if (published <= now - cooldown && compareVersions(version, latest) > 0) latest = version;
   }
