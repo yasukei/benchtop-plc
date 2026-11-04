@@ -10,11 +10,14 @@ See the [architecture overview](docs/architecture.md) for the package structure 
 ## Development
 
 Requirements: Node.js 26 or later (the CI major is pinned in `.node-version`) and
-pnpm (the version is pinned in `package.json`). If using Corepack, install it
-separately and run `corepack enable`; Node.js 26 does not bundle it.
+pnpm (the version is pinned in `package.json`). Install pnpm directly with npm;
+pnpm 12 ships a native executable that older Corepack shims cannot launch. If
+Corepack already manages pnpm on your machine, run `corepack disable pnpm` first.
+The command below reads the pnpm version from `package.json`.
 
 ```sh
-pnpm install
+npm install --global "$(node -p "require('./package.json').packageManager")"
+pnpm install --frozen-lockfile
 pnpm typecheck   # TypeScript, strict mode
 pnpm lint        # ESLint, dependency direction (dependency-cruiser), Prettier check
 pnpm test        # unit and conformance tests (Vitest)
