@@ -347,7 +347,10 @@ are the only implicit character conversions. Comparisons and MIN/MAX/LIMIT use
 code-unit ordering with a prefix first; SEL/MUX use the ADR 0013 common type.
 String functions use 1-based positions (INSERT permits zero), clamp lengths past
 end, and fault on invalid positions/negative lengths. Results hold up to 1,024
-code units before storage. String conversions use the monitor format and accept
+code units before storage. String conversions use the monitor format and follow the current typed-literal rules
+(decimal-point reals, unsigned based literals, and only the first duration component
+may overflow). TIME accepts `us`/`ns`, truncating toward zero after an exact range
+check. Conversions accept
 all target literal prefixes, rejecting invalid or out-of-range text with
 runtime.invalid-value. String functions/conversions execute at run time and are
 not constant initializer expressions. Arrays and structures may contain strings. These decisions follow the 3rd edition

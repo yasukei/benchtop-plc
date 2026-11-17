@@ -3,9 +3,7 @@ import { roundRational } from "./rounding.js";
 import { integerRanges, isLongType, validateValue, type DataType } from "./values.js";
 
 const digits = "[0-9]+(?:_[0-9]+)*";
-const decimal = new RegExp(
-  `^[+-]?${digits}(?:\\.${digits}(?:[eE][+-]?${digits})?|[eE][+-]?${digits})?$`,
-);
+const decimal = new RegExp(`^[+-]?${digits}(?:\\.${digits}(?:[eE][+-]?${digits})?)?$`);
 const prefixes: Partial<Record<DataType, readonly string[]>> = {
   TIME: ["TIME", "T"],
   LTIME: ["LTIME", "LT"],
@@ -29,13 +27,13 @@ export function parseElementaryText(type: DataType, input: string): number | str
   if (isCalendarType(type)) return parseCalendar(type, `${type}#${text}`);
   if (type === "TIME" || type === "LTIME") return parseDuration(type, text);
   if (type === "BOOL" && /^(TRUE|FALSE)$/i.test(text)) return text.toUpperCase() === "TRUE";
-  const based = /^([+-]?)(2|16)#([0-9a-f]+(?:_[0-9a-f]+)*)$/i.exec(text);
+  const based = /^(2|16)#([0-9a-f]+(?:_[0-9a-f]+)*)$/i.exec(text);
   let n: bigint,
     d = 1n;
   if (based) {
-    const body = based[3]!.replaceAll("_", "");
-    if (based[2] === "2" && /[^01]/.test(body)) throw new RangeError("Invalid binary digit");
-    n = BigInt(`${based[2] === "2" ? "0b" : "0x"}${body}`) * (based[1] === "-" ? -1n : 1n);
+    const body = based[2]!.replaceAll("_", "");
+    if (based[1] === "2" && /[^01]/.test(body)) throw new RangeError("Invalid binary digit");
+    n = BigInt(`${based[1] === "2" ? "0b" : "0x"}${body}`);
   } else {
     if (!decimal.test(text)) throw new RangeError("Invalid numeric text");
     if (type !== "REAL" && type !== "LREAL" && /[.eE]/.test(text))
@@ -79,6 +77,14 @@ function parseDuration(type: "TIME" | "LTIME", text: string): number | string {
     us: 1000n,
     ns: 1n,
   };
+  const limits: Record<string, bigint> = {
+    h: 24n,
+    m: 60n,
+    s: 60n,
+    ms: 1000n,
+    us: 1000n,
+    ns: 1000n,
+  };
   const body = text.replace(/^[+-]/, "");
   const pattern = new RegExp(`(${digits}(?:\\.${digits})?)(ms|us|ns|d|h|m|s)`, "gi");
   let end = 0,
@@ -87,16 +93,17 @@ function parseDuration(type: "TIME" | "LTIME", text: string): number | string {
   let n = 0n,
     d = 1n;
   for (const part of body.matchAll(pattern)) {
-    const unit = units[part[2]!.toLowerCase()]!;
+    const name = part[2]!.toLowerCase();
+    const unit = units[name]!;
+    const amount = decimalFraction(part[1]!);
     const separated = end > 0 && body[end] === "_" && part.index === end + 1;
     if (
       (part.index !== end && !separated) ||
       unit >= previous ||
       fractional ||
-      (type === "TIME" && unit < 1000000n)
+      (end > 0 && amount.n >= limits[name]! * amount.d)
     )
       throw new RangeError("Invalid duration");
-    const amount = decimalFraction(part[1]!);
     n = n * amount.d + amount.n * unit * d;
     d *= amount.d;
     previous = unit;
