@@ -62,6 +62,7 @@ export interface DiagnosticArgs {
   "lex.invalid-string-escape": NoArguments;
   "lex.invalid-string-character": NoArguments;
   "lex.invalid-character": { character: string };
+  "lex.invalid-identifier": { name: string };
   "lex.malformed-direct-address": { address: string };
   "lex.malformed-number": { literal: string };
 

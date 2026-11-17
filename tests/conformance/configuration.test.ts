@@ -177,10 +177,10 @@ it("preserves outputs while changing an implicit configuration's cycle", () => {
 
 it("transports annotations for a POU whose name is also an Object prototype property", () => {
   const { runtime } = setup(
-    ["PROGRAM __proto__ VAR n : INT; END_VAR n := 1; END_PROGRAM"],
-    configuration("PROGRAM A WITH T : __proto__;"),
+    ["PROGRAM constructor VAR n : INT; END_VAR n := 1; END_PROGRAM"],
+    configuration("PROGRAM A WITH T : constructor;"),
   );
-  expect(runtime.step().annotations.map((body) => body.pou)).toEqual(["__proto__"]);
+  expect(runtime.step().annotations.map((body) => body.pou)).toEqual(["constructor"]);
   expect(JSON.parse(JSON.stringify(runtime.snapshot())).annotations[0].lines[1][0].values).toEqual([
     { dataType: "INT", value: 1 },
   ]);

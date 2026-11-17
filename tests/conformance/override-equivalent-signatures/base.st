@@ -1,10 +1,10 @@
 FUNCTION_BLOCK Base
 METHOD PUBLIC Count : INT
-  VAR_INPUT step: INT; text: STRING[20]; END_VAR
-  Count := step;
+  VAR_INPUT delta: INT; text: STRING[20]; END_VAR
+  Count := delta;
 END_METHOD
 METHOD PUBLIC Format : STRING[20]
-  VAR_INPUT step: INT; text: STRING[20]; END_VAR
+  VAR_INPUT delta: INT; text: STRING[20]; END_VAR
   Format := text;
 END_METHOD
 END_FUNCTION_BLOCK

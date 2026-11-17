@@ -10,15 +10,15 @@ test("runs inheritance, monitors base-first private members and preserves save/r
   const base = `CLASS ABSTRACT Base
 VAR PRIVATE hidden: INT := 7; END_VAR
 VAR PUBLIC Speed: INT := 2; END_VAR
-METHOD PUBLIC Start: INT Start := THIS.Check(Step := Speed); END_METHOD
-METHOD PROTECTED ABSTRACT Check: INT VAR_INPUT Step: INT; END_VAR END_METHOD
+METHOD PUBLIC Start: INT Start := THIS.Check(Delta := Speed); END_METHOD
+METHOD PROTECTED ABSTRACT Check: INT VAR_INPUT Delta: INT; END_VAR END_METHOD
 END_CLASS`;
   const derived = `CLASS FINAL Derived EXTENDS Base
 VAR own: INT := 3; END_VAR
 METHOD PROTECTED FINAL OVERRIDE Check: INT
 VAR scratch: INT := 20; END_VAR
-VAR_INPUT Step: INT; END_VAR
-Check := Step + own + scratch - 20; END_METHOD
+VAR_INPUT Delta: INT; END_VAR
+Check := Delta + own + scratch - 20; END_METHOD
 END_CLASS`;
   const project = {
     fileHeader: {

@@ -24,12 +24,12 @@ describe("ST lexer", () => {
     ["2#1010_0011", "integer", 163],
     ["16#fF_a0", "integer", 65440],
     ["1.5", "real", 1.5],
-    ["1e999", "real", 0],
+    ["1.0e999", "real", 0],
     ["9007199254740993", "integer", 9007199254740992],
     ["1.0e3", "real", 1000],
     ["1.0E-3", "real", 0.001],
     ["1.0e+3", "real", 1000],
-    ["1e2", "real", 100],
+    ["1.0e2", "real", 100],
     ["1_000.2_5e1_0", "real", 10002500000000],
     ["T#500ms", "time", 500],
     ["TIME#1d2h3m4s5ms", "time", 93784005],
@@ -82,6 +82,14 @@ describe("ST lexer", () => {
     "1._5",
     "1.",
     "1e",
+    "1E5",
+    "1e+5",
+    "REAL#1e5",
+    "LREAL#-1e5",
+    "INT#-16#FF",
+    "INT#+16#FF",
+    "INT#-2#10",
+    "WORD#+16#FF",
     "1.0e+",
     "123abc",
     "1.2.3",
@@ -102,6 +110,15 @@ describe("ST lexer", () => {
     "T#1h_30.5m_1s",
     "T#1s_1s",
     "T#1ms_1s",
+    "T#1d24h",
+    "T#1h75m",
+    "T#1h_60m",
+    "T#1m60s",
+    "T#1s1000ms",
+    "T#1s1000us",
+    "T#1ms1000ns",
+    "LT#1us1000ns",
+    "LTIME#1h60.0m",
   ])("reports a malformed number for %s", (literal) => {
     expect(lex(literal)).toEqual({
       tokens: null,
@@ -230,6 +247,54 @@ describe("ST lexer", () => {
       expect(lex(source).tokens).toHaveLength(1);
     }
   });
+});
+
+it.each(["__d", "a__b", "c_", "_", "___"])("reports the whole invalid identifier %s", (name) => {
+  expect(lex(`\r\n ${name}`)).toEqual({
+    tokens: null,
+    diagnostics: [
+      {
+        code: "lex.invalid-identifier",
+        severity: "error",
+        args: { name },
+        span: { line: 2, column: 2, endLine: 2, endColumn: name.length + 2 },
+      },
+    ],
+  });
+  expect(lex(name, true).tokens?.[0]).toMatchObject({ kind: "identifier", text: name });
+});
+
+it.each(["_d", "a_b", "_a_b2", "A1"])("accepts separated underscores in %s", (name) => {
+  expect(lex(name).diagnostics).toEqual([]);
+  expect(lex(name).tokens?.[0]?.kind).toBe("identifier");
+});
+
+it.each(["1E5", "REAL#-1e5", "INT#-16#FF", "WORD#+2#10", "T#1h75m", "LT#1s1000us"])(
+  "keeps %s available only for old project exchange",
+  (literal) => {
+    expect(lex(literal).diagnostics[0]?.code).toBe("lex.malformed-number");
+    expect(lex(literal, true).diagnostics).toEqual([]);
+    expect(lex(literal, true).tokens?.[0]?.text).toBe(literal);
+  },
+);
+
+it.each([
+  "T#25h15m",
+  "T#75m",
+  "T#1500ms",
+  "T#1000us",
+  "T#500ns",
+  "T#1h59.999999999999999999m",
+  "T#12h4m34ms230us400ns",
+  "LTIME#5m_30s_500ms_100.1us",
+])("accepts the leading unit's overflow and finer TIME units in %s", (literal) => {
+  expect(lex(literal).diagnostics).toEqual([]);
+});
+
+it("reserves CONTINUE case-insensitively, with the exchange-only escape", () => {
+  expect(isKeyword("cOnTiNuE")).toBe(true);
+  expect(lex("cOnTiNuE").tokens?.[0]?.kind).toBe("keyword");
+  expect(lex("cOnTiNuE", true).tokens?.[0]?.kind).toBe("identifier");
 });
 
 it("leaves out-of-range durations to semantic validation", () => {

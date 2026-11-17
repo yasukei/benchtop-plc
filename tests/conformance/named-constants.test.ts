@@ -6,11 +6,11 @@ it("executes typed constants in every POU without allocating storage or shifting
   const compiled = compileProject([
     `PROGRAM Main
      VAR CONSTANT MAX_COUNT : INT := 10; N : INT := 30000; First : INT := 1;
-       Last : INT := 3; Step : INT := 2; BitIndex : INT := 7; END_VAR
+       Last : INT := 3; Delta : INT := 2; BitIndex : INT := 7; END_VAR
      VAR selected : BOOL; x : INT := MAX_COUNT; wrapped : INT := N + N;
        i, sum, functionResult, functionOutput : INT; bits : BYTE; inst : Block; END_VAR
      CASE x OF MAX_COUNT: selected := TRUE; END_CASE;
-     FOR i := First TO Last BY Step DO sum := sum + i; END_FOR;
+     FOR i := First TO Last BY Delta DO sum := sum + i; END_FOR;
      bits.BitIndex := TRUE;
      functionResult := Compute(A := 2, Q => functionOutput, Shared := x);
      inst(A := 3, Shared := x); inst.A := inst.Q;

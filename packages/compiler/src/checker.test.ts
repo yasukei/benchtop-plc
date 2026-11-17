@@ -158,7 +158,7 @@ describe("declarations and symbols", () => {
     failure("x : REAL;", "x := «1.0e100»;", "type.invalid-constant");
     valid("x : LREAL;", "x := 1.0e100;");
     valid("x : LREAL := 1.0e100 + 0.0;");
-    failure("x : LREAL := «REAL#3e38 * REAL#2.0»;", "", "type.invalid-constant");
+    failure("x : LREAL := «REAL#3.0e38 * REAL#2.0»;", "", "type.invalid-constant");
   });
 
   it("checks an untyped integer against its destination", () => {

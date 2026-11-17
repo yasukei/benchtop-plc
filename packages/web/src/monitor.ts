@@ -88,10 +88,9 @@ function parseElementaryWrittenValue(dataType: DataType, source: string): TypedV
     const result = lex(text);
     if (!result.tokens || result.tokens.length !== 2 || result.tokens[0]?.kind !== "time")
       return null;
-    number = Number(result.tokens[0].value);
-    if (!Number.isFinite(number) || !Number.isInteger(number)) return null;
-    // Check the exact literal text too: binary64 can round an out-of-range decimal
-    // back to the boundary. The single-token guard above excludes statements.
+    // Compile the exact text for range checking before truncating toward zero.
+    // The approximate token value may contain sub-millisecond fractions or round
+    // an out-of-range decimal back to the boundary. The guard excludes statements.
     const declaration = compile(`PROGRAM Written VAR value : TIME := ${text}; END_VAR END_PROGRAM`)
       .ir?.variables[0];
     if (declaration?.kind !== "scalar" || declaration.dataType !== "TIME") return null;

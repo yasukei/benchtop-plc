@@ -126,7 +126,7 @@ export function splitProgramWithContext(
       ],
     };
   // Lexer tokens supply boundaries without mistaking keywords inside comments for delimiters.
-  const { tokens } = lex(source);
+  const { tokens } = lex(source, legacyNames);
   const endVars = tokens!.filter((token) => token.key === "END_VAR");
   const start =
     ast.methods?.at(-1)?.span ??
@@ -542,6 +542,7 @@ export function canonicalInitializer(
     }
     const countAst = parsing.pou(
       `PROGRAM ${generatedIdentifier("Initial", source, ...types.map((type) => type.name))} MOVE(${expressionText(source, item.count.span)}); END_PROGRAM`,
+      true,
     ).ast;
     if (!countAst) throw new RangeError("Invalid repetition expression");
     const statement = countAst.body[0]!;
@@ -549,7 +550,7 @@ export function canonicalInitializer(
     const countExpression = statement.call.args[0]!;
     // Only count dependencies participate, so unrelated semantic errors remain exchangeable.
     const needed = new Set(
-      (lex(expressionText(source, item.count.span)).tokens ?? []).map((t) => t.key),
+      (lex(expressionText(source, item.count.span), true).tokens ?? []).map((t) => t.key),
     );
     const constants: Declaration[] = [];
     for (const declaration of declarations.toReversed()) {

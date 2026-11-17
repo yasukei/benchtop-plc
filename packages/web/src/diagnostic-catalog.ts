@@ -137,6 +137,8 @@ export const diagnosticEn = {
   "lex.invalid-string-character": () => "Single-byte literal contains a character above 16#FF.",
   "lex.unterminated-comment": () => "Block comment has no closing delimiter.",
   "lex.invalid-character": ({ character }) => `Invalid character: ${character}.`,
+  "lex.invalid-identifier": ({ name }) =>
+    `Invalid identifier: ${name}. Consecutive or trailing underscores are not allowed.`,
   "lex.malformed-direct-address": ({ address }) => `Malformed direct address: ${address}.`,
   "lex.malformed-number": ({ literal }) => `Malformed numeric literal: ${literal}.`,
   "syntax.expected-token": ({ expected, found }) =>
@@ -416,6 +418,8 @@ export const diagnosticJa = {
   "lex.invalid-string-character": () => "単一バイト文字列に16#FFを超える文字が含まれています。",
   "lex.unterminated-comment": () => "ブロックコメントの終了記号がありません。",
   "lex.invalid-character": ({ character }) => `不正な文字です: ${character}。`,
+  "lex.invalid-identifier": ({ name }) =>
+    `識別子が不正です: ${name}。連続する下線や末尾の下線は使用できません。`,
   "lex.malformed-direct-address": ({ address }) => `直接アドレスの構文が不正です: ${address}。`,
   "lex.malformed-number": ({ literal }) => `数値リテラルの構文が不正です: ${literal}。`,
   "syntax.expected-token": ({ expected, found }) =>

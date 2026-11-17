@@ -20,21 +20,21 @@ const motor = `CLASS Motor
 VAR PUBLIC Speed: INT := 1; END_VAR
 VAR PRIVATE checks: INT; END_VAR
 METHOD PUBLIC Start : INT
- Start := THIS.Check(Step := 2);
+ Start := THIS.Check(Delta := 2);
 END_METHOD
 METHOD PROTECTED Check : INT
- VAR_INPUT Step: INT; END_VAR
+ VAR_INPUT Delta: INT; END_VAR
  checks := checks + 1;
- Speed := Speed + Step; Check := Speed;
+ Speed := Speed + Delta; Check := Speed;
 END_METHOD
 END_CLASS`;
 const servo = `CLASS ServoMotor EXTENDS Motor
 VAR extra: INT := 3; END_VAR
 METHOD PROTECTED OVERRIDE Check : INT
- VAR_INPUT Step: INT; END_VAR
+ VAR_INPUT Delta: INT; END_VAR
  VAR fresh: INT := 1; END_VAR
  fresh := fresh + 1;
- Check := SUPER.Check(Step := Step + extra) + fresh;
+ Check := SUPER.Check(Delta := Delta + extra) + fresh;
 END_METHOD
 END_CLASS`;
 
@@ -99,15 +99,15 @@ it("dispatches input, output and in-out parameters across different receiver lay
 it("traces SUPER bodies, comments-only inheritance and RETURN replacement through a chain", () => {
   const { runtime, value } = setup([
     `PROGRAM Main VAR inherited: Empty; explicitCall: Derived; skipped: Suppressed; chained: Leaf; aliasValue: INT; END_VAR
-    inherited(Step := 2, Shared := aliasValue); explicitCall(Step := 3, Shared := aliasValue);
-    skipped(Step := 4, Shared := aliasValue); chained(Step := 5, Shared := aliasValue); END_PROGRAM`,
+    inherited(Delta := 2, Shared := aliasValue); explicitCall(Delta := 3, Shared := aliasValue);
+    skipped(Delta := 4, Shared := aliasValue); chained(Delta := 5, Shared := aliasValue); END_PROGRAM`,
     `FUNCTION_BLOCK Base
-    VAR_INPUT Step: INT := 1; END_VAR
+    VAR_INPUT Delta: INT := 1; END_VAR
     VAR_OUTPUT Count: INT := 10; END_VAR
     VAR_IN_OUT Shared: INT; END_VAR
     VAR PRIVATE hidden: INT; END_VAR
     VAR_TEMP scratch: INT := 2; END_VAR
-    Count := Count + Step + scratch; hidden := hidden + 1; Shared := Shared + 1;
+    Count := Count + Delta + scratch; hidden := hidden + 1; Shared := Shared + 1;
     END_FUNCTION_BLOCK`,
     "FUNCTION_BLOCK Empty EXTENDS Base (* no statements *) END_FUNCTION_BLOCK",
     "FUNCTION_BLOCK Derived EXTENDS Base VAR extra: INT := 3; END_VAR SUPER(); Count := Count + extra; END_FUNCTION_BLOCK",

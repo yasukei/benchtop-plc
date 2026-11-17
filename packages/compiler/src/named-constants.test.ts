@@ -47,11 +47,11 @@ describe("named constants", () => {
   it("uses constants in CASE ranges, bit indices, FOR bounds/step and conversions", () => {
     const compiled = compile(
       program(
-        `VAR CONSTANT First : INT := 1; Last : INT := 3; Step : INT := 2;
+        `VAR CONSTANT First : INT := 1; Last : INT := 3; Delta : INT := 2;
        BitIndex : INT := 7; END_VAR VAR x, i : INT; bits : BYTE; END_VAR`,
         `CASE x OF First..Last: x := First; END_CASE;
        bits.BitIndex := TRUE;
-       FOR i := First TO Last BY Step DO x := x + i; END_FOR;`,
+       FOR i := First TO Last BY Delta DO x := x + i; END_FOR;`,
       ),
     );
     expect(compiled.diagnostics).toEqual([]);

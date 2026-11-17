@@ -68,15 +68,15 @@ describe("ADR 0013 conversions and constants", () => {
     ["i: INT;", "CASE i OF 40000: END_CASE;"],
     ["counter: CTU;", "counter(PV := 40000);"],
     ["x: INT := INT#40000;", ""],
-    ["x: LREAL := REAL#1e39;", ""],
+    ["x: LREAL := REAL#1.0e39;", ""],
     ["x: INT := INT#1 / INT#0;", ""],
-    ["x: REAL := REAL#3e38 * REAL#2.0;", ""],
+    ["x: REAL := REAL#3.0e38 * REAL#2.0;", ""],
   ])("rejects invalid constants at their positions: %s %s", (declarations, body) => {
     expect(program(declarations, body).diagnostics).toContainEqual(
       expect.objectContaining({ code: "type.invalid-constant" }),
     );
   });
-  it.each(["1e99999999", "1e-99999999", "REAL#1e99999999", "LREAL#1e-99999999"])(
+  it.each(["1.0e99999999", "1.0e-99999999", "REAL#1.0e99999999", "LREAL#1.0e-99999999"])(
     "rejects an excessive decimal scale in %s",
     (source) => {
       expect(program(`x: LREAL := ${source};`).diagnostics).toEqual([
@@ -156,7 +156,7 @@ describe("ADR 0013 conversions and constants", () => {
       execute(
         `a: INT := 1 + 2; u: UINT := 40000; wrapped: INT := INT#32767 + INT#1;
       half: LREAL := 1 / 2; exact: INT := 9007199254740993 - 9007199254740992;
-      small: REAL := (1e400 + 1e400) / 1e400; fraction: LREAL := 0.1 + 0.2;
+      small: REAL := (1.0e400 + 1.0e400) / 1.0e400; fraction: LREAL := 0.1 + 0.2;
       typed: LREAL := LREAL#0.1 + LREAL#0.2; b: BOOL := 1; order: BOOL := FALSE < TRUE;
       i: INT; total: INT; t: TIME := T#1s; next: LREAL;`,
         `FOR i := 5 TO 1 BY -2 DO total := total + i; END_FOR; t := -t; next := i + 1.5;`,
@@ -324,11 +324,11 @@ describe("ADR 0013 conversions and constants", () => {
   });
   it("faults on runtime REAL conversion overflow and rejects constant overflow", () => {
     const { runtime } = execute(
-      "large: LREAL := 1e39; result: REAL;",
+      "large: LREAL := 1.0e39; result: REAL;",
       "result := LREAL_TO_REAL(large);",
     );
     expect(runtime.diagnostic?.code).toBe("runtime.invalid-value");
-    expect(program("result: REAL := LREAL_TO_REAL(LREAL#1e39);").diagnostics[0]?.code).toBe(
+    expect(program("result: REAL := LREAL_TO_REAL(LREAL#1.0e39);").diagnostics[0]?.code).toBe(
       "type.invalid-constant",
     );
   });

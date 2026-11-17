@@ -1155,9 +1155,15 @@ export function parsePouForChecking(source: string): CheckingParseResult {
 function parseSource(
   source: string,
   pou: boolean,
-  legacyNames = false,
+  legacyNames: boolean | "current-syntax" = false,
   recoverDeclarations = false,
 ): CheckingParseResult {
+  if (legacyNames === true) {
+    // Files saved with OO syntax still need its structural keywords. Fall back
+    // to the older grammar for names reserved when those features were added.
+    const current = parseSource(source, pou, "current-syntax", recoverDeclarations);
+    if (current.ast) return current;
+  }
   const result = lex(source, legacyNames);
   if (result.tokens === null) return { ast: null, diagnostics: result.diagnostics };
   const parser = new Parser(result.tokens, recoverDeclarations);

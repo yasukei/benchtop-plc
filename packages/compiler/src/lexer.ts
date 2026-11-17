@@ -47,8 +47,10 @@ const elementaryTypeKeywords = new Set(
 const keywords = new Set([
   ...elementaryTypeKeywords,
   ...`PROGRAM END_PROGRAM VAR END_VAR AT IF THEN ELSIF ELSE END_IF CASE OF END_CASE
-   FOR TO BY DO END_FOR WHILE END_WHILE REPEAT UNTIL END_REPEAT EXIT RETURN
-   NOT MOD AND XOR OR
+   FOR TO BY DO END_FOR WHILE END_WHILE REPEAT UNTIL END_REPEAT EXIT CONTINUE RETURN
+   NOT MOD AND XOR OR TRUE FALSE
+   ACTION END_ACTION INITIAL_STEP STEP END_STEP TRANSITION END_TRANSITION FROM
+   R_EDGE F_EDGE OVERLAP
    FUNCTION END_FUNCTION FUNCTION_BLOCK END_FUNCTION_BLOCK CLASS END_CLASS VAR_INPUT VAR_OUTPUT
    VAR_IN_OUT VAR_TEMP VAR_GLOBAL VAR_EXTERNAL VAR_ACCESS VAR_CONFIG RETAIN NON_RETAIN
    CONSTANT ARRAY STRUCT END_STRUCT TYPE END_TYPE REF_TO REF NULL
@@ -67,7 +69,8 @@ export const isElementaryTypeName = (name: string): boolean =>
 
 const digits = "[0-9]+(?:_[0-9]+)*";
 const decimalInteger = new RegExp(`^${digits}$`);
-const realNumber = new RegExp(
+const realNumber = new RegExp(`^${digits}\\.${digits}(?:[eE][+-]?${digits})?$`);
+const legacyRealNumber = new RegExp(
   `^${digits}(?:\\.${digits}(?:[eE][+-]?${digits})?|[eE][+-]?${digits})$`,
 );
 const timePart = new RegExp(`(${digits}(?:\\.${digits})?)(ms|us|ns|d|h|m|s)`, "gi");
@@ -80,13 +83,24 @@ const milliseconds: Record<string, number> = {
   us: 0.001,
   ns: 0.000001,
 };
+const durationLimits: Record<string, number> = {
+  h: 24,
+  m: 60,
+  s: 60,
+  ms: 1000,
+  us: 1000,
+  ns: 1000,
+};
 
 class Lexer {
   private offset = 0;
   private line = 1;
   private column = 1;
 
-  constructor(private readonly source: string) {}
+  constructor(
+    private readonly source: string,
+    private readonly legacyNames: boolean,
+  ) {}
 
   private get char(): string {
     return this.source[this.offset] ?? "";
@@ -207,17 +221,21 @@ class Lexer {
       value = 0;
       // matchAll creates a fresh regex iterator, so calls share no mutable lastIndex.
       for (const match of parts.matchAll(timePart)) {
-        const unit = milliseconds[match[2]!.toLowerCase()]!;
-        if (dataType !== "LTIME" && unit < 1) {
-          value = NaN;
-          break;
-        }
+        const name = match[2]!.toLowerCase();
+        const unit = milliseconds[name]!;
+        const amount = match[1]!.replaceAll("_", "");
         const separated = end > 0 && parts[end] === "_" && match.index === end + 1;
-        if ((match.index !== end && !separated) || unit >= previousUnit || fractional) {
+        if (
+          (match.index !== end && !separated) ||
+          unit >= previousUnit ||
+          fractional ||
+          // Compare the integer part to avoid rounding a valid 59.999... up to 60.
+          (!this.legacyNames && end > 0 && Number(amount.split(".")[0]) >= durationLimits[name]!)
+        ) {
           value = NaN;
           break;
         }
-        value += Number(match[1]!.replaceAll("_", "")) * unit;
+        value += Number(amount) * unit;
         previousUnit = unit;
         fractional = match[1]!.includes(".");
         end = match.index + match[0].length;
@@ -229,12 +247,12 @@ class Lexer {
       value = text.toUpperCase() === "TRUE" ? 1 : 0;
     } else if (decimalInteger.test(text.replace(/^[+-]/, ""))) {
       value = Number(text.replaceAll("_", ""));
-    } else if (realNumber.test(text.replace(/^[+-]/, ""))) {
+    } else if ((this.legacyNames ? legacyRealNumber : realNumber).test(text.replace(/^[+-]/, ""))) {
       kind = "real";
       value = Number(text.replaceAll("_", ""));
     } else {
       const based = /^([+-]?)(2|16)#(.+)$/.exec(text);
-      if (based) {
+      if (based && (this.legacyNames || based[1] === "")) {
         const base = Number(based[2]);
         const digitClass = base === 2 ? "[01]" : "[0-9a-fA-F]";
         if (new RegExp(`^${digitClass}+(?:_${digitClass}+)*$`).test(based[3]!)) {
@@ -284,6 +302,13 @@ class Lexer {
     if (/[A-Za-z_]/.test(this.char)) {
       while (/[A-Za-z0-9_]/.test(this.char) && this.char) this.advance();
       const key = this.source.slice(start, this.offset).toUpperCase();
+      if (!this.legacyNames && (key.includes("__") || key.endsWith("_")))
+        this.fail({
+          code: "lex.invalid-identifier",
+          severity: "error",
+          span: this.finishSpan(span),
+          args: { name: this.source.slice(start, this.offset) },
+        });
       if (isCharacterType(key) && this.char === "#") {
         this.advance();
         return this.string(start, span, key);
@@ -406,8 +431,23 @@ class Lexer {
   }
 }
 
-/** Tokenize one source file, reporting the first lexical error as data. */
+const lexicalConformanceWords = new Set([
+  "CONTINUE",
+  "ACTION",
+  "END_ACTION",
+  "INITIAL_STEP",
+  "STEP",
+  "END_STEP",
+  "TRANSITION",
+  "END_TRANSITION",
+  "FROM",
+  "R_EDGE",
+  "F_EDGE",
+  "OVERLAP",
+]);
+
 export const newlyReservedWords = new Set([
+  ...lexicalConformanceWords,
   "INTERFACE",
   "END_INTERFACE",
   "IMPLEMENTS",
@@ -430,13 +470,18 @@ export const newlyReservedWords = new Set([
   "USING",
 ]);
 
-/** legacyNames is for validating pre-method project text during import only. */
-export function lex(source: string, legacyNames = false): LexResult {
+/** Exchange modes accept older names and literals; current-syntax retains earlier OO keywords. */
+export function lex(source: string, legacyNames: boolean | "current-syntax" = false): LexResult {
   try {
-    const tokens = new Lexer(source).run();
+    const tokens = new Lexer(source, !!legacyNames).run();
     if (legacyNames)
       for (const token of tokens)
-        if (token.kind === "keyword" && newlyReservedWords.has(token.key))
+        if (
+          token.kind === "keyword" &&
+          (legacyNames === "current-syntax" ? lexicalConformanceWords : newlyReservedWords).has(
+            token.key,
+          )
+        )
           token.kind = "identifier";
     return { tokens, diagnostics: [] };
   } catch (error) {

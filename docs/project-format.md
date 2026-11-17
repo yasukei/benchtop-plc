@@ -396,14 +396,19 @@ extension. Reopening compares the standard declarations and body without methods
 or access, then restores the exact source. Other tools see the block without its
 methods, and removing the extension loses the methods.
 
-A 0.6.0 text that fails current parsing but parses with the previous keyword set
-opens as an editable draft. Its preserved source wins when present; otherwise the
+A text that fails current parsing but parses with the older exchange grammar
+opens as an editable draft. This includes newly reserved words such as CONTINUE,
+consecutive or trailing underscores in identifiers, exponent-only real literals,
+signed based literals and overflowing lower duration components.
+Its preserved source wins when present; otherwise the
 standard elements generate the draft. This applies to POUs, data types and
 configuration text, preserving resource type names and parameter connections.
 Draft data types remain unknown while reading other texts, which keep their exact
 source. Other damaged preserved text still falls back with `project.stale-source`;
 invalid XML, unsupported elements and invalid initializers still reject the file.
-Drafts cannot be exported until their reserved names are renamed.
+The compiler reports current diagnostics on these sources. Drafts cannot be
+exported until the rejected spellings are corrected. The permissive grammar is
+used only for exchange; ordinary compilation always uses the current rules.
 
 ## Classes
 
