@@ -19,9 +19,9 @@ test("steps into an interface call, inspects both frames, and steps out to the n
   await editor.press("Control+End");
   await editor.press("ArrowUp");
   await editor.press("ArrowUp");
-  await page.locator('.breakpoint-marker[data-line="41"]').click();
+  await page.locator('.breakpoint-marker[data-line="42"]').click();
   await page.getByRole("button", { name: "Single scan", exact: true }).click();
-  await expect(page.locator(".halt-banner")).toContainText("SortingConveyor, line 41");
+  await expect(page.locator(".halt-banner")).toContainText("SortingConveyor, line 42");
   await expect(page.locator(".runtime-halt-statement")).toHaveText(
     "Actuators[Index].Apply(Enable := Commands[Index]);",
   );
@@ -37,7 +37,7 @@ test("steps into an interface call, inspects both frames, and steps out to the n
     "Devices.ConveyorMotor.Apply, line 9 (mainInstance.BELT)",
   );
   await expect(stack.getByRole("button").nth(1)).toHaveText(
-    "SortingConveyor, line 41 (mainInstance)",
+    "SortingConveyor, line 42 (mainInstance)",
   );
   await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue(
     "mainInstance.BELT",
@@ -58,7 +58,7 @@ test("steps into an interface call, inspects both frames, and steps out to the n
   await expect(page.getByRole("combobox", { name: "Instance", exact: true })).toHaveValue(
     "mainInstance",
   );
-  await expect(page.locator('.inline-values[data-line="33"]')).toContainText("mainInstance.BELT");
+  await expect(page.locator('.inline-values[data-line="34"]')).toContainText("mainInstance.BELT");
   const index = page
     .getByRole("row")
     .filter({ has: page.getByRole("rowheader", { name: "Index", exact: true }) });
@@ -67,7 +67,7 @@ test("steps into an interface call, inspects both frames, and steps out to the n
   // Selection is inspection only: step out still leaves the executing method.
   await expect(stack.getByRole("button").nth(1)).toBeFocused();
   await page.keyboard.press("o");
-  await expect(page.locator(".halt-banner")).toContainText("SortingConveyor, line 41");
+  await expect(page.locator(".halt-banner")).toContainText("SortingConveyor, line 42");
   await expect(stack.getByRole("listitem")).toHaveCount(1);
   await expect(index).toContainText("2");
   await expect(page.locator(".runtime-halt-statement")).toHaveText(

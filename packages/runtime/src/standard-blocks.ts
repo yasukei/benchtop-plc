@@ -116,8 +116,11 @@ class Timer extends Block {
 }
 
 class Trigger extends Block {
+  private m = false;
+
   override retentiveState() {
-    return { previous: this.previous ?? null };
+    // Keep the 0.8.0 wire field in previous-CLK encoding; F_TRIG's M is its inverse.
+    return { previous: this.type === "R_TRIG" ? this.m : !this.m };
   }
   override restoreRetentiveState(state: Record<string, boolean | null>): void {
     if (
@@ -125,22 +128,20 @@ class Trigger extends Block {
       !(state.previous === null || typeof state.previous === "boolean")
     )
       throw new RangeError("Invalid trigger state");
-    this.previous = state.previous ?? undefined;
+    // A legacy null means the block has never run: both standard bodies start with M=FALSE.
+    this.m =
+      state.previous === null ? false : this.type === "R_TRIG" ? state.previous : !state.previous;
   }
-  private previous: boolean | undefined;
 
   constructor(private readonly type: "R_TRIG" | "F_TRIG") {
     super(type);
   }
 
   execute(): void {
-    const input = Boolean(this.input(0));
-    this.output(
-      0,
-      this.previous !== undefined &&
-        (this.type === "R_TRIG" ? !this.previous && input : this.previous && !input),
-    );
-    this.previous = input;
+    const clk = Boolean(this.input(0));
+    const nextM = this.type === "R_TRIG" ? clk : !clk;
+    this.output(0, nextM && !this.m);
+    this.m = nextM;
   }
 }
 

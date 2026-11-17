@@ -1,7 +1,9 @@
 # Sorting conveyor reference project
 
-In the web app, select **Sorting conveyor** under **Example** and click **Open example** twice to confirm, press **RUN**, wait for an
-idle scan, then press and release **START**. **BELT RUN** lights. Hold **PART A**
+In the web app, select **Sorting conveyor** under **Example** and click **Open example**
+twice to confirm. Press **RUN**, wait for an idle scan, then press and release
+**START**. **BELT RUN** lights. A non-retained `FirstScan : BOOL := TRUE` blocks
+START and sensor pulses on the first activation, then becomes FALSE. Hold **PART A**
 to simulate a part at the first bin: **DIVERT A** lights and **BIN A TOTAL**
 increments once. Release the sensor to retract the diverter. **PART B** similarly
 operates the second bin. Both sensors may be active together; each bin counts
@@ -57,8 +59,8 @@ interface targets `mainInstance.BELT`, `mainInstance.GATEA` and `mainInstance.GA
 
 **Warm restart** preserves both counters, clears interface targets, disarms the
 belt and zeros outputs. Press RUN to rebind devices and republish totals; a fresh
-START edge is required to move again. A held sensor or START does not invent an
-edge on the first scan after restart. Toolbar STOP followed by page reload also
+START edge is required to move again. Load, cold reset and warm restart rearm `FirstScan`, so a held sensor or START
+cannot start the belt or count a part on the first activation. Toolbar STOP followed by page reload also
 preserves the latest counters in browser storage. **Cold reset** and opening a
 project initialize counts. XML saves source and panel, not live values; save/reopen
 preserves all seven texts unchanged.

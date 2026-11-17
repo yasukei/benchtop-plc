@@ -19,8 +19,9 @@ Inputs start at zero, including the setpoint; set them before starting a tank.
 Each controller latches its enable on a START edge and fills whenever its level
 is below the setpoint. **STOP TANKS** disarms both tanks;
 STOP wins over START. Release START and press it again to enable the tank.
-The START edge detector ignores a held input on its first call after load or
-restart, so allow an idle activation first. The toolbar STOP pauses the whole
+Each controller uses a non-retained `FirstScan : BOOL := TRUE` to block its
+first START pulse, then sets it to FALSE. Load, cold reset and warm restart rearm
+this interlock, so allow an idle activation first. The toolbar STOP pauses the whole
 resource and keeps physical outputs off; it is separate from the panel STOP TANKS button.
 
 At level 90 or above, the constant `cHighLevel` trips a latched **ALARM** and

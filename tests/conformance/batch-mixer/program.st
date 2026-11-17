@@ -19,6 +19,7 @@ VAR
     MixTimer : TON;
     DrainTimer : TON;
     StartEdge : R_TRIG;
+    FirstScan : BOOL := TRUE;
     Status : STRING[80] := 'Idle';
 END_VAR
 
@@ -27,7 +28,7 @@ StartEdge(CLK := Start);
 IF Stop THEN
     State := Idle;
     ActiveRecipe := NULL;
-ELSIF StartEdge.Q AND ((State = Idle) OR (State = Done)) THEN
+ELSIF StartEdge.Q AND NOT FirstScan AND ((State = Idle) OR (State = Done)) THEN
     (* Selection is latched for the whole batch; Gentle has priority. *)
     IF SelectGentle THEN
         ActiveRecipe := REF(Recipes[3]);
@@ -78,4 +79,5 @@ CASE State OF
     Draining: Status := CONCAT(ActiveRecipe^.Name, ': Draining');
     Done: Status := CONCAT(ActiveRecipe^.Name, ': Done');
 END_CASE;
+FirstScan := FALSE;
 END_PROGRAM

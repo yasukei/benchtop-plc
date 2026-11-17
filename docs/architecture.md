@@ -72,6 +72,10 @@ connection errors reserved for cases where the Worker cannot continue. See
 and command table, including accepted, ignored and rejected outcomes, is in
 [ADR 0022](adr/0022-operating-state-command-matrix.md).
 
+Standard edge detectors use FALSE-initialized M without a first-call flag. Their
+restart and retained-record compatibility rules partially supersede ADR 0014 and
+ADR 0016. See [ADR 0029](adr/0029-standard-edge-detector-initialization.md).
+
 ## Data flow
 
 ```

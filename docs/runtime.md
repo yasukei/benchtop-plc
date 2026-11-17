@@ -347,8 +347,15 @@ call while timing; completion stays latched until the corresponding reset, so
 increasing PT after completion cannot restart an output. Completed ET follows PT.
 Timers read no clock themselves; all elapsed times use the supplied scan start.
 
-R_TRIG/F_TRIG compare CLK with its previous call and emit Q for one call on the
-corresponding edge. Both suppress a pulse on their first call, regardless of CLK.
+R_TRIG and F_TRIG execute the standard bodies with private BOOL M initially FALSE:
+`R_TRIG: Q := CLK AND NOT M; M := CLK;` and
+`F_TRIG: Q := NOT CLK AND NOT M; M := NOT CLK;`. The first call pulses Q when
+R_TRIG's CLK is TRUE or F_TRIG's CLK is FALSE. Repeating that input clears Q on
+the next call. M has no intrinsic RETAIN qualifier: load and cold reset initialize
+it to FALSE; warm restart preserves it only for a retained instance, otherwise
+it initializes to FALSE again. STOP/RUN preserves existing state. See
+[ADR 0029](adr/0029-standard-edge-detector-initialization.md) for the declarations
+and retained-record compatibility.
 
 ### Bistables, counters and functions
 
@@ -374,9 +381,8 @@ exactly with bigint internally and expose canonical decimal strings. They do not
 adapt to the type of PV. Cold reset restores CV=0 and clears both edge histories.
 
 Counters initially remember FALSE, so an initial TRUE counts unless reset/loading.
-This difference from R_TRIG is intentional: counters retain FALSE-initialized edge
-memory, while issue #9 explicitly requires first-call pulse suppression for the
-standalone R_TRIG/F_TRIG blocks. Cold reset restores each block's own startup rule.
+R_TRIG likewise reports an initial TRUE. Cold reset restores the initial edge
+memory of every counter and trigger.
 
 ABS operates on all numeric types. SQRT, LN, LOG (base 10), EXP, SIN, COS, TAN,
 ASIN, ACOS and ATAN operate on REAL/LREAL. Trigonometric arguments/results use
@@ -742,7 +748,8 @@ NON_RETAIN. A qualified composite or user block passes its qualifier to members
 without their own qualifier; explicit member qualifiers override inheritance.
 References always become NULL and timers always reinitialize, even under RETAIN.
 Retained counters, edge detectors and bistables preserve every port and private
-edge history, including an edge detector's first-call state.
+edge memory. For R_TRIG/F_TRIG this is the standard body's BOOL M; there is no
+first-call flag (ADR 0029).
 
 `retentiveRecords()` returns one complete detached JSON-safe set: scalar leaf
 records plus standard-block records containing ports and private state together.
@@ -754,6 +761,12 @@ their paths without faulting. A block is validated as a whole before its ports
 are restored; no CV or port can leak across a changed block type. Scalar members
 of retained user blocks have their own leaf records; standard-block ports never
 have separate leaf records.
+
+Trigger records keep the `previous` field in the 0.8.0 previous-CLK encoding:
+M for R_TRIG, NOT M for F_TRIG. Boolean histories restore unchanged. An old
+`previous: null` restores as M=FALSE for either block and is not reported as
+skipped. New trigger records always contain a Boolean, including before the
+first call: FALSE for R_TRIG and TRUE for F_TRIG.
 
 ## Method invocation
 

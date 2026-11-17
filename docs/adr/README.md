@@ -38,3 +38,4 @@ An ADR records one design decision: its context, the decision, and its consequen
 - [0026. Injected ticker contract](0026-injected-ticker-contract.md)
 - [0027. Separate browser retained storage](0027-separate-browser-retained-storage.md)
 - [0028. Require a result assignment in each evaluation](0028-result-assignment.md)
+- [0029. Standard edge-detector initialization](0029-standard-edge-detector-initialization.md)

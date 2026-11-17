@@ -23,6 +23,7 @@ END_VAR
 VAR
     Enabled : BOOL;
     StartEdge : R_TRIG;
+    FirstScan : BOOL := TRUE;
     LastAck : UDINT;
 END_VAR
 
@@ -38,7 +39,7 @@ LastAck := gAckCount;
 (* STOP and alarms win. Release START before starting again. *)
 IF Stop OR Alarm THEN
     Enabled := FALSE;
-ELSIF StartEdge.Q THEN
+ELSIF StartEdge.Q AND NOT FirstScan THEN
     Enabled := TRUE;
 END_IF;
 Pump := Enabled AND NOT Alarm AND (Level < gSetpoint);
@@ -49,4 +50,5 @@ IF Pump AND (RunTicks < UINT#65535) THEN
     RunTicks := RunTicks + 1;
 END_IF;
 RunTime := RunTicks;
+FirstScan := FALSE;
 END_PROGRAM

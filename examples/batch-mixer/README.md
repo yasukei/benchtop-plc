@@ -26,8 +26,9 @@ texts and the PROGRAM.
 The reference is latched on a START edge in Idle or Done. Changing switches
 while a batch runs affects only the next batch; START during an active batch is
 ignored. Release START and press it again to start another batch after Done.
-A held START cannot repeat a batch. R_TRIG suppresses an edge on its first call:
-let the first idle scan run before pressing START after loading or resetting.
+A held START cannot repeat a batch. A non-retained `FirstScan : BOOL := TRUE`
+blocks the START pulse on the first activation, then becomes FALSE. Load, cold
+reset and warm restart rearm this interlock. Allow an idle activation before START.
 
 **STOP** takes priority over START, immediately returns to Idle, turns all four
 outputs OFF, resets all timers and clears the reference to NULL. This is an
