@@ -29,6 +29,7 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   Older XML projects still open with their exact source as editable drafts and
   current compiler diagnostics. TIME now accepts `us` and `ns`, truncating values
   finer than a millisecond toward zero after exact range checks (ADR 0012).
+  Variable monitor writes and forces accept these fine-unit TIME literals too.
 
 - Follow the standard's FALSE-initialized M for `R_TRIG` and `F_TRIG`, changing
   accepted ST: the first call pulses for `R_TRIG(CLK := TRUE)` and

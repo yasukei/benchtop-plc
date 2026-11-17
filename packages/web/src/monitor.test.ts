@@ -11,6 +11,19 @@ describe("monitor values", () => {
     expect(parseWrittenValue("TIME", "1500")).toEqual({ dataType: "TIME", value: 1500 });
     expect(parseWrittenValue("TIME", "T#-1s")).toEqual({ dataType: "TIME", value: -1000 });
   });
+  it.each([
+    ["T#1000us", 1],
+    ["T#1500us", 1],
+    ["TIME#-1500us", -1],
+    ["T#500us", 0],
+    ["T#-500us", 0],
+    ["T#1500000ns", 1],
+    ["T#-1500000ns", -1],
+    ["T#1ms500us", 1],
+    ["T#-1ms500us", -1],
+  ])("truncates monitor TIME literal %s toward zero", (text, value) => {
+    expect(parseWrittenValue("TIME", text)).toEqual({ dataType: "TIME", value });
+  });
   it("rejects invalid literals, nonfinite values and out-of-range integers", () => {
     for (const input of ["", " ", "NaN", "Infinity", "1e999", "1; x := 2"])
       expect(parseWrittenValue("LREAL", input)).toBeNull();
@@ -28,6 +41,10 @@ describe("monitor values", () => {
       "T#30d",
       "T#-25d",
       "T#2147483647.0000000001ms",
+      "T#2147483647ms1us",
+      "T#-2147483648ms1ns",
+      "T#1h75m",
+      "T#1500us; END_VAR END_PROGRAM",
     ])
       expect(parseWrittenValue("TIME", text)).toBeNull();
     expect(parseWrittenValue("TIME", "2147483647")?.value).toBe(2147483647);
