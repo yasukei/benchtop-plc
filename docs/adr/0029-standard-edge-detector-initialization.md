@@ -81,8 +81,9 @@ Accepted ST changes behavior on first calls and after non-retained restarts.
 Code that needs startup suppression must express it explicitly. The three
 examples preserve their existing operator behavior. Existing Boolean retained
 histories keep their meaning, while legacy never-called records now produce the
-standard's initial pulse. ADR 0014 and ADR 0016 remain unchanged as historical
-records; this decision replaces only the rules identified above.
+standard's initial pulse. The decision bodies of ADR 0014 and ADR 0016 remain
+unchanged as historical records. Their status metadata points to this decision,
+which replaces only the rules identified above.
 
 Conformance tests cover both initial CLK values, cold reset, retained and
 non-retained warm restart, reload and legacy records. Example tests hold START
