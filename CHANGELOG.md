@@ -20,6 +20,13 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Follow the standard's FALSE-initialized M for `R_TRIG` and `F_TRIG`, changing
+  accepted ST: the first call pulses for `R_TRIG(CLK := TRUE)` and
+  `F_TRIG(CLK := FALSE)`. Non-retained instances repeat this startup behavior
+  after warm restart; retained instances preserve M. Autosaved edge-detector
+  records from 0.8.0 with `previous: null` now restore as initial M without a
+  skipped-record warning; Boolean CLK histories retain their meaning.
+
 - Require function and concrete method results to be assigned: previously accepted
   bodies with no possible assignment now fail compilation, and calls that return
   without an actual result write now fault. Member/element writes, output copies
@@ -66,6 +73,8 @@ Until 1.0.0, any release may break compatibility, including saved project files.
   nested `FOR` reuse, `=>` output targets, `VAR_IN_OUT` actuals and `REF()` arguments,
   with the new `flow.for-control-write` error. Reads and writes after `END_FOR`
   remain allowed.
+- Use explicit non-retained first-scan logic for the batch mixer, tank station and
+  sorting conveyor START interlocks, including first-scan conveyor sensor pulses.
 
 - Follow IEC 61131-3 Ed. 3 Table 71 by binding unary `+`, `-` and `NOT` before
   `**`. This changes results of accepted ST: `-2 ** 2` and `-x ** 2` with `x = 2`

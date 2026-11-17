@@ -60,7 +60,7 @@ or instance never restarts the PLC.
    an override does not populate the base implementation's values.
 3. Select **IsActuatorActive** and wait for its next call. Functions have no
    instance picker. The label reads **Called from SortingConveyor (mainInstance),
-   line 43**, and `IsActuatorActive := Device^.IsActive();` (line 7) shows TRUE.
+   line 44**, and `IsActuatorActive := Device^.IsActive();` (line 7) shows TRUE.
    A function displays its last watched call and immediate caller, not a separate
    history for each caller. Before its first watched call it says
    **No call recorded yet**.
@@ -108,18 +108,18 @@ While halted, observe:
 
 The **Call stack** lists the executing invocation first, then its callers.
 At the Count breakpoint it has two entries: `PartCounter.Count` at line 12
-(`mainInstance.BINA`) and `SortingConveyor` at line 54 (`mainInstance`).
+(`mainInstance.BINA`) and `SortingConveyor` at line 55 (`mainInstance`).
 Persistent `BINA.PARTS` is 0 in the variable monitor.
 
 1. Select the SortingConveyor frame. The editor highlights `BinA.Count();`
-   inside the `IF` on line 54 and selects `mainInstance`.
+   inside the `IF` on line 55 and selects `mainInstance`.
    Select the Count frame again. Frame selection only changes inspection; the
    banner still names the actual halt and execution has not advanced.
 2. Focus **Step over** and press **N**. The assignment runs; `BINA.PARTS` becomes 1.
-   Count returns and the next statement is the `IF` for Bin B at line 55 in
+   Count returns and the next statement is the `IF` for Bin B at line 56 in
    SortingConveyor. **BIN A TOTAL** on the panel is still 0.
 3. Press **N** again. The false Bin B condition is skipped, reaching
-   `BinA(Value => BinATotal);` at line 57. Step over executes a statement and its
+   `BinA(Value => BinATotal);` at line 58. Step over executes a statement and its
    calls without entering them; a breakpoint inside can still interrupt it.
 4. Press **I** (**Step into**). Execution enters PartCounter's body for BINA,
    stopping at `Value := THIS.Total();` (line 24). The stack now has block and
@@ -131,7 +131,7 @@ Persistent `BINA.PARTS` is 0 in the variable monitor.
 5. Select the outer SortingConveyor frame. Press **O** (**Step out**).
    Selection was inspection only: this finishes the executing Total method and
    the enclosing assignment/block call, reaching `BinB(Value => BinBTotal);`
-   at line 58. The stack has only the PROGRAM frame again. `BinATotal` in the
+   at line 59. The stack has only the PROGRAM frame again. `BinATotal` in the
    monitor is now 1, but the panel still shows 0 until the run completes.
 6. Focus **Continue** and press **C**. The selected stack entry disappeared
    when stepping out, so refocus a runtime control before the next shortcut.

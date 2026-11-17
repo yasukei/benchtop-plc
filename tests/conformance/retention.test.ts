@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { compileProject } from "@benchtop-plc/compiler";
-import { snapshotVariable } from "@benchtop-plc/core";
+import { snapshotVariable, type RetentiveRecord } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
 function setup(source: string) {
@@ -108,3 +108,91 @@ it("clears forces, pending writes, references, timers and %M, including under em
   expect(cell("kept")).toMatchObject({ value: 5 });
   expect(cell("timer")).toMatchObject({ outputs: [{ value: false }, { value: 0 }] });
 });
+
+it.each(["R_TRIG", "F_TRIG"])(
+  "%s keeps M only for retained instances across warm restart and reload",
+  (type) => {
+    const input = type === "R_TRIG";
+    const source = `PROGRAM P
+      VAR RETAIN kept : ${type}; END_VAR
+      VAR ordinary : ${type}; END_VAR
+      VAR NON_RETAIN explicit : ${type}; END_VAR
+      kept(CLK := ${input}); ordinary(CLK := ${input}); explicit(CLK := ${input});
+      END_PROGRAM`;
+    const { runtime, cell } = setup(source);
+    const expectQ = (name: string, value: boolean) =>
+      expect(cell(name)).toMatchObject({ outputs: [{ value }] });
+    runtime.step();
+    for (const name of ["kept", "ordinary", "explicit"]) expectQ(name, true);
+    runtime.step();
+    for (const name of ["kept", "ordinary", "explicit"]) expectQ(name, false);
+    runtime.stop();
+    runtime.step();
+    expectQ("ordinary", false);
+    runtime.warmRestart();
+    runtime.step();
+    expectQ("kept", false);
+    expectQ("ordinary", true);
+    expectQ("explicit", true);
+    const saved = JSON.parse(JSON.stringify(runtime.retentiveRecords())) as RetentiveRecord[];
+    expect(saved).toHaveLength(1);
+    const reloaded = setup(source);
+    expect(reloaded.runtime.restoreRetentive(saved)).toEqual([]);
+    reloaded.runtime.step();
+    expect(reloaded.cell("kept")).toMatchObject({ outputs: [{ value: false }] });
+    expect(reloaded.cell("ordinary")).toMatchObject({ outputs: [{ value: true }] });
+    expect(reloaded.cell("explicit")).toMatchObject({ outputs: [{ value: true }] });
+    runtime.coldReset();
+    runtime.step();
+    for (const name of ["kept", "ordinary", "explicit"]) expectQ(name, true);
+    runtime.load(compileProject([source]).ir!);
+    runtime.step();
+    for (const name of ["kept", "ordinary", "explicit"]) expectQ(name, true);
+  },
+);
+
+it.each(["R_TRIG", "F_TRIG"])(
+  "%s restores a 0.8.0 previous:null record as initial M without skipped paths",
+  (type) => {
+    const input = type === "R_TRIG";
+    const source = `PROGRAM P VAR RETAIN edge : ${type}; END_VAR
+      edge(CLK := ${input}); END_PROGRAM`;
+    const { runtime, cell } = setup(source);
+    const records = JSON.parse(JSON.stringify(runtime.retentiveRecords())) as RetentiveRecord[];
+    const record = records[0]!;
+    if (record.kind !== "block") throw new Error("Expected retained trigger");
+    record.state = { previous: null };
+    // Restoring must reset an already used instance to the legacy record's initial M.
+    runtime.step();
+    runtime.step();
+    expect(runtime.restoreRetentive(records)).toEqual([]);
+    const normalized = runtime.retentiveRecords()[0]!;
+    expect(normalized).toMatchObject({ state: { previous: !input } });
+    runtime.warmRestart();
+    runtime.step();
+    expect(cell("edge")).toMatchObject({ outputs: [{ value: true }] });
+    runtime.step();
+    expect(cell("edge")).toMatchObject({ outputs: [{ value: false }] });
+  },
+);
+
+it.each(["R_TRIG", "F_TRIG"])(
+  "%s preserves legacy Boolean CLK history when reading retained records",
+  (type) => {
+    for (const previous of [false, true]) {
+      const input = type === "R_TRIG";
+      const source = `PROGRAM P VAR RETAIN edge : ${type}; END_VAR
+        edge(CLK := ${input}); END_PROGRAM`;
+      const { runtime, cell } = setup(source);
+      const records = runtime.retentiveRecords();
+      const record = records[0]!;
+      if (record.kind !== "block") throw new Error("Expected retained trigger");
+      record.state = { previous };
+      expect(runtime.restoreRetentive(records)).toEqual([]);
+      runtime.step();
+      expect(cell("edge")).toMatchObject({ outputs: [{ value: previous !== input }] });
+      runtime.step();
+      expect(cell("edge")).toMatchObject({ outputs: [{ value: false }] });
+    }
+  },
+);

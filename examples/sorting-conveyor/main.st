@@ -18,6 +18,7 @@ VAR
     BinA, BinB : PartCounter;
     StartEdge, PartAEdge, PartBEdge : R_TRIG;
     Running : BOOL;
+    FirstScan : BOOL := TRUE;
     Index : INT;
 END_VAR
 
@@ -25,7 +26,7 @@ StartEdge(CLK := Start);
 (* STOP wins simultaneous START and requires a fresh START edge to resume. *)
 IF Stop THEN
     Running := FALSE;
-ELSIF StartEdge.Q THEN
+ELSIF StartEdge.Q AND NOT FirstScan THEN
     Running := TRUE;
 END_IF;
 
@@ -51,9 +52,10 @@ IF ResetTotals THEN
     BinA.Reset();
     BinB.Reset();
 ELSE
-    IF Running AND PartAEdge.Q THEN BinA.Count(); END_IF;
-    IF Running AND PartBEdge.Q THEN BinB.Count(); END_IF;
+    IF Running AND PartAEdge.Q AND NOT FirstScan THEN BinA.Count(); END_IF;
+    IF Running AND PartBEdge.Q AND NOT FirstScan THEN BinB.Count(); END_IF;
 END_IF;
 BinA(Value => BinATotal);
 BinB(Value => BinBTotal);
+FirstScan := FALSE;
 END_PROGRAM

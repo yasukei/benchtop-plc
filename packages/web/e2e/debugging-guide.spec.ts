@@ -118,7 +118,7 @@ test("follows the sorting conveyor debugging guide @debugger-shortcuts", async (
     await selectSource("IsActuatorActive");
     await expect(picker).toHaveCount(0);
     await expect(
-      page.getByText("Called from SortingConveyor (mainInstance), line 43", { exact: true }),
+      page.getByText("Called from SortingConveyor (mainInstance), line 44", { exact: true }),
     ).toBeVisible();
     await expect(inline(7).locator(".inline-bool")).toHaveText("TRUE");
   });
@@ -160,7 +160,7 @@ test("follows the sorting conveyor debugging guide @debugger-shortcuts", async (
   await test.step("5. Inspect the stack and step through publication", async () => {
     await expect(stack.getByRole("button")).toHaveText([
       "PartCounter.Count, line 12 (mainInstance.BINA)",
-      "SortingConveyor, line 54 (mainInstance)",
+      "SortingConveyor, line 55 (mainInstance)",
     ]);
     await expect(value("BINA.PARTS")).toHaveText("0");
     await stack.getByRole("button").nth(1).click();
@@ -173,13 +173,13 @@ test("follows the sorting conveyor debugging guide @debugger-shortcuts", async (
     await expect(over).toHaveAttribute("title", "Step over (N)");
     await over.focus();
     await page.keyboard.press("n");
-    await expect(halt).toContainText("SortingConveyor, line 55");
+    await expect(halt).toContainText("SortingConveyor, line 56");
     await expect(value("BINA.PARTS")).toHaveText("1");
     await expect(total("A")).toHaveText("0");
     await expect(over).toBeFocused();
     await page.keyboard.press("n");
     await expect(statement).toHaveText("BinA(Value => BinATotal);");
-    await expect(halt).toContainText("SortingConveyor, line 57");
+    await expect(halt).toContainText("SortingConveyor, line 58");
     await page.keyboard.press("i");
     await expect(halt).toContainText("PartCounter, line 24 (mainInstance.BINA)");
     await expect(statement).toHaveText("Value := THIS.Total();");
@@ -189,13 +189,13 @@ test("follows the sorting conveyor debugging guide @debugger-shortcuts", async (
     await expect(stack.getByRole("button")).toHaveText([
       "PartCounter.Total, line 21 (mainInstance.BINA)",
       "PartCounter, line 24 (mainInstance.BINA)",
-      "SortingConveyor, line 57 (mainInstance)",
+      "SortingConveyor, line 58 (mainInstance)",
     ]);
     await expect(stack.getByLabel("Frame values")).toHaveText("Total0");
     await stack.getByRole("button").nth(2).click();
     await expect(statement).toHaveText("BinA(Value => BinATotal);");
     await page.keyboard.press("o");
-    await expect(halt).toContainText("SortingConveyor, line 58");
+    await expect(halt).toContainText("SortingConveyor, line 59");
     await expect(statement).toHaveText("BinB(Value => BinBTotal);");
     await expect(stack.getByRole("listitem")).toHaveCount(1);
     await expect(value("BinATotal")).toHaveText("1");

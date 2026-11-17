@@ -110,20 +110,23 @@ describe("standard timers with a virtual clock", () => {
 });
 
 describe("edge detectors", () => {
-  it.each([false, true])("does not invent a first-scan edge from CLK=%s", (initial) => {
-    const rise = setup("R_TRIG"),
-      fall = setup("F_TRIG");
-    expect(rise.scan({ CLK: initial })).toEqual([false]);
-    expect(fall.scan({ CLK: initial })).toEqual([false]);
-    expect(rise.scan({ CLK: !initial })).toEqual([!initial]);
-    expect(fall.scan({ CLK: !initial })).toEqual([initial]);
-    expect(rise.scan()).toEqual([false]);
-    expect(fall.scan()).toEqual([false]);
-    expect(rise.scan({ CLK: initial })).toEqual([initial]);
-    expect(fall.scan({ CLK: initial })).toEqual([!initial]);
-    expect(rise.scan()).toEqual([false]);
-    expect(fall.scan()).toEqual([false]);
-  });
+  it.each([false, true])(
+    "executes the standard bodies with initially FALSE M at CLK=%s",
+    (initial) => {
+      const rise = setup("R_TRIG"),
+        fall = setup("F_TRIG");
+      expect(rise.scan({ CLK: initial })).toEqual([initial]);
+      expect(fall.scan({ CLK: initial })).toEqual([!initial]);
+      expect(rise.scan({ CLK: !initial })).toEqual([!initial]);
+      expect(fall.scan({ CLK: !initial })).toEqual([initial]);
+      expect(rise.scan()).toEqual([false]);
+      expect(fall.scan()).toEqual([false]);
+      expect(rise.scan({ CLK: initial })).toEqual([initial]);
+      expect(fall.scan({ CLK: initial })).toEqual([!initial]);
+      expect(rise.scan()).toEqual([false]);
+      expect(fall.scan()).toEqual([false]);
+    },
+  );
 });
 
 describe("INT counters", () => {

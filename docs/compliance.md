@@ -182,7 +182,7 @@ benchtop-plc restriction pending IEC edition verification (see #92).
 | Feature                              | Status | Notes                                                                                                                                    |
 | ------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `TON`, `TOF`, `TP`                   | Yes    | TIME PT/ET unless PT selects LTIME; negative PT is zero                                                                                  |
-| `R_TRIG`, `F_TRIG`                   | Yes    | First call suppresses edges                                                                                                              |
+| `R_TRIG`, `F_TRIG`                   | Yes    | FALSE-initialized M; first call pulses for R_TRIG CLK=TRUE or F_TRIG CLK=FALSE (ADR 0029)                                                |
 | `CTU`, `CTD`, `CTUD`                 | Yes    | INT counters unless PV selects another type; saturation at type limits                                                                   |
 | Typed counters                       | Yes    | CTU/CTD/CTUD with _INT, _DINT, _LINT, _UDINT, _ULINT; exact 64-bit counts                                                                |
 | `SR`, `RS`                           | Yes    | Set dominant / reset dominant; Q1 initially FALSE                                                                                        |

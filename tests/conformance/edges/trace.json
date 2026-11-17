@@ -3,13 +3,13 @@
   "cycleMs": 10,
   "steps": [
     {
-      "label": "Suppress initial high",
+      "label": "Initially high CLK pulses R_TRIG",
       "set": {
         "mainInstance.Input": true
       },
       "scans": 1,
       "expect": {
-        "mainInstance.Rising.Q": false,
+        "mainInstance.Rising.Q": true,
         "mainInstance.Falling.Q": false
       }
     },

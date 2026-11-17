@@ -127,18 +127,23 @@ describe("standard-library ST conformance", () => {
     expect(scan().result).toBe(-32768);
   });
 
-  it("suppresses initial trigger pulses and clears trigger history on cold reset", () => {
-    const { scan, runtime } = setup(
-      "r : R_TRIG; f : F_TRIG; input : BOOL; qr, qf : BOOL;",
-      "r(CLK := input); f(CLK := input); qr := r.Q; qf := f.Q;",
-    );
-    expect(scan({ input: true })).toMatchObject({ qr: false, qf: false });
-    expect(scan({ input: false })).toMatchObject({ qr: false, qf: true });
-    expect(scan()).toMatchObject({ qr: false, qf: false });
-    expect(scan({ input: true })).toMatchObject({ qr: true, qf: false });
-    runtime.coldReset();
-    expect(scan({ input: false })).toMatchObject({ qr: false, qf: false });
-  });
+  it.each([false, true])(
+    "initializes trigger M to FALSE at CLK=%s on load, cold reset and non-retained warm restart",
+    (input) => {
+      const { scan, runtime } = setup(
+        "r : R_TRIG; f : F_TRIG; input : BOOL; qr, qf : BOOL;",
+        "r(CLK := input); f(CLK := input); qr := r.Q; qf := f.Q;",
+      );
+      for (const restart of ["load", "cold reset", "warm restart"]) {
+        if (restart === "cold reset") runtime.coldReset();
+        if (restart === "warm restart") runtime.warmRestart();
+        expect(scan({ input })).toMatchObject({ qr: input, qf: !input });
+        expect(scan()).toMatchObject({ qr: false, qf: false });
+        expect(scan({ input: !input })).toMatchObject({ qr: !input, qf: input });
+        expect(scan()).toMatchObject({ qr: false, qf: false });
+      }
+    },
+  );
 
   it("counts and loads through compiler-resolved counter ports and clears private CV on reset", () => {
     const { scan, runtime } = setup(
@@ -156,18 +161,18 @@ describe("standard-library ST conformance", () => {
     expect(scan()).toMatchObject({ u: 0, d: 0, qu: false, qd: true });
   });
 
-  it("counts an initially high counter input once after load and cold reset while R_TRIG stays quiet", () => {
+  it("counts and reports an initially high input once after load and cold reset", () => {
     const { scan, runtime } = setup(
       "up : CTU; down : CTD; trig : R_TRIG; sensor : BOOL; u, d : INT; pulse : BOOL;",
       `up(CU := sensor, R := FALSE, PV := 10); down(CD := sensor, LD := FALSE, PV := 10);
        trig(CLK := sensor); u := up.CV; d := down.CV; pulse := trig.Q;`,
     );
-    expect(scan({ sensor: true })).toMatchObject({ u: 1, d: -1, pulse: false });
+    expect(scan({ sensor: true })).toMatchObject({ u: 1, d: -1, pulse: true });
     expect(scan()).toMatchObject({ u: 1, d: -1, pulse: false });
     scan({ sensor: false });
     expect(scan({ sensor: true })).toMatchObject({ u: 2, d: -2, pulse: true });
     runtime.coldReset();
-    expect(scan({ sensor: true })).toMatchObject({ u: 1, d: -1, pulse: false });
+    expect(scan({ sensor: true })).toMatchObject({ u: 1, d: -1, pulse: true });
     expect(scan()).toMatchObject({ u: 1, d: -1, pulse: false });
   });
 

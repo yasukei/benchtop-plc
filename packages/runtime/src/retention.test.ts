@@ -149,3 +149,24 @@ it("cold reset and load initialize retained values", () => {
   runtime.load(ir);
   expect(runtime.snapshot().variables[0]).toMatchObject({ value: 3 });
 });
+
+it.each(["R_TRIG", "F_TRIG"] as const)(
+  "rejects malformed %s state before restoring its ports",
+  (fbType) => {
+    const { runtime } = setup([block("P.edge", fbType)]);
+    const initial = runtime.retentiveRecords();
+    for (const state of [{}, { previous: null, extra: false }, { other: true }] as Record<
+      string,
+      boolean | null
+    >[]) {
+      const records = runtime.retentiveRecords();
+      const record = records[0]!;
+      if (record.kind !== "block") throw new Error("Expected trigger record");
+      record.inputs[0]!.value = true;
+      record.outputs[0]!.value = true;
+      record.state = state;
+      expect(runtime.restoreRetentive(records)).toEqual(["P.edge"]);
+      expect(runtime.retentiveRecords()).toEqual(initial);
+    }
+  },
+);
