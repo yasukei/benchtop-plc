@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { compile } from "@benchtop-plc/compiler";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
@@ -107,5 +107,71 @@ it.each([
     kind: "scalar",
     dataType: String(type).split("[")[0],
     value: expected,
+  });
+});
+
+describe.each([
+  ["STRING", "'"],
+  ["WSTRING", '"'],
+])("%s conversions follow literal rules", (stringType, quote) => {
+  it.each([
+    ["TIME", "T#1500us", 1],
+    ["TIME", "T#1000us", 1],
+    ["TIME", "T#500us", 0],
+    ["TIME", "T#-1500us", -1],
+    ["TIME", "T#-500us", 0],
+    ["TIME", "T#1500000ns", 1],
+    ["TIME", "T#-1500000ns", -1],
+    ["TIME", "T#500ns", 0],
+    ["TIME", "T#-500ns", 0],
+    ["TIME", "T#2147483647ms", 2147483647],
+    ["TIME", "T#-2147483648ms", -2147483648],
+    ["TIME", "T#25h15m", 90900000],
+    ["TIME", "TIME#1h59.999m", 7199940],
+    ["TIME", "T#1s999ms999us999ns", 1999],
+    ["LTIME", "LT#25h15m", "90900000000000"],
+    ["REAL", "1.0E5", 100000],
+    ["REAL", "REAL#1.0E5", 100000],
+    ["LREAL", "1.0e5", 100000],
+    ["INT", "16#FF", 255],
+    ["WORD", "16#FF", 255],
+    ["INT", "-255", -255],
+    ["INT", "INT#-255", -255],
+  ])("converts %s text %s", (type, text, expected) => {
+    const { runtime, value } = execute(
+      type,
+      `${stringType}_TO_${type}(text)`,
+      `text : ${stringType} := ${quote}${text}${quote};`,
+    );
+    expect(runtime.diagnostic).toBeNull();
+    expect(value).toEqual({ kind: "scalar", dataType: type, value: expected });
+  });
+
+  it.each([
+    ["TIME", "T#1h75m"],
+    ["LTIME", "LT#1h75m"],
+    ["TIME", "T#1d24h"],
+    ["TIME", "T#1m60s"],
+    ["TIME", "T#1s1000ms"],
+    ["TIME", "T#1ms1000us"],
+    ["TIME", "T#1us1000ns"],
+    ["TIME", "T#2147483647ms1us"],
+    ["TIME", "T#-2147483648ms1ns"],
+    ["REAL", "1E5"],
+    ["REAL", "REAL#1E5"],
+    ["LREAL", "1e5"],
+    ["INT", "-16#FF"],
+    ["INT", "INT#-16#FF"],
+    ["WORD", "+16#FF"],
+    ["INT", "-2#11"],
+    ["WORD", "+2#11"],
+  ])("faults on %s text %s", (type, text) => {
+    const { runtime } = execute(
+      type,
+      `${stringType}_TO_${type}(text)`,
+      `text : ${stringType} := ${quote}${text}${quote};`,
+    );
+    expect(runtime.state).toBe("FAULT");
+    expect(runtime.diagnostic).toMatchObject({ code: "runtime.invalid-value" });
   });
 });

@@ -20,6 +20,11 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Align STRING/WSTRING conversions with current literal rules: TIME accepts `us`
+  and `ns` with truncation toward zero after exact range checks; reject overflowing
+  lower duration components (`T#1h75m`, `LT#1h75m`), exponent-only reals (`1E5`)
+  and signed based literals (`-16#FF`, `+16#FF`), including typed prefixes.
+
 - Reject consecutive or trailing underscores in ST identifiers, real literals
   without a decimal point (`1E5`), signs inside based literals (`INT#-16#FF`),
   and overflowing lower duration components (`T#1h75m`). Reserve `CONTINUE`,
