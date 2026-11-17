@@ -43,10 +43,10 @@ about 4th edition clauses. The checks and project restrictions below are tracked
 
   ```
   FUNCTION_BLOCK Counter
-    VAR_INPUT Step : INT := 1; END_VAR
+    VAR_INPUT Delta : INT := 1; END_VAR
     VAR n : INT; END_VAR
     METHOD PUBLIC Increment
-      n := n + Step;
+      n := n + Delta;
     END_METHOD
     METHOD PUBLIC Value : INT
       Value := n;
@@ -89,7 +89,7 @@ about 4th edition clauses. The checks and project restrictions below are tracked
     allowed only when every parameter is a `VAR_INPUT`. Operands and arguments are
     evaluated left to right.
 - A method cannot call its instance's body: `THIS(...)` is a compile error
-  (restriction). The body is called only as today, `c(Step := 2);`.
+  (restriction). The body is called only as today, `c(Delta := 2);`.
 - `RETURN` leaves the method.
 
 ### Access specifiers

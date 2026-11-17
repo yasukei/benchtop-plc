@@ -6,9 +6,9 @@ import { sampleProject } from "./codec.test.js";
 const stripSource = (xml: string) =>
   xml.replace(new RegExp(`<data name="${SOURCE_NAMESPACE}"[^>]*>[\\s\\S]*?</data>`, "g"), "");
 const block = `FUNCTION_BLOCK Base
-VAR_INPUT Step: INT := 1; END_VAR
+VAR_INPUT Delta: INT := 1; END_VAR
 VAR_OUTPUT Count: INT; END_VAR
-METHOD PUBLIC Tick Count := Count + Step; END_METHOD
+METHOD PUBLIC Tick Count := Count + Delta; END_METHOD
 Tick();
 END_FUNCTION_BLOCK`;
 
@@ -121,8 +121,8 @@ it("round trips forward, transitive inherited constants in bounds and repetition
 it("avoids inherited names when synthesizing a bound-folding declaration", () => {
   const project = sampleProject("PROGRAM Main VAR d: Derived; END_VAR END_PROGRAM");
   project.pous.push(
-    "FUNCTION_BLOCK Derived EXTENDS Base VAR a: ARRAY[1..__RANGE] OF INT; END_VAR END_FUNCTION_BLOCK",
-    "FUNCTION_BLOCK Base VAR CONSTANT __RANGE: INT := 2; END_VAR END_FUNCTION_BLOCK",
+    "FUNCTION_BLOCK Derived EXTENDS Base VAR a: ARRAY[1..Range] OF INT; END_VAR END_FUNCTION_BLOCK",
+    "FUNCTION_BLOCK Base VAR CONSTANT Range: INT := 2; END_VAR END_FUNCTION_BLOCK",
   );
   expect(compileProject(project.pous).diagnostics).toEqual([]);
   const saved = writeProject(project);

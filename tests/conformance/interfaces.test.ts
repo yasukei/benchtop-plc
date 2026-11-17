@@ -4,18 +4,18 @@ import { snapshotVariable } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
 const actuator = `INTERFACE IActuator
-METHOD Start VAR_INPUT step: INT; END_VAR END_METHOD
+METHOD Start VAR_INPUT delta: INT; END_VAR END_METHOD
 METHOD Value : INT END_METHOD
 END_INTERFACE`;
 const valve = `CLASS Valve IMPLEMENTS IActuator
 VAR count: INT; END_VAR
-METHOD PUBLIC Start VAR_INPUT step: INT; END_VAR count := count + step; END_METHOD
+METHOD PUBLIC Start VAR_INPUT delta: INT; END_VAR count := count + delta; END_METHOD
 METHOD PUBLIC Value : INT Value := count; END_METHOD
 END_CLASS`;
 const pump = valve
   .replace("CLASS Valve", "FUNCTION_BLOCK Pump")
   .replace("END_CLASS", "END_FUNCTION_BLOCK")
-  .replace("count + step", "count + step * 2");
+  .replace("count + delta", "count + delta * 2");
 function setup(body: string, declarations = "", extra: string[] = [], types: string[] = []) {
   const compiled = compileProject(
     [
@@ -41,7 +41,7 @@ function setup(body: string, declarations = "", extra: string[] = [], types: str
 
 it("traces Valve and Pump methods through an array of IActuator variables", () => {
   const { runtime, value } = setup(`motors[1] := v; motors[2] := p;
-    motors[1].Start(step := 2); motors[2].Start(step := 3);
+    motors[1].Start(delta := 2); motors[2].Start(delta := 3);
     first := motors[1].Value(); second := motors[2].Value();
     a := motors[1]; b := v; matched := a = b;`);
   runtime.step();
@@ -58,7 +58,7 @@ it("traces Valve and Pump methods through an array of IActuator variables", () =
 it("traces successful and mismatched assignment attempts without a fault", () => {
   const { runtime, value } = setup(
     `a := v; empty ?= a; matched := empty = NULL;
-    b ?= a; b.Start(step := 2); first := b.Value();
+    b ?= a; b.Start(delta := 2); first := b.Value();
     b ?= empty; a ?= NULL;`,
     "empty: IEmpty;",
     ["INTERFACE IEmpty END_INTERFACE"],
@@ -72,7 +72,7 @@ it("traces successful and mismatched assignment attempts without a fault", () =>
 });
 
 it("faults through NULL and preserves bound targets on FAULT", () => {
-  const { runtime, value } = setup("b := v; a.Start(step := 1);");
+  const { runtime, value } = setup("b := v; a.Start(delta := 1);");
   runtime.step();
   expect(runtime.diagnostic?.code).toBe("runtime.null-reference");
   expect(value("b")).toEqual({ kind: "reference", target: "mainInstance.V" });
@@ -81,9 +81,9 @@ it("faults through NULL and preserves bound targets on FAULT", () => {
 it("passes interface input/output/in-out parameters, results and structure leaves", () => {
   const { runtime, value } = setup(
     `record.link := Pass(v);
-    a := record.link; a.Start(step := 4); first := a.Value();
+    a := record.link; a.Start(delta := 4); first := a.Value();
     adapter.Swap(value := a, changed := b, resultValue => record.link);
-    record.link.Start(step := 2); second := b.Value();`,
+    record.link.Start(delta := 2); second := b.Value();`,
     "record: Holder; adapter: Bridge;",
     [
       "FUNCTION Pass : IActuator VAR_INPUT value: IActuator; END_VAR Pass := value; END_FUNCTION",
@@ -121,7 +121,7 @@ it("maps interface prototype parameters to the actual implementation layout", ()
 
 it("binds THIS and calls overrides on actual derived types", () => {
   const { runtime, value } = setup(
-    "a := d.GetSelf(); a.Start(step := 2); first := a.Value();",
+    "a := d.GetSelf(); a.Start(delta := 2); first := a.Value();",
     "d: Derived;",
     [
       valve
@@ -182,7 +182,7 @@ it("binds a global class instance through a global interface variable", () => {
   const compiled = compileProject(
     [
       `PROGRAM Main VAR_EXTERNAL globalValve: Valve; shared: IActuator; END_VAR
-    VAR_OUTPUT observed: INT; END_VAR shared := globalValve; shared.Start(step := 3); observed := shared.Value(); END_PROGRAM`,
+    VAR_OUTPUT observed: INT; END_VAR shared := globalValve; shared.Start(delta := 3); observed := shared.Value(); END_PROGRAM`,
       actuator,
       valve,
     ],
@@ -210,7 +210,7 @@ it("binds a global class instance through a global interface variable", () => {
 
 it("binds grouped instances, THIS and array elements", () => {
   const { runtime, value } = setup(
-    "a := ((v)); a.Start(step := 2); b := (devices[2]); b.Start(step := 3); first := a.Value(); second := b.Value();",
+    "a := ((v)); a.Start(delta := 2); b := (devices[2]); b.Start(delta := 3); first := a.Value(); second := b.Value();",
     "devices: ARRAY[1..2] OF Valve;",
   );
   runtime.step();
@@ -223,7 +223,7 @@ it("binds grouped instances, THIS and array elements", () => {
 
 it("passes interface values through function block input, output, in-out and temporary sections", () => {
   const { runtime, value } = setup(
-    "linker(source := v, outputAlias := b, mirrored => a); a.Start(step := 3); first := b.Value();",
+    "linker(source := v, outputAlias := b, mirrored => a); a.Start(delta := 3); first := b.Value();",
     "linker: Connector;",
     [
       `FUNCTION_BLOCK Connector VAR_INPUT source: IActuator; END_VAR VAR_OUTPUT mirrored: IActuator; END_VAR
@@ -299,7 +299,7 @@ it("aliases configured PROGRAM interface in-outs so retargeting is immediately s
       `PROGRAM Main VAR_IN_OUT a: IActuator; second: IActuator; END_VAR
     VAR_EXTERNAL shared: IActuator; globalValve: Valve; END_VAR
     VAR_OUTPUT observed: INT; identical: BOOL; END_VAR
-    a := globalValve; shared.Start(step := 3); observed := a.Value(); identical := a = second;
+    a := globalValve; shared.Start(delta := 3); observed := a.Value(); identical := a = second;
     END_PROGRAM`,
       actuator,
       valve,
@@ -342,7 +342,7 @@ it("aliases configured PROGRAM interface array cells in both directions", () => 
     VAR_OUTPUT forwarded, reversed: BOOL; observed: INT; END_VAR
     links[i] := globalValve; forwarded := shared[i] = links[i];
     shared[i + 1] := globalPump; reversed := links[i + 1] = shared[i + 1];
-    links[i + 1].Start(step := 3); observed := shared[i + 1].Value();
+    links[i + 1].Start(delta := 3); observed := shared[i + 1].Value();
     END_PROGRAM`,
       actuator,
       valve,

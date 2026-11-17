@@ -227,6 +227,7 @@ function globalConstantScope(
       body: "",
       variables: constants.map((v) => ({ ...v, section: "localVars" })),
     }),
+    true,
   ).ast;
   if (!ast) return undefined;
   const checked = check(ast, new Map(), new Map(), new Map(), types).checked;
@@ -368,6 +369,8 @@ function splitDataType(
         parsing,
         `PROGRAM ${generatedIdentifier("TypeSource", ...wrapperNames)} VAR ${generatedIdentifier("Value", ...wrapperNames)} : ${qualifiedTypeText(source, ast.array)}; END_VAR END_PROGRAM`,
         resolved.types,
+        undefined,
+        legacyNames,
       );
       if (!split.value) fail("project.invalid", `dataType/${ast.name.name}/baseType`);
       type = split.value.variables[0]!.type;
@@ -757,7 +760,8 @@ function readExtensions(
               source.name !== "source" ||
               Object.keys(source.attributes).length ||
               source.children.length ||
-              parsing.pou(source.text).ast?.kind !== "interface"
+              (parsing.pou(source.text).ast ?? parsing.pou(source.text, true).ast)?.kind !==
+                "interface"
             )
               fail("project.invalid", "addData/interfaces/source");
             interfaces.push(source.text);
@@ -1050,6 +1054,9 @@ function readProjectWithContext(parsing: ParsingContext, xml: string): ProjectRe
               const parsed = splitProgramWithContext(
                 parsing,
                 `PROGRAM ${generatedIdentifier("Instance", typeName)} VAR ${generatedIdentifier("Value", typeName)} : ${typeName}; END_VAR END_PROGRAM`,
+                [],
+                undefined,
+                true,
               );
               if (
                 !parsed.value ||

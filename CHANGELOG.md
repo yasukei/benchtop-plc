@@ -20,6 +20,16 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Reject consecutive or trailing underscores in ST identifiers, real literals
+  without a decimal point (`1E5`), signs inside based literals (`INT#-16#FF`),
+  and overflowing lower duration components (`T#1h75m`). Reserve `CONTINUE`,
+  `ACTION`, `END_ACTION`, `INITIAL_STEP`, `STEP`, `END_STEP`, `TRANSITION`,
+  `END_TRANSITION`, `FROM`, `R_EDGE`, `F_EDGE` and `OVERLAP` after auditing the
+  maintainer's extraction from the edition's formal syntax.
+  Older XML projects still open with their exact source as editable drafts and
+  current compiler diagnostics. TIME now accepts `us` and `ns`, truncating values
+  finer than a millisecond toward zero after exact range checks (ADR 0012).
+
 - Follow the standard's FALSE-initialized M for `R_TRIG` and `F_TRIG`, changing
   accepted ST: the first call pulses for `R_TRIG(CLK := TRUE)` and
   `F_TRIG(CLK := FALSE)`. Non-retained instances repeat this startup behavior

@@ -4,16 +4,16 @@ import { snapshotVariable } from "@benchtop-plc/core";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
 const motor = `FUNCTION_BLOCK Motor IMPLEMENTS IDrive
-VAR_INPUT step: INT; END_VAR VAR_OUTPUT count: INT; END_VAR
+VAR_INPUT delta: INT; END_VAR VAR_OUTPUT count: INT; END_VAR
 METHOD PUBLIC Start count := count + 1; END_METHOD
 METHOD PUBLIC Value : INT Value := count; END_METHOD
 METHOD PUBLIC Identity : REF_TO Motor Identity := REF(THIS); END_METHOD
-count := count + step;
+count := count + delta;
 END_FUNCTION_BLOCK`;
 const servo = `FUNCTION_BLOCK ServoMotor EXTENDS Motor
 VAR extra: INT := 10; END_VAR
 METHOD PUBLIC OVERRIDE Start count := count + extra; END_METHOD
-count := count + step * 2;
+count := count + delta * 2;
 END_FUNCTION_BLOCK`;
 const face = "INTERFACE IDrive METHOD Start END_METHOD METHOD Value : INT END_METHOD END_INTERFACE";
 function setup(body: string, declarations = "", extra: string[] = []) {
@@ -58,7 +58,7 @@ it("passes REF_TO Motor into a function and dispatches Start on ServoMotor", () 
 
 it("runs the derived body through a base reference and copies outputs", () => {
   const { runtime, value } = setup(
-    "r := REF(devices[2]); r^(step := 3, count => first); second := r^.count;",
+    "r := REF(devices[2]); r^(delta := 3, count => first); second := r^.count;",
   );
   runtime.step();
   expect(runtime.diagnostic).toBeNull();
@@ -88,7 +88,7 @@ it("casts between references and interfaces using the actual type, or yields NUL
   expect(value("r")).toEqual({ kind: "reference", target: null });
 });
 
-it.each(["r^.Start();", "r^(step := 1);", "first := r^.count;", "a := r^;"])(
+it.each(["r^.Start();", "r^(delta := 1);", "first := r^.count;", "a := r^;"])(
   "faults on a NULL instance reference: %s",
   (body) => {
     const { runtime, value } = setup("d := REF(s); " + body);

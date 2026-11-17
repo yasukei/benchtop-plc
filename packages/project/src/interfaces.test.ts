@@ -35,6 +35,39 @@ it("opens without the interface record and reports unknown interface-typed varia
   );
 });
 
+it.each(
+  ["Step", "__start", "Start_"].flatMap((name) =>
+    ["Start", "amount"].map((original) => [name, original] as const),
+  ),
+)(
+  "preserves legacy interface identifier %s in place of %s and its dependents",
+  (name, original) => {
+    const project = sampleProject(main);
+    project.pous = [
+      face.replace("Start END_METHOD", "Start VAR_INPUT amount: INT; END_VAR END_METHOD"),
+      main.replace("a.Start()", "a.Start(amount := 1)"),
+      valve.replace("Start END_METHOD", "Start VAR_INPUT amount: INT; END_VAR END_METHOD"),
+    ];
+    project.dataTypes.push("TYPE Holder : STRUCT link: IActuator; END_STRUCT; END_TYPE");
+    const saved = writeProject(project);
+    expect(saved.diagnostics).toEqual([]);
+    const opened = readProject(saved.value!.replaceAll(original, name));
+    expect(opened.diagnostics).toEqual([]);
+    expect(opened.value?.pous).toEqual(
+      project.pous.map((source) => source.replaceAll(original, name)),
+    );
+    expect(opened.value?.dataTypes).toEqual(project.dataTypes);
+    const compiled = compileProject(opened.value!.pous, opened.value!.dataTypes);
+    expect(compiled.ir).toBeUndefined();
+    expect(compiled.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: name === "Step" ? "syntax.reserved-identifier" : "lex.invalid-identifier",
+      }),
+    );
+    expect(writeProject(opened.value!).value).toBeNull();
+  },
+);
+
 it.each([
   ['version="1"><source>INTERFACE', 'version="2"><source>INTERFACE'],
   ["<source>INTERFACE", '<source bad="1">INTERFACE'],

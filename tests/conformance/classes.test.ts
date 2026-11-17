@@ -133,12 +133,12 @@ it("traces public nested scalar members and calls block arrays through a class",
   const { runtime, value } = setup([
     `PROGRAM Main VAR h: Holder; seen: INT; ready: BOOL; END_VAR
     h.item.x := 3; seen := h.item.x;
-    h.blocks[1](Step := 4); h.timers[2](IN := TRUE, PT := T#0s, Q => ready);
+    h.blocks[1](Delta := 4); h.timers[2](IN := TRUE, PT := T#0s, Q => ready);
     END_PROGRAM`,
     `CLASS Holder VAR PUBLIC item: Child; blocks: ARRAY[1..2] OF CountBlock;
     timers: ARRAY[1..2] OF TON; END_VAR END_CLASS`,
     "CLASS Child VAR PUBLIC x: INT; END_VAR END_CLASS",
-    "FUNCTION_BLOCK CountBlock VAR_INPUT Step: INT; END_VAR VAR n: INT; END_VAR n := n + Step; END_FUNCTION_BLOCK",
+    "FUNCTION_BLOCK CountBlock VAR_INPUT Delta: INT; END_VAR VAR n: INT; END_VAR n := n + Delta; END_FUNCTION_BLOCK",
   ]);
   runtime.step();
   expect(runtime.diagnostic).toBeNull();

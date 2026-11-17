@@ -2,16 +2,16 @@ import { expect, it } from "vitest";
 import { compileProject } from "./index.js";
 
 const motor = `FUNCTION_BLOCK Motor
-VAR_INPUT step: INT; END_VAR VAR_OUTPUT count: INT; END_VAR
+VAR_INPUT delta: INT; END_VAR VAR_OUTPUT count: INT; END_VAR
 VAR PUBLIC speed: INT; END_VAR VAR secret: INT; END_VAR
 METHOD Hidden END_METHOD
-METHOD PUBLIC Start count := count + step; END_METHOD
+METHOD PUBLIC Start count := count + delta; END_METHOD
 METHOD PUBLIC Value : INT Value := count; END_METHOD
-count := count + step;
+count := count + delta;
 END_FUNCTION_BLOCK`;
 const servo = `FUNCTION_BLOCK Servo EXTENDS Motor
 METHOD PUBLIC OVERRIDE Value : INT Value := 99; END_METHOD
-count := count + step * 2;
+count := count + delta * 2;
 END_FUNCTION_BLOCK`;
 const face = "INTERFACE IDrive METHOD Start END_METHOD METHOD Value : INT END_METHOD END_INTERFACE";
 function compile(body: string, declarations = "", extra: string[] = [], types: string[] = []) {
@@ -28,7 +28,7 @@ function compile(body: string, declarations = "", extra: string[] = [], types: s
 
 it("lowers references to user blocks and classes, aliases, members, methods and body calls", () => {
   const result = compile(
-    "r := REF(s); d := REF(s); r := d; r^.speed := 4; r^.Start(); r^(step := 2); b := r = d; b := d <> r; c := REF(v); c^.Open();",
+    "r := REF(s); d := REF(s); r := d; r^.speed := 4; r^.Start(); r^(delta := 2); b := r = d; b := d <> r; c := REF(v); c^.Open();",
     "v: Valve; c: ValveRef;",
     ["CLASS Valve METHOD PUBLIC Open END_METHOD END_CLASS"],
     ["TYPE ValveRef : REF_TO Valve; END_TYPE"],

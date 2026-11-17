@@ -81,6 +81,7 @@ const examples = {
   "lex.invalid-string-escape": {},
   "lex.invalid-string-character": {},
   "lex.invalid-character": { character: "@" },
+  "lex.invalid-identifier": { name: "a__b" },
   "lex.malformed-direct-address": { address: "%IX0." },
   "lex.malformed-number": { literal: "16#GG" },
   "syntax.expected-token": { expected: ";", found: "END_PROGRAM" },

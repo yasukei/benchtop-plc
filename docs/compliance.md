@@ -24,12 +24,13 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Common elements
 
-| Feature                       | Status | Notes                                                                                                        |
-| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------ |
-| Comments `(* *)`, nested      | Yes    | [Conformance cases](../tests/conformance/comments.test.ts): nested blocks, delimiters in strings, LF/CRLF/CR |
-| Comments `//`                 | Yes    | [Conformance cases](../tests/conformance/comments.test.ts): line endings, delimiters in strings and EOF      |
-| Pragmas `{ }`                 | No     |                                                                                                              |
-| Identifiers, case-insensitive | Yes    |                                                                                                              |
+| Feature                       | Status | Notes                                                                                                                                                                                                                                            |
+| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Comments `(* *)`, nested      | Yes    | [Conformance cases](../tests/conformance/comments.test.ts): nested blocks, delimiters in strings, LF/CRLF/CR                                                                                                                                     |
+| Comments `//`                 | Yes    | [Conformance cases](../tests/conformance/comments.test.ts): line endings, delimiters in strings and EOF                                                                                                                                          |
+| Pragmas `{ }`                 | No     |                                                                                                                                                                                                                                                  |
+| Identifiers, case-insensitive | Yes    | Single leading underscore allowed; consecutive/trailing underscores rejected (3rd edition, 6.1.2). CONTINUE is reserved; its statement is unsupported.                                                                                           |
+| Reserved keywords             | Yes    | Audited against the maintainer's 127-word extraction from the formal syntax of JIS B 3503:2016, including TRUE/FALSE; unsupported constructs' words remain reserved. See the [audit and reference fixture](compiler-parser.md#source-and-names). |
 
 ## Elementary data types
 
@@ -49,17 +50,17 @@ Status: **Yes** – supported · **Partial** – supported with the limits in No
 
 ## Literals
 
-| Feature                                          | Status  | Notes                                                                                                                                                               |
-| ------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Integer literals, decimal, `2#` and `16#`        | Partial | Exact constants, typed by position (ADR 0013); checked against the resulting type                                                                                   |
-| Octal literals `8#`                              | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number`                                                                                 |
-| Real literals with exponent                      | Yes     |                                                                                                                                                                     |
-| Boolean literals `TRUE`, `FALSE`                 | Yes     |                                                                                                                                                                     |
-| Boolean literals `0`, `1`                        | Yes     | Integer constants in BOOL positions                                                                                                                                 |
-| Duration literals `T#`, `TIME#`, `LT#`, `LTIME#` | Yes     | Units d/h/m/s/ms, plus us/ns for LTIME; exact range checks precede TIME truncation                                                                                  |
-| Typed literals `<type>#<value>`                  | Partial | All supported elementary types; based integer and bit-string forms included                                                                                         |
-| Date and time-of-day literals                    | Yes     | All short and full prefixes; unpadded fields and underscore separators; Gregorian dates, precision and ranges checked                                               |
-| String and character literals                    | Yes     | Single/double quotes, typed prefixes, dollar escapes; CHAR/WCHAR require one code unit (ADR 0015); [escape conformance cases](../tests/conformance/strings.test.ts) |
+| Feature                                          | Status  | Notes                                                                                                                                                                                                                                    |
+| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Integer literals, decimal, `2#` and `16#`        | Partial | Exact constants, typed by position (ADR 0013); based forms are unsigned (`-16#FF` is a unary expression); checked against the resulting type                                                                                             |
+| Octal literals `8#`                              | Never   | Removed in the 4th edition (secondary source); rejected with `lex.malformed-number`                                                                                                                                                      |
+| Real literals with exponent                      | Yes     | Decimal point and fractional digits required, including before an exponent (3rd edition, 6.3.2).                                                                                                                                         |
+| Boolean literals `TRUE`, `FALSE`                 | Yes     |                                                                                                                                                                                                                                          |
+| Boolean literals `0`, `1`                        | Yes     | Integer constants in BOOL positions                                                                                                                                                                                                      |
+| Duration literals `T#`, `TIME#`, `LT#`, `LTIME#` | Yes     | Units d/h/m/s/ms/us/ns for TIME and LTIME; exact range checks precede TIME truncation toward zero. Only the largest unit may overflow (lower-unit limits are the requirement in #231; supplied text confirms largest-unit overflow only) |
+| Typed literals `<type>#<value>`                  | Partial | All supported elementary types; based integer and bit-string forms included                                                                                                                                                              |
+| Date and time-of-day literals                    | Yes     | All short and full prefixes; unpadded fields and underscore separators; Gregorian dates, precision and ranges checked                                                                                                                    |
+| String and character literals                    | Yes     | Single/double quotes, typed prefixes, dollar escapes; CHAR/WCHAR require one code unit (ADR 0015); [escape conformance cases](../tests/conformance/strings.test.ts)                                                                      |
 
 ## Derived types and variables
 

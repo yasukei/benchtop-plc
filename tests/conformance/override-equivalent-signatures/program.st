@@ -5,6 +5,6 @@ VAR
   formatted: STRING[20];
 END_VAR
 link := REF(device);
-count := link^.Count(step := 3, text := '12');
-formatted := link^.Format(step := 3, text := 'value');
+count := link^.Count(delta := 3, text := '12');
+formatted := link^.Format(delta := 3, text := 'value');
 END_PROGRAM

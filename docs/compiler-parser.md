@@ -27,6 +27,21 @@ exclusive ends; LF, CRLF and CR each count as one line break. Tabs count as one
 column. EOF has an empty span. Whitespace, line comments and arbitrarily nested
 `(* ... *)` comments are discarded while still updating positions.
 
+Identifiers may start with a letter or a single underscore. Consecutive and
+trailing underscores are rejected with `lex.invalid-identifier` (3rd edition,
+6.1.2). Reserved words, including unsupported `CONTINUE`, cannot be used as names.
+
+The keyword audit uses the maintainer's extraction of 127 words from the formal
+syntax of JIS B 3503:2016, including TRUE and FALSE; no separate keyword table was
+available. The [reference fixture](../tests/conformance/fixtures/edition3-keywords.txt)
+is checked independently of the lexer word list in
+[conformance tests](../tests/conformance/lexical.test.ts). The audit added CONTINUE,
+ACTION, END_ACTION, INITIAL_STEP, STEP, END_STEP, TRANSITION, END_TRANSITION, FROM,
+R_EDGE, F_EDGE and OVERLAP. These words are reserved even though their constructs
+may be unsupported. TRUE and FALSE remain Boolean tokens and cannot name a
+declaration; `isKeyword` classifies them as reserved too. EN and ENO remain reserved
+for the existing execution-control rules.
+
 All AST nodes have spans, including declaration names, type names, addresses,
 conditional and CASE branches, labels and named FB inputs. Statement spans include
 their terminating semicolon; program spans end after `END_PROGRAM` (an optional
@@ -43,6 +58,17 @@ condition reports `syntax.expected-token`; EOF or an enclosing `END_*` in that
 position reports `syntax.missing-end` for `END_REPEAT`.
 
 ## Syntax and values
+
+Real literals require a decimal point and fractional digits (`1.0E5`, not `1E5`).
+Based literals are unsigned: `INT#-16#FF` is rejected, while `-16#FF` is a unary
+expression. These rules follow the 3rd edition numeric-literal rules.
+TIME and LTIME accept d/h/m/s/ms/us/ns. Only the first unit may exceed its usual
+limit; subsequent h/m/s/ms/us/ns components must be below 24/60/60/1000/1000/1000,
+even when intervening units are omitted. The smallest component may be fractional.
+TIME truncates sub-millisecond resolution toward zero after exact range checking
+(ADR 0012). The lower-component limits follow the requirement in issue #231;
+the supplied standard excerpt confirms overflow in the largest unit but does not
+explicitly prohibit overflow in smaller units.
 
 One textual `PROGRAM` is accepted, with zero or more `VAR` blocks followed by its
 statements. Declarations retain grouped names, optional `AT` addresses, type names
@@ -79,7 +105,7 @@ integers support underscores between digits. Octal `8#` is rejected. Reals suppo
 decimal points and signed exponents. BOOL/INT/DINT/UINT/REAL/LREAL typed literals
 are single tokens with a `dataType`, including `INT#-5` and `UINT#16#FF`.
 TIME/T durations have an optional sign after `#` and descending, nonrepeated
-d/h/m/s/ms components, optionally separated by a single underscore. Only the final
+d/h/m/s/ms/us/ns components, optionally separated by a single underscore. Only the final
 component may be fractional; values are milliseconds. Signs on untyped numbers
 remain unary operators. Address components must be safe integers; values outside
 that limit produce `lex.malformed-direct-address`. Duration magnitudes are
@@ -207,7 +233,11 @@ sections are errors. These seven new keywords are reserved: `METHOD`, `END_METHO
 
 The optional `legacyNames` parser/lexer argument is used only to validate syntax
 when importing older project files. Compilation and editor parsing always use the
-current reserved words. Import does not make such source executable.
+current reserved words. Import first retains existing OO syntax keywords while
+accepting the older lexical forms, then falls back to the earlier keyword grammar.
+This also preserves legacy interface prototypes and dependent sources as editable
+drafts. Draft interfaces remain unknown to normal type resolution until repaired.
+Import does not make such source executable.
 
 ## Class syntax
 

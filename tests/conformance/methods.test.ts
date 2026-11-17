@@ -4,12 +4,12 @@ import { compileProject } from "@benchtop-plc/compiler";
 import { createRuntime, VirtualClock, VirtualTicker } from "@benchtop-plc/runtime";
 
 const counter = `FUNCTION_BLOCK Counter
-VAR_INPUT Step: INT := 1; END_VAR
+VAR_INPUT Delta: INT := 1; END_VAR
 VAR n: INT; END_VAR
 METHOD PUBLIC Increment
  VAR incrementLocal: INT := 10; END_VAR
  incrementLocal := incrementLocal + 1;
- n := n + Step + incrementLocal - 11;
+ n := n + Delta + incrementLocal - 11;
 END_METHOD
 METHOD PUBLIC Reset n := 0; RETURN; n := 99; END_METHOD
 METHOD PUBLIC Value : INT Value := THIS.n; END_METHOD
@@ -41,7 +41,7 @@ function setup(sources: string[]) {
 it("traces persistent counts, independent instances, fresh locals and last body inputs", () => {
   const { ir, scan } = setup([
     `PROGRAM Main VAR a,b: Counter; x,y: INT; END_VAR
-  a(Step := 2); a.Increment(); a.Increment(); b.Reset(); b.Increment();
+  a(Delta := 2); a.Increment(); a.Increment(); b.Reset(); b.Increment();
   x := a.Value(); y := b.Value(); END_PROGRAM`,
     counter,
   ]);
@@ -156,13 +156,13 @@ it("executes THIS-qualified scalar and indexed member bodies with outputs and al
     METHOD PUBLIC Run
       THIS.timer(IN := TRUE, PT := LTIME#0s);
       THIS.items[i](IN := THIS.timer.Q, PT := LTIME#0s, Q => THIS.ready);
-      THIS.inner(Step := 3, Acc := THIS.total);
+      THIS.inner(Delta := 3, Acc := THIS.total);
     END_METHOD
     METHOD PUBLIC Count : INT Count := total; END_METHOD
     METHOD PUBLIC Done : BOOL Done := ready; END_METHOD
     END_FUNCTION_BLOCK`,
-    `FUNCTION_BLOCK InnerBlock VAR_INPUT Step: INT; END_VAR VAR_IN_OUT Acc: INT; END_VAR
-    Acc := Acc + Step; END_FUNCTION_BLOCK`,
+    `FUNCTION_BLOCK InnerBlock VAR_INPUT Delta: INT; END_VAR VAR_IN_OUT Acc: INT; END_VAR
+    Acc := Acc + Delta; END_FUNCTION_BLOCK`,
   ]);
   expect(scan()).toMatchObject({ seen: 3, done: true });
   expect(scan()).toMatchObject({ seen: 6, done: true });

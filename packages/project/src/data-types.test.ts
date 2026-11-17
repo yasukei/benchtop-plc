@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { compileProject } from "@benchtop-plc/compiler";
-import { readProject, writeProject, SOURCE_NAMESPACE, type Project } from "./index.js";
+import {
+  readProject,
+  writeProject,
+  splitProgram,
+  SOURCE_NAMESPACE,
+  type Project,
+} from "./index.js";
 
 const dataTypes = [
   "// exact spelling\r\ntype State : (Idle, Running, Done) := Running; end_type;\r\n",
@@ -254,14 +260,29 @@ it("rejects declaration text injected through a derived name", () => {
   expect(readProject(xml).value).toBeNull();
 });
 
-it("does not reserve synthetic checker names in user source", () => {
+it("keeps user range names distinct from synthetic checker names", () => {
   const value = project(
-    ["TYPE __RANGE_ : INT; END_TYPE"],
+    ["TYPE _RangeType : INT; END_TYPE"],
     [
-      "PROGRAM Main VAR CONSTANT __RANGE : INT := 10; END_VAR VAR x : INT (0..__RANGE); END_VAR END_PROGRAM",
+      "PROGRAM Main VAR CONSTANT _Range : INT := 10; END_VAR VAR x : INT (0.._Range); END_VAR END_PROGRAM",
     ],
   );
   expect(readProject(save(value)).value).toEqual(value);
+});
+
+it("avoids synthetic checker name collisions when exchanging legacy declarations", () => {
+  const source =
+    "PROGRAM Main VAR CONSTANT __RANGE : INT := 10; END_VAR VAR x : INT (0..__RANGE); END_VAR END_PROGRAM";
+  const result = splitProgram(
+    source,
+    [{ name: "__RANGE_", definition: { kind: "alias", type: "INT" }, initialValue: 0 }],
+    undefined,
+    true,
+  );
+  expect(result.diagnostics).toEqual([]);
+  expect(result.value?.variables).toContainEqual(
+    expect.objectContaining({ name: "x", type: "INT (0..10)" }),
+  );
 });
 
 it.each(["unknown : MissingType", "n : INT := missing"])(
