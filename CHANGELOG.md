@@ -20,6 +20,10 @@ Until 1.0.0, any release may break compatibility, including saved project files.
 
 ### Changed
 
+- Use ports 14273 and 14274 by default for the app and Pages browser test suites.
+  Allow overrides with `E2E_PORT` and `E2E_PAGES_PORT` and require
+  `PW_REUSE_SERVER=1` to reuse an existing local preview server.
+
 - Align STRING/WSTRING conversions with current literal rules: TIME accepts `us`
   and `ns` with truncation toward zero after exact range checks; reject overflowing
   lower duration components (`T#1h75m`, `LT#1h75m`), exponent-only reals (`1E5`)

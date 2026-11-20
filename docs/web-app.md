@@ -282,11 +282,10 @@ pnpm exec playwright install --with-deps chromium firefox webkit
 pnpm test:e2e
 ```
 
-Locally, Playwright builds all packages first; when `CI` is set, it reuses the
-bundle from an earlier `pnpm build`. The CI workflow runs that build before e2e;
-do the same when running with `CI` set locally. In both cases, Playwright serves
-the production bundle on port 4173. The tests exercise the actual bundled Worker:
-RUN/STOP, scans, reset, theme, narrow
+By default, Playwright builds all packages locally and serves the production
+bundle on port 14273. Set `E2E_PORT` to override the port. With `CI` set,
+`pnpm test:e2e` serves the bundle from an earlier `pnpm build`. The tests
+exercise the actual bundled Worker, including RUN/STOP, scans, reset, theme, narrow
 layout, a Worker startup failure, non-fatal rejected debug commands, localized
 editor diagnostics, indentation, source application, changing reference-program
 values and runtime fault lines. CI runs the full suite in Chromium and only the
@@ -312,8 +311,13 @@ the ref to deploy, for re-deployments or hotfix tags. See
 [ADR 0019](adr/0019-static-hosting-and-release-deployments.md) for the release
 procedure. `pnpm dev`, `pnpm build` and `pnpm test:e2e` keep using `/`.
 `pnpm test:e2e:pages` builds the Pages bundle, serves it with `vite preview` at
-`http://127.0.0.1:4174/benchtop-plc/` and runs `smoke.spec.ts` against it, so a
-URL that ignores the sub-path fails CI.
+`http://127.0.0.1:14274/benchtop-plc/` and runs `smoke.spec.ts` against it, so a
+URL that ignores the sub-path fails CI. Set `E2E_PAGES_PORT` to override port 14274.
+
+Both port overrides accept integers from 1 to 65535. A suite fails by default
+when its port is occupied. Set `PW_REUSE_SERVER=1` to reuse an existing preview
+of this app at the configured URL during local runs. CI always starts its own
+preview server.
 
 Client and store unit tests use a fake Worker. Host tests use the real runtime
 with its virtual clock and ticker, without React or a browser.

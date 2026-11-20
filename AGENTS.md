@@ -73,8 +73,13 @@ On Linux, if browser system libraries are missing, use
 `pnpm exec playwright install --with-deps chromium firefox webkit`. CI keeps
 Chromium headless with `pnpm exec playwright install --with-deps --only-shell chromium`
 and installs the other engines with `pnpm exec playwright install --with-deps firefox webkit`.
-For local runs without `CI` set, both suites build and start their own preview
-server; CI builds before running `test:e2e`.
+By default, local runs build the app and start a preview server. `pnpm test:e2e`
+uses port 14273 and `pnpm test:e2e:pages` uses port 14274. Set `E2E_PORT` or
+`E2E_PAGES_PORT`, respectively, to override the port. Port overrides must be
+integers from 1 to 65535. If the port is in use, the suite fails. To reuse a
+preview of this app already running at the configured URL, set
+`PW_REUSE_SERVER=1`. CI always starts its own server and builds before running
+`test:e2e`.
 
 If a container has a preinstalled Chromium of another version, Playwright may
 report "Executable doesn't exist" because it expects its own browser revision.
